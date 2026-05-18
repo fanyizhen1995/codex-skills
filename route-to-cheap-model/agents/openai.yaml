@@ -1,0 +1,4 @@
+interface:
+  display_name: "便宜模型分流"
+  short_description: "将简单纯文本任务分流给便宜模型"
+  default_prompt: "使用 $route-to-cheap-model 处理这个适合分流的简单纯文本任务。"
