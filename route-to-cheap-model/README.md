@@ -17,6 +17,7 @@ skill 本体位于：
 
 ```text
 route-to-cheap-model/
+├── AGENTS.routing.md
 ├── SKILL.md
 ├── agents/openai.yaml
 └── scripts/
@@ -32,6 +33,14 @@ route-to-cheap-model/
 - `OPENAI_API_KEY`
 
 默认分流模型为 `gpt-5.4-mini`。通常不需要额外环境变量。
+
+脚本默认写入 JSONL 审计日志：
+
+```text
+~/.agents/skills/route-to-cheap-model/logs/route.jsonl
+```
+
+每次真实调用都会记录任务、模型、输入长度、输出长度、usage 和成功状态。这个日志只能证明“发生过分流”；如果 Codex 没触发 skill，就不会有日志。
 
 ## 安装
 
@@ -77,6 +86,25 @@ python3 ~/.agents/skills/route-to-cheap-model/scripts/route.py \
   --input "$TEXT"
 ```
 
+禁用本次审计日志：
+
+```bash
+python3 ~/.agents/skills/route-to-cheap-model/scripts/route.py \
+  --task "只回复 OK" \
+  --input "测试" \
+  --no-log
+```
+
+## 项目级分流策略
+
+如果希望某个项目更积极地使用该 skill，可以把本目录的 `AGENTS.routing.md` 内容合并到目标项目根目录的 `AGENTS.md`。
+
+```bash
+cp route-to-cheap-model/AGENTS.routing.md /path/to/project/AGENTS.md
+```
+
+如果目标项目已经有 `AGENTS.md`，不要直接覆盖，把其中的分流策略段落追加进去即可。这样能提高 Codex 在 README 草稿、commit message、摘要、翻译、分类、字段抽取等局部纯文本子任务上主动分流的概率。
+
 ## 可选配置
 
 通常不需要配置环境变量。以下变量只用于覆盖默认行为：
@@ -89,6 +117,7 @@ python3 ~/.agents/skills/route-to-cheap-model/scripts/route.py \
 - `CHEAP_MODEL_MAX_TOKENS`：默认 `512`
 - `CHEAP_MODEL_TEMPERATURE`：默认 `0`
 - `CHEAP_MODEL_TIMEOUT`：默认 `60`
+- `CHEAP_MODEL_LOG_FILE`：覆盖 JSONL 审计日志路径
 
 ## 验证
 

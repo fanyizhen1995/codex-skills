@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 import sys
@@ -17,6 +18,9 @@ DEFAULT_MAX_INPUT_CHARS = 12_000
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TIMEOUT = 60
 DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_LOG_FILE = (
+    Path.home() / ".agents" / "skills" / "route-to-cheap-model" / "logs" / "route.jsonl"
+)
 
 SYSTEM_PROMPT = """You are a low-cost assistant handling a bounded text-only subtask.
 Return only the requested answer. Do not claim to have inspected files, run tools,
@@ -72,6 +76,16 @@ def parse_args() -> argparse.Namespace:
         "--json",
         action="store_true",
         help="Print a JSON object with content, model, and usage.",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=os.getenv("CHEAP_MODEL_LOG_FILE", str(DEFAULT_LOG_FILE)),
+        help="JSONL audit log path. Defaults to the installed skill logs directory.",
+    )
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Disable JSONL audit logging for this invocation.",
     )
     return parser.parse_args()
 
@@ -297,8 +311,55 @@ def extract_content(payload: dict) -> str:
     raise ApiError("API response did not include message content")
 
 
+def now_utc_iso() -> str:
+    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+
+
+def write_audit_log(args: argparse.Namespace, event: dict) -> None:
+    if args.no_log:
+        return
+    log_file = Path(args.log_file).expanduser()
+    try:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        with log_file.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True))
+            handle.write("\n")
+    except OSError as exc:
+        print(f"route-to-cheap-model: failed to write audit log: {exc}", file=sys.stderr)
+
+
+def build_audit_event(
+    *,
+    args: argparse.Namespace,
+    config: dict | None,
+    input_text: str | None,
+    content: str | None,
+    response: dict | None,
+    success: bool,
+    error: str | None = None,
+) -> dict:
+    event = {
+        "ts": now_utc_iso(),
+        "task": args.task,
+        "model": config.get("model") if config else args.model,
+        "wire_api": config.get("wire_api") if config else None,
+        "input_chars": len(input_text) if input_text is not None else None,
+        "output_chars": len(content) if content is not None else None,
+        "success": success,
+    }
+    if response is not None:
+        event["usage"] = response.get("usage")
+    if error:
+        event["error"] = error
+    return event
+
+
 def main() -> int:
     args = parse_args()
+    config = None
+    input_text = None
+    response = None
+    content = None
     try:
         config = resolve_config(args)
         base_url = config["base_url"]
@@ -314,8 +375,32 @@ def main() -> int:
         response = call_api(url, api_key, payload, args.timeout)
         content = extract_content(response)
     except (ConfigError, ApiError) as exc:
+        write_audit_log(
+            args,
+            build_audit_event(
+                args=args,
+                config=config,
+                input_text=input_text,
+                content=content,
+                response=response,
+                success=False,
+                error=str(exc),
+            ),
+        )
         print(f"route-to-cheap-model: {exc}", file=sys.stderr)
         return 1
+
+    write_audit_log(
+        args,
+        build_audit_event(
+            args=args,
+            config=config,
+            input_text=input_text,
+            content=content,
+            response=response,
+            success=True,
+        ),
+    )
 
     if args.json:
         print(

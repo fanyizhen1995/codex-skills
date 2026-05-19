@@ -250,6 +250,89 @@ wire_api = "responses"
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("backend unavailable", result.stderr)
 
+    def test_writes_success_audit_log(self):
+        with tempfile.TemporaryDirectory() as tmpdir, running_server() as base_url:
+            log_file = Path(tmpdir) / "route.jsonl"
+            result = self.run_script(
+                [
+                    "--task",
+                    "Summarize",
+                    "--input",
+                    "text",
+                    "--log-file",
+                    str(log_file),
+                ],
+                env={
+                    "CHEAP_MODEL_BASE_URL": base_url,
+                    "CHEAP_MODEL_NAME": "cheap/test-model",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            events = [
+                json.loads(line)
+                for line in log_file.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event["task"], "Summarize")
+        self.assertEqual(event["model"], "cheap/test-model")
+        self.assertEqual(event["wire_api"], "chat")
+        self.assertEqual(event["input_chars"], 4)
+        self.assertEqual(event["output_chars"], len("mocked cheap model answer"))
+        self.assertTrue(event["success"])
+        self.assertEqual(event["usage"], {"prompt_tokens": 12, "completion_tokens": 5})
+
+    def test_writes_failure_audit_log(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = Path(tmpdir) / "route.jsonl"
+            result = self.run_script(
+                [
+                    "--task",
+                    "Summarize",
+                    "--input",
+                    "text",
+                    "--log-file",
+                    str(log_file),
+                ]
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            events = [
+                json.loads(line)
+                for line in log_file.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event["task"], "Summarize")
+        self.assertFalse(event["success"])
+        self.assertIn("CHEAP_MODEL_BASE_URL", event["error"])
+        self.assertIsNone(event["input_chars"])
+
+    def test_no_log_disables_audit_log(self):
+        with tempfile.TemporaryDirectory() as tmpdir, running_server() as base_url:
+            log_file = Path(tmpdir) / "route.jsonl"
+            result = self.run_script(
+                [
+                    "--task",
+                    "Summarize",
+                    "--input",
+                    "text",
+                    "--log-file",
+                    str(log_file),
+                    "--no-log",
+                ],
+                env={
+                    "CHEAP_MODEL_BASE_URL": base_url,
+                    "CHEAP_MODEL_NAME": "cheap/test-model",
+                },
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(log_file.exists())
+
 
 class running_server:
     def __enter__(self):
