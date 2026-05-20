@@ -1,6 +1,6 @@
 # codex-skills
 
-可复用的 Codex skills 集合。
+可复用的 Codex skills 和配套工具集合。
 
 ## 目录结构
 
@@ -14,11 +14,20 @@ skill-name/
 └── scripts/
 ```
 
+非 skill 的配套工具使用独立目录，但不包含 `SKILL.md`。
+
 ## Skill 索引
 
 | Skill | 说明 |
 | --- | --- |
+| [long-running-experiment](./long-running-experiment/README.md) | 长时间实验和验证任务的低日志上下文工作流。 |
 | [route-to-cheap-model](./route-to-cheap-model/README.md) | 将简单、低风险、纯文本任务分流给便宜模型处理。 |
+
+## Tool 索引
+
+| Tool | 说明 |
+| --- | --- |
+| [codex-model-router](./codex-model-router/README.md) | 部署在 Codex 和 sub2api 之间的 OpenAI-compatible 模型路由代理。 |
 
 ## 让 Codex 安装
 
@@ -28,6 +37,10 @@ skill-name/
 
 ```text
 请使用 skill-installer 从 GitHub 仓库 fanyizhen1995/codex-skills 安装 route-to-cheap-model skill。仓库路径是 route-to-cheap-model。安装完成后告诉我需要重启 Codex。
+```
+
+```text
+请使用 skill-installer 从 GitHub 仓库 fanyizhen1995/codex-skills 安装 long-running-experiment skill。仓库路径是 long-running-experiment。安装完成后告诉我需要重启 Codex。
 ```
 
 也可以使用完整 URL：
@@ -50,6 +63,10 @@ https://github.com/fanyizhen1995/codex-skills/tree/main/route-to-cheap-model
 
 ```text
 请把当前项目中的 route-to-cheap-model skill 安装到我的 Codex skills 目录。skill 目录是 ./route-to-cheap-model。安装完成后告诉我需要重启 Codex。
+```
+
+```text
+请把当前项目中的 long-running-experiment skill 安装到我的 Codex skills 目录。skill 目录是 ./long-running-experiment。安装完成后告诉我需要重启 Codex。
 ```
 
 安装本地项目下所有 skills：

@@ -1,0 +1,4 @@
+interface:
+  display_name: "长时间实验"
+  short_description: "长实验和验证流程减少日志上下文"
+  default_prompt: "使用 $long-running-experiment 运行这个长时间验证任务，完整日志落盘，只汇报结构化摘要和证据。"

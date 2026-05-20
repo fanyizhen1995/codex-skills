@@ -1,0 +1,27 @@
+[Unit]
+Description=Codex Model Router Proxy
+After=network-online.target sub2api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=codex-router
+Group=codex-router
+WorkingDirectory=/opt/codex-model-router
+Environment=ROUTER_HOST=0.0.0.0
+Environment=ROUTER_PORT=8787
+Environment=UPSTREAM_BASE_URL=http://127.0.0.1:8080/v1
+Environment=DEFAULT_MODEL=gpt-5.5
+Environment=CHEAP_MODEL=gpt-5.4-mini
+Environment=MAX_CHEAP_INPUT_CHARS=8000
+Environment=MAX_SHADOW_LAST_USER_CHARS=4000
+Environment=ROUTER_SHADOW_MODE=true
+Environment=ROUTER_LOG_FILE=/var/log/codex-router/route.jsonl
+ExecStart=/usr/bin/python3 /opt/codex-model-router/router.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
