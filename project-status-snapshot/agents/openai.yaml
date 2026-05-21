@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Status Snapshot"
+  short_description: "Recover project state and next actions from local evidence."
+  default_prompt: "Summarize the current project status, recent work, blockers, and recommended next steps from the repository and available Codex history."

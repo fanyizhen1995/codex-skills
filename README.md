@@ -21,6 +21,7 @@ skill-name/
 | Skill | 说明 |
 | --- | --- |
 | [long-running-experiment](./long-running-experiment/README.md) | 长时间实验和验证任务的低日志上下文工作流。 |
+| [project-status-snapshot](./project-status-snapshot/README.md) | 从仓库、文档、日志和 Codex 历史恢复项目现状与下一步。 |
 | [route-to-cheap-model](./route-to-cheap-model/README.md) | 将简单、低风险、纯文本任务分流给便宜模型处理。 |
 
 ## Tool 索引
@@ -41,6 +42,10 @@ skill-name/
 
 ```text
 请使用 skill-installer 从 GitHub 仓库 fanyizhen1995/codex-skills 安装 long-running-experiment skill。仓库路径是 long-running-experiment。安装完成后告诉我需要重启 Codex。
+```
+
+```text
+请使用 skill-installer 从 GitHub 仓库 fanyizhen1995/codex-skills 安装 project-status-snapshot skill。仓库路径是 project-status-snapshot。安装完成后告诉我需要重启 Codex。
 ```
 
 也可以使用完整 URL：
@@ -67,6 +72,10 @@ https://github.com/fanyizhen1995/codex-skills/tree/main/route-to-cheap-model
 
 ```text
 请把当前项目中的 long-running-experiment skill 安装到我的 Codex skills 目录。skill 目录是 ./long-running-experiment。安装完成后告诉我需要重启 Codex。
+```
+
+```text
+请把当前项目中的 project-status-snapshot skill 安装到我的 Codex skills 目录。skill 目录是 ./project-status-snapshot。安装完成后告诉我需要重启 Codex。
 ```
 
 安装本地项目下所有 skills：
