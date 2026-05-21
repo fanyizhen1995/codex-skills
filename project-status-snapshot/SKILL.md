@@ -1,24 +1,24 @@
 ---
 name: project-status-snapshot
-description: Use when asked to inspect, recover, summarize, or continue a project's current state, task status, progress, blockers, recent work, performance progress, deployment readiness, or interrupted Codex history from a repository or server.
+description: 当用户要求检查、恢复、梳理或继续一个项目的当前状态、任务进展、阻塞点、近期工作、性能进展、部署就绪情况、生产灰度状态，或从中断的 Codex 历史中恢复上下文时使用。
 ---
 
-# Project Status Snapshot
+# 项目状态快照
 
-## Purpose
+## 目标
 
-Create an evidence-backed status snapshot for an active engineering project. Use local repository state and available Codex history before making claims.
+为活跃工程项目生成基于证据的状态快照。先检查仓库状态、项目文档、日志和可用的 Codex 历史，再下结论。
 
-## Evidence Order
+## 证据顺序
 
-Gather only what is needed for the user's scope, but prefer this order:
+只收集回答当前问题所需的信息，但优先按这个顺序检查：
 
-1. Current context: `pwd`, repo root, branch, `git status --short`, recent commits.
-2. Project notes: `AGENTS.md`, `README*`, `docs/`, `plans/`, `reports/`, `bench*`, `sprint*`, active design or exec-plan files.
-3. Work evidence: recent file mtimes, recent diffs, uncommitted changes, test/benchmark logs, deployment config.
-4. Codex history when available: `~/.codex/session_index.jsonl`, `~/.codex/state_*.sqlite`, `~/.codex/shell_snapshots`, and relevant shell history.
+1. 当前上下文：`pwd`、仓库根目录、分支、`git status --short`、近期 commit。
+2. 项目说明：`AGENTS.md`、`README*`、`docs/`、`plans/`、`reports/`、`bench*`、`sprint*`、活跃设计文档或执行计划。
+3. 工作证据：近期文件修改时间、当前 diff、未提交改动、测试/benchmark 日志、部署配置。
+4. Codex 历史：如果存在，检查 `~/.codex/session_index.jsonl`、`~/.codex/state_*.sqlite`、`~/.codex/shell_snapshots` 和相关 shell history。
 
-Use `rg`/`rg --files` first. For SQLite, query narrow tables and fields instead of scanning large logs:
+优先使用 `rg`/`rg --files`。查询 SQLite 时使用窄查询，不要直接扫描大型日志库：
 
 ```bash
 sqlite3 ~/.codex/state_5.sqlite \
@@ -28,37 +28,37 @@ sqlite3 ~/.codex/state_5.sqlite \
    ORDER BY updated_at DESC LIMIT 20;"
 ```
 
-## Workflow
+## 工作流程
 
-1. Identify the project and time window from the user request. If ambiguous, infer from cwd/open files and state that assumption.
-2. Read project guidance before interpreting files.
-3. Build a compact timeline of recent work from commits, modified files, docs, logs, and Codex thread titles.
-4. Separate evidence from inference. Mark uncertain conclusions as likely, not fact.
-5. If the user asks to continue work, end with the next concrete actions in priority order.
+1. 从用户请求中识别项目和时间范围；如果不明确，根据 cwd/open files 推断，并明确说明这个假设。
+2. 先读项目指引，再解释文件和日志。
+3. 根据 commit、修改文件、文档、日志和 Codex thread 标题整理一条紧凑时间线。
+4. 区分证据和推断；不确定的结论用“可能/倾向于”表述。
+5. 如果用户想继续推进工作，最后给出按优先级排列的下一步行动。
 
-## Output Shape
+## 输出格式
 
-Keep the report concise. Prefer these sections:
+保持简洁，优先使用这些小节：
 
-- `Current State`: what is true now, with branch/cwd and dirty files if relevant.
-- `Recent Progress`: ordered bullets with dates or commit refs when available.
-- `Blockers/Risks`: missing data, failing tests, unclear ownership, deployment risk, stale docs.
-- `Next Actions`: 3-6 concrete steps, starting with the safest/highest-leverage step.
-- `Evidence Checked`: short list of commands/files consulted.
+- `当前状态`：当前已确认事实，包括 branch/cwd 和相关 dirty files。
+- `近期进展`：按时间排序的进展，尽量带日期、commit 或文件路径。
+- `阻塞/风险`：缺失数据、失败测试、不清楚的归属、部署风险、过期文档。
+- `下一步`：3-6 个具体行动，从最安全/收益最高的一步开始。
+- `已检查证据`：简短列出查看过的命令和文件。
 
-Do not paste long logs or large file excerpts. Summarize and cite paths/commands.
+不要粘贴长日志或大段文件内容。用摘要说明，并引用路径或命令。
 
-## Heuristics For This User
+## 针对此用户的启发式
 
-- SCUDA/HAMI tasks usually need status across code, docs, benchmark results, and prior Codex threads.
-- "当前任务状态", "梳理项目现状", "任务中断", "性能进展", "灰度/生产环境" all require a snapshot before proposing implementation.
-- For performance work, include baseline/native/same-host/cross-host numbers only when backed by benchmark artifacts.
-- For deployment work, include service status, config, recent errors, and rollback/gray status if accessible.
-- For review-heavy workflows, distinguish top-level user threads from subagent review threads.
+- SCUDA/HAMI 任务通常需要同时检查代码、文档、benchmark 结果和历史 Codex thread。
+- “当前任务状态”“梳理项目现状”“任务中断”“性能进展”“灰度/生产环境”都要求先做状态快照，再提出实现方案。
+- 性能类问题只有在 benchmark artifact 支撑时，才报告 baseline/native/same-host/cross-host 数字。
+- 部署类问题需要检查 service 状态、配置、近期错误，以及可访问的灰度/回滚状态。
+- review 密集型工作流要区分顶层用户 thread 和 subagent review thread。
 
-## Common Mistakes
+## 常见错误
 
-- Do not answer from memory when repository or Codex history is available.
-- Do not treat thread titles as proof of completion; cross-check files, commits, or logs.
-- Do not run broad scans over multi-GB Codex logs unless a narrow query cannot answer the question.
-- Do not modify files, restart services, or run long benchmarks unless the user explicitly asked to act after the snapshot.
+- 仓库或 Codex 历史可用时，不要凭记忆回答。
+- 不要把 thread 标题当作任务完成证据；要用文件、commit 或日志交叉验证。
+- 除非窄查询无法回答问题，不要广泛扫描多 GB 的 Codex 日志。
+- 除非用户明确要求在快照后执行操作，不要修改文件、重启服务或运行长时间 benchmark。
