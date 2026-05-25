@@ -20,6 +20,7 @@ skill-name/
 
 | Skill | 说明 |
 | --- | --- |
+| [codex-engineering-context-optimizer](./codex-engineering-context-optimizer/README.md) | 工程任务中压缩测试、构建和日志输出上下文，保留可追溯摘要。 |
 | [long-running-experiment](./long-running-experiment/README.md) | 长时间实验和验证任务的低日志上下文工作流。 |
 | [project-status-snapshot](./project-status-snapshot/README.md) | 从仓库、文档、日志和 Codex 历史恢复项目现状与下一步。 |
 | [route-to-cheap-model](./route-to-cheap-model/README.md) | 将简单、低风险、纯文本任务分流给便宜模型处理。 |
@@ -35,6 +36,10 @@ skill-name/
 推荐直接把下面的提示词发给 Codex，让 Codex 自己使用 `skill-installer` 或合适的安装流程完成安装。安装后重启 Codex 以重新加载 skill metadata。
 
 ### 从远程仓库安装单个 skill
+
+```text
+请使用 skill-installer 从 GitHub 仓库 fanyizhen1995/codex-skills 安装 codex-engineering-context-optimizer skill。仓库路径是 codex-engineering-context-optimizer。安装完成后告诉我需要重启 Codex。
+```
 
 ```text
 请使用 skill-installer 从 GitHub 仓库 fanyizhen1995/codex-skills 安装 route-to-cheap-model skill。仓库路径是 route-to-cheap-model。安装完成后告诉我需要重启 Codex。
@@ -65,6 +70,10 @@ https://github.com/fanyizhen1995/codex-skills/tree/main/route-to-cheap-model
 ### 从本地项目安装
 
 如果你已经 clone 了本仓库，可以让 Codex 从本地目录安装：
+
+```text
+请把当前项目中的 codex-engineering-context-optimizer skill 安装到我的 Codex skills 目录。skill 目录是 ./codex-engineering-context-optimizer。安装完成后告诉我需要重启 Codex。
+```
 
 ```text
 请把当前项目中的 route-to-cheap-model skill 安装到我的 Codex skills 目录。skill 目录是 ./route-to-cheap-model。安装完成后告诉我需要重启 Codex。
