@@ -1,0 +1,4 @@
+interface:
+  display_name: "SCUDA Fresh Performance Runbook"
+  short_description: "SCUDA fresh performance runs."
+  default_prompt: "Use $scuda-fresh-performance-runbook for SCUDA fresh benchmark, profile, provenance, and cleanup runs."

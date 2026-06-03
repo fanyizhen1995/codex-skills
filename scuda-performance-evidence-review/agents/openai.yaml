@@ -1,0 +1,6 @@
+interface:
+  display_name: "SCUDA Evidence Review"
+  short_description: "Review SCUDA performance evidence validity"
+  default_prompt: "Use $scuda-performance-evidence-review to review existing SCUDA benchmark/profile evidence, provenance, cleanup state, accepted metrics, and recommended next actions."
+policy:
+  allow_implicit_invocation: true

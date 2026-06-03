@@ -6,7 +6,7 @@
 
 - Codex 长 session 中 `exec_command`、`write_stdin`、`apply_patch` 高频导致上下文膨胀。
 - 测试日志、构建日志、benchmark 输出、远程服务日志太长。
-- 需要证明上下文优化是否正确、是否真的节省 token。
+- 需要证明上下文优化是否正确、是否真的节省 token，或量化 skill/流程收益。
 - SCUDA/HAMI 等项目反复跑测试、定位失败、比较修改前后结果。
 
 ## 目录
@@ -56,6 +56,8 @@ python3 scripts/context_audit.py ~/.codex/sessions \
 2. 安装并按 skill 使用一段时间。
 3. 对启用后一段时间再次统计。
 4. 对比大工具输出次数、p95/max 输出字符数、`context_compacted` 次数和任务成功率。
+
+如果审计 Codex SQLite 里的 `tokens_used`，先确认字段口径；口径不明确时只用作相对上下文消耗排序，不直接换算 API 成本。
 
 ## 安装
 

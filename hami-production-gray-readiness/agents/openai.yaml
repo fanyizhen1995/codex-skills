@@ -1,0 +1,6 @@
+interface:
+  display_name: "HAMi Gray Readiness"
+  short_description: "Prepare HAMi production gray rollout checks"
+  default_prompt: "Use $hami-production-gray-readiness to prepare a safe HAMi production gray rollout readiness check."
+policy:
+  allow_implicit_invocation: true

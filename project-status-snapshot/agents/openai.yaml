@@ -1,4 +1,4 @@
 interface:
   display_name: "项目状态快照"
-  short_description: "从本地证据恢复项目现状和下一步"
-  default_prompt: "使用 $project-status-snapshot 从仓库、文档、日志和 Codex 历史中梳理当前项目状态、近期进展、阻塞点和推荐下一步。"
+  short_description: "恢复项目状态，审计重复工作流"
+  default_prompt: "使用 $project-status-snapshot 从仓库、文档、日志和 Codex 历史中梳理当前项目状态、近期进展、阻塞点、重复工作流候选和推荐下一步。"

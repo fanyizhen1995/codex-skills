@@ -1,6 +1,6 @@
 ---
 name: project-status-snapshot
-description: 当用户要求检查、恢复、梳理或继续一个项目的当前状态、任务进展、阻塞点、近期工作、性能进展、部署就绪情况、生产灰度状态，或从中断的 Codex 历史中恢复上下文时使用。
+description: 当用户要求检查、恢复、梳理或继续一个项目的当前状态、任务进展、阻塞点、近期工作、重复工作流、skill/automation 候选、性能进展、部署就绪情况、生产灰度状态，或从中断的 Codex 历史中恢复上下文时使用。
 ---
 
 # 项目状态快照
@@ -35,6 +35,16 @@ sqlite3 ~/.codex/state_5.sqlite \
 3. 根据 commit、修改文件、文档、日志和 Codex thread 标题整理一条紧凑时间线。
 4. 区分证据和推断；不确定的结论用“可能/倾向于”表述。
 5. 如果用户想继续推进工作，最后给出按优先级排列的下一步行动。
+
+## 重复工作流审计
+
+当用户要求回顾过去一段时间、寻找可打包工作流、评估 skill/agent/automation 收益时，在状态快照之后增加这一层：
+
+1. 按证据优先级检查 Codex session/task 摘要、Codex Memories/汇总记录、Chronicle（如存在，仅用于发现）、项目文档、已有 skill/custom agent/automation。
+2. 统计候选出现次数、项目、代表 thread/title、相对 token/上下文消耗；`tokens_used` 只能当相对信号，除非确认其计量口径。
+3. 只有同时满足这些条件才建议创建或增强：至少发生两次或重来代价高；输入稳定；流程可重复；输出明确；能改善速度、质量或可靠性；现有工具未覆盖。
+4. 先列候选清单，再处理高置信度项目。优先复用/增强已有 skill 或 automation，不重复造轮子。
+5. 输出按 `Skill`、`Custom subagent`、`Automation`、`Skip`、`需要更多证据` 分类，并说明跳过原因。
 
 ## 输出格式
 

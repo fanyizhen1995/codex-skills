@@ -1,0 +1,4 @@
+interface:
+  display_name: "HAMI GPU Flow Task Lifecycle"
+  short_description: "HAMI GPU Flow task lifecycle."
+  default_prompt: "Use $hami-gpu-flow-task-lifecycle for HAMI GPU Flow task claim, verification, acceptance, and merge work."
