@@ -1,20 +1,16 @@
-# Tools Roadmap
+# Tools
 
-This directory will contain local tooling for the personal wiki. Phase 1 does
-not include executable tools.
+This directory contains local tooling for the personal wiki. The CLI is
+implemented in `wiki_cli/` and is invoked by script path because
+`personal-wiki` contains a hyphen.
 
-Planned commands:
+Usage:
 
-```text
-wiki init-domain <name>
-wiki validate [--domain <name>]
-wiki index <domain>
-wiki backlinks [--domain <name>]
-wiki graph [--domain <name>] [--out graph.json]
-wiki snapshot-url <domain> <url>
-wiki image-note <domain> <image-path>
-wiki ingest-plan <domain> <raw-path>
+```bash
+python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki <command>
 ```
+
+See `docs/cli.md` for all commands and examples.
 
 Tooling principles:
 

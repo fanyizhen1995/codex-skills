@@ -3,6 +3,7 @@ from pathlib import Path
 from personal_wiki_test_loader import load_cli_module
 
 
+ROOT = Path(__file__).resolve().parents[1]
 html = load_cli_module("html")
 
 
@@ -55,3 +56,39 @@ def test_generate_html_escapes_script_sensitive_graph_json(tmp_path: Path):
     payload = text.split("const graphData = ", 1)[1].split(";\n", 1)[0]
     assert "</script>" not in payload.lower()
     assert "\\u003c/script\\u003e" in payload.lower()
+
+
+def test_personal_wiki_manager_skill_exists_with_required_routing():
+    path = ROOT / "skills/personal-wiki-manager/SKILL.md"
+
+    assert path.exists()
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    frontmatter = text.split("---\n", 2)[1]
+    body = text.split("---\n", 2)[2]
+
+    assert "name: personal-wiki-manager" in frontmatter
+    description = next(
+        line.split(":", 1)[1].strip()
+        for line in frontmatter.splitlines()
+        if line.startswith("description:")
+    )
+    for phrase in [
+        "query",
+        "ingest",
+        "validate",
+        "refactor",
+        "create-domain",
+        "image-note",
+    ]:
+        assert phrase in description
+
+    body_lower = body.lower()
+    for phrase in [
+        "read order",
+        "mode routing",
+        "python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate",
+        "domain boundary",
+        "image-note workflow",
+    ]:
+        assert phrase in body_lower

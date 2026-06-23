@@ -22,4 +22,17 @@ domains/<domain>/
   wiki/
 ```
 
+Local CLI tools are available through:
+
+```bash
+python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki <command>
+```
+
+See `docs/cli.md` for command examples.
+
+The project-local Codex skill lives at
+`skills/personal-wiki-manager/SKILL.md`. It routes query, ingest, validate,
+refactor, create-domain, and image-note work while enforcing the repository
+read protocol.
+
 Agents must read `WIKI.md` before maintaining this repository.

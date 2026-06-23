@@ -31,7 +31,10 @@ def test_required_scaffold_files_exist():
         "global/wiki/organizations/.gitkeep",
         "global/wiki/references/.gitkeep",
         "domains/.gitkeep",
+        "skills/personal-wiki-manager/SKILL.md",
+        "docs/cli.md",
         "tools/README.md",
+        "tools/wiki_cli/cli.py",
     ]
     missing = [path for path in required if not (ROOT / path).exists()]
     assert missing == []

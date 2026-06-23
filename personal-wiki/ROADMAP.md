@@ -5,6 +5,8 @@ scaffold.
 
 ## Phase 1: Repository specification and templates
 
+Status: Implemented.
+
 Acceptance criteria:
 
 - Root `WIKI.md` exists and defines the LLM read protocol.
@@ -15,6 +17,8 @@ Acceptance criteria:
 - Image storage and image reference rules are documented.
 
 ## Phase 2: Validation tooling
+
+Status: Implemented.
 
 Build `wiki validate [--domain <name>]`.
 
@@ -31,12 +35,15 @@ Acceptance criteria:
 
 ## Phase 3: Index and graph tooling
 
+Status: Implemented.
+
 Build:
 
 ```text
 wiki index <domain>
 wiki backlinks [--domain <name>]
 wiki graph [--domain <name>] [--out graph.json]
+wiki visualize [--domain <name>] [--out graph.html]
 ```
 
 Acceptance criteria:
@@ -46,6 +53,8 @@ Acceptance criteria:
 - Graph export includes nodes, links, page types, tags, and descriptions.
 
 ## Phase 4: Ingest assistance
+
+Status: Implemented.
 
 Build:
 
@@ -64,6 +73,8 @@ Acceptance criteria:
 
 ## Phase 5: Codex skill
 
+Status: Implemented.
+
 Create a `personal-wiki-manager` Codex skill.
 
 Acceptance criteria:
@@ -75,10 +86,19 @@ Acceptance criteria:
 
 ## Phase 6: Optional publication and visualization
 
+Status: Implemented for static graph visualization.
+
 Add optional human-facing outputs only after LLM-first workflows are stable.
 
-Possible outputs:
+Acceptance criteria:
+
+- Static graph HTML is generated without external assets.
+
+Implemented output:
 
 - Static graph HTML.
+
+Remaining future ideas:
+
 - MkDocs or Quartz publication.
 - Obsidian compatibility notes.
