@@ -80,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as error:
         print(str(error), file=sys.stderr)
         return 1
+    except Exception as error:
+        print(f"Internal error: {error}", file=sys.stderr)
+        return 2
 
     parser.error(f"Unknown command: {args.command}")
     return 1

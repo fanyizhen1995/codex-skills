@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from personal_wiki_test_loader import load_cli_module
 
 
@@ -49,6 +51,16 @@ def test_domain_paths_are_resolved(tmp_path: Path):
     domain = paths.domain_root(root, "ai-infra")
     assert domain == root / "domains" / "ai-infra"
     assert paths.domain_wiki(root, "ai-infra") == domain / "wiki"
+
+
+def test_domain_paths_reject_absolute_and_traversal(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    for domain in ["/tmp/evil", "../evil", "bad/../evil"]:
+        with pytest.raises(ValueError):
+            paths.domain_root(root, domain)
+
+    assert not (tmp_path / "evil").exists()
 
 
 def test_repo_root_from_returns_personal_wiki_root(tmp_path: Path):

@@ -30,6 +30,10 @@ def build_invalid_fixture(root: Path) -> None:
     )
 
 
+def assert_no_traceback(output: str) -> None:
+    assert "Traceback" not in output
+
+
 def test_validate_cli_exits_zero_for_valid_fixture(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     build_valid_fixture(root)
@@ -326,7 +330,47 @@ def test_ingest_plan_cli_reports_absolute_path_outside_domain_without_traceback(
     output = result.stdout + result.stderr
     assert result.returncode == 1
     assert "outside domain" in output
-    assert "Traceback" not in output
+    assert_no_traceback(output)
+
+
+def test_cli_rejects_invalid_domains_without_writing_outside_root(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    outside = tmp_path / "outside-domain"
+    commands = [
+        ["init-domain", str(outside)],
+        ["index", str(outside)],
+        ["backlinks", "--domain", str(outside), "--write-json"],
+        ["graph", "--domain", str(outside), "--out", str(tmp_path / "graph.json")],
+        ["visualize", "--domain", str(outside), "--out", str(tmp_path / "graph.html")],
+    ]
+
+    for command in commands:
+        result = subprocess.run(
+            [sys.executable, str(CLI), "--root", str(root), *command],
+            text=True,
+            capture_output=True,
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 1, command
+        assert_no_traceback(output)
+        assert "Invalid domain path" in output
+
+    assert not outside.exists()
+
+
+def test_cli_returns_two_for_unexpected_internal_errors_without_traceback(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    root.write_text("not a directory", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(root), "init-domain", "ai-infra"],
+        text=True,
+        capture_output=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert_no_traceback(output)
 
 
 def test_cli_end_to_end_domain_workflow(tmp_path: Path):

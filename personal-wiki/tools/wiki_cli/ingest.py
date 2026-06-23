@@ -139,16 +139,7 @@ def _snapshot_body(url: str, fetch: bool) -> str:
 
 
 def _domain_root(root: Path, domain: str) -> Path:
-    _validate_domain(domain)
     return paths.domain_root(root, domain)
-
-
-def _validate_domain(domain: str) -> None:
-    path = Path(domain)
-    if path.is_absolute() or not path.parts:
-        raise ValueError(f"Invalid domain path: {domain}")
-    if any(part in ("", ".", "..") for part in path.parts):
-        raise ValueError(f"Invalid domain path: {domain}")
 
 
 def _domain_relative_path(domain_root: Path, value: str) -> Path:

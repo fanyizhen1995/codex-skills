@@ -18,7 +18,19 @@ def repo_root_from(start: Path) -> Path:
 
 
 def domain_root(root: Path, domain: str) -> Path:
-    return root / "domains" / domain
+    domain_path = Path(domain)
+    if domain_path.is_absolute() or not domain_path.parts:
+        raise ValueError(f"Invalid domain path: {domain}")
+    if any(part in ("", ".", "..") for part in domain_path.parts):
+        raise ValueError(f"Invalid domain path: {domain}")
+
+    domains_root = root / "domains"
+    resolved = (domains_root / domain_path).resolve(strict=False)
+    try:
+        resolved.relative_to(domains_root.resolve(strict=False))
+    except ValueError as error:
+        raise ValueError(f"Invalid domain path: {domain}") from error
+    return domains_root / domain_path
 
 
 def domain_wiki(root: Path, domain: str) -> Path:
