@@ -100,3 +100,103 @@ def test_validate_cli_outputs_json_list_for_invalid_fixture(tmp_path: Path):
             "message": "Missing required frontmatter field: description",
         }
     ]
+
+
+def test_init_domain_cli_creates_domain_skeleton(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(root), "init-domain", "ai-infra"],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert (root / "domains/ai-infra/DOMAIN.md").exists()
+    assert (root / "domains/ai-infra/wiki/concepts").is_dir()
+    assert "domains/ai-infra/wiki/index.md" in result.stdout
+
+
+def test_index_cli_writes_domain_index(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    build_valid_fixture(root)
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(root), "index", "ai-infra"],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    index_path = root / "domains/ai-infra/wiki/index.md"
+    assert str(index_path) in result.stdout
+    assert "- [KV Cache](concepts/kv-cache.md) - Cache for transformer key/value states." in (
+        index_path.read_text(encoding="utf-8")
+    )
+
+
+def test_backlinks_cli_writes_json_for_domain(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    build_valid_fixture(root)
+    write(
+        root / "domains/ai-infra/wiki/papers/attention.md",
+        "---\ntype: Paper\ntitle: Attention\ndescription: Attention paper.\ndomain: ai-infra\nstatus: draft\nsource_refs: []\n---\n\nSee [KV Cache](../concepts/kv-cache.md).\n",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "backlinks",
+            "--domain",
+            "ai-infra",
+            "--write-json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    backlinks_path = root / "domains/ai-infra/wiki/backlinks.json"
+    assert str(backlinks_path) in result.stdout
+    assert json.loads(backlinks_path.read_text(encoding="utf-8")) == {
+        "domains/ai-infra/wiki/concepts/kv-cache": [
+            "domains/ai-infra/wiki/papers/attention"
+        ]
+    }
+
+
+def test_graph_cli_writes_graph_json_to_requested_output(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    build_valid_fixture(root)
+    out = tmp_path / "graph.json"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "graph",
+            "--domain",
+            "ai-infra",
+            "--out",
+            str(out),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert str(out) in result.stdout
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert {
+        "id": "domains/ai-infra/wiki/concepts/kv-cache",
+        "path": "domains/ai-infra/wiki/concepts/kv-cache.md",
+        "title": "KV Cache",
+        "type": "Concept",
+        "tags": [],
+        "description": "Cache for transformer key/value states.",
+    } in payload["nodes"]
