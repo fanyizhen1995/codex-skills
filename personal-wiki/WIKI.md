@@ -17,10 +17,10 @@ research, repository-wide validation, or duplicate detection.
 
 ## Knowledge Layers
 
-`raw/` is the fact source. It contains captured sources, notes, transcripts,
+raw/ is the fact source. It contains captured sources, notes, transcripts,
 paper extractions, screenshots, snapshots, and raw image evidence.
 
-`wiki/` is the curated knowledge layer. It contains OKF-style Markdown pages
+wiki/ is the curated knowledge layer. It contains OKF-style Markdown pages
 with YAML frontmatter, concise descriptions, links, and citations.
 
 Do not rewrite raw sources into polished conclusions. Create or update wiki
