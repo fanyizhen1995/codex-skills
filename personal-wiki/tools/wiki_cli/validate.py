@@ -69,7 +69,7 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
 
         source_refs = _list_value(frontmatter.get("source_refs"))
         for source_ref in source_refs:
-            if _is_local_ref(source_ref) and not _page_relative_path(page, source_ref).exists():
+            if _is_local_ref(source_ref) and not _valid_local_target(root, page, source_ref):
                 issues.append(
                     ValidationIssue(
                         code="missing_source_ref",
@@ -79,7 +79,7 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
                 )
 
         for link in _markdown_links(doc.body):
-            if _is_markdown_page_ref(link) and not _page_relative_path(page, link).exists():
+            if _is_markdown_page_ref(link) and not _valid_local_target(root, page, link):
                 issues.append(
                     ValidationIssue(
                         code="broken_link",
@@ -89,7 +89,7 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
                 )
 
         for image in _markdown_images(doc.body):
-            if _is_local_ref(image) and not _page_relative_path(page, image).exists():
+            if _is_local_ref(image) and not _valid_local_target(root, page, image):
                 issues.append(
                     ValidationIssue(
                         code="missing_image",
@@ -172,6 +172,18 @@ def _list_value(value: object) -> list[str]:
 def _page_relative_path(page: Path, raw_ref: str) -> Path:
     ref = raw_ref.split("#", 1)[0]
     return (page.parent / ref).resolve()
+
+
+def _valid_local_target(root: Path, page: Path, raw_ref: str) -> bool:
+    ref = raw_ref.split("#", 1)[0]
+    if Path(ref).is_absolute():
+        return False
+    target = _page_relative_path(page, raw_ref)
+    try:
+        target.relative_to(root.resolve())
+    except ValueError:
+        return False
+    return target.exists()
 
 
 def _is_local_ref(ref: str) -> bool:

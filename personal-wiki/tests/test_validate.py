@@ -72,11 +72,45 @@ def test_validate_reports_missing_source_ref_and_broken_link(tmp_path: Path):
     assert issue_codes(root) == ["missing_source_ref", "broken_link"]
 
 
+def test_validate_reports_absolute_source_ref_outside_root(tmp_path: Path):
+    outside = tmp_path / "outside.md"
+    write(outside, "# Outside\n")
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/escaped-source.md",
+        f"---\ntype: Concept\ntitle: Escaped Source\ndescription: Escaped source ref.\ndomain: ai-infra\nstatus: draft\nsource_refs: [{outside}]\n---\n\n# Summary\nEscaped.\n",
+    )
+
+    assert issue_codes(root) == ["missing_source_ref"]
+
+
+def test_validate_reports_markdown_link_outside_root(tmp_path: Path):
+    write(tmp_path / "outside.md", "# Outside\n")
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/escaped-link.md",
+        "---\ntype: Concept\ntitle: Escaped Link\ndescription: Escaped markdown link.\ndomain: ai-infra\nstatus: draft\n---\n\n# Summary\n[outside](../../../../../outside.md)\n",
+    )
+
+    assert issue_codes(root) == ["broken_link"]
+
+
 def test_validate_reports_missing_image(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     write(
         root / "domains/ai-infra/wiki/concepts/image.md",
         "---\ntype: Concept\ntitle: Image\ndescription: Image page.\ndomain: ai-infra\nstatus: draft\n---\n\n# Summary\n![Missing](assets/missing.png)\n",
+    )
+
+    assert issue_codes(root) == ["missing_image"]
+
+
+def test_validate_reports_image_outside_root(tmp_path: Path):
+    write(tmp_path / "outside.png", "image")
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/escaped-image.md",
+        "---\ntype: Concept\ntitle: Escaped Image\ndescription: Escaped image.\ndomain: ai-infra\nstatus: draft\n---\n\n# Summary\n![x](../../../../../outside.png)\n",
     )
 
     assert issue_codes(root) == ["missing_image"]

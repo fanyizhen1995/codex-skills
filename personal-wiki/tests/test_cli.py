@@ -56,6 +56,23 @@ def test_validate_cli_exits_one_for_invalid_fixture(tmp_path: Path):
     assert "description" in result.stdout
 
 
+def test_validate_cli_discovers_root_from_outer_repo_cwd(tmp_path: Path):
+    outer = tmp_path / "repo"
+    root = outer / "personal-wiki"
+    build_invalid_fixture(root)
+    write(root / "WIKI.md", "# Personal Wiki\n")
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "validate", "--domain", "ai-infra"],
+        cwd=outer,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 1
+    assert "missing_required" in result.stdout
+
+
 def test_validate_cli_outputs_json_list_for_invalid_fixture(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     build_invalid_fixture(root)
