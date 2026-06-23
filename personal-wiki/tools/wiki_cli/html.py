@@ -21,7 +21,7 @@ def generate_html(root: Path, domain: str | None, out: Path) -> Path:
 
 
 def _render_html(data: dict[str, object]) -> str:
-    graph_json = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    graph_json = _safe_script_json(data)
     nodes = data.get("nodes", [])
     edges = data.get("edges", [])
 
@@ -157,3 +157,14 @@ def _edge_item(edge: dict[object, object]) -> str:
 
 def _escape_html(value: str) -> str:
     return escape(value, {'"': "&quot;", "'": "&#x27;"})
+
+
+def _safe_script_json(data: object) -> str:
+    return (
+        json.dumps(data, sort_keys=True, separators=(",", ":"))
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )

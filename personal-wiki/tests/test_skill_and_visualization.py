@@ -39,3 +39,19 @@ def test_generate_html_embeds_static_graph_without_external_assets(tmp_path: Pat
     assert "https://" not in text
     assert "http://" not in text
     assert "cdn" not in text.lower()
+
+
+def test_generate_html_escapes_script_sensitive_graph_json(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/script-title.md",
+        "---\ntype: Concept\ntitle: Break </script><h1>Injected</h1>\ndescription: Safe description.\ndomain: ai-infra\nstatus: draft\nsource_refs: []\n---\n\nBody.\n",
+    )
+    out = tmp_path / "graph.html"
+
+    html.generate_html(root, "ai-infra", out)
+
+    text = out.read_text(encoding="utf-8")
+    payload = text.split("const graphData = ", 1)[1].split(";\n", 1)[0]
+    assert "</script>" not in payload.lower()
+    assert "\\u003c/script\\u003e" in payload.lower()
