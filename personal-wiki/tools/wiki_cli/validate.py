@@ -32,7 +32,7 @@ class ValidationIssue:
 def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
     root = Path(root)
     issues: list[ValidationIssue] = []
-    pages = paths.wiki_pages(root, domain)
+    pages = [page for page in paths.wiki_pages(root, domain) if page.name != "index.md"]
     docs = [(page, document.load_document(page)) for page in pages]
 
     for page, doc in docs:

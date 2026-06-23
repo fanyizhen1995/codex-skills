@@ -327,3 +327,46 @@ def test_ingest_plan_cli_reports_absolute_path_outside_domain_without_traceback(
     assert result.returncode == 1
     assert "outside domain" in output
     assert "Traceback" not in output
+
+
+def test_cli_end_to_end_domain_workflow(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            [sys.executable, str(CLI), "--root", str(root), *args],
+            text=True,
+            capture_output=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result
+
+    run_cli("init-domain", "ai-infra")
+    build_valid_fixture(root)
+
+    run_cli("validate", "--domain", "ai-infra")
+    run_cli("index", "ai-infra")
+    run_cli("backlinks", "--domain", "ai-infra", "--write-json")
+
+    graph_json = tmp_path / "graph.json"
+    graph_html = tmp_path / "graph.html"
+    run_cli("graph", "--domain", "ai-infra", "--out", str(graph_json))
+    run_cli("visualize", "--domain", "ai-infra", "--out", str(graph_html))
+    run_cli("snapshot-url", "ai-infra", "https://example.com/source")
+
+    raw_image = root / "domains/ai-infra/raw/images/diagram.png"
+    raw_image.parent.mkdir(parents=True, exist_ok=True)
+    raw_image.write_bytes(b"fake png")
+    run_cli("image-note", "ai-infra", "raw/images/diagram.png")
+    run_cli("ingest-plan", "ai-infra", "raw/links/example-com-source.md")
+
+    assert (root / "domains/ai-infra/DOMAIN.md").exists()
+    assert (root / "domains/ai-infra/raw/notes/source.md").exists()
+    assert (root / "domains/ai-infra/wiki/concepts/kv-cache.md").exists()
+    assert (root / "domains/ai-infra/wiki/index.md").exists()
+    assert (root / "domains/ai-infra/wiki/backlinks.json").exists()
+    assert graph_json.exists()
+    assert graph_html.exists()
+    assert (root / "domains/ai-infra/raw/links/example-com-source.md").exists()
+    assert (root / "domains/ai-infra/wiki/references/diagram-image.md").exists()
+    assert (root / "domains/ai-infra/raw/links/example-com-source.ingest-plan.md").exists()
