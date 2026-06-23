@@ -9,12 +9,14 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import graph as graph_module  # type: ignore
+    import html as html_module  # type: ignore
     import ingest  # type: ignore
     import indexer  # type: ignore
     import paths  # type: ignore
     import validate as validate_module  # type: ignore
 else:
     from . import graph as graph_module
+    from . import html as html_module
     from . import ingest
     from . import indexer
     from . import paths
@@ -39,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     graph_parser = subparsers.add_parser("graph")
     graph_parser.add_argument("--domain")
     graph_parser.add_argument("--out", type=Path, default=Path("graph.json"))
+    visualize_parser = subparsers.add_parser("visualize")
+    visualize_parser.add_argument("--domain")
+    visualize_parser.add_argument("--out", type=Path, default=Path("graph.html"))
     snapshot_parser = subparsers.add_parser("snapshot-url")
     snapshot_parser.add_argument("domain")
     snapshot_parser.add_argument("url")
@@ -64,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_backlinks(root, args.domain, args.write_json)
         if args.command == "graph":
             return _run_graph(root, args.domain, args.out)
+        if args.command == "visualize":
+            return _run_visualize(root, args.domain, args.out)
         if args.command == "snapshot-url":
             return _run_snapshot_url(root, args.domain, args.url, args.fetch)
         if args.command == "image-note":
@@ -128,6 +135,12 @@ def _run_backlinks(root: Path, domain: str | None, write_json: bool) -> int:
 
 def _run_graph(root: Path, domain: str | None, out: Path) -> int:
     path = graph_module.write_graph(root, domain, out)
+    print(path)
+    return 0
+
+
+def _run_visualize(root: Path, domain: str | None, out: Path) -> int:
+    path = html_module.generate_html(root, domain, out)
     print(path)
     return 0
 

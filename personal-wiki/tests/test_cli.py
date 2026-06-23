@@ -202,6 +202,36 @@ def test_graph_cli_writes_graph_json_to_requested_output(tmp_path: Path):
     } in payload["nodes"]
 
 
+def test_visualize_cli_writes_static_html_to_requested_output(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    build_valid_fixture(root)
+    out = tmp_path / "graph.html"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "visualize",
+            "--domain",
+            "ai-infra",
+            "--out",
+            str(out),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert str(out) in result.stdout
+    text = out.read_text(encoding="utf-8")
+    assert "Personal Wiki Graph" in text
+    assert "KV Cache" in text
+    assert "https://" not in text
+    assert "http://" not in text
+
+
 def test_snapshot_url_cli_creates_raw_link_source(tmp_path: Path):
     root = tmp_path / "personal-wiki"
 
