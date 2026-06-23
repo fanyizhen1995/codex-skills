@@ -84,6 +84,17 @@ def test_validate_reports_absolute_source_ref_outside_root(tmp_path: Path):
     assert issue_codes(root) == ["missing_source_ref"]
 
 
+def test_validate_reports_source_ref_parent_escape_outside_root(tmp_path: Path):
+    write(tmp_path / "outside.md", "# Outside\n")
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/escaped-source.md",
+        "---\ntype: Concept\ntitle: Escaped Source\ndescription: Escaped source ref.\ndomain: ai-infra\nstatus: draft\nsource_refs:\n  - ../../../../../outside.md\n---\n\n# Summary\nEscaped.\n",
+    )
+
+    assert issue_codes(root) == ["missing_source_ref"]
+
+
 def test_validate_reports_markdown_link_outside_root(tmp_path: Path):
     write(tmp_path / "outside.md", "# Outside\n")
     root = tmp_path / "personal-wiki"
@@ -95,11 +106,35 @@ def test_validate_reports_markdown_link_outside_root(tmp_path: Path):
     assert issue_codes(root) == ["broken_link"]
 
 
+def test_validate_reports_absolute_markdown_link_outside_root(tmp_path: Path):
+    outside = tmp_path / "outside.md"
+    write(outside, "# Outside\n")
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/absolute-link.md",
+        f"---\ntype: Concept\ntitle: Absolute Link\ndescription: Absolute markdown link.\ndomain: ai-infra\nstatus: draft\n---\n\n# Summary\n[outside]({outside})\n",
+    )
+
+    assert issue_codes(root) == ["broken_link"]
+
+
 def test_validate_reports_missing_image(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     write(
         root / "domains/ai-infra/wiki/concepts/image.md",
         "---\ntype: Concept\ntitle: Image\ndescription: Image page.\ndomain: ai-infra\nstatus: draft\n---\n\n# Summary\n![Missing](assets/missing.png)\n",
+    )
+
+    assert issue_codes(root) == ["missing_image"]
+
+
+def test_validate_reports_absolute_image_outside_root(tmp_path: Path):
+    outside = tmp_path / "outside.png"
+    write(outside, "image")
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/absolute-image.md",
+        f"---\ntype: Concept\ntitle: Absolute Image\ndescription: Absolute image.\ndomain: ai-infra\nstatus: draft\n---\n\n# Summary\n![x]({outside})\n",
     )
 
     assert issue_codes(root) == ["missing_image"]
