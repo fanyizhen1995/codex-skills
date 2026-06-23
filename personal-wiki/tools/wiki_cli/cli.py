@@ -55,10 +55,10 @@ def main(argv: list[str] | None = None) -> int:
     ingest_parser.add_argument("domain")
     ingest_parser.add_argument("raw_path")
 
-    args = parser.parse_args(argv)
-    root = args.root if args.root is not None else paths.repo_root_from(Path.cwd())
-
     try:
+        args = parser.parse_args(argv)
+        root = args.root if args.root is not None else paths.repo_root_from(Path.cwd())
+
         if args.command == "validate":
             return _run_validate(root, args.domain, args.json)
         if args.command == "init-domain":

@@ -373,6 +373,23 @@ def test_cli_returns_two_for_unexpected_internal_errors_without_traceback(tmp_pa
     assert_no_traceback(output)
 
 
+def test_cli_returns_two_when_root_discovery_fails_without_traceback(tmp_path: Path):
+    cwd = tmp_path / "not-a-repo"
+    cwd.mkdir()
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "validate"],
+        cwd=cwd,
+        text=True,
+        capture_output=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert "Internal error:" in output
+    assert_no_traceback(output)
+
+
 def test_cli_end_to_end_domain_workflow(tmp_path: Path):
     root = tmp_path / "personal-wiki"
 
