@@ -52,6 +52,22 @@ def test_validate_reports_missing_required_frontmatter(tmp_path: Path):
     assert "description" in issues[0].message
 
 
+def test_validate_reports_missing_required_frontmatter_for_nested_index_page(
+    tmp_path: Path,
+):
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/references/index.md",
+        "---\ntype: Reference\ntitle: Reference Index\ndomain: ai-infra\n---\n\n# Summary\nMissing description.\n",
+    )
+
+    issues = validate.validate(root, domain="ai-infra")
+
+    assert [issue.code for issue in issues] == ["missing_required"]
+    assert issues[0].path.as_posix().endswith("wiki/references/index.md")
+    assert "description" in issues[0].message
+
+
 def test_validate_reports_bad_type_and_status(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     write(

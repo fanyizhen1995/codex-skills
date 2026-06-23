@@ -32,7 +32,11 @@ class ValidationIssue:
 def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
     root = Path(root)
     issues: list[ValidationIssue] = []
-    pages = [page for page in paths.wiki_pages(root, domain) if page.name != "index.md"]
+    pages = [
+        page
+        for page in paths.wiki_pages(root, domain)
+        if page != _generated_index_path(root, domain)
+    ]
     docs = [(page, document.load_document(page)) for page in pages]
 
     for page, doc in docs:
@@ -109,6 +113,12 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
 
     issues.extend(_duplicate_issues(docs))
     return issues
+
+
+def _generated_index_path(root: Path, domain: str | None) -> Path:
+    if domain is not None:
+        return paths.domain_wiki(root, domain) / "index.md"
+    return root / "global" / "wiki" / "index.md"
 
 
 def _duplicate_issues(
