@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 from personal_wiki_test_loader import load_cli_module
 
@@ -75,3 +76,39 @@ def test_update_ingest_log_appends_pending_entry_once(tmp_path: Path):
     text = first.read_text(encoding="utf-8")
     entry = "- [ ] raw/inbox/source.md -> raw/inbox/source.ingest-plan.md (pending)"
     assert text.count(entry) == 1
+
+
+def test_snapshot_url_rejects_traversal_domain_before_writing(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    with pytest.raises(ValueError):
+        ingest.snapshot_url(root, "../evil", "https://example.com")
+
+    assert not (root / "evil").exists()
+
+
+def test_image_note_rejects_traversal_domain(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    with pytest.raises(ValueError):
+        ingest.image_note(root, "../evil", "raw/images/x.png")
+
+
+def test_ingest_plan_rejects_relative_raw_path_outside_domain(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    with pytest.raises(ValueError):
+        ingest.ingest_plan(root, "ai-infra", "../outside/source.md")
+
+    assert not (root / "domains/outside/source.ingest-plan.md").exists()
+    assert not (root / "domains/outside").exists()
+
+
+def test_ingest_plan_rejects_absolute_raw_path_outside_domain(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    outside = tmp_path / "outside" / "source.md"
+    outside.parent.mkdir(parents=True)
+    outside.write_text("# Source\n", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        ingest.ingest_plan(root, "ai-infra", str(outside))

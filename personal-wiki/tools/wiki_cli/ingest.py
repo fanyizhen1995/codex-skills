@@ -22,7 +22,8 @@ def slugify(value: str) -> str:
 
 
 def snapshot_url(root: Path, domain: str, url: str, *, fetch: bool = False) -> Path:
-    path = paths.domain_root(root, domain) / "raw" / "links" / f"{_url_slug(url)}.md"
+    domain_root = _domain_root(root, domain)
+    path = domain_root / "raw" / "links" / f"{_url_slug(url)}.md"
     captured = date.today().isoformat()
     body = _snapshot_body(url, fetch)
     document.write_document(
@@ -43,8 +44,9 @@ def snapshot_url(root: Path, domain: str, url: str, *, fetch: bool = False) -> P
 
 
 def image_note(root: Path, domain: str, image_path: str) -> Path:
+    domain_root = _domain_root(root, domain)
     image_stem = slugify(Path(image_path).stem)
-    path = paths.domain_wiki(root, domain) / "references" / f"{image_stem}-image.md"
+    path = domain_root / "wiki" / "references" / f"{image_stem}-image.md"
     document.write_document(
         path,
         document.MarkdownDocument(
@@ -67,9 +69,10 @@ def image_note(root: Path, domain: str, image_path: str) -> Path:
 
 
 def ingest_plan(root: Path, domain: str, raw_path: str) -> Path:
-    raw = _domain_relative_path(root, domain, raw_path)
+    domain_root = _domain_root(root, domain)
+    raw = _domain_relative_path(domain_root, raw_path)
     output = raw.with_name(f"{raw.stem}.ingest-plan.md")
-    relative_raw = _relative_to_domain(root, domain, raw)
+    relative_raw = _relative_to_domain(domain_root, raw)
     body = (
         "# Ingest Plan\n\n"
         f"Source path: {relative_raw}\n\n"
@@ -86,12 +89,12 @@ def ingest_plan(root: Path, domain: str, raw_path: str) -> Path:
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(body, encoding="utf-8")
-    update_ingest_log(root, domain, relative_raw, _relative_to_domain(root, domain, output))
+    update_ingest_log(root, domain, relative_raw, _relative_to_domain(domain_root, output))
     return output
 
 
 def update_ingest_log(root: Path, domain: str, raw_path: str, output_path: str) -> Path:
-    path = paths.domain_root(root, domain) / "ingest.md"
+    path = _domain_root(root, domain) / "ingest.md"
     entry = f"- [ ] {raw_path} -> {output_path} (pending)"
     if path.exists():
         text = path.read_text(encoding="utf-8")
@@ -131,15 +134,35 @@ def _snapshot_body(url: str, fetch: bool) -> str:
         return f"# Snapshot\n\nURL: {url}\n\nFetch failed: {error}\n"
 
 
-def _domain_relative_path(root: Path, domain: str, value: str) -> Path:
+def _domain_root(root: Path, domain: str) -> Path:
+    _validate_domain(domain)
+    return paths.domain_root(root, domain)
+
+
+def _validate_domain(domain: str) -> None:
+    path = Path(domain)
+    if path.is_absolute() or not path.parts:
+        raise ValueError(f"Invalid domain path: {domain}")
+    if any(part in ("", ".", "..") for part in path.parts):
+        raise ValueError(f"Invalid domain path: {domain}")
+
+
+def _domain_relative_path(domain_root: Path, value: str) -> Path:
     path = Path(value)
-    domain_root = paths.domain_root(root, domain)
     if path.is_absolute():
-        return path
-    if path.parts[:2] == ("domains", domain):
-        return root / path
-    return domain_root / path
+        resolved = path.resolve()
+    else:
+        resolved = (domain_root / path).resolve()
+    _ensure_inside_domain(domain_root, resolved)
+    return resolved
 
 
-def _relative_to_domain(root: Path, domain: str, path: Path) -> str:
-    return path.relative_to(paths.domain_root(root, domain)).as_posix()
+def _relative_to_domain(domain_root: Path, path: Path) -> str:
+    return path.resolve().relative_to(domain_root.resolve()).as_posix()
+
+
+def _ensure_inside_domain(domain_root: Path, path: Path) -> None:
+    try:
+        path.relative_to(domain_root.resolve())
+    except ValueError as error:
+        raise ValueError(f"Path is outside domain: {path}") from error

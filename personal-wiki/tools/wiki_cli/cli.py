@@ -53,22 +53,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = args.root if args.root is not None else paths.repo_root_from(Path.cwd())
 
-    if args.command == "validate":
-        return _run_validate(root, args.domain, args.json)
-    if args.command == "init-domain":
-        return _run_init_domain(root, args.name)
-    if args.command == "index":
-        return _run_index(root, args.domain)
-    if args.command == "backlinks":
-        return _run_backlinks(root, args.domain, args.write_json)
-    if args.command == "graph":
-        return _run_graph(root, args.domain, args.out)
-    if args.command == "snapshot-url":
-        return _run_snapshot_url(root, args.domain, args.url, args.fetch)
-    if args.command == "image-note":
-        return _run_image_note(root, args.domain, args.image_path)
-    if args.command == "ingest-plan":
-        return _run_ingest_plan(root, args.domain, args.raw_path)
+    try:
+        if args.command == "validate":
+            return _run_validate(root, args.domain, args.json)
+        if args.command == "init-domain":
+            return _run_init_domain(root, args.name)
+        if args.command == "index":
+            return _run_index(root, args.domain)
+        if args.command == "backlinks":
+            return _run_backlinks(root, args.domain, args.write_json)
+        if args.command == "graph":
+            return _run_graph(root, args.domain, args.out)
+        if args.command == "snapshot-url":
+            return _run_snapshot_url(root, args.domain, args.url, args.fetch)
+        if args.command == "image-note":
+            return _run_image_note(root, args.domain, args.image_path)
+        if args.command == "ingest-plan":
+            return _run_ingest_plan(root, args.domain, args.raw_path)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 1
 
     parser.error(f"Unknown command: {args.command}")
     return 1

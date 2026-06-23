@@ -272,3 +272,28 @@ def test_ingest_plan_cli_creates_raw_plan(tmp_path: Path):
     assert result.returncode == 0
     assert str(path) in result.stdout
     assert "Candidate page types" in path.read_text(encoding="utf-8")
+
+
+def test_ingest_plan_cli_reports_absolute_path_outside_domain_without_traceback(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    outside = tmp_path / "outside" / "source.md"
+    write(outside, "# Source\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "ingest-plan",
+            "ai-infra",
+            str(outside),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1
+    assert "outside domain" in output
+    assert "Traceback" not in output
