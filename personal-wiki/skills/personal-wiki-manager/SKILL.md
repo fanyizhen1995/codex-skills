@@ -33,7 +33,7 @@ Default scope is one domain. Use `global/` only for cross-domain knowledge. Pref
 
 ## Ingest Mode
 
-Read the raw source first, then draft the smallest useful curated pages. Preserve `source_refs` back to raw material and update `ingest.md` only after the user approves the proposed changes.
+Read the raw source first, then draft the smallest useful curated pages. Preserve `source_refs` back to raw material. `ingest-plan` may append a pending `ingest.md` entry immediately; promoting drafted curated wiki changes beyond a pending plan requires user approval.
 
 ## Validate Mode
 

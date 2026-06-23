@@ -92,3 +92,18 @@ def test_personal_wiki_manager_skill_exists_with_required_routing():
         "image-note workflow",
     ]:
         assert phrase in body_lower
+
+    for heading in [
+        "## Purpose",
+        "## Read Order",
+        "## Modes",
+        "## Query Mode",
+        "## Ingest Mode",
+        "## Validate Mode",
+        "## Refactor Mode",
+        "## Create-Domain Mode",
+        "## Image-Note Mode",
+        "## Safety Rules",
+        "## Commands",
+    ]:
+        assert heading in body

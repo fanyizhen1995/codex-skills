@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import os
 from pathlib import Path
 import re
 import sys
@@ -45,17 +46,20 @@ def snapshot_url(root: Path, domain: str, url: str, *, fetch: bool = False) -> P
 
 def image_note(root: Path, domain: str, image_path: str) -> Path:
     domain_root = _domain_root(root, domain)
+    raw_image = _domain_relative_path(domain_root, image_path)
     image_stem = slugify(Path(image_path).stem)
     path = domain_root / "wiki" / "references" / f"{image_stem}-image.md"
+    source_ref = _relative_between(path.parent, raw_image)
     document.write_document(
         path,
         document.MarkdownDocument(
             frontmatter={
                 "type": "Reference",
                 "title": f"{Path(image_path).stem} image",
+                "description": f"Reference note for {Path(image_path).stem} image.",
                 "domain": domain,
                 "status": "draft",
-                "source_refs": [image_path],
+                "source_refs": [source_ref],
             },
             body=(
                 "# Image Meaning\n"
@@ -159,6 +163,10 @@ def _domain_relative_path(domain_root: Path, value: str) -> Path:
 
 def _relative_to_domain(domain_root: Path, path: Path) -> str:
     return path.resolve().relative_to(domain_root.resolve()).as_posix()
+
+
+def _relative_between(base: Path, target: Path) -> str:
+    return Path(os.path.relpath(target.resolve(), start=base.resolve())).as_posix()
 
 
 def _ensure_inside_domain(domain_root: Path, path: Path) -> None:

@@ -6,6 +6,7 @@ from personal_wiki_test_loader import load_cli_module
 
 document = load_cli_module("document")
 ingest = load_cli_module("ingest")
+validate = load_cli_module("validate")
 
 
 def test_snapshot_url_without_fetch_creates_pending_raw_source(tmp_path: Path):
@@ -31,10 +32,22 @@ def test_image_note_creates_reference_note_for_raw_image(tmp_path: Path):
     assert path == root / "domains/ai-infra/wiki/references/diagram-image.md"
     doc = document.load_document(path)
     assert doc.frontmatter["type"] == "Reference"
+    assert doc.frontmatter["description"] == "Reference note for diagram image."
     assert doc.frontmatter["status"] == "draft"
-    assert doc.frontmatter["source_refs"] == ["raw/images/diagram.png"]
+    assert doc.frontmatter["source_refs"] == ["../../raw/images/diagram.png"]
     assert "# Image Meaning" in doc.body
     assert "# Image Source" in doc.body
+
+
+def test_image_note_for_existing_raw_image_validates_cleanly(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    image = root / "domains/ai-infra/raw/images/diagram.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"image")
+
+    ingest.image_note(root, "ai-infra", "raw/images/diagram.png")
+
+    assert validate.validate(root, domain="ai-infra") == []
 
 
 def test_ingest_plan_writes_plan_next_to_raw_source_without_wiki_page(tmp_path: Path):
