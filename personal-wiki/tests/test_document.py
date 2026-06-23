@@ -49,3 +49,14 @@ def test_domain_paths_are_resolved(tmp_path: Path):
     domain = paths.domain_root(root, "ai-infra")
     assert domain == root / "domains" / "ai-infra"
     assert paths.domain_wiki(root, "ai-infra") == domain / "wiki"
+
+
+def test_repo_root_from_returns_personal_wiki_root(tmp_path: Path):
+    outer = tmp_path / "repo"
+    root = outer / "personal-wiki"
+    root.mkdir(parents=True)
+    (root / "WIKI.md").write_text("# Wiki\n", encoding="utf-8")
+    (root / "domains").mkdir()
+
+    assert paths.repo_root_from(outer) == root
+    assert paths.repo_root_from(root / "domains") == root

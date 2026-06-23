@@ -9,7 +9,10 @@ def repo_root_from(start: Path) -> Path:
         current = current.parent
 
     for path in (current, *current.parents):
-        if (path / "personal-wiki").is_dir() or (path / "WIKI.md").is_file():
+        child = path / "personal-wiki"
+        if (child / "WIKI.md").is_file():
+            return child
+        if path.name == "personal-wiki" and (path / "WIKI.md").is_file():
             return path
     raise FileNotFoundError(f"Could not find repository root from {start}")
 
