@@ -9,11 +9,13 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import graph as graph_module  # type: ignore
+    import ingest  # type: ignore
     import indexer  # type: ignore
     import paths  # type: ignore
     import validate as validate_module  # type: ignore
 else:
     from . import graph as graph_module
+    from . import ingest
     from . import indexer
     from . import paths
     from . import validate as validate_module
@@ -37,6 +39,16 @@ def main(argv: list[str] | None = None) -> int:
     graph_parser = subparsers.add_parser("graph")
     graph_parser.add_argument("--domain")
     graph_parser.add_argument("--out", type=Path, default=Path("graph.json"))
+    snapshot_parser = subparsers.add_parser("snapshot-url")
+    snapshot_parser.add_argument("domain")
+    snapshot_parser.add_argument("url")
+    snapshot_parser.add_argument("--fetch", action="store_true")
+    image_parser = subparsers.add_parser("image-note")
+    image_parser.add_argument("domain")
+    image_parser.add_argument("image_path")
+    ingest_parser = subparsers.add_parser("ingest-plan")
+    ingest_parser.add_argument("domain")
+    ingest_parser.add_argument("raw_path")
 
     args = parser.parse_args(argv)
     root = args.root if args.root is not None else paths.repo_root_from(Path.cwd())
@@ -51,6 +63,12 @@ def main(argv: list[str] | None = None) -> int:
         return _run_backlinks(root, args.domain, args.write_json)
     if args.command == "graph":
         return _run_graph(root, args.domain, args.out)
+    if args.command == "snapshot-url":
+        return _run_snapshot_url(root, args.domain, args.url, args.fetch)
+    if args.command == "image-note":
+        return _run_image_note(root, args.domain, args.image_path)
+    if args.command == "ingest-plan":
+        return _run_ingest_plan(root, args.domain, args.raw_path)
 
     parser.error(f"Unknown command: {args.command}")
     return 1
@@ -106,6 +124,24 @@ def _run_backlinks(root: Path, domain: str | None, write_json: bool) -> int:
 
 def _run_graph(root: Path, domain: str | None, out: Path) -> int:
     path = graph_module.write_graph(root, domain, out)
+    print(path)
+    return 0
+
+
+def _run_snapshot_url(root: Path, domain: str, url: str, fetch: bool) -> int:
+    path = ingest.snapshot_url(root, domain, url, fetch=fetch)
+    print(path)
+    return 0
+
+
+def _run_image_note(root: Path, domain: str, image_path: str) -> int:
+    path = ingest.image_note(root, domain, image_path)
+    print(path)
+    return 0
+
+
+def _run_ingest_plan(root: Path, domain: str, raw_path: str) -> int:
+    path = ingest.ingest_plan(root, domain, raw_path)
     print(path)
     return 0
 

@@ -200,3 +200,75 @@ def test_graph_cli_writes_graph_json_to_requested_output(tmp_path: Path):
         "tags": [],
         "description": "Cache for transformer key/value states.",
     } in payload["nodes"]
+
+
+def test_snapshot_url_cli_creates_raw_link_source(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "snapshot-url",
+            "ai-infra",
+            "https://example.com/a",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    path = root / "domains/ai-infra/raw/links/example-com-a.md"
+    assert result.returncode == 0
+    assert str(path) in result.stdout
+    assert "source_kind: web" in path.read_text(encoding="utf-8")
+
+
+def test_image_note_cli_creates_reference_note(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "image-note",
+            "ai-infra",
+            "raw/images/diagram.png",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    path = root / "domains/ai-infra/wiki/references/diagram-image.md"
+    assert result.returncode == 0
+    assert str(path) in result.stdout
+    text = path.read_text(encoding="utf-8")
+    assert "type: Reference" in text
+    assert "# Image Meaning" in text
+
+
+def test_ingest_plan_cli_creates_raw_plan(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    write(root / "domains/ai-infra/raw/inbox/source.md", "# Source\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "ingest-plan",
+            "ai-infra",
+            "raw/inbox/source.md",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    path = root / "domains/ai-infra/raw/inbox/source.ingest-plan.md"
+    assert result.returncode == 0
+    assert str(path) in result.stdout
+    assert "Candidate page types" in path.read_text(encoding="utf-8")
