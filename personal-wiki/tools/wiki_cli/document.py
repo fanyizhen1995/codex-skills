@@ -29,10 +29,6 @@ def parse_markdown(text: str) -> MarkdownDocument:
         body_start += 2
     elif text.startswith("\n", body_start):
         body_start += 1
-    if text.startswith("\r\n", body_start):
-        body_start += 2
-    elif text.startswith("\n", body_start):
-        body_start += 1
     return MarkdownDocument(frontmatter=_parse_frontmatter(frontmatter_text), body=text[body_start:])
 
 
@@ -53,7 +49,7 @@ def serialize_markdown(doc: MarkdownDocument) -> str:
         else:
             lines.append(f"{key}: {value}")
     lines.append("---")
-    return "\n".join(lines) + "\n\n" + doc.body
+    return "\n".join(lines) + "\n" + doc.body
 
 
 def load_document(path: Path) -> MarkdownDocument:

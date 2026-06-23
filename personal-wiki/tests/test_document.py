@@ -14,13 +14,19 @@ def test_parse_frontmatter_and_body():
     assert doc.frontmatter["title"] == "KV Cache"
     assert doc.frontmatter["tags"] == ["llm", "inference"]
     assert doc.frontmatter["source_refs"] == ["../../raw/papers/a.md"]
-    assert doc.body.startswith("# Summary")
+    assert doc.body == "\n# Summary\nBody\n"
 
 
 def test_parse_markdown_without_frontmatter():
     doc = document.parse_markdown("# Plain\n")
     assert doc.frontmatter == {}
     assert doc.body == "# Plain\n"
+
+
+def test_parse_frontmatter_preserves_body_after_delimiter_line():
+    doc = document.parse_markdown("---\na: b\n---\n\n# H\n")
+    assert doc.frontmatter == {"a": "b"}
+    assert doc.body == "\n# H\n"
 
 
 def test_serialize_frontmatter_round_trip():
