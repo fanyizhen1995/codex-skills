@@ -237,6 +237,22 @@ p {
   min-width: 0;
 }
 
+.empty-state {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #cbd6dc;
+  border-radius: 6px;
+  color: #66757b;
+  background: #f8fafb;
+  text-align: center;
+  padding: 12px;
+}
+
+.chart-frame .empty-state {
+  height: 100%;
+}
+
 .responsive-table {
   display: grid;
   gap: 0;

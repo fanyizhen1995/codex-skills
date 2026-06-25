@@ -1,48 +1,10 @@
 import { RefreshCw, Search, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { askCodex, getDomains, getGraph, getJob, rebuildSearch, searchWiki } from "../api";
 import { WikiGraph } from "../components/WikiGraph";
 import { StatusBadge } from "../components/StatusBadge";
 import type { CodexJob, Domain, SearchResult, WikiGraphResponse } from "../types";
-
-const placeholderResults: SearchResult[] = [
-  {
-    domain: "engineering",
-    path: "engineering/crawler-workbench.md",
-    title: "Crawler Workbench",
-    description: "本地抓取、入库队列与 Codex 执行状态的操作入口。"
-  },
-  {
-    domain: "research",
-    path: "research/personal-wiki-manager.md",
-    title: "personal-wiki-manager",
-    description: "用于查询、沉淀与校验个人知识库的 Codex skill。"
-  }
-];
-
-const placeholderGraph: WikiGraphResponse = {
-  nodes: [
-    { id: "workbench", title: "知识工作台", type: "note", path: "engineering/crawler-workbench.md" },
-    { id: "search", title: "全文搜索", type: "topic" },
-    { id: "codex", title: "Codex 查询", type: "source" },
-    { id: "curated", title: "curated wiki", type: "domain" }
-  ],
-  edges: [
-    { source: "workbench", target: "search", type: "references" },
-    { source: "workbench", target: "codex", type: "asks" },
-    { source: "codex", target: "curated", type: "persists" }
-  ]
-};
-
-const topicTimeline = [
-  { label: "周一", search: 7, codex: 2, cited: 4 },
-  { label: "周二", search: 9, codex: 4, cited: 5 },
-  { label: "周三", search: 6, codex: 3, cited: 7 },
-  { label: "周四", search: 12, codex: 5, cited: 8 },
-  { label: "周五", search: 10, codex: 6, cited: 9 }
-];
 
 function resultDescription(result: SearchResult) {
   return result.description ?? result.snippet ?? "暂无摘要";
@@ -69,8 +31,8 @@ export function KnowledgePage() {
   const [query, setQuery] = useState("");
   const [question, setQuestion] = useState("");
   const [persist, setPersist] = useState(false);
-  const [results, setResults] = useState<SearchResult[]>(placeholderResults);
-  const [graph, setGraph] = useState<WikiGraphResponse>(placeholderGraph);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [graph, setGraph] = useState<WikiGraphResponse>({ nodes: [], edges: [] });
   const [jobId, setJobId] = useState<number | null>(null);
   const [job, setJob] = useState<CodexJob | null>(null);
   const [message, setMessage] = useState("");
@@ -131,7 +93,8 @@ export function KnowledgePage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setGraph(placeholderGraph);
+          setGraph({ nodes: [], edges: [] });
+          setMessage("加载知识关系图失败");
         }
       });
 
@@ -366,17 +329,7 @@ export function KnowledgePage() {
         <div className="work-panel chart-panel">
           <h2>主题时间线</h2>
           <div className="chart-frame">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={topicTimeline} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-                <CartesianGrid stroke="#e5ebef" strokeDasharray="3 3" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={34} />
-                <Tooltip />
-                <Line type="monotone" dataKey="search" name="全文搜索" stroke="#2f6f73" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="codex" name="Codex 查询" stroke="#4f7f9f" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="cited" name="引用路径" stroke="#7a5c28" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="empty-state">暂无主题时间线数据</div>
           </div>
         </div>
       </div>

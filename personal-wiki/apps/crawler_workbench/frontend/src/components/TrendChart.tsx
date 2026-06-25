@@ -21,6 +21,14 @@ interface TrendChartProps {
 }
 
 export function TrendChart({ data }: TrendChartProps) {
+  if (data.length === 0) {
+    return (
+      <div className="chart-frame" role="img" aria-label="抓取趋势">
+        <div className="empty-state">暂无趋势数据</div>
+      </div>
+    );
+  }
+
   return (
     <div className="chart-frame" role="img" aria-label="抓取趋势">
       <ResponsiveContainer width="100%" height="100%">

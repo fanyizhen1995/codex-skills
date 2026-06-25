@@ -1,28 +1,119 @@
 import { AlertTriangle, CalendarClock, GitCommit, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
+import { getHealth, getQueue, getRuns, getSources } from "../api";
 import { TrendChart, type TrendPoint } from "../components/TrendChart";
 import { StatusBadge } from "../components/StatusBadge";
+import type { FetchRun, HealthResponse, IngestTask, SourceProfile, Status } from "../types";
 
-const trendData: TrendPoint[] = [
-  { label: "周一", fetched: 18, changed: 7, failed: 1 },
-  { label: "周二", fetched: 24, changed: 10, failed: 2 },
-  { label: "周三", fetched: 21, changed: 8, failed: 0 },
-  { label: "周四", fetched: 31, changed: 13, failed: 3 },
-  { label: "周五", fetched: 27, changed: 11, failed: 1 }
-];
+function statusForHealth(health: HealthResponse | null, error: string): Status {
+  if (error) {
+    return "failed";
+  }
+  return health?.status === "ok" ? "ready" : "pending";
+}
 
-const scheduledRuns = [
-  { source: "Engineering RSS", time: "09:30", scope: "daily" },
-  { source: "GitHub Watch", time: "10:15", scope: "hourly" },
-  { source: "Arxiv AI", time: "14:00", scope: "weekday" }
-];
+function timeLabel(value?: string) {
+  if (!value) {
+    return "未记录";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
 
-const authWarnings = ["GitHub token 将在 3 天后过期", "网页来源 news-site 需要 cookie 刷新"];
-const validationFailures = ["docs/ai/index.md 缺少 frontmatter", "crawler/reports/june.md 链接校验失败"];
-const recentCommits = ["source:github 同步 8 篇变更", "source:rss 入库 5 篇摘要", "queue:auto 修复 2 个标题"];
-const failureReasons = ["认证失败 5", "正文为空 3", "超时 2"];
+function runTime(run: FetchRun) {
+  return run.finished_at ?? run.started_at ?? `run-${run.id}`;
+}
+
+function trendLabel(run: FetchRun) {
+  const raw = runTime(run);
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  return parsed.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function summarizeTrend(runs: FetchRun[]): TrendPoint[] {
+  return runs
+    .slice(0, 12)
+    .reverse()
+    .map((run) => ({
+      label: trendLabel(run),
+      fetched: run.fetched_count ?? 0,
+      changed: run.changed_count ?? 0,
+      failed: run.failed_count ?? (run.status === "failed" ? 1 : 0)
+    }));
+}
+
+function statusCount(tasks: IngestTask[], status: string) {
+  return tasks.filter((task) => task.status === status).length;
+}
 
 export function OverviewPage() {
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [sources, setSources] = useState<SourceProfile[]>([]);
+  const [runs, setRuns] = useState<FetchRun[]>([]);
+  const [queue, setQueue] = useState<IngestTask[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([getHealth(), getSources(), getRuns(), getQueue()])
+      .then(([nextHealth, nextSources, nextRuns, nextQueue]) => {
+        if (cancelled) {
+          return;
+        }
+        setHealth(nextHealth);
+        setSources(nextSources);
+        setRuns(nextRuns);
+        setQueue(nextQueue);
+        setError("");
+      })
+      .catch((nextError) => {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "加载运行状态失败");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const trendData = useMemo(() => summarizeTrend(runs), [runs]);
+  const scheduledSources = sources.filter((source) => source.enabled && source.schedule).slice(0, 6);
+  const authWarnings = sources.filter((source) => source.auth_required && source.auth_state !== "ready");
+  const validationFailures = runs.filter((run) => run.status === "failed" || (run.failed_count ?? 0) > 0).slice(0, 6);
+  const sourceTypes = new Set(sources.map((source) => source.type)).size;
+  const pendingCount = statusCount(queue, "pending");
+  const runningCount = statusCount(queue, "running");
+  const failedCount = statusCount(queue, "failed");
+  const recentRuns = runs.slice(0, 6);
+  const failureReasons = validationFailures
+    .map((run) => run.failure_reason ?? `运行 #${run.id} 失败`)
+    .filter((reason) => reason.trim() !== "");
+
   return (
     <section className="page-section" aria-labelledby="overview-title">
       <div className="page-heading">
@@ -30,24 +121,32 @@ export function OverviewPage() {
           <p className="eyebrow">运行状态</p>
           <h1 id="overview-title">运维控制台</h1>
         </div>
-        <StatusBadge status="ready" />
+        <StatusBadge status={statusForHealth(health, error)} />
       </div>
+
+      {error && <div className="warning">{error}</div>}
 
       <div className="metrics-grid">
         <div className="metric-card">
           <span className="metric-label">运行健康</span>
-          <strong>稳定</strong>
-          <span className="metric-help">API 在线，最近 24 小时失败率 4%</span>
+          <strong>{health?.status ?? (loading ? "加载中" : "未知")}</strong>
+          <span className="metric-help">
+            {health ? `${health.bind_host}:${health.bind_port}` : loading ? "正在读取后端健康状态" : "暂无健康状态"}
+          </span>
         </div>
         <div className="metric-card">
           <span className="metric-label">待处理入库</span>
-          <strong>12</strong>
-          <span className="metric-help">8 个待审批，3 个运行中，1 个失败</span>
+          <strong>{queue.length}</strong>
+          <span className="metric-help">
+            {queue.length === 0 ? "暂无待处理任务" : `${pendingCount} 个待审批，${runningCount} 个运行中，${failedCount} 个失败`}
+          </span>
         </div>
         <div className="metric-card">
           <span className="metric-label">来源覆盖</span>
-          <strong>4 类</strong>
-          <span className="metric-help">RSS、GitHub、Arxiv、Web 均已启用</span>
+          <strong>{sources.length === 0 ? "0 类" : `${sourceTypes} 类`}</strong>
+          <span className="metric-help">
+            {sources.length === 0 ? "暂无来源订阅" : `${sources.length} 个来源，${sources.filter((source) => source.enabled).length} 个启用`}
+          </span>
         </div>
       </div>
 
@@ -58,13 +157,17 @@ export function OverviewPage() {
             下一批计划抓取
           </h2>
           <div className="compact-list">
-            {scheduledRuns.map((run) => (
-              <div className="list-row" key={run.source}>
-                <span>{run.source}</span>
-                <strong>{run.time}</strong>
-                <span>{run.scope}</span>
-              </div>
-            ))}
+            {scheduledSources.length === 0 ? (
+              <div className="empty-state">暂无计划抓取</div>
+            ) : (
+              scheduledSources.map((source) => (
+                <div className="list-row" key={source.id}>
+                  <span>{source.name}</span>
+                  <strong>{source.schedule}</strong>
+                  <span>{source.target_domain}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -73,11 +176,17 @@ export function OverviewPage() {
             <ShieldAlert aria-hidden="true" size={17} />
             认证告警
           </h2>
-          <ul className="plain-list">
-            {authWarnings.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {authWarnings.length === 0 ? (
+            <div className="empty-state">暂无认证告警</div>
+          ) : (
+            <ul className="plain-list">
+              {authWarnings.map((source) => (
+                <li key={source.id}>
+                  {source.name}：{source.auth_state}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="work-panel">
@@ -85,32 +194,48 @@ export function OverviewPage() {
             <AlertTriangle aria-hidden="true" size={17} />
             校验失败
           </h2>
-          <ul className="plain-list">
-            {validationFailures.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {validationFailures.length === 0 ? (
+            <div className="empty-state">暂无校验失败记录</div>
+          ) : (
+            <ul className="plain-list">
+              {validationFailures.map((run) => (
+                <li key={run.id}>
+                  {run.source_id ?? `运行 #${run.id}`}：{run.failure_reason ?? run.status}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="work-panel">
           <h2>
             <GitCommit aria-hidden="true" size={17} />
-            最近自动提交
+            最近抓取运行
           </h2>
-          <ul className="plain-list">
-            {recentCommits.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {recentRuns.length === 0 ? (
+            <div className="empty-state">暂无抓取运行记录</div>
+          ) : (
+            <ul className="plain-list">
+              {recentRuns.map((run) => (
+                <li key={run.id}>
+                  {run.source_id ?? `运行 #${run.id}`}：{run.status}，{timeLabel(runTime(run))}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="work-panel">
           <h2>失败原因分布</h2>
-          <ul className="plain-list">
-            {failureReasons.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {failureReasons.length === 0 ? (
+            <div className="empty-state">暂无失败原因数据</div>
+          ) : (
+            <ul className="plain-list">
+              {failureReasons.map((item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
