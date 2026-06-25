@@ -88,15 +88,35 @@ export interface SearchResult {
   path: string;
   title?: string;
   snippet?: string;
+  description?: string;
   score?: number;
   [key: string]: unknown;
 }
 
-export interface GraphResponse {
-  nodes?: unknown[];
-  edges?: unknown[];
+export interface WikiGraphNode {
+  id: string;
+  title?: string;
+  path?: string;
+  type?: string;
+  domain?: string;
   [key: string]: unknown;
 }
+
+export interface WikiGraphEdge {
+  source: string;
+  target: string;
+  label?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+export interface WikiGraphResponse {
+  nodes: WikiGraphNode[];
+  edges: WikiGraphEdge[];
+  [key: string]: unknown;
+}
+
+export type GraphResponse = WikiGraphResponse;
 
 export interface ValidationResponse {
   status: "succeeded" | "failed";
@@ -107,4 +127,21 @@ export interface ValidationResponse {
 
 export interface AskResponse {
   job_id: number;
+}
+
+export interface CodexJob {
+  id?: number;
+  job_id?: number;
+  status: "pending" | "running" | "succeeded" | "failed" | string;
+  question?: string;
+  answer?: string;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+  cited_paths?: string[];
+  citations?: string[];
+  related_pages?: SearchResult[];
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
 }

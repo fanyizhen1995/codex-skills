@@ -1,5 +1,6 @@
 import type {
   AskResponse,
+  CodexJob,
   Domain,
   FetchRun,
   GraphResponse,
@@ -10,7 +11,8 @@ import type {
   SearchResult,
   SettingsResponse,
   SourceProfile,
-  ValidationResponse
+  ValidationResponse,
+  WikiGraphResponse
 } from "./types";
 
 const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL);
@@ -74,6 +76,10 @@ export async function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health");
 }
 
+export async function getDomains(): Promise<Domain[]> {
+  return request<Domain[]>("/domains");
+}
+
 export async function getSources(): Promise<SourceProfile[]> {
   return request<SourceProfile[]>("/sources");
 }
@@ -98,10 +104,30 @@ export async function rejectTask(id: number, reason: string): Promise<Record<str
   return request<Record<string, unknown>>(`/queue/${id}/reject`, { method: "POST", body: { reason } });
 }
 
+export async function searchWiki(query: string, domain?: string): Promise<SearchResult[]> {
+  return request<SearchResult[]>(withQuery("/search", { q: query, domain }));
+}
+
+export async function askCodex(domain: string, question: string, persist: boolean): Promise<{ job_id: number }> {
+  return request<AskResponse>("/ask", { method: "POST", body: { domain, question, persist } });
+}
+
+export async function getJob(id: number): Promise<CodexJob> {
+  return request<CodexJob>(`/jobs/${id}`);
+}
+
+export async function getGraph(domain?: string): Promise<WikiGraphResponse> {
+  return request<WikiGraphResponse>(withQuery("/graph", { domain }));
+}
+
+export async function rebuildSearch(domain?: string): Promise<{ indexed: number }> {
+  return request<{ indexed: number }>(withQuery("/search/rebuild", { domain }), { method: "POST" });
+}
+
 export const api = {
   health: getHealth,
   settings: () => request<SettingsResponse>("/settings"),
-  domains: () => request<Domain[]>("/domains"),
+  domains: getDomains,
   sources: getSources,
   runSource,
   runs: getRuns,
@@ -112,13 +138,12 @@ export const api = {
     request<QueueTask>(`/queue/${taskId}/run`, { method: "POST", body: { auto_commit_enabled: autoCommitEnabled } }),
   commit: (payload: { domain: string; paths: string[]; message: string; source_id?: string }) =>
     request<Record<string, unknown>>("/commit", { method: "POST", body: payload }),
-  search: (query: string, domain?: string) => request<SearchResult[]>(withQuery("/search", { q: query, domain })),
-  rebuildSearch: (domain?: string) => request<Record<string, unknown>>(withQuery("/search/rebuild", { domain }), { method: "POST" }),
-  ask: (domain: string, question: string, persist = false) =>
-    request<AskResponse>("/ask", { method: "POST", body: { domain, question, persist } }),
-  graph: (domain?: string) => request<GraphResponse>(withQuery("/graph", { domain })),
+  search: searchWiki,
+  rebuildSearch,
+  ask: askCodex,
+  graph: (domain?: string) => getGraph(domain) as Promise<GraphResponse>,
   validate: (domain?: string) => request<ValidationResponse>("/validate", { method: "POST", body: { domain } }),
-  job: (jobId: number) => request<Record<string, unknown>>(`/jobs/${jobId}`)
+  job: getJob
 };
 
 export { ApiError, request, resolveApiBase };
