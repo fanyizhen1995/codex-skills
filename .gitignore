@@ -1,2 +1,10 @@
 __pycache__/
 *.py[cod]
+.personal-wiki-workbench/
+personal-wiki/apps/crawler_workbench/backend/.venv/
+personal-wiki/apps/crawler_workbench/backend/.pytest_cache/
+personal-wiki/apps/crawler_workbench/**/*.sqlite3
+personal-wiki/apps/crawler_workbench/frontend/node_modules/
+personal-wiki/apps/crawler_workbench/frontend/dist/
+personal-wiki/apps/crawler_workbench/frontend/playwright-report/
+personal-wiki/apps/crawler_workbench/frontend/test-results/
