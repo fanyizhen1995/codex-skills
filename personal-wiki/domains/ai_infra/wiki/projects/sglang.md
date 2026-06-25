@@ -11,7 +11,7 @@ tags:
   - llm-serving
   - ai-infrastructure
 source_refs:
-  - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz
+  - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json
 updated: 2026-06-24
 aliases:
@@ -42,5 +42,5 @@ The closed pull-request set contains 14,670 merged PRs and 4,805 closed-unmerged
 
 # Citations
 
-- [SGLang closed issues and PRs with comments](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz)
+- [SGLang closed issues and PRs with comments](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json)
 - [SGLang closed issues and PRs summary](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json)

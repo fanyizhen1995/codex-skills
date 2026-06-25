@@ -11,7 +11,7 @@ tags:
   - inference-serving
   - model-runtime
 source_refs:
-  - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz
+  - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-api-pages.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-pulls-api-pages.json.gz
@@ -52,7 +52,7 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 
 Raw files:
 
-- [Joined closed issue/PR corpus](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz)
+- [Joined closed issue/PR corpus](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json)
 - [Derived summary](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json)
 - [Raw index](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
 - [Closed issues endpoint pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-api-pages.json.gz)
@@ -101,7 +101,7 @@ High-discussion examples in the captured corpus include:
 
 # Citations
 
-- [SGLang closed issues and PRs with comments](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz)
+- [SGLang closed issues and PRs with comments](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json)
 - [SGLang closed issues and PRs summary](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json)
 - [SGLang closed issue API pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-api-pages.json.gz)
 - [SGLang closed pull request API pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-pulls-api-pages.json.gz)

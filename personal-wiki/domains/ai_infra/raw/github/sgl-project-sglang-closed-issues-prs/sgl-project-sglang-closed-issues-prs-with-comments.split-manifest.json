@@ -1,0 +1,27 @@
+{
+  "type": "split-raw-evidence-manifest",
+  "source": "sgl-project-sglang-closed-issues-prs-with-comments.json.gz",
+  "source_bytes": 125466037,
+  "source_sha256": "66047b6b922c273ec6af34257a11131aa64185a1077a5b98d75371e4598a0027",
+  "part_count": 3,
+  "part_size_bytes": 52428800,
+  "parts": [
+    {
+      "path": "sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-001.gzpart",
+      "bytes": 52428800,
+      "sha256": "e845aed61a1154faf1bc61844a439274a682173e83098c3722df4ad1de9804dc"
+    },
+    {
+      "path": "sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-002.gzpart",
+      "bytes": 52428800,
+      "sha256": "fa8caa6249db7aff192d4ab0dcf6f942417742660db430f76126ed495f4fc578"
+    },
+    {
+      "path": "sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-003.gzpart",
+      "bytes": 20608437,
+      "sha256": "b32a8c30af2ce00136a6f6ac776d59e46e00f8081967e768a4e3f75511ab6ca7"
+    }
+  ],
+  "reassemble": "cat sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-001.gzpart sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-002.gzpart sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-003.gzpart > sgl-project-sglang-closed-issues-prs-with-comments.json.gz",
+  "notes": "The original gzip raw corpus is split into deterministic binary parts so every Git blob remains below GitHub single-file limits."
+}
