@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 
+from .codex_worker import run_codex_job
 from .db import open_db
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
 from .graph_api import domain_graph
@@ -11,6 +13,20 @@ from .schemas import HealthResponse, SourceProfileResponse
 
 
 router = APIRouter(prefix="/api")
+
+
+class AskRequest(BaseModel):
+    domain: StrictStr = Field(min_length=1)
+    question: StrictStr = Field(min_length=1)
+    persist: StrictBool = False
+
+    @field_validator("domain", "question")
+    @classmethod
+    def require_non_empty_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be empty")
+        return stripped
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -95,3 +111,23 @@ def rebuild_search(request: Request, domain: str | None = None) -> dict[str, obj
 @router.get("/graph")
 def graph(request: Request, domain: str | None = None) -> dict[str, object]:
     return domain_graph(request.app.state.settings, domain)
+
+
+@router.post("/ask")
+def ask(payload: AskRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
+    with open_db(settings.database_path) as db:
+        # Task 7 intentionally executes synchronously; background job dispatch is out of scope.
+        job_id = run_codex_job(settings, db, "query", payload.domain, payload.question, persist=payload.persist)
+    return {"job_id": job_id}
+
+
+@router.get("/jobs/{job_id}")
+def job(job_id: int, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        row = db.execute("select * from codex_jobs where id = ?", (job_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return dict(row)
