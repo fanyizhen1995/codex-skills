@@ -7,9 +7,20 @@ from .codex_worker import run_codex_job
 from .db import open_db
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
 from .graph_api import domain_graph
+from .ingest import (
+    IngestInputError,
+    InvalidTaskStateError,
+    TaskNotFoundError,
+    approve_task,
+    commit_paths,
+    list_queue,
+    reject_task,
+    run_approved_task,
+)
 from .profiles import list_profiles
-from .search import rebuild_search_index, search_wiki
+from .search import rebuild_search_index, search_wiki, validate_domain
 from .schemas import HealthResponse, SourceProfileResponse
+from .wiki_cli import run_validate, wiki_cli_command
 
 
 router = APIRouter(prefix="/api")
@@ -27,6 +38,65 @@ class AskRequest(BaseModel):
         if not stripped:
             raise ValueError("must not be empty")
         return stripped
+
+
+class RejectRequest(BaseModel):
+    reason: str = Field(default="rejected by user", min_length=1)
+
+    @field_validator("reason")
+    @classmethod
+    def require_reason(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be empty")
+        return stripped
+
+
+class ValidateRequest(BaseModel):
+    domain: str | None = None
+
+    @field_validator("domain")
+    @classmethod
+    def normalize_domain(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class RunQueueRequest(BaseModel):
+    auto_commit_enabled: StrictBool = False
+
+
+class CommitRequest(BaseModel):
+    domain: StrictStr = Field(min_length=1)
+    paths: list[StrictStr] = Field(min_length=1)
+    message: StrictStr = Field(min_length=1)
+    source_id: StrictStr | None = None
+
+    @field_validator("domain", "message")
+    @classmethod
+    def require_non_empty_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be empty")
+        return stripped
+
+    @field_validator("paths")
+    @classmethod
+    def require_non_empty_paths(cls, value: list[str]) -> list[str]:
+        paths = [path.strip() for path in value]
+        if any(not path for path in paths):
+            raise ValueError("paths must not contain empty values")
+        return paths
+
+    @field_validator("source_id")
+    @classmethod
+    def normalize_source_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -86,6 +156,72 @@ def runs(request: Request) -> list[dict[str, object]]:
     return [dict(row) for row in rows]
 
 
+@router.get("/queue")
+def queue(request: Request) -> list[dict[str, object]]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        return list_queue(db)
+
+
+@router.post("/queue/{task_id}/approve")
+def approve(task_id: int, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return approve_task(request.app.state.settings, db, task_id)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except InvalidTaskStateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/queue/{task_id}/reject")
+def reject(task_id: int, payload: RejectRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return reject_task(db, task_id, payload.reason)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except InvalidTaskStateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/queue/{task_id}/run")
+def run_queue_task(task_id: int, payload: RunQueueRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return run_approved_task(request.app.state.settings, db, task_id, payload.auto_commit_enabled)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except InvalidTaskStateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except IngestInputError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/commit")
+def commit(payload: CommitRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    try:
+        validate_domain(payload.domain)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return commit_paths(
+                request.app.state.settings,
+                db,
+                payload.domain,
+                payload.paths,
+                payload.message,
+                payload.source_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/search")
 def search(q: str, request: Request, domain: str | None = None) -> list[dict[str, object]]:
     request.app.state.initialize_database(request.app)
@@ -106,6 +242,38 @@ def rebuild_search(request: Request, domain: str | None = None) -> dict[str, obj
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"indexed": count}
+
+
+@router.post("/validate")
+def validate(payload: ValidateRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
+    if payload.domain is not None:
+        try:
+            validate_domain(payload.domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    result = run_validate(settings, payload.domain)
+    status = "succeeded" if result.returncode == 0 else "failed"
+    command_args = ["validate"]
+    if payload.domain is not None:
+        command_args.extend(["--domain", payload.domain])
+    command = " ".join(wiki_cli_command(settings, *command_args))
+    with open_db(settings.database_path) as db:
+        validation_run_id = db.execute(
+            """
+            insert into validation_runs (target_domain, status, command, output)
+            values (?, ?, ?, ?)
+            """,
+            (payload.domain, status, command, result.stdout + result.stderr),
+        ).lastrowid
+        db.commit()
+    return {
+        "status": status,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "validation_run_id": validation_run_id,
+    }
 
 
 @router.get("/graph")

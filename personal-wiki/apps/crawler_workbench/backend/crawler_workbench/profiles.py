@@ -39,6 +39,7 @@ def load_profiles_from_yaml(path: Path) -> list[dict[str, Any]]:
             raise ValueError(f"duplicate source id: {profile['id']}")
         seen_ids.add(profile["id"])
         validate_profile_booleans(profile)
+        validate_profile_domain(profile)
     return profiles
 
 
@@ -55,6 +56,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
 
     for profile in profiles:
         booleans = validate_profile_booleans(profile)
+        validate_profile_domain(profile)
         auto_ingest = booleans["auto_ingest"]
         auth_required = booleans["auth_required"]
         enabled = booleans["enabled"]
@@ -146,6 +148,21 @@ def validate_profile_booleans(profile: dict[str, Any]) -> dict[str, bool]:
     }
     values["enabled"] = _require_bool(profile, "enabled", profile_id) if "enabled" in profile else True
     return values
+
+
+def validate_profile_domain(profile: dict[str, Any]) -> None:
+    profile_id = profile.get("id", "<unknown>")
+    domain = str(profile.get("target_domain", ""))
+    domain_path = Path(domain)
+    if (
+        not domain
+        or domain_path.is_absolute()
+        or len(domain_path.parts) != 1
+        or "/" in domain
+        or "\\" in domain
+        or ".." in domain_path.parts
+    ):
+        raise ValueError(f"Invalid domain path for profile {profile_id}: {domain}")
 
 
 def _require_bool(profile: dict[str, Any], key: str, profile_id: object) -> bool:

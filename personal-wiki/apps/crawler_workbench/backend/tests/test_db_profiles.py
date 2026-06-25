@@ -139,6 +139,29 @@ sources:
         load_profiles_from_yaml(yaml_path)
 
 
+def test_yaml_profile_target_domain_must_be_single_segment(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: bad-domain-source
+    name: Bad domain source
+    type: web
+    target_domain: team/ai
+    url: https://example.com
+    trust_level: trusted
+    schedule: daily
+    auto_ingest: true
+    auth_required: false
+    topic: bad domain audit
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Invalid domain"):
+        load_profiles_from_yaml(yaml_path)
+
+
 def test_mirror_profiles_validates_boolean_fields_for_direct_calls(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     profile = load_profiles_from_yaml(tmp_path / "missing.yaml")
@@ -159,6 +182,26 @@ def test_mirror_profiles_validates_boolean_fields_for_direct_calls(tmp_path):
     with open_db(settings.database_path) as db:
         migrate(db)
         with pytest.raises(ValueError, match="profile direct-bad-bool key auto_ingest must be a boolean"):
+            mirror_profiles(db, [bad_profile])
+
+
+def test_mirror_profiles_validates_target_domain_for_direct_calls(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    bad_profile = {
+        "id": "direct-bad-domain",
+        "name": "Direct bad domain",
+        "type": "web",
+        "target_domain": "../ai",
+        "url": "https://example.com",
+        "trust_level": "trusted",
+        "schedule": "daily",
+        "auto_ingest": True,
+        "auth_required": False,
+        "topic": "direct domain validation",
+    }
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        with pytest.raises(ValueError, match="Invalid domain"):
             mirror_profiles(db, [bad_profile])
 
 

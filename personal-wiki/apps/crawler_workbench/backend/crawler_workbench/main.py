@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .api import router
 from .db import migrate, open_db, transaction
@@ -28,6 +31,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(request, exc):
+        return JSONResponse(status_code=400, content={"detail": jsonable_encoder(exc.errors())})
+
     app.include_router(router)
 
     @app.on_event("startup")

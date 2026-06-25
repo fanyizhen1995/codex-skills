@@ -114,7 +114,7 @@ def test_ask_endpoint_requires_question(tmp_path):
     app = create_app(settings)
     with TestClient(app) as client:
         response = client.post("/api/ask", json={"domain": "ai_infra"})
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 def test_ask_endpoint_rejects_string_persist(tmp_path):
@@ -125,4 +125,4 @@ def test_ask_endpoint_rejects_string_persist(tmp_path):
             "/api/ask",
             json={"domain": "ai_infra", "question": "NCCL trend?", "persist": "false"},
         )
-    assert response.status_code == 422
+    assert response.status_code == 400

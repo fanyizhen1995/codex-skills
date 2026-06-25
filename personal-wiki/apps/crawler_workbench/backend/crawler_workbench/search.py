@@ -13,6 +13,10 @@ from .settings import Settings
 BODY_EXCERPT_CHARS = 2_000
 
 
+def validate_domain(domain: str) -> None:
+    _validate_domain(domain)
+
+
 def rebuild_search_index(settings: Settings, db: sqlite3.Connection, domain: str | None = None) -> int:
     if domain is not None:
         _validate_domain(domain)
