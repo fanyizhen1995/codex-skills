@@ -6,7 +6,7 @@ import { KnowledgePage } from "./pages/KnowledgePage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { QueuePage } from "./pages/QueuePage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { SourceSubscriptionsPage } from "./pages/SourceSubscriptionsPage";
+import { SourcesPage } from "./pages/SourcesPage";
 import { SourceWorkbenchPage } from "./pages/SourceWorkbenchPage";
 import type { PageKey } from "./types";
 
@@ -33,7 +33,7 @@ function App() {
         {warningText}
       </div>
       {activePage === "overview" && <OverviewPage />}
-      {activePage === "sources" && <SourceSubscriptionsPage />}
+      {activePage === "sources" && <SourcesPage />}
       {activePage === "queue" && <QueuePage />}
       {activePage === "knowledge" && <KnowledgePage />}
       {activePage === "sourceWorkbench" && <SourceWorkbenchPage />}

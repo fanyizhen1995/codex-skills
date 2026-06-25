@@ -41,6 +41,18 @@ export interface SourceProfile {
   auth_state: string;
   topic: string;
   enabled: boolean;
+  last_run_at?: string;
+  last_run_status?: string;
+}
+
+export interface RunSummary {
+  source_id: string;
+  status: string;
+  run_id?: number;
+  fetched_count?: number;
+  changed_count?: number;
+  failed_count?: number;
+  [key: string]: unknown;
 }
 
 export interface FetchRun {
@@ -49,18 +61,27 @@ export interface FetchRun {
   status: string;
   started_at?: string;
   finished_at?: string;
+  fetched_count?: number;
+  changed_count?: number;
+  failed_count?: number;
+  failure_reason?: string;
   [key: string]: unknown;
 }
 
-export interface QueueTask {
+export interface IngestTask {
   id: number;
   source_id?: string;
   target_domain?: string;
   status: string;
   title?: string;
   path?: string;
+  reason?: string;
+  created_at?: string;
+  updated_at?: string;
   [key: string]: unknown;
 }
+
+export type QueueTask = IngestTask;
 
 export interface SearchResult {
   domain?: string;

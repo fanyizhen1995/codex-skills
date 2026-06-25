@@ -4,7 +4,9 @@ import type {
   FetchRun,
   GraphResponse,
   HealthResponse,
+  IngestTask,
   QueueTask,
+  RunSummary,
   SearchResult,
   SettingsResponse,
   SourceProfile,
@@ -68,17 +70,44 @@ async function request<T>(path: string, options: { method?: string; body?: Reque
   return payload as T;
 }
 
+export async function getHealth(): Promise<HealthResponse> {
+  return request<HealthResponse>("/health");
+}
+
+export async function getSources(): Promise<SourceProfile[]> {
+  return request<SourceProfile[]>("/sources");
+}
+
+export async function runSource(id: string): Promise<RunSummary> {
+  return request<RunSummary>(`/sources/${encodeURIComponent(id)}/run`, { method: "POST" });
+}
+
+export async function getRuns(): Promise<FetchRun[]> {
+  return request<FetchRun[]>("/runs");
+}
+
+export async function getQueue(): Promise<IngestTask[]> {
+  return request<IngestTask[]>("/queue");
+}
+
+export async function approveTask(id: number): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/queue/${id}/approve`, { method: "POST" });
+}
+
+export async function rejectTask(id: number, reason: string): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/queue/${id}/reject`, { method: "POST", body: { reason } });
+}
+
 export const api = {
-  health: () => request<HealthResponse>("/health"),
+  health: getHealth,
   settings: () => request<SettingsResponse>("/settings"),
   domains: () => request<Domain[]>("/domains"),
-  sources: () => request<SourceProfile[]>("/sources"),
-  runSource: (sourceId: string) => request<Record<string, unknown>>(`/sources/${encodeURIComponent(sourceId)}/run`, { method: "POST" }),
-  runs: () => request<FetchRun[]>("/runs"),
-  queue: () => request<QueueTask[]>("/queue"),
-  approveQueueTask: (taskId: number) => request<QueueTask>(`/queue/${taskId}/approve`, { method: "POST" }),
-  rejectQueueTask: (taskId: number, reason: string) =>
-    request<QueueTask>(`/queue/${taskId}/reject`, { method: "POST", body: { reason } }),
+  sources: getSources,
+  runSource,
+  runs: getRuns,
+  queue: getQueue,
+  approveQueueTask: approveTask,
+  rejectQueueTask: rejectTask,
   runQueueTask: (taskId: number, autoCommitEnabled = false) =>
     request<QueueTask>(`/queue/${taskId}/run`, { method: "POST", body: { auto_commit_enabled: autoCommitEnabled } }),
   commit: (payload: { domain: string; paths: string[]; message: string; source_id?: string }) =>
