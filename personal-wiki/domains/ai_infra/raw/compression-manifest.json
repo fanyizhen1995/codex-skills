@@ -56564,12 +56564,22 @@
       "sha256_uncompressed": "abaa9261303d452f6c1a6c17368171956c12965cceb93efe8853e99e691c57ac"
     },
     {
-      "compressed": "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz",
+      "compressed": "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json",
       "compressed_bytes": 125466037,
       "original": "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json",
       "original_bytes": 1152289161,
       "saved_bytes": 1026823124,
-      "sha256_uncompressed": "bf459118688d3d96d0783cc9b874504fd5172140037f9d53515344ddab4aaca2"
+      "sha256_uncompressed": "bf459118688d3d96d0783cc9b874504fd5172140037f9d53515344ddab4aaca2",
+      "storage": "split-gzip-manifest",
+      "split_manifest": "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json",
+      "original_compressed": "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.json.gz",
+      "original_compressed_bytes": 125466037,
+      "sha256_original_compressed": "66047b6b922c273ec6af34257a11131aa64185a1077a5b98d75371e4598a0027",
+      "split_parts": [
+        "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-001.gzpart",
+        "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-002.gzpart",
+        "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.parts/sgl-project-sglang-closed-issues-prs-with-comments.json.part-003.gzpart"
+      ]
     },
     {
       "compressed": "github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-pulls-api-pages.json.gz",
