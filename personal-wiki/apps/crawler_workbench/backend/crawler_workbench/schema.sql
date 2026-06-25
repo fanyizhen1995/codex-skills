@@ -8,6 +8,7 @@ create table if not exists source_profiles (
   schedule text not null,
   auto_ingest integer not null default 0,
   auth_required integer not null default 0,
+  baseline_on_first_run integer not null default 0,
   auth_state text not null default 'ready',
   auth_method text,
   auth_ref text,

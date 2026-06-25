@@ -34,7 +34,7 @@ class CloseTrackingFetcher(StaticFetcher):
         self.closed = True
 
 
-def profile(auto_ingest=True, trust_level="trusted", auth_required=False, enabled=True):
+def profile(auto_ingest=True, trust_level="trusted", auth_required=False, enabled=True, baseline_on_first_run=False):
     return {
         "id": "src",
         "name": "Source",
@@ -45,6 +45,7 @@ def profile(auto_ingest=True, trust_level="trusted", auth_required=False, enable
         "schedule": "manual",
         "auto_ingest": auto_ingest,
         "auth_required": auth_required,
+        "baseline_on_first_run": baseline_on_first_run,
         "topic": "topic",
         "enabled": enabled,
     }
@@ -97,6 +98,56 @@ def test_run_source_once_records_raw_item_and_ingest_task(tmp_path):
     assert tasks[0]["status"] == "approved"
     assert "trusted" in tasks[0]["reason"]
     assert raw_items[0]["raw_path"].endswith(".md")
+
+
+def test_run_source_once_baselines_first_run_without_raw_or_tasks(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    results = [
+        FetchResult("https://example.com/one", "One", "one", "text/markdown"),
+        FetchResult("https://example.com/two", "Two", "two", "text/markdown"),
+    ]
+    with connect(settings.database_path) as db:
+        migrate(db)
+        mirror_profiles(db, [profile(baseline_on_first_run=True)])
+        summary = run_source_once(settings, db, "src", fetcher=StaticFetcher(results))
+        raw_count = db.execute("select count(*) as count from raw_items").fetchone()["count"]
+        version_rows = db.execute("select raw_item_id from content_versions order by canonical_url").fetchall()
+        task_count = db.execute("select count(*) as count from ingest_tasks").fetchone()["count"]
+
+    raw_dir = settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "src"
+    raw_files = list(raw_dir.glob("*.md")) if raw_dir.exists() else []
+    assert summary == {"fetch_run_id": 1, "fetched_count": 2, "changed_count": 0, "skipped_count": 2}
+    assert raw_count == 0
+    assert [row["raw_item_id"] for row in version_rows] == [None, None]
+    assert task_count == 0
+    assert raw_files == []
+
+
+def test_run_source_once_creates_task_for_changed_content_after_baseline(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with connect(settings.database_path) as db:
+        migrate(db)
+        mirror_profiles(db, [profile(baseline_on_first_run=True)])
+        run_source_once(
+            settings,
+            db,
+            "src",
+            fetcher=StaticFetcher([FetchResult("https://example.com/doc", "Doc", "old", "text/markdown")]),
+        )
+        second = run_source_once(
+            settings,
+            db,
+            "src",
+            fetcher=StaticFetcher([FetchResult("https://example.com/doc", "Doc", "new", "text/markdown")]),
+        )
+        task = db.execute("select status, reason from ingest_tasks").fetchone()
+        raw_count = db.execute("select count(*) as count from raw_items").fetchone()["count"]
+
+    assert second["changed_count"] == 1
+    assert second["skipped_count"] == 0
+    assert raw_count == 1
+    assert task["status"] == "approved"
+    assert "trusted" in task["reason"]
 
 
 def test_run_source_once_skips_duplicate_hash(tmp_path):

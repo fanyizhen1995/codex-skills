@@ -39,6 +39,7 @@ def run_source_once(
     changed_count = 0
     skipped_count = 0
     written_raw_paths: list[Path] = []
+    baseline_only = bool(profile.get("baseline_on_first_run")) and not _source_has_content_versions(db, source_id)
 
     try:
         if runner is None:
@@ -55,6 +56,19 @@ def run_source_once(
                 (source_id, result.canonical_url, digest),
             ).fetchone()
             if existing is not None:
+                skipped_count += 1
+                continue
+
+            if baseline_only:
+                db.execute(
+                    """
+                    insert into content_versions (
+                      source_id, canonical_url, content_hash, etag, last_modified, raw_item_id
+                    )
+                    values (?, ?, ?, ?, ?, null)
+                    """,
+                    (source_id, result.canonical_url, digest, result.etag, result.last_modified),
+                )
                 skipped_count += 1
                 continue
 
@@ -178,6 +192,7 @@ def _source_profile(db: sqlite3.Connection, source_id: str) -> dict[str, Any]:
         raise SourceDisabledError(f"source is disabled: {source_id}")
     profile["auto_ingest"] = bool(profile["auto_ingest"])
     profile["auth_required"] = bool(profile["auth_required"])
+    profile["baseline_on_first_run"] = bool(profile["baseline_on_first_run"])
     profile["enabled"] = bool(profile["enabled"])
     return profile
 
@@ -187,6 +202,14 @@ def _create_fetch_run(db: sqlite3.Connection, source_id: str) -> int:
         "insert into fetch_runs (source_id, status) values (?, 'running')",
         (source_id,),
     ).lastrowid
+
+
+def _source_has_content_versions(db: sqlite3.Connection, source_id: str) -> bool:
+    row = db.execute(
+        "select 1 from content_versions where source_id = ? limit 1",
+        (source_id,),
+    ).fetchone()
+    return row is not None
 
 
 def _changed_count(db: sqlite3.Connection, fetch_run_id: int) -> int:

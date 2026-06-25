@@ -53,6 +53,41 @@ def test_schema_migration_creates_profile_tables(tmp_path):
     assert "wiki_search_fts" in tables
 
 
+def test_schema_migration_adds_baseline_column_to_existing_profile_table(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        db.execute(
+            """
+            create table source_profiles (
+              id text primary key,
+              name text not null,
+              type text not null,
+              target_domain text not null,
+              url text not null,
+              trust_level text not null,
+              schedule text not null,
+              auto_ingest integer not null default 0,
+              auth_required integer not null default 0,
+              auth_state text not null default 'ready',
+              auth_method text,
+              auth_ref text,
+              topic text not null,
+              enabled integer not null default 1,
+              last_run_at text,
+              next_run_at text,
+              created_at text not null default current_timestamp,
+              updated_at text not null default current_timestamp
+            )
+            """
+        )
+        db.commit()
+
+        migrate(db)
+        columns = {row["name"] for row in db.execute("pragma table_info(source_profiles)").fetchall()}
+
+    assert "baseline_on_first_run" in columns
+
+
 def test_open_db_closes_connection(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:
@@ -218,6 +253,7 @@ def test_sources_endpoint_projects_safe_fields_and_booleans(tmp_path):
     data = response.json()
     assert data[0]["auto_ingest"] is True
     assert data[0]["auth_required"] is False
+    assert data[0]["baseline_on_first_run"] is False
     assert data[0]["enabled"] is True
     assert "auth_method" not in data[1]
     assert "auth_ref" not in data[1]
@@ -231,6 +267,7 @@ def test_sources_endpoint_projects_safe_fields_and_booleans(tmp_path):
         "schedule",
         "auto_ingest",
         "auth_required",
+        "baseline_on_first_run",
         "auth_state",
         "topic",
         "enabled",

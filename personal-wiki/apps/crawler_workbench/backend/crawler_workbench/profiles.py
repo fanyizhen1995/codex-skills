@@ -82,9 +82,9 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
             """
             insert into source_profiles (
               id, name, type, target_domain, url, trust_level, schedule,
-              auto_ingest, auth_required, auth_state, auth_method, auth_ref, topic, enabled, updated_at
+              auto_ingest, auth_required, baseline_on_first_run, auth_state, auth_method, auth_ref, topic, enabled, updated_at
             )
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
             on conflict(id) do update set
               name = excluded.name,
               type = excluded.type,
@@ -94,6 +94,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
               schedule = excluded.schedule,
               auto_ingest = excluded.auto_ingest,
               auth_required = excluded.auth_required,
+              baseline_on_first_run = excluded.baseline_on_first_run,
               auth_state = excluded.auth_state,
               auth_method = excluded.auth_method,
               auth_ref = excluded.auth_ref,
@@ -111,6 +112,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
                 profile["schedule"],
                 int(auto_ingest),
                 int(auth_required),
+                int(bool(profile.get("baseline_on_first_run", False))),
                 auth_state,
                 auth_method,
                 auth_ref,
@@ -146,6 +148,8 @@ def validate_profile_booleans(profile: dict[str, Any]) -> dict[str, bool]:
         "auto_ingest": _require_bool(profile, "auto_ingest", profile_id),
         "auth_required": _require_bool(profile, "auth_required", profile_id),
     }
+    if "baseline_on_first_run" in profile:
+        values["baseline_on_first_run"] = _require_bool(profile, "baseline_on_first_run", profile_id)
     values["enabled"] = _require_bool(profile, "enabled", profile_id) if "enabled" in profile else True
     return values
 

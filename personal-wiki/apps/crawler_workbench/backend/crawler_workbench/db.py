@@ -28,7 +28,14 @@ def open_db(path: Path) -> Iterator[sqlite3.Connection]:
 
 def migrate(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    _ensure_column(connection, "source_profiles", "baseline_on_first_run", "integer not null default 0")
     connection.commit()
+
+
+def _ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in connection.execute(f"pragma table_info({table})").fetchall()}
+    if column not in columns:
+        connection.execute(f"alter table {table} add column {column} {definition}")
 
 
 @contextmanager

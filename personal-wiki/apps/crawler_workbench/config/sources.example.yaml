@@ -8,6 +8,7 @@ sources:
     schedule: daily
     auto_ingest: true
     auth_required: false
+    baseline_on_first_run: true
     topic: NCCL release notes
   - id: nccl-github-closed-issues
     name: NCCL closed GitHub issues
@@ -18,6 +19,7 @@ sources:
     schedule: daily
     auto_ingest: true
     auth_required: false
+    baseline_on_first_run: true
     topic: NCCL closed GitHub issues
   - id: sglang-github-closed-issues-prs
     name: SGLang closed GitHub issues and pull requests
@@ -28,4 +30,5 @@ sources:
     schedule: daily
     auto_ingest: true
     auth_required: false
+    baseline_on_first_run: true
     topic: SGLang closed issues and pull requests

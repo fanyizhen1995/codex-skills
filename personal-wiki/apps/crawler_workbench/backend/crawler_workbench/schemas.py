@@ -13,6 +13,7 @@ class SourceProfileResponse(BaseModel):
     schedule: str
     auto_ingest: bool
     auth_required: bool
+    baseline_on_first_run: bool
     auth_state: str
     topic: str
     enabled: bool
