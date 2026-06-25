@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from .api import router
 from .db import migrate, open_db, transaction
 from .profiles import load_profiles_from_yaml, mirror_profiles
+from .scheduler import Scheduler
 from .settings import Settings
 
 
@@ -23,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Personal Wiki Crawler Workbench", version="0.1.0")
     app.state.settings = resolved
     app.state.db_initialized = False
+    app.state.scheduler = None
     app.state.initialize_database = initialize_database
     app.add_middleware(
         CORSMiddleware,
@@ -39,9 +42,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(router)
 
     @app.on_event("startup")
-    def startup() -> None:
+    async def startup() -> None:
         initialize_database(app)
         LOG.warning(resolved.trusted_network_warning)
+        if os.getenv("PW_WORKBENCH_DISABLE_SCHEDULER") != "1":
+            scheduler = Scheduler(resolved)
+            app.state.scheduler = scheduler
+            await scheduler.start()
+
+    @app.on_event("shutdown")
+    async def shutdown() -> None:
+        scheduler = app.state.scheduler
+        if scheduler is not None:
+            await scheduler.stop()
+            app.state.scheduler = None
 
     return app
 

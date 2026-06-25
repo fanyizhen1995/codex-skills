@@ -111,6 +111,31 @@ def health(request: Request) -> HealthResponse:
     )
 
 
+@router.get("/settings")
+def settings(request: Request) -> dict[str, object]:
+    settings = request.app.state.settings
+    return {
+        "bind_host": settings.bind_host,
+        "bind_port": settings.bind_port,
+        "authenticated": False,
+        "warning": settings.trusted_network_warning,
+        "wiki_root": str(settings.wiki_root),
+        "database_path": str(settings.database_path),
+    }
+
+
+@router.get("/domains")
+def domains(request: Request) -> list[dict[str, str]]:
+    domains_dir = request.app.state.settings.wiki_root / "domains"
+    if not domains_dir.exists():
+        return []
+    return [
+        {"id": path.name, "name": path.name}
+        for path in sorted(domains_dir.iterdir(), key=lambda candidate: candidate.name)
+        if path.is_dir()
+    ]
+
+
 @router.get("/sources", response_model=list[SourceProfileResponse])
 def sources(request: Request) -> list[SourceProfileResponse]:
     request.app.state.initialize_database(request.app)
