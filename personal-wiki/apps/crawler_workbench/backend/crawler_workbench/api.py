@@ -4,7 +4,9 @@ from fastapi import APIRouter, HTTPException, Request
 
 from .db import open_db
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
+from .graph_api import domain_graph
 from .profiles import list_profiles
+from .search import rebuild_search_index, search_wiki
 from .schemas import HealthResponse, SourceProfileResponse
 
 
@@ -66,3 +68,30 @@ def runs(request: Request) -> list[dict[str, object]]:
     with open_db(request.app.state.settings.database_path) as db:
         rows = db.execute("select * from fetch_runs order by id desc limit 100").fetchall()
     return [dict(row) for row in rows]
+
+
+@router.get("/search")
+def search(q: str, request: Request, domain: str | None = None) -> list[dict[str, object]]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return search_wiki(db, q, domain=domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/search/rebuild")
+def rebuild_search(request: Request, domain: str | None = None) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
+    with open_db(settings.database_path) as db:
+        try:
+            count = rebuild_search_index(settings, db, domain=domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"indexed": count}
+
+
+@router.get("/graph")
+def graph(request: Request, domain: str | None = None) -> dict[str, object]:
+    return domain_graph(request.app.state.settings, domain)
