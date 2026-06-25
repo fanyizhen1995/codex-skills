@@ -81,11 +81,11 @@ def test_example_sources_include_daily_ai_infra_tracking_sources():
         "auth_required": False,
         "topic": "NCCL release notes",
     }
-    assert sources["nccl-github-closed-issues"]["url"] == "https://api.github.com/repos/NVIDIA/nccl"
+    assert sources["nccl-github-closed-issues"]["url"] == "https://api.github.com/repos/NVIDIA/nccl/issues?sort=updated&direction=desc"
     assert sources["nccl-github-closed-issues"]["type"] == "github"
     assert sources["nccl-github-closed-issues"]["schedule"] == "daily"
     assert sources["nccl-github-closed-issues"]["auto_ingest"] is True
-    assert sources["sglang-github-closed-issues-prs"]["url"] == "https://api.github.com/repos/sgl-project/sglang"
+    assert sources["sglang-github-closed-issues-prs"]["url"] == "https://api.github.com/repos/sgl-project/sglang?sort=updated&direction=desc"
     assert sources["sglang-github-closed-issues-prs"]["type"] == "github"
     assert sources["sglang-github-closed-issues-prs"]["schedule"] == "daily"
     assert sources["sglang-github-closed-issues-prs"]["auto_ingest"] is True

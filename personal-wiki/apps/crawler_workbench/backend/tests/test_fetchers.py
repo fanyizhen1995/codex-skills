@@ -97,6 +97,18 @@ def test_github_fetcher_base_repo_requests_issues_and_pulls_without_duplicate_pr
     ]
 
 
+def test_github_fetcher_base_repo_preserves_query_for_issues_and_pulls():
+    client, requests = recording_github_client()
+    fetcher = GitHubFetcher(client=client)
+
+    fetcher.fetch({"url": "https://api.github.com/repos/o/r?sort=updated&direction=desc", "name": "Repo"})
+
+    assert requests == [
+        "https://api.github.com/repos/o/r/issues?sort=updated&direction=desc&state=closed&per_page=100",
+        "https://api.github.com/repos/o/r/pulls?sort=updated&direction=desc&state=closed&per_page=100",
+    ]
+
+
 def test_github_fetcher_issues_endpoint_with_query_makes_one_preserved_query_request():
     client, requests = recording_github_client()
     fetcher = GitHubFetcher(client=client)

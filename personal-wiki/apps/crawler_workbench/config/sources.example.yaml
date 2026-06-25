@@ -13,7 +13,7 @@ sources:
     name: NCCL closed GitHub issues
     type: github
     target_domain: ai_infra
-    url: https://api.github.com/repos/NVIDIA/nccl
+    url: https://api.github.com/repos/NVIDIA/nccl/issues?sort=updated&direction=desc
     trust_level: trusted
     schedule: daily
     auto_ingest: true
@@ -23,7 +23,7 @@ sources:
     name: SGLang closed GitHub issues and pull requests
     type: github
     target_domain: ai_infra
-    url: https://api.github.com/repos/sgl-project/sglang
+    url: https://api.github.com/repos/sgl-project/sglang?sort=updated&direction=desc
     trust_level: trusted
     schedule: daily
     auto_ingest: true

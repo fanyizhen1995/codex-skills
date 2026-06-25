@@ -33,8 +33,8 @@ Copy `config/sources.example.yaml` to `.personal-wiki-workbench/sources.yaml`, t
 The bundled example tracks the current `ai_infra` watch set daily:
 
 - NCCL release notes: `https://docs.nvidia.com/deeplearning/nccl/release-notes/index.html`
-- NCCL closed GitHub issues: `https://api.github.com/repos/NVIDIA/nccl`
-- SGLang closed GitHub issues and pull requests: `https://api.github.com/repos/sgl-project/sglang`
+- NCCL closed GitHub issues: `https://api.github.com/repos/NVIDIA/nccl/issues?sort=updated&direction=desc`
+- SGLang closed GitHub issues and pull requests: `https://api.github.com/repos/sgl-project/sglang?sort=updated&direction=desc`
 
 The scheduler fetches due `daily`, `hourly`, and `weekly` sources. Trusted
 `auto_ingest: true` captures become approved ingest tasks, and the scheduler

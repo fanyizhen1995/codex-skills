@@ -87,10 +87,10 @@ class GitHubFetcher(HttpClientOwner):
             return [(_with_closed_query(url), "issue")]
         if path.endswith("/pulls"):
             return [(_with_closed_query(url), "pull_request")]
-        base = urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+        query = parsed.query
         return [
-            (f"{base}/issues?state=closed&per_page=100", "issue"),
-            (f"{base}/pulls?state=closed&per_page=100", "pull_request"),
+            (_with_closed_query(urlunsplit((parsed.scheme, parsed.netloc, f"{path}/issues", query, ""))), "issue"),
+            (_with_closed_query(urlunsplit((parsed.scheme, parsed.netloc, f"{path}/pulls", query, ""))), "pull_request"),
         ]
 
     def _result_for_item(self, item: dict[str, object], github_kind: str) -> FetchResult:
