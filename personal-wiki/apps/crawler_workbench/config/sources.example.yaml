@@ -1,0 +1,31 @@
+sources:
+  - id: nccl-release-notes
+    name: NCCL release notes
+    type: web
+    target_domain: ai_infra
+    url: https://docs.nvidia.com/deeplearning/nccl/release-notes/index.html
+    trust_level: trusted
+    schedule: daily
+    auto_ingest: true
+    auth_required: false
+    topic: NCCL release notes
+  - id: sglang-github-closed
+    name: SGLang closed issues and pull requests
+    type: github
+    target_domain: ai_infra
+    url: https://api.github.com/repos/sgl-project/sglang
+    trust_level: untrusted
+    schedule: manual
+    auto_ingest: false
+    auth_required: false
+    topic: SGLang closed issues and pull requests
+  - id: llm-serving-arxiv
+    name: LLM serving arXiv search
+    type: arxiv
+    target_domain: ai_infra
+    url: http://export.arxiv.org/api/query?search_query=all:LLM+serving&start=0&max_results=25
+    trust_level: untrusted
+    schedule: weekly
+    auto_ingest: false
+    auth_required: false
+    topic: LLM serving papers
