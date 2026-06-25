@@ -1,6 +1,6 @@
 ---
 name: personal-wiki-manager
-description: Use when managing a personal-wiki repository for query, ingest, validate, refactor, create-domain, or image-note requests.
+description: Use when managing a personal-wiki repository for query, ingest, compact, validate, refactor, create-domain, or image-note requests.
 ---
 
 # Personal Wiki Manager
@@ -22,6 +22,7 @@ Mode routing:
 
 - Query: answer from existing raw and wiki files.
 - Ingest: turn raw source material into proposed wiki updates.
+- Compact: reduce raw storage without changing facts.
 - Validate: run checks and report issues.
 - Refactor: reorganize existing wiki pages without changing facts.
 - Create-Domain: create a new domain scaffold.
@@ -34,6 +35,19 @@ Default scope is one domain. Use `global/` only for cross-domain knowledge. Pref
 ## Ingest Mode
 
 Read the raw source first, then draft the smallest useful curated pages. Preserve `source_refs` back to raw material. `ingest-plan` may append a pending `ingest.md` entry immediately; promoting drafted curated wiki changes beyond a pending plan requires user approval.
+
+After durable wiki pages cite large raw sources, compact bulky raw evidence before the final index and validation step. Preserve readable summaries or indexes when they are useful entry points.
+
+## Compact Mode
+
+Compact workflow:
+
+1. Read the domain index, pages that cite the target raw files, and `ingest.md`.
+2. Measure raw size before changes.
+3. Gzip large raw evidence files and bulky derived page dumps; keep useful `summary` or `index` files readable unless the user asks for maximum compression.
+4. Replace originals only after a compressed equivalent exists, and record the mapping in a manifest or ingest log.
+5. Update `source_refs`, Markdown links, and ingest-plan/log paths that pointed at renamed raw files.
+6. Rebuild index/backlinks when relevant, run validation, then report changed paths and space saved.
 
 ## Validate Mode
 
@@ -75,6 +89,8 @@ Image-note workflow:
 ## Safety Rules
 
 - `raw/` is the fact source; do not overwrite raw evidence casually.
+- Compressed raw remains raw evidence. Do not delete an original unless a `.gz` equivalent or documented rebuild path remains.
+- When raw paths change during compaction, update every `source_ref`, Markdown link, and ingest log that names the old path.
 - `wiki/` is the curated layer; do not add unsupported claims.
 - Default scope is one domain; respect the domain boundary.
 - Use `global/` only when knowledge is reused across multiple domains.
@@ -94,3 +110,7 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki snapshot-url <do
 python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki image-note <domain> <image-path>
 python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki ingest-plan <domain> <raw-path>
 ```
+
+There is no dedicated compact CLI command. Use normal shell compression tools
+such as `gzip` for large raw files, then run `index`, `backlinks`, and
+`validate` from the CLI.

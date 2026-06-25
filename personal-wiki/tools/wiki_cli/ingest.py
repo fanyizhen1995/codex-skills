@@ -47,6 +47,8 @@ def snapshot_url(root: Path, domain: str, url: str, *, fetch: bool = False) -> P
 def image_note(root: Path, domain: str, image_path: str) -> Path:
     domain_root = _domain_root(root, domain)
     raw_image = _domain_relative_path(domain_root, image_path)
+    if not raw_image.is_file():
+        raise ValueError(f"Image source does not exist: {image_path}")
     image_stem = slugify(Path(image_path).stem)
     path = domain_root / "wiki" / "references" / f"{image_stem}-image.md"
     source_ref = _relative_between(path.parent, raw_image)

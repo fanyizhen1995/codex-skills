@@ -38,8 +38,23 @@ def domain_wiki(root: Path, domain: str) -> Path:
 
 
 def wiki_pages(root: Path, domain: str | None = None) -> list[Path]:
-    base = domain_wiki(root, domain) if domain is not None else root / "global" / "wiki"
-    return sorted(base.rglob("*.md")) if base.exists() else []
+    if domain is not None:
+        base = domain_wiki(root, domain)
+        return sorted(base.rglob("*.md")) if base.exists() else []
+
+    pages: list[Path] = []
+    global_wiki = root / "global" / "wiki"
+    if global_wiki.exists():
+        pages.extend(global_wiki.rglob("*.md"))
+
+    domains_root = root / "domains"
+    if domains_root.exists():
+        for domain_root_path in sorted(path for path in domains_root.iterdir() if path.is_dir()):
+            wiki_root = domain_root_path / "wiki"
+            if wiki_root.exists():
+                pages.extend(wiki_root.rglob("*.md"))
+
+    return sorted(pages)
 
 
 def raw_pages(root: Path, domain: str | None = None) -> list[Path]:

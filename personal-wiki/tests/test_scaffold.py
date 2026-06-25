@@ -45,7 +45,7 @@ def test_global_llm_protocol_contains_core_rules():
     assert "Read Order" in text
     assert "raw/ is the fact source" in text
     assert "wiki/ is the curated knowledge layer" in text
-    assert "Do not promote a page to reviewed unless the user explicitly asks" in text
+    assert "standing approval to promote curated wiki pages to" in text
     assert "Avoid full-repository scans" in text
 
 

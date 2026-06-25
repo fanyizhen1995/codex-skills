@@ -37,7 +37,9 @@ infrastructure behavior, operations, or design tradeoffs.
 
 ## Common Aliases
 
-No aliases defined yet.
+- ai infra
+- ai-infra
+- AI infrastructure
 
 ## Ingest Notes
 

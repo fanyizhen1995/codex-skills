@@ -1,0 +1,1384 @@
+{
+  "type": "RawDerivedSummary",
+  "title": "sgl-project/sglang closed GitHub issues, pull requests, comments, and review comments summary",
+  "source": "https://github.com/sgl-project/sglang/issues?q=is%3Aclosed",
+  "issue_api_source": "https://api.github.com/repos/sgl-project/sglang/issues?state=closed&per_page=100&sort=created&direction=asc",
+  "pull_api_source": "https://api.github.com/repos/sgl-project/sglang/pulls?state=closed&per_page=100&sort=created&direction=asc",
+  "issue_comment_api_source": "https://api.github.com/repos/sgl-project/sglang/issues/comments?per_page=100&sort=created&direction=asc",
+  "issue_comment_updated_segment_source": "sgl-project-sglang-issue-comments-updated-segment-api-pages.json",
+  "issue_comment_item_supplement_source": "sgl-project-sglang-issue-comments-by-item-api-pages.json",
+  "pull_review_comment_api_source": "https://api.github.com/repos/sgl-project/sglang/pulls/comments?per_page=100&sort=created&direction=asc",
+  "captured_at": "2026-06-24T13:17:54+00:00",
+  "owner_repo": "sgl-project/sglang",
+  "domain": "ai_infra",
+  "filter": {
+    "included_issues": "closed issue objects from the repository issues endpoint, excluding pull_request items",
+    "included_pull_requests": "closed pull request objects from the repository pulls endpoint, with issue-comment expectations taken from the corresponding issues endpoint PR item",
+    "comments": "repository issue comments joined by issue_url number; created-order pages are supplemented by updated-order segmented pages and available per-item comment pages",
+    "review_comments": "repository pull request review comments joined to included closed pull requests by pull_request_url number"
+  },
+  "counts": {
+    "issue_endpoint_pages": 252,
+    "issue_endpoint_items": 25108,
+    "closed_issues_included": 5633,
+    "pull_request_items_seen_in_issues_endpoint": 19475,
+    "pull_request_pages": 195,
+    "closed_pull_requests_included": 19475,
+    "issue_comment_created_order_pages": 300,
+    "repository_issue_comments_created_order_fetched": 30000,
+    "issue_comment_updated_segments": 2,
+    "issue_comment_updated_segment_pages": 400,
+    "repository_issue_comments_updated_segment_fetched": 39926,
+    "issue_comment_item_supplement_pages": 5264,
+    "repository_issue_comments_unique_after_dedupe": 84869,
+    "attached_issue_comments": 76373,
+    "unattached_repository_issue_comments": 8496,
+    "pull_review_comment_pages": 544,
+    "repository_pull_review_comments_fetched": 54365,
+    "attached_pull_review_comments": 46819,
+    "unattached_pull_review_comments": 7546,
+    "issue_comment_count_mismatches": 17
+  },
+  "date_ranges": {
+    "issue_created": {
+      "min": "2024-01-13",
+      "max": "2026-06-24"
+    },
+    "issue_closed": {
+      "min": "2024-01-16",
+      "max": "2026-06-24"
+    },
+    "pull_created": {
+      "min": "2024-01-08",
+      "max": "2026-06-24"
+    },
+    "pull_closed": {
+      "min": "2024-01-08",
+      "max": "2026-06-24"
+    },
+    "pull_merged": {
+      "min": "2024-01-08",
+      "max": "2026-06-24"
+    }
+  },
+  "number_ranges": {
+    "issues": {
+      "min": 5,
+      "max": 29119
+    },
+    "pull_requests": {
+      "min": 1,
+      "max": 29141
+    }
+  },
+  "state_reason_counts": {
+    "issues": {
+      "completed": 5585,
+      "not_planned": 35,
+      "duplicate": 13
+    },
+    "issue_endpoint_pr_items": {
+      "unknown": 19475
+    }
+  },
+  "pull_request_counts": {
+    "merged": 14670,
+    "closed_unmerged": 4805
+  },
+  "closed_by_year_counts": {
+    "issues": {
+      "2024": 677,
+      "2025": 2983,
+      "2026": 1973
+    },
+    "pull_requests": {
+      "2024": 1740,
+      "2025": 8654,
+      "2026": 9081
+    }
+  },
+  "created_by_year_counts": {
+    "issues": {
+      "2024": 814,
+      "2025": 3458,
+      "2026": 1361
+    },
+    "pull_requests": {
+      "2024": 1773,
+      "2025": 9390,
+      "2026": 8312
+    }
+  },
+  "top_label_counts": {
+    "issues": {
+      "inactive": 2763,
+      "high priority": 379,
+      "bug": 213,
+      "good first issue": 200,
+      "help wanted": 168,
+      "deepseek": 86,
+      "enhancement": 65,
+      "npu": 61,
+      "collaboration": 54,
+      "amd": 48,
+      "router": 48,
+      "Multi-modal": 48,
+      "documentation": 47,
+      "feature": 45,
+      "lora": 42,
+      "performance": 37,
+      "speculative-decoding": 36,
+      "quant": 33,
+      "nvidia": 32,
+      "diffusion": 29,
+      "blackwell": 24,
+      "ci": 24,
+      "new-model": 22,
+      "good second issue": 19,
+      "function-calling": 15,
+      "model-gateway": 11,
+      "Good Pro Issue": 11,
+      "hicache": 8,
+      "intel": 7,
+      "vlm": 7
+    },
+    "pull_requests": {
+      "run-ci": 7714,
+      "documentation": 1623,
+      "high priority": 1381,
+      "diffusion": 1235,
+      "deepseek": 1123,
+      "npu": 893,
+      "amd": 769,
+      "quant": 590,
+      "model-gateway": 589,
+      "dependencies": 588,
+      "sgl-kernel": 479,
+      "Multi-modal": 471,
+      "lora": 393,
+      "jit-kernel": 386,
+      "ready-to-merge": 383,
+      "router": 373,
+      "blackwell": 331,
+      "run-ci-extra": 321,
+      "hicache": 286,
+      "speculative-decoding": 253,
+      "bypass-fastfail": 165,
+      "intel": 160,
+      "bug": 101,
+      "mthreads": 95,
+      "piecewise-cuda-graph": 94,
+      "cpu": 84,
+      "inactive": 76,
+      "enhancement": 75,
+      "xpu": 59,
+      "ci": 54
+    }
+  },
+  "theme_counts": {
+    "issues": {
+      "distributed_parallelism_cluster": 5344,
+      "installation_build_packaging": 4271,
+      "serving_runtime_api": 4274,
+      "model_support": 4687,
+      "kernel_attention_backend": 3951,
+      "performance_latency_throughput": 2133,
+      "memory_kv_cache_quantization": 3592,
+      "correctness_reliability": 4334
+    },
+    "pull_requests": {
+      "kernel_attention_backend": 12940,
+      "installation_build_packaging": 8894,
+      "serving_runtime_api": 9958,
+      "model_support": 13245,
+      "performance_latency_throughput": 14647,
+      "distributed_parallelism_cluster": 17691,
+      "correctness_reliability": 16739,
+      "memory_kv_cache_quantization": 9743
+    }
+  },
+  "theme_examples": {
+    "issues": {
+      "distributed_parallelism_cluster": [
+        {
+          "number": 5,
+          "title": "Typo: rename image_url to image_file",
+          "html_url": "https://github.com/sgl-project/sglang/issues/5"
+        },
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 21,
+          "title": "[Feature Request] CFG in Backend Calls",
+          "html_url": "https://github.com/sgl-project/sglang/issues/21"
+        },
+        {
+          "number": 22,
+          "title": "[Quantization Support Request]: Exllamav2",
+          "html_url": "https://github.com/sgl-project/sglang/issues/22"
+        },
+        {
+          "number": 25,
+          "title": "Batching semantics?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/25"
+        },
+        {
+          "number": 26,
+          "title": "OpenAI Chat Completion Endpoint",
+          "html_url": "https://github.com/sgl-project/sglang/issues/26"
+        },
+        {
+          "number": 28,
+          "title": "[Feature Request] Optimized quantised kernels",
+          "html_url": "https://github.com/sgl-project/sglang/issues/28"
+        },
+        {
+          "number": 35,
+          "title": "Triton support",
+          "html_url": "https://github.com/sgl-project/sglang/issues/35"
+        },
+        {
+          "number": 38,
+          "title": "How to use inside notebook?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/38"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        }
+      ],
+      "installation_build_packaging": [
+        {
+          "number": 13,
+          "title": "enable an installation without CUDA_HOME?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/13"
+        },
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 38,
+          "title": "How to use inside notebook?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/38"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        },
+        {
+          "number": 41,
+          "title": "LlaVa Usage with server option ValueError: ... not in list",
+          "html_url": "https://github.com/sgl-project/sglang/issues/41"
+        },
+        {
+          "number": 43,
+          "title": "Outlines integration",
+          "html_url": "https://github.com/sgl-project/sglang/issues/43"
+        },
+        {
+          "number": 51,
+          "title": "Mixtral OutOfMemoryError with 2 GPUs",
+          "html_url": "https://github.com/sgl-project/sglang/issues/51"
+        },
+        {
+          "number": 54,
+          "title": "Meaningless generated output with V100",
+          "html_url": "https://github.com/sgl-project/sglang/issues/54"
+        },
+        {
+          "number": 56,
+          "title": "[Feature Request] Enable working with Azure-OpenAI API (openai.AzureOpenAI())",
+          "html_url": "https://github.com/sgl-project/sglang/issues/56"
+        },
+        {
+          "number": 59,
+          "title": "sglang.launch_server raise \"POST /v1/chat/completions HTTP/1.1\" 404 Not Found",
+          "html_url": "https://github.com/sgl-project/sglang/issues/59"
+        }
+      ],
+      "serving_runtime_api": [
+        {
+          "number": 13,
+          "title": "enable an installation without CUDA_HOME?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/13"
+        },
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 22,
+          "title": "[Quantization Support Request]: Exllamav2",
+          "html_url": "https://github.com/sgl-project/sglang/issues/22"
+        },
+        {
+          "number": 24,
+          "title": "Offline Generation",
+          "html_url": "https://github.com/sgl-project/sglang/issues/24"
+        },
+        {
+          "number": 25,
+          "title": "Batching semantics?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/25"
+        },
+        {
+          "number": 26,
+          "title": "OpenAI Chat Completion Endpoint",
+          "html_url": "https://github.com/sgl-project/sglang/issues/26"
+        },
+        {
+          "number": 35,
+          "title": "Triton support",
+          "html_url": "https://github.com/sgl-project/sglang/issues/35"
+        },
+        {
+          "number": 38,
+          "title": "How to use inside notebook?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/38"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        },
+        {
+          "number": 40,
+          "title": "Custom chat template",
+          "html_url": "https://github.com/sgl-project/sglang/issues/40"
+        }
+      ],
+      "model_support": [
+        {
+          "number": 13,
+          "title": "enable an installation without CUDA_HOME?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/13"
+        },
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 21,
+          "title": "[Feature Request] CFG in Backend Calls",
+          "html_url": "https://github.com/sgl-project/sglang/issues/21"
+        },
+        {
+          "number": 22,
+          "title": "[Quantization Support Request]: Exllamav2",
+          "html_url": "https://github.com/sgl-project/sglang/issues/22"
+        },
+        {
+          "number": 24,
+          "title": "Offline Generation",
+          "html_url": "https://github.com/sgl-project/sglang/issues/24"
+        },
+        {
+          "number": 26,
+          "title": "OpenAI Chat Completion Endpoint",
+          "html_url": "https://github.com/sgl-project/sglang/issues/26"
+        },
+        {
+          "number": 28,
+          "title": "[Feature Request] Optimized quantised kernels",
+          "html_url": "https://github.com/sgl-project/sglang/issues/28"
+        },
+        {
+          "number": 35,
+          "title": "Triton support",
+          "html_url": "https://github.com/sgl-project/sglang/issues/35"
+        },
+        {
+          "number": 38,
+          "title": "How to use inside notebook?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/38"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        }
+      ],
+      "kernel_attention_backend": [
+        {
+          "number": 13,
+          "title": "enable an installation without CUDA_HOME?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/13"
+        },
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 28,
+          "title": "[Feature Request] Optimized quantised kernels",
+          "html_url": "https://github.com/sgl-project/sglang/issues/28"
+        },
+        {
+          "number": 35,
+          "title": "Triton support",
+          "html_url": "https://github.com/sgl-project/sglang/issues/35"
+        },
+        {
+          "number": 38,
+          "title": "How to use inside notebook?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/38"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        },
+        {
+          "number": 41,
+          "title": "LlaVa Usage with server option ValueError: ... not in list",
+          "html_url": "https://github.com/sgl-project/sglang/issues/41"
+        },
+        {
+          "number": 51,
+          "title": "Mixtral OutOfMemoryError with 2 GPUs",
+          "html_url": "https://github.com/sgl-project/sglang/issues/51"
+        },
+        {
+          "number": 53,
+          "title": "Can SGL generate list of json?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/53"
+        },
+        {
+          "number": 54,
+          "title": "Meaningless generated output with V100",
+          "html_url": "https://github.com/sgl-project/sglang/issues/54"
+        }
+      ],
+      "performance_latency_throughput": [
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 25,
+          "title": "Batching semantics?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/25"
+        },
+        {
+          "number": 28,
+          "title": "[Feature Request] Optimized quantised kernels",
+          "html_url": "https://github.com/sgl-project/sglang/issues/28"
+        },
+        {
+          "number": 35,
+          "title": "Triton support",
+          "html_url": "https://github.com/sgl-project/sglang/issues/35"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        },
+        {
+          "number": 41,
+          "title": "LlaVa Usage with server option ValueError: ... not in list",
+          "html_url": "https://github.com/sgl-project/sglang/issues/41"
+        },
+        {
+          "number": 43,
+          "title": "Outlines integration",
+          "html_url": "https://github.com/sgl-project/sglang/issues/43"
+        },
+        {
+          "number": 44,
+          "title": "OpenAI speculative execution",
+          "html_url": "https://github.com/sgl-project/sglang/issues/44"
+        },
+        {
+          "number": 61,
+          "title": "\"WARNING:  Invalid HTTP request received\" and latency SGLANG vs VLLM",
+          "html_url": "https://github.com/sgl-project/sglang/issues/61"
+        },
+        {
+          "number": 62,
+          "title": "Issue when using choices option.  assert temperature <= 1e-5      TypeError: '<=' not supported between instances of 'NoneType' and 'float'",
+          "html_url": "https://github.com/sgl-project/sglang/issues/62"
+        }
+      ],
+      "memory_kv_cache_quantization": [
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 22,
+          "title": "[Quantization Support Request]: Exllamav2",
+          "html_url": "https://github.com/sgl-project/sglang/issues/22"
+        },
+        {
+          "number": 25,
+          "title": "Batching semantics?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/25"
+        },
+        {
+          "number": 27,
+          "title": "Max Length.",
+          "html_url": "https://github.com/sgl-project/sglang/issues/27"
+        },
+        {
+          "number": 28,
+          "title": "[Feature Request] Optimized quantised kernels",
+          "html_url": "https://github.com/sgl-project/sglang/issues/28"
+        },
+        {
+          "number": 39,
+          "title": "LLM integration with normal programming patterns or, a high level sglang interface",
+          "html_url": "https://github.com/sgl-project/sglang/issues/39"
+        },
+        {
+          "number": 51,
+          "title": "Mixtral OutOfMemoryError with 2 GPUs",
+          "html_url": "https://github.com/sgl-project/sglang/issues/51"
+        },
+        {
+          "number": 55,
+          "title": "`run_batch()` RuntimeError: Trying to create tensor with negative dimension",
+          "html_url": "https://github.com/sgl-project/sglang/issues/55"
+        },
+        {
+          "number": 59,
+          "title": "sglang.launch_server raise \"POST /v1/chat/completions HTTP/1.1\" 404 Not Found",
+          "html_url": "https://github.com/sgl-project/sglang/issues/59"
+        },
+        {
+          "number": 61,
+          "title": "\"WARNING:  Invalid HTTP request received\" and latency SGLANG vs VLLM",
+          "html_url": "https://github.com/sgl-project/sglang/issues/61"
+        }
+      ],
+      "correctness_reliability": [
+        {
+          "number": 14,
+          "title": "Colab? ",
+          "html_url": "https://github.com/sgl-project/sglang/issues/14"
+        },
+        {
+          "number": 28,
+          "title": "[Feature Request] Optimized quantised kernels",
+          "html_url": "https://github.com/sgl-project/sglang/issues/28"
+        },
+        {
+          "number": 35,
+          "title": "Triton support",
+          "html_url": "https://github.com/sgl-project/sglang/issues/35"
+        },
+        {
+          "number": 38,
+          "title": "How to use inside notebook?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/38"
+        },
+        {
+          "number": 41,
+          "title": "LlaVa Usage with server option ValueError: ... not in list",
+          "html_url": "https://github.com/sgl-project/sglang/issues/41"
+        },
+        {
+          "number": 43,
+          "title": "Outlines integration",
+          "html_url": "https://github.com/sgl-project/sglang/issues/43"
+        },
+        {
+          "number": 51,
+          "title": "Mixtral OutOfMemoryError with 2 GPUs",
+          "html_url": "https://github.com/sgl-project/sglang/issues/51"
+        },
+        {
+          "number": 53,
+          "title": "Can SGL generate list of json?",
+          "html_url": "https://github.com/sgl-project/sglang/issues/53"
+        },
+        {
+          "number": 54,
+          "title": "Meaningless generated output with V100",
+          "html_url": "https://github.com/sgl-project/sglang/issues/54"
+        },
+        {
+          "number": 55,
+          "title": "`run_batch()` RuntimeError: Trying to create tensor with negative dimension",
+          "html_url": "https://github.com/sgl-project/sglang/issues/55"
+        }
+      ]
+    },
+    "pull_requests": {
+      "kernel_attention_backend": [
+        {
+          "number": 1,
+          "title": "Add flashinfer && Oultines",
+          "html_url": "https://github.com/sgl-project/sglang/pull/1"
+        },
+        {
+          "number": 2,
+          "title": "Add SRT json decode example",
+          "html_url": "https://github.com/sgl-project/sglang/pull/2"
+        },
+        {
+          "number": 4,
+          "title": "Json Decode && Mutl-Turns",
+          "html_url": "https://github.com/sgl-project/sglang/pull/4"
+        },
+        {
+          "number": 36,
+          "title": "Fix the possible bug of decode out of memory",
+          "html_url": "https://github.com/sgl-project/sglang/pull/36"
+        },
+        {
+          "number": 42,
+          "title": "Use HTTP link in 3rdparty module",
+          "html_url": "https://github.com/sgl-project/sglang/pull/42"
+        },
+        {
+          "number": 72,
+          "title": "Add a note about triton version for older GPUs",
+          "html_url": "https://github.com/sgl-project/sglang/pull/72"
+        },
+        {
+          "number": 97,
+          "title": "Handle grayscale images in expand2square",
+          "html_url": "https://github.com/sgl-project/sglang/pull/97"
+        },
+        {
+          "number": 103,
+          "title": "Flush Cache API",
+          "html_url": "https://github.com/sgl-project/sglang/pull/103"
+        },
+        {
+          "number": 114,
+          "title": "Add qwen2",
+          "html_url": "https://github.com/sgl-project/sglang/pull/114"
+        },
+        {
+          "number": 121,
+          "title": "Improve docs & Add JSON decode example",
+          "html_url": "https://github.com/sgl-project/sglang/pull/121"
+        }
+      ],
+      "installation_build_packaging": [
+        {
+          "number": 3,
+          "title": "Add install with pip",
+          "html_url": "https://github.com/sgl-project/sglang/pull/3"
+        },
+        {
+          "number": 33,
+          "title": "Bump version to 0.1.5",
+          "html_url": "https://github.com/sgl-project/sglang/pull/33"
+        },
+        {
+          "number": 42,
+          "title": "Use HTTP link in 3rdparty module",
+          "html_url": "https://github.com/sgl-project/sglang/pull/42"
+        },
+        {
+          "number": 50,
+          "title": "Support v1/chat/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/50"
+        },
+        {
+          "number": 60,
+          "title": "outlines integration",
+          "html_url": "https://github.com/sgl-project/sglang/pull/60"
+        },
+        {
+          "number": 68,
+          "title": "Bump version to 0.1.6",
+          "html_url": "https://github.com/sgl-project/sglang/pull/68"
+        },
+        {
+          "number": 71,
+          "title": "Fix the error message and dependency of openai backend",
+          "html_url": "https://github.com/sgl-project/sglang/pull/71"
+        },
+        {
+          "number": 72,
+          "title": "Add a note about triton version for older GPUs",
+          "html_url": "https://github.com/sgl-project/sglang/pull/72"
+        },
+        {
+          "number": 93,
+          "title": "Bump the version to v0.1.8",
+          "html_url": "https://github.com/sgl-project/sglang/pull/93"
+        },
+        {
+          "number": 97,
+          "title": "Handle grayscale images in expand2square",
+          "html_url": "https://github.com/sgl-project/sglang/pull/97"
+        }
+      ],
+      "serving_runtime_api": [
+        {
+          "number": 4,
+          "title": "Json Decode && Mutl-Turns",
+          "html_url": "https://github.com/sgl-project/sglang/pull/4"
+        },
+        {
+          "number": 9,
+          "title": "Gemini Backend",
+          "html_url": "https://github.com/sgl-project/sglang/pull/9"
+        },
+        {
+          "number": 48,
+          "title": "support speculative execution for openai API",
+          "html_url": "https://github.com/sgl-project/sglang/pull/48"
+        },
+        {
+          "number": 49,
+          "title": "Support stream=True in v1/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/49"
+        },
+        {
+          "number": 50,
+          "title": "Support v1/chat/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/50"
+        },
+        {
+          "number": 63,
+          "title": "Disk FSM cache and adjust code.",
+          "html_url": "https://github.com/sgl-project/sglang/pull/63"
+        },
+        {
+          "number": 71,
+          "title": "Fix the error message and dependency of openai backend",
+          "html_url": "https://github.com/sgl-project/sglang/pull/71"
+        },
+        {
+          "number": 80,
+          "title": "Support load fine-tuned LLaVA model",
+          "html_url": "https://github.com/sgl-project/sglang/pull/80"
+        },
+        {
+          "number": 84,
+          "title": "Fix SRT endpoint api json syntax",
+          "html_url": "https://github.com/sgl-project/sglang/pull/84"
+        },
+        {
+          "number": 90,
+          "title": "Add health endpoint to SGLang runtime server",
+          "html_url": "https://github.com/sgl-project/sglang/pull/90"
+        }
+      ],
+      "model_support": [
+        {
+          "number": 4,
+          "title": "Json Decode && Mutl-Turns",
+          "html_url": "https://github.com/sgl-project/sglang/pull/4"
+        },
+        {
+          "number": 50,
+          "title": "Support v1/chat/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/50"
+        },
+        {
+          "number": 60,
+          "title": "outlines integration",
+          "html_url": "https://github.com/sgl-project/sglang/pull/60"
+        },
+        {
+          "number": 63,
+          "title": "Disk FSM cache and adjust code.",
+          "html_url": "https://github.com/sgl-project/sglang/pull/63"
+        },
+        {
+          "number": 75,
+          "title": "Suppport qwen model and solve some problems",
+          "html_url": "https://github.com/sgl-project/sglang/pull/75"
+        },
+        {
+          "number": 80,
+          "title": "Support load fine-tuned LLaVA model",
+          "html_url": "https://github.com/sgl-project/sglang/pull/80"
+        },
+        {
+          "number": 82,
+          "title": "Fix after QWen support",
+          "html_url": "https://github.com/sgl-project/sglang/pull/82"
+        },
+        {
+          "number": 83,
+          "title": "Fix the chat template for QWen",
+          "html_url": "https://github.com/sgl-project/sglang/pull/83"
+        },
+        {
+          "number": 90,
+          "title": "Add health endpoint to SGLang runtime server",
+          "html_url": "https://github.com/sgl-project/sglang/pull/90"
+        },
+        {
+          "number": 101,
+          "title": "Dynamic model class loading",
+          "html_url": "https://github.com/sgl-project/sglang/pull/101"
+        }
+      ],
+      "performance_latency_throughput": [
+        {
+          "number": 4,
+          "title": "Json Decode && Mutl-Turns",
+          "html_url": "https://github.com/sgl-project/sglang/pull/4"
+        },
+        {
+          "number": 8,
+          "title": "Update benchmark scripts",
+          "html_url": "https://github.com/sgl-project/sglang/pull/8"
+        },
+        {
+          "number": 117,
+          "title": "Improve the control of streaming and improve the first token latency in streaming",
+          "html_url": "https://github.com/sgl-project/sglang/pull/117"
+        },
+        {
+          "number": 119,
+          "title": "Add cache metrics",
+          "html_url": "https://github.com/sgl-project/sglang/pull/119"
+        },
+        {
+          "number": 129,
+          "title": "Add city doc benchmark mode",
+          "html_url": "https://github.com/sgl-project/sglang/pull/129"
+        },
+        {
+          "number": 130,
+          "title": "Support decode token logprobs",
+          "html_url": "https://github.com/sgl-project/sglang/pull/130"
+        },
+        {
+          "number": 146,
+          "title": "Add warmup to SRT server",
+          "html_url": "https://github.com/sgl-project/sglang/pull/146"
+        },
+        {
+          "number": 156,
+          "title": "[Submodule] Change FlashInfer to import",
+          "html_url": "https://github.com/sgl-project/sglang/pull/156"
+        },
+        {
+          "number": 256,
+          "title": "Gemma Support",
+          "html_url": "https://github.com/sgl-project/sglang/pull/256"
+        },
+        {
+          "number": 298,
+          "title": "Cleanup codebase: removed unnecessary code/logic",
+          "html_url": "https://github.com/sgl-project/sglang/pull/298"
+        }
+      ],
+      "distributed_parallelism_cluster": [
+        {
+          "number": 4,
+          "title": "Json Decode && Mutl-Turns",
+          "html_url": "https://github.com/sgl-project/sglang/pull/4"
+        },
+        {
+          "number": 9,
+          "title": "Gemini Backend",
+          "html_url": "https://github.com/sgl-project/sglang/pull/9"
+        },
+        {
+          "number": 42,
+          "title": "Use HTTP link in 3rdparty module",
+          "html_url": "https://github.com/sgl-project/sglang/pull/42"
+        },
+        {
+          "number": 49,
+          "title": "Support stream=True in v1/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/49"
+        },
+        {
+          "number": 50,
+          "title": "Support v1/chat/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/50"
+        },
+        {
+          "number": 80,
+          "title": "Support load fine-tuned LLaVA model",
+          "html_url": "https://github.com/sgl-project/sglang/pull/80"
+        },
+        {
+          "number": 84,
+          "title": "Fix SRT endpoint api json syntax",
+          "html_url": "https://github.com/sgl-project/sglang/pull/84"
+        },
+        {
+          "number": 90,
+          "title": "Add health endpoint to SGLang runtime server",
+          "html_url": "https://github.com/sgl-project/sglang/pull/90"
+        },
+        {
+          "number": 92,
+          "title": "Llava-hd Support",
+          "html_url": "https://github.com/sgl-project/sglang/pull/92"
+        },
+        {
+          "number": 97,
+          "title": "Handle grayscale images in expand2square",
+          "html_url": "https://github.com/sgl-project/sglang/pull/97"
+        }
+      ],
+      "correctness_reliability": [
+        {
+          "number": 4,
+          "title": "Json Decode && Mutl-Turns",
+          "html_url": "https://github.com/sgl-project/sglang/pull/4"
+        },
+        {
+          "number": 9,
+          "title": "Gemini Backend",
+          "html_url": "https://github.com/sgl-project/sglang/pull/9"
+        },
+        {
+          "number": 36,
+          "title": "Fix the possible bug of decode out of memory",
+          "html_url": "https://github.com/sgl-project/sglang/pull/36"
+        },
+        {
+          "number": 49,
+          "title": "Support stream=True in v1/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/49"
+        },
+        {
+          "number": 50,
+          "title": "Support v1/chat/completions",
+          "html_url": "https://github.com/sgl-project/sglang/pull/50"
+        },
+        {
+          "number": 57,
+          "title": "Improve error message & Add vicuna template",
+          "html_url": "https://github.com/sgl-project/sglang/pull/57"
+        },
+        {
+          "number": 63,
+          "title": "Disk FSM cache and adjust code.",
+          "html_url": "https://github.com/sgl-project/sglang/pull/63"
+        },
+        {
+          "number": 71,
+          "title": "Fix the error message and dependency of openai backend",
+          "html_url": "https://github.com/sgl-project/sglang/pull/71"
+        },
+        {
+          "number": 75,
+          "title": "Suppport qwen model and solve some problems",
+          "html_url": "https://github.com/sgl-project/sglang/pull/75"
+        },
+        {
+          "number": 80,
+          "title": "Support load fine-tuned LLaVA model",
+          "html_url": "https://github.com/sgl-project/sglang/pull/80"
+        }
+      ],
+      "memory_kv_cache_quantization": [
+        {
+          "number": 7,
+          "title": "fix radix cache match",
+          "html_url": "https://github.com/sgl-project/sglang/pull/7"
+        },
+        {
+          "number": 36,
+          "title": "Fix the possible bug of decode out of memory",
+          "html_url": "https://github.com/sgl-project/sglang/pull/36"
+        },
+        {
+          "number": 63,
+          "title": "Disk FSM cache and adjust code.",
+          "html_url": "https://github.com/sgl-project/sglang/pull/63"
+        },
+        {
+          "number": 80,
+          "title": "Support load fine-tuned LLaVA model",
+          "html_url": "https://github.com/sgl-project/sglang/pull/80"
+        },
+        {
+          "number": 103,
+          "title": "Flush Cache API",
+          "html_url": "https://github.com/sgl-project/sglang/pull/103"
+        },
+        {
+          "number": 119,
+          "title": "Add cache metrics",
+          "html_url": "https://github.com/sgl-project/sglang/pull/119"
+        },
+        {
+          "number": 136,
+          "title": "Fix no-cache mode",
+          "html_url": "https://github.com/sgl-project/sglang/pull/136"
+        },
+        {
+          "number": 141,
+          "title": "Add gptq quantization model support ",
+          "html_url": "https://github.com/sgl-project/sglang/pull/141"
+        },
+        {
+          "number": 146,
+          "title": "Add warmup to SRT server",
+          "html_url": "https://github.com/sgl-project/sglang/pull/146"
+        },
+        {
+          "number": 147,
+          "title": "Fix cache dir under high concurrrency",
+          "html_url": "https://github.com/sgl-project/sglang/pull/147"
+        }
+      ]
+    }
+  },
+  "top_discussed_items": [
+    {
+      "number": 6017,
+      "title": "Instruction for Running DeepSeek with Large-scale PD and EP",
+      "html_url": "https://github.com/sgl-project/sglang/issues/6017",
+      "kind": "issue",
+      "state_reason": "completed",
+      "expected_issue_comments": 564,
+      "captured_issue_comments": 564,
+      "captured_review_comments": 0,
+      "captured_comment_total": 564,
+      "closed_at": "2026-02-15T00:30:37Z"
+    },
+    {
+      "number": 25144,
+      "title": "[NPU] Add Ascend NPU support for DeepSeek-V4",
+      "html_url": "https://github.com/sgl-project/sglang/pull/25144",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 13,
+      "captured_issue_comments": 13,
+      "captured_review_comments": 268,
+      "captured_comment_total": 281,
+      "closed_at": "2026-06-18T07:30:26Z"
+    },
+    {
+      "number": 19746,
+      "title": "[P/D disagg] - support decode side radix cache",
+      "html_url": "https://github.com/sgl-project/sglang/pull/19746",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 79,
+      "captured_issue_comments": 79,
+      "captured_review_comments": 131,
+      "captured_comment_total": 210,
+      "closed_at": "2026-05-01T13:55:35Z"
+    },
+    {
+      "number": 21569,
+      "title": "Upgrade transformers to 5.5.3 and refactor hf_transformers_utils into subpackage",
+      "html_url": "https://github.com/sgl-project/sglang/pull/21569",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 170,
+      "captured_issue_comments": 170,
+      "captured_review_comments": 7,
+      "captured_comment_total": 177,
+      "closed_at": "2026-04-16T03:03:44Z"
+    },
+    {
+      "number": 12263,
+      "title": "feat: support EPD disaggregation",
+      "html_url": "https://github.com/sgl-project/sglang/pull/12263",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 36,
+      "captured_issue_comments": 36,
+      "captured_review_comments": 93,
+      "captured_comment_total": 129,
+      "closed_at": "2025-12-14T14:30:08Z"
+    },
+    {
+      "number": 4848,
+      "title": "Support server based rollout in Verlengine",
+      "html_url": "https://github.com/sgl-project/sglang/pull/4848",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 21,
+      "captured_issue_comments": 21,
+      "captured_review_comments": 107,
+      "captured_comment_total": 128,
+      "closed_at": "2025-04-12T17:07:52Z"
+    },
+    {
+      "number": 18306,
+      "title": "[Feature] Implement update_weights_from_disk for SGLang-D (Diffusion …",
+      "html_url": "https://github.com/sgl-project/sglang/pull/18306",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 19,
+      "captured_issue_comments": 19,
+      "captured_review_comments": 95,
+      "captured_comment_total": 114,
+      "closed_at": "2026-02-18T19:24:08Z"
+    },
+    {
+      "number": 22217,
+      "title": "[DEBUG][DO NOT MERGE] Eagle Beta Test Failure",
+      "html_url": "https://github.com/sgl-project/sglang/pull/22217",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 113,
+      "captured_issue_comments": 113,
+      "captured_review_comments": 0,
+      "captured_comment_total": 113,
+      "closed_at": "2026-05-03T21:29:38Z"
+    },
+    {
+      "number": 19225,
+      "title": "[diffusion] Support stable-diffusion-3-medium-diffusers with sglang backend",
+      "html_url": "https://github.com/sgl-project/sglang/pull/19225",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 14,
+      "captured_issue_comments": 14,
+      "captured_review_comments": 97,
+      "captured_comment_total": 111,
+      "closed_at": "2026-04-13T08:07:07Z"
+    },
+    {
+      "number": 27196,
+      "title": "pickle to msgpack migration",
+      "html_url": "https://github.com/sgl-project/sglang/pull/27196",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 13,
+      "captured_issue_comments": 13,
+      "captured_review_comments": 94,
+      "captured_comment_total": 107,
+      "closed_at": "2026-06-18T23:33:02Z"
+    },
+    {
+      "number": 26000,
+      "title": "[codex] Centralize Triton utility kernels",
+      "html_url": "https://github.com/sgl-project/sglang/pull/26000",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 106,
+      "captured_issue_comments": 106,
+      "captured_review_comments": 0,
+      "captured_comment_total": 106,
+      "closed_at": "2026-06-02T08:47:46Z"
+    },
+    {
+      "number": 5252,
+      "title": "[Intel][Gaudi] Support HPUAttnBackend and HPUGraph",
+      "html_url": "https://github.com/sgl-project/sglang/pull/5252",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 18,
+      "captured_issue_comments": 18,
+      "captured_review_comments": 88,
+      "captured_comment_total": 106,
+      "closed_at": "2026-06-10T03:49:50Z"
+    },
+    {
+      "number": 26203,
+      "title": "Fix MLA scaling when YARN scaling is disabled",
+      "html_url": "https://github.com/sgl-project/sglang/pull/26203",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 104,
+      "captured_issue_comments": 104,
+      "captured_review_comments": 1,
+      "captured_comment_total": 105,
+      "closed_at": "2026-06-11T14:17:55Z"
+    },
+    {
+      "number": 24756,
+      "title": "Optimize ngram decode token table update",
+      "html_url": "https://github.com/sgl-project/sglang/pull/24756",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 103,
+      "captured_issue_comments": 103,
+      "captured_review_comments": 2,
+      "captured_comment_total": 105,
+      "closed_at": "2026-06-06T06:13:46Z"
+    },
+    {
+      "number": 26206,
+      "title": "[GDN] Optimize prefill QKV split dispatch",
+      "html_url": "https://github.com/sgl-project/sglang/pull/26206",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 103,
+      "captured_issue_comments": 103,
+      "captured_review_comments": 1,
+      "captured_comment_total": 104,
+      "closed_at": "2026-06-02T08:48:31Z"
+    },
+    {
+      "number": 26204,
+      "title": "Optimize Qwen3 Next FP8 MoE on H200",
+      "html_url": "https://github.com/sgl-project/sglang/pull/26204",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 101,
+      "captured_issue_comments": 101,
+      "captured_review_comments": 3,
+      "captured_comment_total": 104,
+      "closed_at": "2026-06-11T14:18:44Z"
+    },
+    {
+      "number": 24757,
+      "title": "Optimize ngram decode id computation",
+      "html_url": "https://github.com/sgl-project/sglang/pull/24757",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 102,
+      "captured_issue_comments": 102,
+      "captured_review_comments": 0,
+      "captured_comment_total": 102,
+      "closed_at": "2026-06-02T09:37:35Z"
+    },
+    {
+      "number": 22587,
+      "title": "[EPD] Optimize the Mooncake backend",
+      "html_url": "https://github.com/sgl-project/sglang/pull/22587",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 45,
+      "captured_issue_comments": 45,
+      "captured_review_comments": 56,
+      "captured_comment_total": 101,
+      "closed_at": "2026-05-29T02:42:25Z"
+    },
+    {
+      "number": 17684,
+      "title": "[Ray] Add Ray actor support for scheduler process management (DP=1)",
+      "html_url": "https://github.com/sgl-project/sglang/pull/17684",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 16,
+      "captured_issue_comments": 16,
+      "captured_review_comments": 85,
+      "captured_comment_total": 101,
+      "closed_at": "2026-03-05T21:21:23Z"
+    },
+    {
+      "number": 23882,
+      "title": "Deepseek V4",
+      "html_url": "https://github.com/sgl-project/sglang/pull/23882",
+      "kind": "pull_request",
+      "state_reason": null,
+      "expected_issue_comments": 9,
+      "captured_issue_comments": 9,
+      "captured_review_comments": 92,
+      "captured_comment_total": 101,
+      "closed_at": "2026-05-08T01:32:22Z"
+    }
+  ],
+  "mismatch_examples": [
+    {
+      "number": 1241,
+      "kind": "issue",
+      "expected_issue_comments": 2,
+      "captured_issue_comments": 1
+    },
+    {
+      "number": 2931,
+      "kind": "issue",
+      "expected_issue_comments": 11,
+      "captured_issue_comments": 9
+    },
+    {
+      "number": 3573,
+      "kind": "issue",
+      "expected_issue_comments": 2,
+      "captured_issue_comments": 1
+    },
+    {
+      "number": 4584,
+      "kind": "issue",
+      "expected_issue_comments": 13,
+      "captured_issue_comments": 12
+    },
+    {
+      "number": 5023,
+      "kind": "issue",
+      "expected_issue_comments": 3,
+      "captured_issue_comments": 2
+    },
+    {
+      "number": 5250,
+      "kind": "issue",
+      "expected_issue_comments": 2,
+      "captured_issue_comments": 0
+    },
+    {
+      "number": 5361,
+      "kind": "issue",
+      "expected_issue_comments": 3,
+      "captured_issue_comments": 2
+    },
+    {
+      "number": 5656,
+      "kind": "issue",
+      "expected_issue_comments": 5,
+      "captured_issue_comments": 4
+    },
+    {
+      "number": 10341,
+      "kind": "issue",
+      "expected_issue_comments": 15,
+      "captured_issue_comments": 14
+    },
+    {
+      "number": 11546,
+      "kind": "issue",
+      "expected_issue_comments": 8,
+      "captured_issue_comments": 7
+    },
+    {
+      "number": 15385,
+      "kind": "issue",
+      "expected_issue_comments": 4,
+      "captured_issue_comments": 3
+    },
+    {
+      "number": 16498,
+      "kind": "issue",
+      "expected_issue_comments": 4,
+      "captured_issue_comments": 2
+    },
+    {
+      "number": 20252,
+      "kind": "issue",
+      "expected_issue_comments": 48,
+      "captured_issue_comments": 47
+    },
+    {
+      "number": 20485,
+      "kind": "issue",
+      "expected_issue_comments": 7,
+      "captured_issue_comments": 6
+    },
+    {
+      "number": 28208,
+      "kind": "issue",
+      "expected_issue_comments": 1,
+      "captured_issue_comments": 0
+    },
+    {
+      "number": 5746,
+      "kind": "pull_request",
+      "expected_issue_comments": 9,
+      "captured_issue_comments": 8
+    },
+    {
+      "number": 19385,
+      "kind": "pull_request",
+      "expected_issue_comments": 2,
+      "captured_issue_comments": 1
+    }
+  ]
+}

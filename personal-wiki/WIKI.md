@@ -69,7 +69,7 @@ read `skills/personal-wiki-manager/SKILL.md` after this file.
 Default agent workflow:
 
 ```text
-source material -> raw/ -> ingest-plan -> wiki/ -> index -> validate
+source material -> raw/ -> ingest-plan -> wiki/ -> compact -> index -> validate
 ```
 
 ### Complete Function Map
@@ -82,19 +82,21 @@ Composite prompts for common workflows:
 | Workflow | One-line prompt |
 | --- | --- |
 | Create | `使用 personal-wiki-manager 创建 domain <domain>，补充 DOMAIN.md 边界、核心主题、别名规则和跨 domain 规则，初始化后运行 validate 并报告文件。` |
-| Ingest | `使用 personal-wiki-manager，目标 domain: <domain>，入库 <url-or-raw-path>，按 raw->ingest-plan->wiki->index->validate 完整流程处理；大型资料 raw 保完整、wiki 只沉淀索引/综合/关键结论，优先更新已有页面，报告文件和验证结果。` |
-| Organize | `使用 personal-wiki-manager，目标 domain: <domain>，整理现有 wiki/raw/ingest log：去重、补 source_refs/citations、重构页面关系、必要时评估 global 抽取，保持事实不变，最后重建 index、生成 backlinks 检查并 validate。` |
+| Ingest | `使用 personal-wiki-manager，目标 domain: <domain>，入库 <url-or-raw-path>，按 raw->ingest-plan->wiki->compact->index->validate 完整流程处理；大型资料 raw 保完整但可 gzip 压缩，wiki 只沉淀索引/综合/关键结论，优先更新已有页面，报告文件和验证结果。` |
+| Organize | `使用 personal-wiki-manager，目标 domain: <domain>，整理现有 wiki/raw/ingest log：去重、补 source_refs/citations、重构页面关系、压缩大型 raw、必要时评估 global 抽取，保持事实不变，最后重建 index、生成 backlinks 检查并 validate。` |
 | Query | `使用 personal-wiki-manager，目标 domain: <domain>，基于已有 wiki/raw 回答 <question>，引用路径；如果答案有长期复用价值，沉淀进最小合适 curated wiki 页面，然后 index+validate 并报告文件。` |
 | Export | `使用 personal-wiki-manager，目标 domain: <domain>，导出查询/整理结果：按需生成 backlinks、graph JSON、visualize HTML，并汇总相关 wiki/raw 路径、关键结论和验证状态。` |
+| Compact | `使用 personal-wiki-manager，目标 domain: <domain>，压缩整理大型 raw：保留 summary/index 可读，gzip 大型 raw 和可重建派生文件，更新 source_refs/links/ingest log，最后 index+backlinks+validate 并报告节省空间。` |
 
 | Function | Agent guidance | One-line prompt |
 | --- | --- | --- |
 | Create domain | Create one domain scaffold, then define its boundary in `DOMAIN.md`. | `使用 personal-wiki-manager 创建 domain <domain>，补充 DOMAIN.md 边界，然后 validate。` |
 | Query | Answer from the active domain index, curated pages, and raw files only when needed. | `使用 personal-wiki-manager，目标 domain: <domain>，基于已有 wiki/raw 回答：<question>，请引用路径。` |
 | Query and promote | Answer first, then persist durable synthesis into the smallest existing curated page. | `使用 personal-wiki-manager，目标 domain: <domain>，先回答 <question>，若有长期价值则沉淀进最小合适 wiki 页面并 validate。` |
-| URL ingest | Snapshot the URL into `raw/links`, create an ingest plan, curate minimal pages, rebuild index, validate. | `使用 personal-wiki-manager，目标 domain: <domain>，入库 URL <url>，按 raw->ingest-plan->wiki->index->validate，报告文件。` |
+| URL ingest | Snapshot the URL into `raw/links`, create an ingest plan, curate minimal pages, compact large raw when needed, rebuild index, validate. | `使用 personal-wiki-manager，目标 domain: <domain>，入库 URL <url>，按 raw->ingest-plan->wiki->compact->index->validate，报告文件。` |
 | Local file ingest | Put the original under the domain `raw/` tree before ingesting. | `使用 personal-wiki-manager，目标 domain: <domain>，入库 raw 文件 <raw-path>，优先更新已有页面，最后 index+validate。` |
-| Large-source ingest | Preserve full source material in `raw/`; curate indexes, summaries, and durable synthesis instead of mirroring everything. | `使用 personal-wiki-manager，目标 domain: <domain>，入库大型资料 <url-or-raw-path>，raw 保完整，wiki 只沉淀索引/综合/关键结论。` |
+| Large-source ingest | Preserve full source material in `raw/`; curate indexes, summaries, and durable synthesis instead of mirroring everything; gzip large raw after citations point to it. | `使用 personal-wiki-manager，目标 domain: <domain>，入库大型资料 <url-or-raw-path>，raw 保完整但压缩大文件，wiki 只沉淀索引/综合/关键结论。` |
+| Raw compaction | Reduce raw storage without changing facts; keep readable summary/index files, gzip large evidence files, then update references and validate. | `使用 personal-wiki-manager，目标 domain: <domain>，压缩大型 raw，保留 summary/index 可读，更新 source_refs/links/ingest log，最后 index+validate。` |
 | Image note | Ensure the image is a valid raw source, create a draft Reference page, explain meaning and source, validate. | `使用 personal-wiki-manager，目标 domain: <domain>，为图片 <raw-image-path> 创建 image-note，补充含义/来源并 validate。` |
 | Validate | Run domain validation after domain edits; run full validation after shared or broad changes. | `使用 personal-wiki-manager，验证 personal wiki；若改过 <domain>，同时跑 domain 和全仓库 validate，只报告问题。` |
 | Fix validation | Read each issue, make the smallest correction, rerun validation. | `使用 personal-wiki-manager，修复 validate 报错，保持事实不变，完成后报告修改文件和验证结果。` |
@@ -159,9 +161,10 @@ Recommended prompt for URL or file ingest:
 Use personal-wiki-manager.
 Target domain: <domain>.
 Input source: <url-or-raw-path>.
-Follow raw -> ingest-plan -> wiki -> index -> validate.
+Follow raw -> ingest-plan -> wiki -> compact -> index -> validate.
 Prefer updating existing pages over creating duplicates.
 Keep new claims tied to source_refs or citations.
+Compact large raw evidence after wiki citations are in place; update source_refs, links, and ingest logs if paths change.
 Promote pages to reviewed when source_refs/citations are complete; otherwise keep draft.
 Report changed files and validation results.
 ```
@@ -232,6 +235,11 @@ Operational notes:
 - For large source sets, keep the full capture in `raw/` and curate only the
   reusable index, summary, trend, decision, or reference material. Avoid
   recreating a vendor manual or paper verbatim in `wiki/`.
+- Compact large raw evidence after durable wiki pages cite it. Prefer gzip for
+  large JSON or other bulky raw files, keep useful summary/index files readable,
+  update `source_refs`, Markdown links, and `ingest.md` when paths change, and
+  record compression in a manifest or log. Do not remove evidence unless a
+  compressed equivalent or documented rebuild path remains.
 - Use `backlinks`, `graph`, and `visualize` when checking navigation,
   relationship coverage, duplicate concepts, or orphan pages. Generated graph
   outputs are derived artifacts; create them when requested or useful for a
@@ -254,7 +262,7 @@ Operational notes:
 默认处理流程：
 
 ```text
-资料 -> raw/ 原始层 -> ingest-plan -> wiki/ 知识层 -> index -> validate
+资料 -> raw/ 原始层 -> ingest-plan -> wiki/ 知识层 -> compact -> index -> validate
 ```
 
 ### 完整功能速查
@@ -267,19 +275,21 @@ Operational notes:
 | 流程 | 一行提示词 |
 | --- | --- |
 | 创建 | `使用 personal-wiki-manager 创建 domain <domain>，补充 DOMAIN.md 边界、核心主题、别名规则和跨 domain 规则，初始化后运行 validate 并报告文件。` |
-| 入库 | `使用 personal-wiki-manager，目标 domain: <domain>，入库 <url-or-raw-path>，按 raw->ingest-plan->wiki->index->validate 完整流程处理；大型资料 raw 保完整、wiki 只沉淀索引/综合/关键结论，优先更新已有页面，报告文件和验证结果。` |
-| 整理 | `使用 personal-wiki-manager，目标 domain: <domain>，整理现有 wiki/raw/ingest log：去重、补 source_refs/citations、重构页面关系、必要时评估 global 抽取，保持事实不变，最后重建 index、生成 backlinks 检查并 validate。` |
+| 入库 | `使用 personal-wiki-manager，目标 domain: <domain>，入库 <url-or-raw-path>，按 raw->ingest-plan->wiki->compact->index->validate 完整流程处理；大型资料 raw 保完整但可 gzip 压缩，wiki 只沉淀索引/综合/关键结论，优先更新已有页面，报告文件和验证结果。` |
+| 整理 | `使用 personal-wiki-manager，目标 domain: <domain>，整理现有 wiki/raw/ingest log：去重、补 source_refs/citations、重构页面关系、压缩大型 raw、必要时评估 global 抽取，保持事实不变，最后重建 index、生成 backlinks 检查并 validate。` |
 | 查询 | `使用 personal-wiki-manager，目标 domain: <domain>，基于已有 wiki/raw 回答 <question>，引用路径；如果答案有长期复用价值，沉淀进最小合适 curated wiki 页面，然后 index+validate 并报告文件。` |
 | 导出 | `使用 personal-wiki-manager，目标 domain: <domain>，导出查询/整理结果：按需生成 backlinks、graph JSON、visualize HTML，并汇总相关 wiki/raw 路径、关键结论和验证状态。` |
+| 压缩 | `使用 personal-wiki-manager，目标 domain: <domain>，压缩整理大型 raw：保留 summary/index 可读，gzip 大型 raw 和可重建派生文件，更新 source_refs/links/ingest log，最后 index+backlinks+validate 并报告节省空间。` |
 
 | 功能 | Agent 使用指南 | 一行提示词 |
 | --- | --- | --- |
 | 创建 domain | 只创建一个 domain，并补充 `DOMAIN.md` 边界。 | `使用 personal-wiki-manager 创建 domain <domain>，补充 DOMAIN.md 边界，然后 validate。` |
 | 查询 | 默认只查一个 domain；先看 index 和 curated 页面，必要时读 raw。 | `使用 personal-wiki-manager，目标 domain: <domain>，基于已有 wiki/raw 回答：<question>，请引用路径。` |
 | 查询并沉淀 | 先回答，再把可复用的长期分析写进最小合适 curated 页面。 | `使用 personal-wiki-manager，目标 domain: <domain>，先回答 <question>，若有长期价值则沉淀进最小合适 wiki 页面并 validate。` |
-| URL 入库 | URL 先 snapshot 到 `raw/links`，再 ingest-plan、wiki、index、validate。 | `使用 personal-wiki-manager，目标 domain: <domain>，入库 URL <url>，按 raw->ingest-plan->wiki->index->validate，报告文件。` |
+| URL 入库 | URL 先 snapshot 到 `raw/links`，再 ingest-plan、wiki、compact、index、validate。 | `使用 personal-wiki-manager，目标 domain: <domain>，入库 URL <url>，按 raw->ingest-plan->wiki->compact->index->validate，报告文件。` |
 | 本地文件入库 | 原始文件必须先放到目标 domain 的 `raw/` 树内。 | `使用 personal-wiki-manager，目标 domain: <domain>，入库 raw 文件 <raw-path>，优先更新已有页面，最后 index+validate。` |
-| 大型资料入库 | `raw/` 保留完整资料，`wiki/` 只沉淀索引、综合和关键结论。 | `使用 personal-wiki-manager，目标 domain: <domain>，入库大型资料 <url-or-raw-path>，raw 保完整，wiki 只沉淀索引/综合/关键结论。` |
+| 大型资料入库 | `raw/` 保留完整资料但可压缩，`wiki/` 只沉淀索引、综合和关键结论。 | `使用 personal-wiki-manager，目标 domain: <domain>，入库大型资料 <url-or-raw-path>，raw 保完整但压缩大文件，wiki 只沉淀索引/综合/关键结论。` |
+| Raw 压缩 | 不改变事实，只减少 raw 占用；保留 summary/index 可读，压缩大型证据文件后同步引用并验证。 | `使用 personal-wiki-manager，目标 domain: <domain>，压缩大型 raw，保留 summary/index 可读，更新 source_refs/links/ingest log，最后 index+validate。` |
 | 图片笔记 | 图片必须是有效 raw source；创建 Reference 页并解释图像含义。 | `使用 personal-wiki-manager，目标 domain: <domain>，为图片 <raw-image-path> 创建 image-note，补充含义/来源并 validate。` |
 | 只验证 | domain 修改后跑 domain validation；宽范围修改后跑全仓库。 | `使用 personal-wiki-manager，验证 personal wiki；若改过 <domain>，同时跑 domain 和全仓库 validate，只报告问题。` |
 | 修复验证问题 | 逐条读 validation issue，最小改动修复，再复跑。 | `使用 personal-wiki-manager，修复 validate 报错，保持事实不变，完成后报告修改文件和验证结果。` |
@@ -343,9 +353,10 @@ curated wiki 页面。
 使用 personal-wiki-manager。
 目标 domain：<domain>。
 输入资料：<url-or-raw-path>。
-请按 raw -> ingest-plan -> wiki -> index -> validate 的流程处理。
+请按 raw -> ingest-plan -> wiki -> compact -> index -> validate 的流程处理。
 优先更新已有页面，避免创建重复概念。
 新事实必须绑定 source_refs 或 citation。
+wiki 引用稳定后压缩大型 raw 证据；若路径变化，同步更新 source_refs、链接和 ingest log。
 source_refs/citations 完整时默认提升为 reviewed；证据不足则保持 draft。
 完成后报告新增/修改文件和 validation 结果。
 ```
@@ -412,6 +423,10 @@ source_refs/citations 完整时默认提升为 reviewed；证据不足则保持 
 
 - 大型资料集入库时，`raw/` 保留完整抓取，`wiki/` 只整理可复用的索引、
   摘要、趋势、决策或 reference，不要把厂商手册或论文全文重写进 wiki。
+- durable wiki 页面已经引用 raw 后，可以压缩大型 raw 证据。优先对大型 JSON
+  等体积大的原始文件使用 gzip，保留有用的 summary/index 文件可读；路径变化时
+  同步更新 `source_refs`、Markdown 链接和 `ingest.md`，并用 manifest 或日志记录。
+  不得删除证据，除非保留了压缩等价物或可追溯的重建路径。
 - 检查导航、关系覆盖、重复概念或孤立页面时，使用 `backlinks`、`graph`
   和 `visualize`。这些输出是派生产物，只在用户要求或审查有用时生成。
 - 只有跨多个 domain 复用的知识才放入 `global/wiki/`。如果移动或拆分到

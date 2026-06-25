@@ -1,0 +1,1093 @@
+{
+  "type": "RawDerivedSummary",
+  "title": "NVIDIA/nccl closed GitHub issues and comments summary",
+  "source": "https://github.com/NVIDIA/nccl/issues?q=is%3Aissue+is%3Aclosed",
+  "issue_api_source": "https://github.com/NVIDIA/nccl/issues?q=is%3Aissue+is%3Aclosed",
+  "comment_api_source": "https://api.github.com/repos/NVIDIA/nccl/issues/comments?per_page=100&sort=created&direction=asc",
+  "captured_at": "2026-06-24T06:42:31+00:00",
+  "owner_repo": "NVIDIA/nccl",
+  "domain": "ai_infra",
+  "filter": {
+    "included_issues": "GitHub issues endpoint items with state=closed and without pull_request key.",
+    "excluded_issue_items": "Pull requests returned by the GitHub issues endpoint; open issues.",
+    "comments": "All repository issue comments pages were captured; the joined corpus includes comments whose issue_url maps to an included closed issue."
+  },
+  "counts": {
+    "api_closed_issue_or_pr_items": 1850,
+    "closed_issues_excluding_prs": 1589,
+    "closed_prs_excluded": 261,
+    "issue_pages_fetched": 19,
+    "closed_issues_with_comments": 1521,
+    "closed_issues_without_comments": 68,
+    "total_issue_comment_count_from_issue_objects": 7325,
+    "comment_pages_fetched": 91,
+    "repo_issue_comments_fetched": 9093,
+    "comments_attached_to_closed_issues": 7325,
+    "comments_not_attached_to_closed_issues": 1768,
+    "closed_issues_with_captured_comments": 1521,
+    "closed_issues_without_captured_comments": 68,
+    "issues_with_comment_count_mismatch": 0
+  },
+  "date_ranges": {
+    "issue_created_at": {
+      "min": "2016-01-15",
+      "max": "2026-06-22"
+    },
+    "issue_closed_at": {
+      "min": "2016-01-25",
+      "max": "2026-06-23"
+    }
+  },
+  "number_range": {
+    "min": 8,
+    "max": 2242
+  },
+  "state_reason_counts": {
+    "completed": 921,
+    "not_planned": 668
+  },
+  "closed_by_year_counts": {
+    "2016": 23,
+    "2017": 38,
+    "2018": 54,
+    "2019": 68,
+    "2020": 98,
+    "2021": 94,
+    "2022": 65,
+    "2023": 138,
+    "2024": 113,
+    "2025": 821,
+    "2026": 77
+  },
+  "created_by_year_counts": {
+    "2016": 41,
+    "2017": 56,
+    "2018": 33,
+    "2019": 81,
+    "2020": 149,
+    "2021": 159,
+    "2022": 120,
+    "2023": 325,
+    "2024": 376,
+    "2025": 192,
+    "2026": 57
+  },
+  "top_label_counts": {
+    "question": 79,
+    "bug": 18,
+    "triaged": 16,
+    "enhancement": 14,
+    "fixed": 8,
+    "more info needed": 8,
+    "duplicate": 4,
+    "implemented": 1,
+    "invalid": 1,
+    "roadmap": 1
+  },
+  "theme_counts": {
+    "build-install-packaging": 1501,
+    "performance-scaling": 1363,
+    "api-usage-integration": 1302,
+    "network-transport": 1193,
+    "gpu-topology-platform": 789,
+    "runtime-failure-debugging": 766,
+    "uncategorized": 13
+  },
+  "theme_examples": {
+    "api-usage-integration": [
+      {
+        "number": 9,
+        "title": "Undefined identifiers in all_reduce.cu",
+        "state_reason": "completed",
+        "closed_at": "2016-01-25T22:57:23Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/9"
+      },
+      {
+        "number": 10,
+        "title": "Test files absent",
+        "state_reason": "completed",
+        "closed_at": "2016-07-19T00:39:51Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/10"
+      },
+      {
+        "number": 11,
+        "title": "occasional crashes when using more than one comm per GPU",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T17:47:49Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/11"
+      },
+      {
+        "number": 13,
+        "title": "Is NCCL thread safe?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:49:28Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/13"
+      },
+      {
+        "number": 19,
+        "title": "Testing nccl with a difficult topology",
+        "state_reason": "completed",
+        "closed_at": "2016-04-22T03:16:00Z",
+        "comments": 8,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/19"
+      },
+      {
+        "number": 20,
+        "title": "MPI test Segmentation fault",
+        "state_reason": "completed",
+        "closed_at": "2016-04-20T01:38:00Z",
+        "comments": 3,
+        "labels": [
+          "bug"
+        ],
+        "url": "https://github.com/NVIDIA/nccl/issues/20"
+      },
+      {
+        "number": 23,
+        "title": "Issue on K10 board",
+        "state_reason": "completed",
+        "closed_at": "2016-05-14T01:00:04Z",
+        "comments": 9,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/23"
+      },
+      {
+        "number": 24,
+        "title": "CuRAND Error on Tesla M2070 + CUDA 7.0",
+        "state_reason": "completed",
+        "closed_at": "2016-11-28T21:50:02Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/24"
+      },
+      {
+        "number": 26,
+        "title": "gencode for arch 6.1",
+        "state_reason": "completed",
+        "closed_at": "2016-06-06T21:30:55Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/26"
+      },
+      {
+        "number": 27,
+        "title": "Troubleshooting help?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:50:28Z",
+        "comments": 10,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/27"
+      },
+      {
+        "number": 28,
+        "title": "MPI_test failed using cuda 7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-06-08T21:58:52Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/28"
+      },
+      {
+        "number": 29,
+        "title": "Build error __builtin_ia32_monitorx is undefined solution",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:51:26Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/29"
+      }
+    ],
+    "build-install-packaging": [
+      {
+        "number": 8,
+        "title": "Segmentation fault with cuda-7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-02-12T22:44:48Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/8"
+      },
+      {
+        "number": 9,
+        "title": "Undefined identifiers in all_reduce.cu",
+        "state_reason": "completed",
+        "closed_at": "2016-01-25T22:57:23Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/9"
+      },
+      {
+        "number": 10,
+        "title": "Test files absent",
+        "state_reason": "completed",
+        "closed_at": "2016-07-19T00:39:51Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/10"
+      },
+      {
+        "number": 11,
+        "title": "occasional crashes when using more than one comm per GPU",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T17:47:49Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/11"
+      },
+      {
+        "number": 12,
+        "title": "What does out-of-place and in-place mean in the test routines?",
+        "state_reason": "completed",
+        "closed_at": "2016-02-28T14:09:52Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/12"
+      },
+      {
+        "number": 13,
+        "title": "Is NCCL thread safe?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:49:28Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/13"
+      },
+      {
+        "number": 19,
+        "title": "Testing nccl with a difficult topology",
+        "state_reason": "completed",
+        "closed_at": "2016-04-22T03:16:00Z",
+        "comments": 8,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/19"
+      },
+      {
+        "number": 20,
+        "title": "MPI test Segmentation fault",
+        "state_reason": "completed",
+        "closed_at": "2016-04-20T01:38:00Z",
+        "comments": 3,
+        "labels": [
+          "bug"
+        ],
+        "url": "https://github.com/NVIDIA/nccl/issues/20"
+      },
+      {
+        "number": 23,
+        "title": "Issue on K10 board",
+        "state_reason": "completed",
+        "closed_at": "2016-05-14T01:00:04Z",
+        "comments": 9,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/23"
+      },
+      {
+        "number": 24,
+        "title": "CuRAND Error on Tesla M2070 + CUDA 7.0",
+        "state_reason": "completed",
+        "closed_at": "2016-11-28T21:50:02Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/24"
+      },
+      {
+        "number": 25,
+        "title": "puzzled by the latency number",
+        "state_reason": "completed",
+        "closed_at": "2016-05-31T18:45:34Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/25"
+      },
+      {
+        "number": 26,
+        "title": "gencode for arch 6.1",
+        "state_reason": "completed",
+        "closed_at": "2016-06-06T21:30:55Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/26"
+      }
+    ],
+    "gpu-topology-platform": [
+      {
+        "number": 19,
+        "title": "Testing nccl with a difficult topology",
+        "state_reason": "completed",
+        "closed_at": "2016-04-22T03:16:00Z",
+        "comments": 8,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/19"
+      },
+      {
+        "number": 20,
+        "title": "MPI test Segmentation fault",
+        "state_reason": "completed",
+        "closed_at": "2016-04-20T01:38:00Z",
+        "comments": 3,
+        "labels": [
+          "bug"
+        ],
+        "url": "https://github.com/NVIDIA/nccl/issues/20"
+      },
+      {
+        "number": 23,
+        "title": "Issue on K10 board",
+        "state_reason": "completed",
+        "closed_at": "2016-05-14T01:00:04Z",
+        "comments": 9,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/23"
+      },
+      {
+        "number": 28,
+        "title": "MPI_test failed using cuda 7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-06-08T21:58:52Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/28"
+      },
+      {
+        "number": 32,
+        "title": "Can nccl be used with multiple processes per GPU?",
+        "state_reason": "completed",
+        "closed_at": "2016-07-31T14:50:43Z",
+        "comments": 13,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/32"
+      },
+      {
+        "number": 37,
+        "title": "allreduce and barriers",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:53:17Z",
+        "comments": 20,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/37"
+      },
+      {
+        "number": 38,
+        "title": "CUDA_VERSION instead of __CUDACC_VER_{MAJOR,MINOR}__?",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T23:31:35Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/38"
+      },
+      {
+        "number": 43,
+        "title": "Expose Ring Communications",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T23:44:59Z",
+        "comments": 1,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/43"
+      },
+      {
+        "number": 44,
+        "title": "6x slowdown on Pascal TitanX on 80 lane PCIe switch.",
+        "state_reason": "completed",
+        "closed_at": "2016-08-26T01:21:15Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/44"
+      },
+      {
+        "number": 49,
+        "title": "Is NCCL available in CUDA 8.0 ?",
+        "state_reason": "completed",
+        "closed_at": "2016-10-24T18:09:07Z",
+        "comments": 1,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/49"
+      },
+      {
+        "number": 52,
+        "title": "nccl in OpenPOWER P8NVLink system with P100 GPU",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T18:09:18Z",
+        "comments": 1,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/52"
+      },
+      {
+        "number": 56,
+        "title": "How can I scale with nccl addoption?",
+        "state_reason": "completed",
+        "closed_at": "2016-12-07T18:07:08Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/56"
+      }
+    ],
+    "network-transport": [
+      {
+        "number": 8,
+        "title": "Segmentation fault with cuda-7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-02-12T22:44:48Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/8"
+      },
+      {
+        "number": 11,
+        "title": "occasional crashes when using more than one comm per GPU",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T17:47:49Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/11"
+      },
+      {
+        "number": 13,
+        "title": "Is NCCL thread safe?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:49:28Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/13"
+      },
+      {
+        "number": 19,
+        "title": "Testing nccl with a difficult topology",
+        "state_reason": "completed",
+        "closed_at": "2016-04-22T03:16:00Z",
+        "comments": 8,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/19"
+      },
+      {
+        "number": 20,
+        "title": "MPI test Segmentation fault",
+        "state_reason": "completed",
+        "closed_at": "2016-04-20T01:38:00Z",
+        "comments": 3,
+        "labels": [
+          "bug"
+        ],
+        "url": "https://github.com/NVIDIA/nccl/issues/20"
+      },
+      {
+        "number": 23,
+        "title": "Issue on K10 board",
+        "state_reason": "completed",
+        "closed_at": "2016-05-14T01:00:04Z",
+        "comments": 9,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/23"
+      },
+      {
+        "number": 24,
+        "title": "CuRAND Error on Tesla M2070 + CUDA 7.0",
+        "state_reason": "completed",
+        "closed_at": "2016-11-28T21:50:02Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/24"
+      },
+      {
+        "number": 27,
+        "title": "Troubleshooting help?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:50:28Z",
+        "comments": 10,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/27"
+      },
+      {
+        "number": 28,
+        "title": "MPI_test failed using cuda 7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-06-08T21:58:52Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/28"
+      },
+      {
+        "number": 32,
+        "title": "Can nccl be used with multiple processes per GPU?",
+        "state_reason": "completed",
+        "closed_at": "2016-07-31T14:50:43Z",
+        "comments": 13,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/32"
+      },
+      {
+        "number": 33,
+        "title": "Running NCCL mpi test accros multiple nodes",
+        "state_reason": "completed",
+        "closed_at": "2017-08-04T16:22:30Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/33"
+      },
+      {
+        "number": 34,
+        "title": "how to reduce the extra memory usage?",
+        "state_reason": "completed",
+        "closed_at": "2016-07-27T02:40:47Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/34"
+      }
+    ],
+    "performance-scaling": [
+      {
+        "number": 8,
+        "title": "Segmentation fault with cuda-7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-02-12T22:44:48Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/8"
+      },
+      {
+        "number": 9,
+        "title": "Undefined identifiers in all_reduce.cu",
+        "state_reason": "completed",
+        "closed_at": "2016-01-25T22:57:23Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/9"
+      },
+      {
+        "number": 10,
+        "title": "Test files absent",
+        "state_reason": "completed",
+        "closed_at": "2016-07-19T00:39:51Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/10"
+      },
+      {
+        "number": 11,
+        "title": "occasional crashes when using more than one comm per GPU",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T17:47:49Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/11"
+      },
+      {
+        "number": 12,
+        "title": "What does out-of-place and in-place mean in the test routines?",
+        "state_reason": "completed",
+        "closed_at": "2016-02-28T14:09:52Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/12"
+      },
+      {
+        "number": 13,
+        "title": "Is NCCL thread safe?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:49:28Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/13"
+      },
+      {
+        "number": 19,
+        "title": "Testing nccl with a difficult topology",
+        "state_reason": "completed",
+        "closed_at": "2016-04-22T03:16:00Z",
+        "comments": 8,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/19"
+      },
+      {
+        "number": 23,
+        "title": "Issue on K10 board",
+        "state_reason": "completed",
+        "closed_at": "2016-05-14T01:00:04Z",
+        "comments": 9,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/23"
+      },
+      {
+        "number": 25,
+        "title": "puzzled by the latency number",
+        "state_reason": "completed",
+        "closed_at": "2016-05-31T18:45:34Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/25"
+      },
+      {
+        "number": 27,
+        "title": "Troubleshooting help?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:50:28Z",
+        "comments": 10,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/27"
+      },
+      {
+        "number": 30,
+        "title": "all_reduce_test stop.",
+        "state_reason": "completed",
+        "closed_at": "2016-08-04T04:32:42Z",
+        "comments": 3,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/30"
+      },
+      {
+        "number": 32,
+        "title": "Can nccl be used with multiple processes per GPU?",
+        "state_reason": "completed",
+        "closed_at": "2016-07-31T14:50:43Z",
+        "comments": 13,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/32"
+      }
+    ],
+    "runtime-failure-debugging": [
+      {
+        "number": 8,
+        "title": "Segmentation fault with cuda-7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-02-12T22:44:48Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/8"
+      },
+      {
+        "number": 9,
+        "title": "Undefined identifiers in all_reduce.cu",
+        "state_reason": "completed",
+        "closed_at": "2016-01-25T22:57:23Z",
+        "comments": 6,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/9"
+      },
+      {
+        "number": 11,
+        "title": "occasional crashes when using more than one comm per GPU",
+        "state_reason": "completed",
+        "closed_at": "2019-05-06T17:47:49Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/11"
+      },
+      {
+        "number": 13,
+        "title": "Is NCCL thread safe?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:49:28Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/13"
+      },
+      {
+        "number": 19,
+        "title": "Testing nccl with a difficult topology",
+        "state_reason": "completed",
+        "closed_at": "2016-04-22T03:16:00Z",
+        "comments": 8,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/19"
+      },
+      {
+        "number": 20,
+        "title": "MPI test Segmentation fault",
+        "state_reason": "completed",
+        "closed_at": "2016-04-20T01:38:00Z",
+        "comments": 3,
+        "labels": [
+          "bug"
+        ],
+        "url": "https://github.com/NVIDIA/nccl/issues/20"
+      },
+      {
+        "number": 23,
+        "title": "Issue on K10 board",
+        "state_reason": "completed",
+        "closed_at": "2016-05-14T01:00:04Z",
+        "comments": 9,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/23"
+      },
+      {
+        "number": 24,
+        "title": "CuRAND Error on Tesla M2070 + CUDA 7.0",
+        "state_reason": "completed",
+        "closed_at": "2016-11-28T21:50:02Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/24"
+      },
+      {
+        "number": 27,
+        "title": "Troubleshooting help?",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:50:28Z",
+        "comments": 10,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/27"
+      },
+      {
+        "number": 28,
+        "title": "MPI_test failed using cuda 7.5",
+        "state_reason": "completed",
+        "closed_at": "2016-06-08T21:58:52Z",
+        "comments": 4,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/28"
+      },
+      {
+        "number": 29,
+        "title": "Build error __builtin_ia32_monitorx is undefined solution",
+        "state_reason": "completed",
+        "closed_at": "2018-09-26T17:51:26Z",
+        "comments": 5,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/29"
+      },
+      {
+        "number": 32,
+        "title": "Can nccl be used with multiple processes per GPU?",
+        "state_reason": "completed",
+        "closed_at": "2016-07-31T14:50:43Z",
+        "comments": 13,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/32"
+      }
+    ],
+    "uncategorized": [
+      {
+        "number": 298,
+        "title": "Is there any paper or document",
+        "state_reason": "completed",
+        "closed_at": "2020-03-07T09:41:42Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/298"
+      },
+      {
+        "number": 484,
+        "title": "What algorithm does alltoall composed of send/recv use ? ",
+        "state_reason": "completed",
+        "closed_at": "2021-06-15T12:03:36Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/484"
+      },
+      {
+        "number": 486,
+        "title": "The time of running ncclBcast in different devices is different in one iteration?",
+        "state_reason": "completed",
+        "closed_at": "2021-04-07T06:15:09Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/486"
+      },
+      {
+        "number": 497,
+        "title": "Async launch ",
+        "state_reason": "completed",
+        "closed_at": "2021-04-22T03:05:59Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/497"
+      },
+      {
+        "number": 506,
+        "title": "About Tree Construction",
+        "state_reason": "completed",
+        "closed_at": "2021-05-08T13:35:52Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/506"
+      },
+      {
+        "number": 1003,
+        "title": "why net_ib.cc fifo &  fifoReq  is [64][8], not[8][8]?",
+        "state_reason": "completed",
+        "closed_at": "2023-11-16T12:16:56Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1003"
+      },
+      {
+        "number": 1046,
+        "title": "NCCL 2.19.3 ",
+        "state_reason": "completed",
+        "closed_at": "2023-10-31T08:20:27Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1046"
+      },
+      {
+        "number": 1076,
+        "title": "test",
+        "state_reason": "not_planned",
+        "closed_at": "2023-11-16T12:09:42Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1076"
+      },
+      {
+        "number": 1201,
+        "title": "Duplicated ncclCommRegister in nccl.h.in?",
+        "state_reason": "completed",
+        "closed_at": "2024-09-30T16:08:30Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1201"
+      },
+      {
+        "number": 1590,
+        "title": "SendRecv only support Simple protocol?",
+        "state_reason": "completed",
+        "closed_at": "2025-02-09T02:57:01Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1590"
+      },
+      {
+        "number": 1627,
+        "title": "unsafe shmem syncthreads",
+        "state_reason": "completed",
+        "closed_at": "2025-03-04T02:16:32Z",
+        "comments": 2,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1627"
+      },
+      {
+        "number": 1733,
+        "title": "1",
+        "state_reason": "completed",
+        "closed_at": "2025-06-07T16:40:19Z",
+        "comments": 0,
+        "labels": [],
+        "url": "https://github.com/NVIDIA/nccl/issues/1733"
+      }
+    ]
+  },
+  "comment_count_distribution_from_issue_objects": {
+    "min": 0,
+    "max": 90,
+    "avg": 4.61,
+    "median": 3
+  },
+  "captured_comment_count_distribution": {
+    "min": 0,
+    "max": 90,
+    "avg": 4.61,
+    "median": 3
+  },
+  "top_discussed_closed_issues": [
+    {
+      "number": 1013,
+      "title": "Question about ncclCommAbort stuck issue",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-07T12:12:44Z",
+      "comments": 90,
+      "url": "https://github.com/NVIDIA/nccl/issues/1013"
+    },
+    {
+      "number": 340,
+      "title": "NCCL 2.6.4 makes system hanging. ",
+      "state_reason": "completed",
+      "closed_at": "2020-07-11T06:09:29Z",
+      "comments": 37,
+      "url": "https://github.com/NVIDIA/nccl/issues/340"
+    },
+    {
+      "number": 307,
+      "title": "NCCL infiniband performance",
+      "state_reason": "completed",
+      "closed_at": "2020-04-10T00:18:57Z",
+      "comments": 34,
+      "url": "https://github.com/NVIDIA/nccl/issues/307"
+    },
+    {
+      "number": 622,
+      "title": "Intel E810 ncclSystemError: System call (socket, malloc, munmap, etc) failed.",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-04T10:42:03Z",
+      "comments": 32,
+      "url": "https://github.com/NVIDIA/nccl/issues/622"
+    },
+    {
+      "number": 257,
+      "title": "AllReduce hangs",
+      "state_reason": "completed",
+      "closed_at": "2019-10-02T18:04:55Z",
+      "comments": 31,
+      "url": "https://github.com/NVIDIA/nccl/issues/257"
+    },
+    {
+      "number": 524,
+      "title": "What are the determinants of comm > nchannels?",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-03T13:51:52Z",
+      "comments": 30,
+      "url": "https://github.com/NVIDIA/nccl/issues/524"
+    },
+    {
+      "number": 352,
+      "title": "NCCL INFO NET/Plugin : No plugin found (libnccl-net.so)",
+      "state_reason": "completed",
+      "closed_at": "2020-07-15T17:55:00Z",
+      "comments": 29,
+      "url": "https://github.com/NVIDIA/nccl/issues/352"
+    },
+    {
+      "number": 209,
+      "title": "Suboptimal performance with TCP over high bandwidth networks",
+      "state_reason": "completed",
+      "closed_at": "2019-06-25T21:03:58Z",
+      "comments": 27,
+      "url": "https://github.com/NVIDIA/nccl/issues/209"
+    },
+    {
+      "number": 320,
+      "title": "What is CollNet?",
+      "state_reason": "completed",
+      "closed_at": "2020-04-13T16:42:03Z",
+      "comments": 27,
+      "url": "https://github.com/NVIDIA/nccl/issues/320"
+    },
+    {
+      "number": 1043,
+      "title": "nccl-tests get stuck and free(): invalid next size (fast) error with 2.19.3 and 2.18.5, but no error with 2.16.5",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-19T03:06:02Z",
+      "comments": 26,
+      "url": "https://github.com/NVIDIA/nccl/issues/1043"
+    },
+    {
+      "number": 1538,
+      "title": "NCCL 2.22.3 core dump when specify NCCL_IB_ROCE_VERSION_NUM",
+      "state_reason": "completed",
+      "closed_at": "2025-03-13T18:14:13Z",
+      "comments": 26,
+      "url": "https://github.com/NVIDIA/nccl/issues/1538"
+    },
+    {
+      "number": 392,
+      "title": "NCCL didn't print the right log about connection when enable the GDR",
+      "state_reason": "completed",
+      "closed_at": "2020-10-27T12:23:57Z",
+      "comments": 25,
+      "url": "https://github.com/NVIDIA/nccl/issues/392"
+    },
+    {
+      "number": 689,
+      "title": "Does NCCL Allreduce kernels slowdown the computation kernels of GPU?",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-04T10:42:53Z",
+      "comments": 25,
+      "url": "https://github.com/NVIDIA/nccl/issues/689"
+    },
+    {
+      "number": 388,
+      "title": "Add environment variable for explicitly specifying client ports for back-connects (without modifying system `/etc/sysctl.conf`)",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-03T13:50:06Z",
+      "comments": 24,
+      "url": "https://github.com/NVIDIA/nccl/issues/388"
+    },
+    {
+      "number": 398,
+      "title": "More ranks, better bus bandwidth?",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-03T13:50:11Z",
+      "comments": 24,
+      "url": "https://github.com/NVIDIA/nccl/issues/398"
+    },
+    {
+      "number": 442,
+      "title": "NCCL tests don't work on WSL",
+      "state_reason": "completed",
+      "closed_at": "2025-05-08T05:30:47Z",
+      "comments": 24,
+      "url": "https://github.com/NVIDIA/nccl/issues/442"
+    },
+    {
+      "number": 51,
+      "title": "peer mapping resources exhausted for < 8 GPUs",
+      "state_reason": "completed",
+      "closed_at": "2018-09-26T17:57:47Z",
+      "comments": 23,
+      "url": "https://github.com/NVIDIA/nccl/issues/51"
+    },
+    {
+      "number": 241,
+      "title": "NCCL segfaults on single node with 10 GPUs",
+      "state_reason": "completed",
+      "closed_at": "2019-08-14T22:57:00Z",
+      "comments": 23,
+      "url": "https://github.com/NVIDIA/nccl/issues/241"
+    },
+    {
+      "number": 491,
+      "title": "GPU occupation during model training",
+      "state_reason": "completed",
+      "closed_at": "2021-04-19T01:56:38Z",
+      "comments": 23,
+      "url": "https://github.com/NVIDIA/nccl/issues/491"
+    },
+    {
+      "number": 811,
+      "title": "all_reduce_perf crashed with ib sriov passthrough to kvm virtual machine",
+      "state_reason": "completed",
+      "closed_at": "2023-03-31T05:22:07Z",
+      "comments": 23,
+      "url": "https://github.com/NVIDIA/nccl/issues/811"
+    },
+    {
+      "number": 820,
+      "title": "NCCL allreduce is slower than others in some certain process groups",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-04T10:44:19Z",
+      "comments": 23,
+      "url": "https://github.com/NVIDIA/nccl/issues/820"
+    },
+    {
+      "number": 573,
+      "title": "NCCL WARN Could not find real path of...",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-04T10:41:26Z",
+      "comments": 22,
+      "url": "https://github.com/NVIDIA/nccl/issues/573"
+    },
+    {
+      "number": 749,
+      "title": "NCCL Test Failing with newer NCCL versions for RoCE with Dual HCA inside VMs",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-04T10:43:25Z",
+      "comments": 22,
+      "url": "https://github.com/NVIDIA/nccl/issues/749"
+    },
+    {
+      "number": 1184,
+      "title": "all_reduce_perf hangs on DGX-H100",
+      "state_reason": "not_planned",
+      "closed_at": "2025-07-18T03:11:08Z",
+      "comments": 22,
+      "url": "https://github.com/NVIDIA/nccl/issues/1184"
+    },
+    {
+      "number": 103,
+      "title": "example on single GPU",
+      "state_reason": "completed",
+      "closed_at": "2022-09-13T05:27:04Z",
+      "comments": 21,
+      "url": "https://github.com/NVIDIA/nccl/issues/103"
+    }
+  ],
+  "comment_count_mismatches": []
+}

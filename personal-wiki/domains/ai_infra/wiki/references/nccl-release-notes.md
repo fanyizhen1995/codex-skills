@@ -3,7 +3,7 @@ type: Reference
 title: NCCL Release Notes
 description: Complete local catalog of official NVIDIA NCCL release-note pages from 2.30.7 back to 2.0.2.
 domain: ai_infra
-status: draft
+status: reviewed
 tags:
   - nccl
   - release-notes
@@ -80,12 +80,15 @@ aliases:
   - NCCL changelog
 related:
   - ../projects/nccl.md
+  - nccl-github-closed-issues.md
 ---
 # Summary
 
 This reference catalogs the official NVIDIA NCCL release notes captured from the current release-note index. The local raw layer includes the index page plus every linked per-version release page, covering 63 releases from NCCL 2.30.7 back to NCCL 2.0.2.
 
 Use this page as the curated entry point for release-note lookup. Use the raw links for exact vendor wording, full fixed-issue lists, compatibility details, and known-issue text.
+
+For field reports and issue discussions that are not necessarily represented in official release notes, use [NCCL GitHub Closed Issues](nccl-github-closed-issues.md).
 
 # Reference Content
 
@@ -175,6 +178,7 @@ Use this page as the curated entry point for release-note lookup. Use the raw li
 # Relationships
 
 - [NCCL](../projects/nccl.md) is the curated project page for the library described by these release notes.
+- [NCCL GitHub Closed Issues](nccl-github-closed-issues.md) is the operational issue corpus for user-reported troubleshooting, integration, and failure patterns.
 
 # Citations
 

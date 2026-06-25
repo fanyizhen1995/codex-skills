@@ -26,6 +26,9 @@ def test_snapshot_url_without_fetch_creates_pending_raw_source(tmp_path: Path):
 
 def test_image_note_creates_reference_note_for_raw_image(tmp_path: Path):
     root = tmp_path / "personal-wiki"
+    image = root / "domains/ai-infra/raw/images/diagram.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"image")
 
     path = ingest.image_note(root, "ai-infra", "raw/images/diagram.png")
 

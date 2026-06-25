@@ -106,6 +106,21 @@ def test_validate_cli_outputs_json_list_for_invalid_fixture(tmp_path: Path):
     ]
 
 
+def test_validate_cli_without_domain_checks_domain_pages(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    build_invalid_fixture(root)
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(root), "validate"],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 1
+    assert "missing_required" in result.stdout
+    assert "domains/ai-infra/wiki/concepts/bad.md" in result.stdout
+
+
 def test_init_domain_cli_creates_domain_skeleton(tmp_path: Path):
     root = tmp_path / "personal-wiki"
 
@@ -261,6 +276,9 @@ def test_snapshot_url_cli_creates_raw_link_source(tmp_path: Path):
 
 def test_image_note_cli_creates_reference_note(tmp_path: Path):
     root = tmp_path / "personal-wiki"
+    raw_image = root / "domains/ai-infra/raw/images/diagram.png"
+    raw_image.parent.mkdir(parents=True, exist_ok=True)
+    raw_image.write_bytes(b"fake png")
 
     result = subprocess.run(
         [
@@ -282,6 +300,29 @@ def test_image_note_cli_creates_reference_note(tmp_path: Path):
     text = path.read_text(encoding="utf-8")
     assert "type: Reference" in text
     assert "# Image Meaning" in text
+
+
+def test_image_note_cli_rejects_missing_raw_image_without_writing_note(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(root),
+            "image-note",
+            "ai-infra",
+            "raw/images/missing.png",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1
+    assert "Image source does not exist" in output
+    assert not (root / "domains/ai-infra/wiki/references/missing-image.md").exists()
 
 
 def test_ingest_plan_cli_creates_raw_plan(tmp_path: Path):

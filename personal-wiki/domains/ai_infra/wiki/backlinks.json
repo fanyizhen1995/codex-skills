@@ -1,0 +1,20 @@
+{
+  "domains/ai_infra/wiki/projects/nccl": [
+    "domains/ai_infra/wiki/references/nccl-github-closed-issues",
+    "domains/ai_infra/wiki/references/nccl-release-notes"
+  ],
+  "domains/ai_infra/wiki/projects/sglang": [
+    "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs"
+  ],
+  "domains/ai_infra/wiki/references/nccl-github-closed-issues": [
+    "domains/ai_infra/wiki/projects/nccl",
+    "domains/ai_infra/wiki/references/nccl-release-notes"
+  ],
+  "domains/ai_infra/wiki/references/nccl-release-notes": [
+    "domains/ai_infra/wiki/projects/nccl",
+    "domains/ai_infra/wiki/references/nccl-github-closed-issues"
+  ],
+  "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs": [
+    "domains/ai_infra/wiki/projects/sglang"
+  ]
+}

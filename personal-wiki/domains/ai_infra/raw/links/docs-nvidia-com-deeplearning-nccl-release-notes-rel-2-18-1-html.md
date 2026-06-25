@@ -4,7 +4,7 @@ title: https://docs.nvidia.com/deeplearning/nccl/release-notes/rel_2-18-1.html
 source_kind: web
 url: https://docs.nvidia.com/deeplearning/nccl/release-notes/rel_2-18-1.html
 captured: 2026-06-24
-status: pending
+status: ingested
 ---
 # Snapshot
 

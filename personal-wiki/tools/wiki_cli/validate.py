@@ -35,7 +35,7 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
     pages = [
         page
         for page in paths.wiki_pages(root, domain)
-        if page != _generated_index_path(root, domain)
+        if not _is_generated_index_path(root, page, domain)
     ]
     docs = [(page, document.load_document(page)) for page in pages]
 
@@ -68,6 +68,20 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
                     code="invalid_status",
                     path=page,
                     message=f"Invalid status: {status}",
+                )
+            )
+
+        actual_domain = _domain_for_page(root, page)
+        declared_domain = frontmatter.get("domain")
+        if actual_domain is not None and _has_value(declared_domain) and declared_domain != actual_domain:
+            issues.append(
+                ValidationIssue(
+                    code="domain_mismatch",
+                    path=page,
+                    message=(
+                        "Page domain frontmatter does not match directory: "
+                        f"{declared_domain} != {actual_domain}"
+                    ),
                 )
             )
 
@@ -115,10 +129,31 @@ def validate(root: Path, domain: str | None = None) -> list[ValidationIssue]:
     return issues
 
 
+def _is_generated_index_path(root: Path, page: Path, domain: str | None) -> bool:
+    if page == _generated_index_path(root, domain):
+        return True
+    if domain is not None:
+        return False
+
+    try:
+        relative = page.resolve().relative_to((root / "domains").resolve())
+    except ValueError:
+        return False
+    return len(relative.parts) == 3 and relative.parts[1:] == ("wiki", "index.md")
+
+
 def _generated_index_path(root: Path, domain: str | None) -> Path:
     if domain is not None:
         return paths.domain_wiki(root, domain) / "index.md"
     return root / "global" / "wiki" / "index.md"
+
+
+def _domain_for_page(root: Path, page: Path) -> str | None:
+    try:
+        relative = page.resolve().relative_to((root / "domains").resolve())
+    except ValueError:
+        return None
+    return relative.parts[0] if relative.parts else None
 
 
 def _duplicate_issues(

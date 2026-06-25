@@ -68,6 +68,42 @@ def test_validate_reports_missing_required_frontmatter_for_nested_index_page(
     assert "description" in issues[0].message
 
 
+def test_validate_without_domain_checks_all_domain_pages(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/bad.md",
+        "---\ntype: Concept\ntitle: Bad\ndomain: ai-infra\n---\n\n# Summary\nMissing description.\n",
+    )
+
+    issues = validate.validate(root)
+
+    assert [issue.code for issue in issues] == ["missing_required"]
+    assert issues[0].path.as_posix().endswith("domains/ai-infra/wiki/concepts/bad.md")
+
+
+def test_validate_without_domain_ignores_generated_domain_index(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/index.md",
+        "---\ntype: Index\ntitle: ai-infra Index\ndescription: Generated index.\ndomain: ai-infra\n---\n\n# Index\n",
+    )
+
+    assert validate.validate(root) == []
+
+
+def test_validate_reports_frontmatter_domain_mismatch(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    write(
+        root / "domains/ai-infra/wiki/concepts/wrong-domain.md",
+        "---\ntype: Concept\ntitle: Wrong Domain\ndescription: Wrong domain.\ndomain: other\nstatus: draft\n---\n\n# Summary\nWrong domain.\n",
+    )
+
+    issues = validate.validate(root, domain="ai-infra")
+
+    assert [issue.code for issue in issues] == ["domain_mismatch"]
+    assert "domain frontmatter does not match directory" in issues[0].message
+
+
 def test_validate_reports_bad_type_and_status(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     write(

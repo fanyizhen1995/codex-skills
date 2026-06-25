@@ -79,8 +79,8 @@ Create a `personal-wiki-manager` Codex skill.
 
 Acceptance criteria:
 
-- The skill routes query, ingest, validate, refactor, create-domain, and
-  image-note requests.
+- The skill routes query, ingest, compact, validate, refactor, create-domain,
+  and image-note requests.
 - The skill enforces the read protocol in `WIKI.md`.
 - The skill respects domain boundaries by default.
 
