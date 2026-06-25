@@ -99,6 +99,35 @@ def test_persist_codex_job_uses_workspace_write_sandbox(tmp_path, monkeypatch):
     assert args[args.index("--sandbox") + 1] == "workspace-write"
 
 
+def test_codex_job_retries_without_sandbox_when_bubblewrap_fails(tmp_path, monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        sandbox = command[command.index("--sandbox") + 1]
+        if sandbox == "workspace-write":
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="无法完成这轮任务：当前本地命令沙箱启动失败\n",
+                stderr="bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted\n",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="answer from fallback\n", stderr="")
+
+    monkeypatch.setattr("crawler_workbench.codex_worker.subprocess.run", fake_run)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state", codex_command="codex")
+    with connect(settings.database_path) as db:
+        migrate(db)
+        job_id = run_codex_job(settings, db, "query", "ai_infra", "Question", persist=True)
+        row = db.execute("select status, stdout, stderr, exit_code from codex_jobs where id = ?", (job_id,)).fetchone()
+
+    assert [call[call.index("--sandbox") + 1] for call in calls] == ["workspace-write", "danger-full-access"]
+    assert row["status"] == "succeeded"
+    assert row["stdout"] == "answer from fallback\n"
+    assert "sandbox fallback" in row["stderr"]
+    assert row["exit_code"] == 0
+
+
 def test_codex_job_rejects_non_query_job_type_before_creating_row(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state", codex_command="codex")
     with connect(settings.database_path) as db:

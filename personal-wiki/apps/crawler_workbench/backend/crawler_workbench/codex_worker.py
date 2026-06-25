@@ -4,6 +4,7 @@ import subprocess
 from typing import Any
 
 EXECUTION_FAILURE_EXIT_CODE = -1
+SANDBOX_FALLBACK_MODE = "danger-full-access"
 
 
 def build_query_prompt(domain: str, question: str, persist: bool) -> str:
@@ -40,17 +41,8 @@ def run_codex_job(
     db.execute("update codex_jobs set status = ?, started_at = current_timestamp where id = ?", ("running", job_id))
     db.commit()
 
-    command = [
-        settings.codex_command,
-        "exec",
-        "--cd",
-        str(settings.repo_root),
-        "--sandbox",
-        "workspace-write" if persist else "read-only",
-        prompt,
-    ]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+        result = _run_codex_command(settings, prompt, "workspace-write" if persist else "read-only")
     except subprocess.TimeoutExpired as exc:
         stderr = f"Codex command timed out after {exc.timeout} seconds"
         return _finish_failed_job(db, job_id, stderr)
@@ -68,6 +60,49 @@ def run_codex_job(
     )
     db.commit()
     return job_id
+
+
+def _run_codex_command(settings: Any, prompt: str, sandbox: str) -> subprocess.CompletedProcess[str]:
+    result = _run_codex_subprocess(settings, prompt, sandbox)
+    if _is_sandbox_startup_failure(result):
+        fallback = _run_codex_subprocess(settings, prompt, SANDBOX_FALLBACK_MODE)
+        fallback.stderr = _fallback_stderr(result, fallback)
+        return fallback
+    return result
+
+
+def _run_codex_subprocess(settings: Any, prompt: str, sandbox: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            settings.codex_command,
+            "exec",
+            "--cd",
+            str(settings.repo_root),
+            "--sandbox",
+            sandbox,
+            prompt,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
+
+
+def _is_sandbox_startup_failure(result: subprocess.CompletedProcess[str]) -> bool:
+    output = f"{result.stdout}\n{result.stderr}".lower()
+    return "bwrap:" in output or "bubblewrap" in output or "命令沙箱启动失败" in output
+
+
+def _fallback_stderr(original: subprocess.CompletedProcess[str], fallback: subprocess.CompletedProcess[str]) -> str:
+    note = "Codex sandbox fallback: retried with danger-full-access after sandbox startup failure."
+    parts = [note]
+    if original.stderr:
+        parts.append(f"Original stderr:\n{original.stderr.strip()}")
+    if original.stdout:
+        parts.append(f"Original stdout:\n{original.stdout.strip()}")
+    if fallback.stderr:
+        parts.append(fallback.stderr.strip())
+    return "\n\n".join(parts) + "\n"
 
 
 def _finish_failed_job(db: Any, job_id: int, stderr: str) -> int:
