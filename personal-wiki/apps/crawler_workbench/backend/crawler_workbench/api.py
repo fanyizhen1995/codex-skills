@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from .db import open_db
+from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
 from .profiles import list_profiles
 from .schemas import HealthResponse, SourceProfileResponse
 
@@ -44,3 +45,24 @@ def sources(request: Request) -> list[SourceProfileResponse]:
         )
         for row in rows
     ]
+
+
+@router.post("/sources/{source_id}/run")
+def run_source(source_id: str, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
+    with open_db(settings.database_path) as db:
+        try:
+            return run_source_once(settings, db, source_id)
+        except SourceNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SourceDisabledError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/runs")
+def runs(request: Request) -> list[dict[str, object]]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        rows = db.execute("select * from fetch_runs order by id desc limit 100").fetchall()
+    return [dict(row) for row in rows]
