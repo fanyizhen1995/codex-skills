@@ -30,6 +30,18 @@ By default, the frontend uses the Vite `/api` proxy to reach the backend at `htt
 
 Copy `config/sources.example.yaml` to `.personal-wiki-workbench/sources.yaml`, then edit source ids, domains, URLs, schedules, and trust levels.
 
+The bundled example tracks the current `ai_infra` watch set daily:
+
+- NCCL release notes: `https://docs.nvidia.com/deeplearning/nccl/release-notes/index.html`
+- NCCL closed GitHub issues: `https://api.github.com/repos/NVIDIA/nccl`
+- SGLang closed GitHub issues and pull requests: `https://api.github.com/repos/sgl-project/sglang`
+
+The scheduler fetches due `daily`, `hourly`, and `weekly` sources. Trusted
+`auto_ingest: true` captures become approved ingest tasks, and the scheduler
+then runs approved tasks through ingest-plan, Codex wiki curation, index,
+backlinks, validation, and auto-commit. Pending tasks remain visible in the
+queue for manual review.
+
 Auth-required profiles store only references:
 
 - `auth_method: env_token` with `auth_ref: GITHUB_TOKEN`

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 import threading
 
 import pytest
@@ -61,6 +62,35 @@ def test_settings_endpoint_reports_runtime_configuration(tmp_path, monkeypatch):
     assert data["database_path"] == str(settings.database_path)
 
 
+def test_example_sources_include_daily_ai_infra_tracking_sources():
+    import yaml
+
+    config_path = Path(__file__).parents[2] / "config" / "sources.example.yaml"
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    sources = {source["id"]: source for source in data["sources"]}
+
+    assert sources["nccl-release-notes"] == {
+        "id": "nccl-release-notes",
+        "name": "NCCL release notes",
+        "type": "web",
+        "target_domain": "ai_infra",
+        "url": "https://docs.nvidia.com/deeplearning/nccl/release-notes/index.html",
+        "trust_level": "trusted",
+        "schedule": "daily",
+        "auto_ingest": True,
+        "auth_required": False,
+        "topic": "NCCL release notes",
+    }
+    assert sources["nccl-github-closed-issues"]["url"] == "https://api.github.com/repos/NVIDIA/nccl"
+    assert sources["nccl-github-closed-issues"]["type"] == "github"
+    assert sources["nccl-github-closed-issues"]["schedule"] == "daily"
+    assert sources["nccl-github-closed-issues"]["auto_ingest"] is True
+    assert sources["sglang-github-closed-issues-prs"]["url"] == "https://api.github.com/repos/sgl-project/sglang"
+    assert sources["sglang-github-closed-issues-prs"]["type"] == "github"
+    assert sources["sglang-github-closed-issues-prs"]["schedule"] == "daily"
+    assert sources["sglang-github-closed-issues-prs"]["auto_ingest"] is True
+
+
 @pytest.mark.asyncio
 async def test_scheduler_run_once_runs_due_ready_sources_and_updates_next_run_at(tmp_path, monkeypatch):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
@@ -106,6 +136,109 @@ async def test_scheduler_run_once_runs_due_ready_sources_and_updates_next_run_at
     assert rows["manual-source"] is None
     assert rows["needs-auth"] is None
     assert rows["disabled-source"] is None
+
+
+@pytest.mark.asyncio
+async def test_scheduler_run_once_executes_approved_ingest_tasks_after_fetch(tmp_path, monkeypatch):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_source_profile(db, "daily-due", "daily")
+        db.commit()
+
+    executed_tasks: list[int] = []
+
+    def fake_run_source_once(received_settings, db, source_id):
+        assert received_settings is settings
+        raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, fetch_run_id, target_domain, canonical_url, raw_path,
+              title, content_hash, content_bytes, metadata_json
+            )
+            values (?, null, 'ai_infra', 'https://example.com/new', ?, 'New item', 'abc', 12, '{}')
+            """,
+            (source_id, str(settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / source_id / "new.md")),
+        ).lastrowid
+        db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values (?, ?, 'ai_infra', 'approved', 'low', 'trusted low-risk source eligible for automatic ingest')
+            """,
+            (source_id, raw_item_id),
+        )
+        db.commit()
+        return {"fetch_run_id": 1, "fetched_count": 1, "changed_count": 1, "skipped_count": 0}
+
+    def fake_run_approved_task(received_settings, db, task_id, auto_commit_enabled):
+        assert received_settings is settings
+        assert auto_commit_enabled is True
+        executed_tasks.append(task_id)
+        db.execute("update ingest_tasks set status = 'succeeded', updated_at = current_timestamp where id = ?", (task_id,))
+        db.commit()
+        return {"id": task_id, "status": "succeeded"}
+
+    monkeypatch.setattr("crawler_workbench.scheduler.run_source_once", fake_run_source_once)
+    monkeypatch.setattr("crawler_workbench.scheduler.run_approved_task", fake_run_approved_task)
+
+    ran_count = await Scheduler(settings).run_once()
+
+    assert ran_count == 1
+    assert executed_tasks == [1]
+    with open_db(settings.database_path) as db:
+        task = db.execute("select status from ingest_tasks where id = 1").fetchone()
+    assert task["status"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_scheduler_run_once_executes_existing_approved_tasks_without_due_sources(tmp_path, monkeypatch):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_source_profile(db, "manual-source", "manual")
+        raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, fetch_run_id, target_domain, canonical_url, raw_path,
+              title, content_hash, content_bytes, metadata_json
+            )
+            values ('manual-source', null, 'ai_infra', 'https://example.com/new', ?, 'New item', 'abc', 12, '{}')
+            """,
+            (str(settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "manual-source" / "new.md"),),
+        ).lastrowid
+        db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values ('manual-source', ?, 'ai_infra', 'approved', 'low', 'trusted low-risk source eligible for automatic ingest')
+            """,
+            (raw_item_id,),
+        )
+        db.commit()
+
+    executed_tasks: list[int] = []
+
+    def fake_run_source_once(received_settings, db, source_id):
+        raise AssertionError("manual source should not be fetched")
+
+    def fake_run_approved_task(received_settings, db, task_id, auto_commit_enabled):
+        executed_tasks.append(task_id)
+        db.execute("update ingest_tasks set status = 'succeeded', updated_at = current_timestamp where id = ?", (task_id,))
+        db.commit()
+        return {"id": task_id, "status": "succeeded"}
+
+    monkeypatch.setattr("crawler_workbench.scheduler.run_source_once", fake_run_source_once)
+    monkeypatch.setattr("crawler_workbench.scheduler.run_approved_task", fake_run_approved_task)
+
+    ran_count = await Scheduler(settings).run_once()
+
+    assert ran_count == 0
+    assert executed_tasks == [1]
 
 
 @pytest.mark.asyncio

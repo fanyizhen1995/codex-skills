@@ -189,7 +189,7 @@ def test_auto_commit_unstages_requested_paths_when_commit_fails(tmp_path):
 
 def test_run_approved_task_fails_on_dirty_same_domain_baseline(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
-    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
     unrelated = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "unrelated.md"
     unrelated.parent.mkdir(parents=True)
     unrelated.write_text("unrelated", encoding="utf-8")
@@ -211,6 +211,77 @@ def test_run_approved_task_fails_on_dirty_same_domain_baseline(tmp_path, monkeyp
     assert "baseline" in task["reason"]
     assert task["commit_id"] is None
     assert commit_count == 0
+
+
+def test_run_approved_task_allows_other_approved_raw_files_in_same_domain_baseline(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
+    first_raw = settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "src" / "first.md"
+    second_raw = settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "src" / "second.md"
+    first_raw.parent.mkdir(parents=True)
+    first_raw.write_text("first", encoding="utf-8")
+    second_raw.write_text("second", encoding="utf-8")
+
+    with connect(settings.database_path) as db:
+        migrate(db)
+        seed_source(db)
+        first_raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, target_domain, canonical_url, raw_path, title,
+              content_hash, content_bytes, metadata_json
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("src", "ai_infra", "https://example.com/first", str(first_raw), "First", "first-hash", 5, "{}"),
+        ).lastrowid
+        second_raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, target_domain, canonical_url, raw_path, title,
+              content_hash, content_bytes, metadata_json
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("src", "ai_infra", "https://example.com/second", str(second_raw), "Second", "second-hash", 6, "{}"),
+        ).lastrowid
+        first_task_id = db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values (?, ?, ?, ?, ?, ?)
+            """,
+            ("src", first_raw_item_id, "ai_infra", "approved", "low", "approved"),
+        ).lastrowid
+        db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values (?, ?, ?, ?, ?, ?)
+            """,
+            ("src", second_raw_item_id, "ai_infra", "approved", "low", "approved"),
+        )
+        db.commit()
+
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_index", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_backlinks", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_validate", lambda *args: ok_process())
+        result = run_approved_task(
+            settings,
+            db,
+            int(first_task_id),
+            auto_commit_enabled=False,
+            codex_runner=lambda *args: ok_process(),
+        )
+
+        first_task = db.execute("select status, reason from ingest_tasks where id = ?", (first_task_id,)).fetchone()
+
+    assert result["status"] == "succeeded"
+    assert first_task["status"] == "succeeded"
+    assert "baseline" not in first_task["reason"]
 
 
 def test_run_approved_task_fails_on_dirty_baseline_without_auto_commit(tmp_path, monkeypatch):

@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from .db import open_db
 from .fetch_service import run_source_once
+from .ingest import run_approved_task
 from .settings import Settings
 
 
@@ -65,6 +66,12 @@ class Scheduler:
                     LOG.exception("scheduled source run failed: %s", source_id)
                 _advance_next_run_at(db, source_id, schedule, now)
 
+            for task_id in _approved_task_ids(db):
+                try:
+                    run_approved_task(self.settings, db, task_id, auto_commit_enabled=True)
+                except Exception:
+                    LOG.exception("scheduled ingest task failed: %s", task_id)
+
         return len(due_rows)
 
     async def _run_loop(self) -> None:
@@ -104,3 +111,8 @@ def _is_due(next_run_at: str | None, now: datetime) -> bool:
     if next_run_at is None:
         return True
     return datetime.fromisoformat(next_run_at) <= now
+
+
+def _approved_task_ids(db) -> list[int]:
+    rows = db.execute("select id from ingest_tasks where status = 'approved' order by created_at, id").fetchall()
+    return [int(row["id"]) for row in rows]

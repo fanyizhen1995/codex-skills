@@ -115,8 +115,8 @@ def _run_approved_task(
         raise
 
     baseline_dirty_paths = git_dirty_paths(settings.repo_root)
-    allowed_baseline = _task_raw_repo_path(settings, domain, str(raw_item["raw_path"]))
-    disallowed_baseline_paths = baseline_dirty_paths - {allowed_baseline}
+    allowed_baseline_paths = _approved_raw_repo_paths(settings, db, domain)
+    disallowed_baseline_paths = baseline_dirty_paths - allowed_baseline_paths
     if disallowed_baseline_paths:
         _mark_task_failed(db, task_id, ALLOWED_BASELINE_REASON, allowed_states={"approved"})
         return _task_response(db, task_id)
@@ -394,6 +394,23 @@ def _task_raw_repo_path(settings: Any, domain: str, raw_path: str) -> str:
             continue
         return (Path("personal-wiki") / "domains" / domain / "raw" / relative_to_raw).as_posix()
     raise IngestInputError(f"raw path is not under domain raw directory: {raw_path}")
+
+
+def _approved_raw_repo_paths(settings: Any, db: sqlite3.Connection, domain: str) -> set[str]:
+    rows = db.execute(
+        """
+        select raw_items.raw_path
+        from ingest_tasks
+        join raw_items on raw_items.id = ingest_tasks.raw_item_id
+        where ingest_tasks.target_domain = ?
+          and ingest_tasks.status = 'approved'
+        """,
+        (domain,),
+    ).fetchall()
+    paths: set[str] = set()
+    for row in rows:
+        paths.add(_task_raw_repo_path(settings, domain, str(row["raw_path"])))
+    return paths
 
 
 def _ingest_prompt(domain: str, raw_path: str) -> str:
