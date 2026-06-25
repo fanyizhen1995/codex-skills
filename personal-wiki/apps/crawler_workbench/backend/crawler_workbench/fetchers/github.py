@@ -70,9 +70,13 @@ class GitHubFetcher(HttpClientOwner):
     def _headers(self, profile: dict[str, object]) -> dict[str, str]:
         headers = {"Accept": "application/vnd.github+json"}
         token = os.environ.get("GITHUB_TOKEN")
-        if profile.get("auth_ref") == "GITHUB_TOKEN" and token:
-            headers["Authorization"] = f"Bearer {token}"
-        elif token:
+        if (
+            bool(profile.get("auth_required"))
+            and profile.get("auth_method") == "env_token"
+            and profile.get("auth_ref") == "GITHUB_TOKEN"
+            and _is_github_api_url(str(profile["url"]))
+            and token
+        ):
             headers["Authorization"] = f"Bearer {token}"
         return headers
 
@@ -130,3 +134,8 @@ class GitHubFetcher(HttpClientOwner):
         if item.get("pull_request") or "/pull/" in html_url:
             return "pull_request"
         return endpoint_kind
+
+
+def _is_github_api_url(url: str) -> bool:
+    parsed = urlsplit(url)
+    return parsed.scheme == "https" and parsed.hostname == "api.github.com"

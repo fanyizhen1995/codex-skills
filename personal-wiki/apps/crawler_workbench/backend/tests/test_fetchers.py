@@ -40,6 +40,17 @@ def recording_github_client() -> tuple[httpx.Client, list[str]]:
     return httpx.Client(transport=httpx.MockTransport(handler)), requests
 
 
+def github_header_client() -> tuple[httpx.Client, list[str | None]]:
+    authorizations: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        authorizations.append(request.headers.get("authorization"))
+        payload = '[{"html_url":"https://github.com/o/r/issues/1","title":"Issue","state":"closed","body":"fixed"}]'
+        return httpx.Response(200, text=payload)
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), authorizations
+
+
 def test_web_fetcher_returns_markdownish_result():
     fetcher = WebFetcher(client=client_for(200, "<html><title>Doc</title><body><h1>Hello</h1></body></html>", {"etag": "abc"}))
     results = fetcher.fetch({"url": "https://example.com/doc", "name": "Doc"})
@@ -114,6 +125,52 @@ def test_github_fetcher_canonicalizes_html_url():
     fetcher = GitHubFetcher(client=client_for(200, payload))
     results = fetcher.fetch({"url": "https://api.github.com/repos/o/r/issues", "name": "Repo"})
     assert results[0].canonical_url == "https://github.com/O/R/issues/1"
+
+
+def test_github_fetcher_does_not_send_env_token_without_explicit_auth(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
+    client, authorizations = github_header_client()
+    fetcher = GitHubFetcher(client=client)
+
+    fetcher.fetch({"url": "https://api.github.com/repos/o/r/issues", "name": "Repo", "auth_required": False})
+
+    assert authorizations == [None]
+
+
+def test_github_fetcher_sends_env_token_for_explicit_github_api_auth(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
+    client, authorizations = github_header_client()
+    fetcher = GitHubFetcher(client=client)
+
+    fetcher.fetch(
+        {
+            "url": "https://api.github.com/repos/o/r/issues",
+            "name": "Repo",
+            "auth_required": True,
+            "auth_method": "env_token",
+            "auth_ref": "GITHUB_TOKEN",
+        }
+    )
+
+    assert authorizations == ["Bearer secret-token"]
+
+
+def test_github_fetcher_does_not_send_env_token_to_non_api_host(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
+    client, authorizations = github_header_client()
+    fetcher = GitHubFetcher(client=client)
+
+    fetcher.fetch(
+        {
+            "url": "https://example.com/repos/o/r/issues",
+            "name": "Repo",
+            "auth_required": True,
+            "auth_method": "env_token",
+            "auth_ref": "GITHUB_TOKEN",
+        }
+    )
+
+    assert authorizations == [None]
 
 
 def test_arxiv_fetcher_returns_papers():
