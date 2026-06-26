@@ -23,7 +23,7 @@ skus:
     canonical_name: Intel Gaudi 3 HL-338
     aliases: [Gaudi 3, HL-338]
     scope: ai_asic
-    form_factor: OAM module
+    form_factor: PCIe card
     release_status: released
     source_refs: [intel-gaudi-3-white-paper]
   - sku_id: nvidia-bluefield-3-dpu
