@@ -232,6 +232,8 @@ def validate_accelerator_metadata(profile: dict[str, Any]) -> None:
     scopes = profile.get("accelerator_scope")
     if not isinstance(scopes, list) or not scopes:
         raise ValueError(f"profile {profile_id} accelerator_scope must be a non-empty list")
+    if not all(isinstance(scope, str) for scope in scopes):
+        raise ValueError(f"profile {profile_id} accelerator_scope entries must be strings")
     invalid_scopes = sorted(str(scope) for scope in scopes if scope not in ACCELERATOR_SCOPES)
     if invalid_scopes:
         raise ValueError(

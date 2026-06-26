@@ -216,6 +216,34 @@ sources:
         load_profiles_from_yaml(yaml_path)
 
 
+def test_yaml_profile_rejects_non_string_accelerator_scope_entries(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: bad-accelerator-scope-entry
+    name: Bad accelerator scope entry
+    type: web
+    target_domain: ai_infra
+    url: https://example.com
+    trust_level: trusted
+    schedule: weekly
+    auto_ingest: false
+    auth_required: false
+    topic: bad accelerator scope entry
+    source_rank: S1
+    accelerator_scope:
+      - kind: gpu
+    extract_mode: specs_candidate
+    auto_resolve: false
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="accelerator_scope entries must be strings"):
+        load_profiles_from_yaml(yaml_path)
+
+
 def test_yaml_profile_rejects_s5_auto_resolve(tmp_path):
     yaml_path = tmp_path / "sources.yaml"
     yaml_path.write_text(
@@ -402,6 +430,30 @@ def test_mirror_profiles_validates_target_domain_for_direct_calls(tmp_path):
     with open_db(settings.database_path) as db:
         migrate(db)
         with pytest.raises(ValueError, match="Invalid domain"):
+            mirror_profiles(db, [bad_profile])
+
+
+def test_mirror_profiles_validates_accelerator_metadata_for_direct_calls(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    bad_profile = {
+        "id": "direct-bad-accelerator-metadata",
+        "name": "Direct bad accelerator metadata",
+        "type": "web",
+        "target_domain": "ai_infra",
+        "url": "https://example.com",
+        "trust_level": "trusted",
+        "schedule": "weekly",
+        "auto_ingest": False,
+        "auth_required": False,
+        "topic": "direct accelerator metadata validation",
+        "source_rank": "S1",
+        "accelerator_scope": [{"kind": "gpu"}],
+        "extract_mode": "specs_candidate",
+        "auto_resolve": False,
+    }
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        with pytest.raises(ValueError, match="accelerator_scope entries must be strings"):
             mirror_profiles(db, [bad_profile])
 
 
