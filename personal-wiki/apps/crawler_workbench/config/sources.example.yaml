@@ -1,0 +1,275 @@
+sources:
+- id: nccl-release-notes
+  name: NCCL release notes
+  type: web
+  target_domain: ai_infra
+  url: https://docs.nvidia.com/deeplearning/nccl/release-notes/index.html
+  trust_level: trusted
+  schedule: daily
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: true
+  topic: NCCL release notes
+- id: nccl-github-closed-issues
+  name: NCCL closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/NVIDIA/nccl/issues?sort=updated&direction=desc
+  trust_level: trusted
+  schedule: daily
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: true
+  topic: NCCL closed GitHub issues
+- id: sglang-github-closed-issues-prs
+  name: SGLang closed GitHub issues and pull requests
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/sgl-project/sglang?sort=updated&direction=desc
+  trust_level: trusted
+  schedule: daily
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: true
+  topic: SGLang closed issues and pull requests
+- id: nccl-technical-blog
+  name: NVIDIA NCCL Technical Blog
+  type: rss
+  target_domain: ai_infra
+  url: https://developer.nvidia.com/blog/tag/nccl/feed/
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NCCL technical blog
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 10
+- id: nccl-github-releases
+  name: NCCL GitHub releases
+  type: rss
+  target_domain: ai_infra
+  url: https://github.com/NVIDIA/nccl/releases.atom
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NCCL GitHub releases
+  fetch_article_body: false
+  max_entries: 10
+- id: nccl-arxiv-papers
+  name: NCCL arXiv papers
+  type: arxiv
+  target_domain: ai_infra
+  url: http://export.arxiv.org/api/query?search_query=all:nccl&sortBy=submittedDate&sortOrder=descending&max_results=25
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NCCL arXiv papers
+- id: nccl-nvidia-blog-wide
+  name: NVIDIA Technical Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://developer.nvidia.com/blog/feed/
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NVIDIA Technical Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-aws-ml-blog
+  name: AWS ML Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://aws.amazon.com/blogs/machine-learning/feed/
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: AWS ML Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-aws-hpc-blog
+  name: AWS HPC Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://aws.amazon.com/blogs/hpc/feed/
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: AWS HPC Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-vllm-blog
+  name: vLLM Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://vllm.ai/blog/rss.xml
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: vLLM Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-lambda-blog
+  name: Lambda Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://lambda.ai/blog/rss.xml
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Lambda Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-modal-blog
+  name: Modal Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://modal.com/blog/atom.xml
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Modal Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-deepspeed-blog
+  name: DeepSpeed Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://www.deepspeed.ai/feed.xml
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: DeepSpeed Blog NCCL keyword watch
+  fetch_article_body: true
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+- id: nccl-huggingface-blog
+  name: Hugging Face Blog NCCL keyword watch
+  type: rss
+  target_domain: ai_infra
+  url: https://huggingface.co/blog/feed.xml
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Hugging Face Blog NCCL keyword watch (disabled until feed is reachable)
+  fetch_article_body: false
+  include_keywords:
+  - NCCL
+  - GPUDirect
+  - RDMA
+  - collective communication
+  - all-reduce
+  - allreduce
+  - NVLink
+  - InfiniBand
+  - distributed training
+  - GPU communication
+  max_entries: 5
+  enabled: false
