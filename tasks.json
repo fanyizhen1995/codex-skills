@@ -15,7 +15,7 @@
       "id": "compute-accelerator-spec-catalog-01",
       "title": "Build compute accelerator spec catalog seed",
       "description": "Create the structured accelerator spec catalog, curated wiki pages, crawler source metadata, and validation checks for GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC coverage.",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "blocked_by": "",
       "verify": "python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra && PYTHONPATH=personal-wiki/tests pytest -q personal-wiki/tests/test_accelerator_catalog.py && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py",

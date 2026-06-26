@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-27 Compute Accelerator Spec Catalog
+
+- Built the seed structured catalog under `personal-wiki/domains/ai_infra/data/compute_accelerators/`.
+- Added curated wiki pages for source policy, field glossary, catalog overview, and crawler conventions.
+- Added `validate-accelerators` to check schema, source refs, observations, resolved fields, shard expansion, duplicate resolved fields, and S5 review policy.
+- Added crawler source metadata validation and sample accelerator source profiles.
+- Marked fragile/unfetchable source profiles disabled until fetch stability or specialized fetch methods are available.
+- Evidence:
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
+  - `PYTHONPATH=personal-wiki/tests pytest -q personal-wiki/tests/test_accelerator_catalog.py` -> 12 passed
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py` -> 25 passed
+
 ## 2026-06-27 Harness Step4 Wiki Crawler E2E
 
 - Installed harness steps 1-3 and Step4 evaluator gates.
