@@ -273,3 +273,141 @@ sources:
   - GPU communication
   max_entries: 5
   enabled: false
+- id: compute-accelerators-nvidia-h200
+  name: NVIDIA H200 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/data-center/h200/
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: NVIDIA H200 accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-amd-mi325x
+  name: AMD Instinct MI325X accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct/mi300/mi325x.html
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: AMD Instinct MI325X accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-intel-gaudi-3
+  name: Intel Gaudi 3 accelerator white paper
+  type: web
+  target_domain: ai_infra
+  url: https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: Intel Gaudi 3 accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-nvidia-bluefield-3
+  name: NVIDIA BlueField-3 DPU specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: NVIDIA BlueField-3 DPU specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-aws-trn2
+  name: AWS Trn2 Trainium2 instance specs
+  type: web
+  target_domain: ai_infra
+  url: https://aws.amazon.com/ec2/instance-types/trn2/
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: AWS Trainium2 cloud accelerator offerings
+  source_rank: S2
+  accelerator_scope:
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: aws
+  auto_resolve: false
+- id: compute-accelerators-google-tpu
+  name: Google Cloud TPU documentation
+  type: web
+  target_domain: ai_infra
+  url: https://cloud.google.com/tpu/docs
+  trust_level: trusted
+  schedule: weekly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: Google Cloud TPU accelerator offerings
+  source_rank: S2
+  accelerator_scope:
+  - tpu
+  extract_mode: specs_candidate
+  vendor_hint: google
+  auto_resolve: false
+- id: compute-accelerators-mlperf-training
+  name: MLCommons training benchmark results
+  type: web
+  target_domain: ai_infra
+  url: https://mlcommons.org/benchmarks/training/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: MLPerf training benchmark accelerator results
+  source_rank: S3
+  accelerator_scope:
+  - gpu
+  - tpu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: mlcommons
+  auto_resolve: false
+- id: compute-accelerators-techpowerup-gpu-db
+  name: TechPowerUp GPU database monitor
+  type: web
+  target_domain: ai_infra
+  url: https://www.techpowerup.com/gpu-specs/
+  trust_level: untrusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: Third-party GPU database candidate monitor
+  source_rank: S5
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: techpowerup
+  auto_resolve: false
