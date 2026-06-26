@@ -17,10 +17,9 @@ source_ranks:
     description: Official cloud instance, shape, accelerator, and TPU documentation.
     allowed_for:
       - cloud_offering_specs
-      - accelerator_count
+      - cloud_accelerator_count
       - aggregate_memory
-      - networking
-      - region_availability
+      - network_bandwidth
     restrictions:
       - Do not overwrite single-card vendor specifications.
   S3:
@@ -50,7 +49,7 @@ source_ranks:
   S5:
     name: Third-party, media, procurement, analyst, and community sources
     trust_level: review_required
-    auto_resolve_allowed: false
+    auto_resolve_allowed: reviewed_only
     description: Third-party databases, media articles, public procurement material, analyst reports, and community lists.
     allowed_for:
       - candidate_observations
