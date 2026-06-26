@@ -30,6 +30,10 @@ PROFILE_STORAGE_KEYS = REQUIRED_PROFILE_KEYS | {
     "auth_ref",
 }
 
+ACCELERATOR_SOURCE_RANKS = {"S1", "S2", "S3", "S4", "S5"}
+ACCELERATOR_SCOPES = {"gpu", "npu", "tpu", "dpu", "ipu", "fpga", "dsa", "ai_asic"}
+ACCELERATOR_EXTRACT_MODES = {"specs_candidate", "snapshot_only", "manual_probe"}
+
 
 def load_profiles_from_yaml(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
@@ -48,6 +52,7 @@ def load_profiles_from_yaml(path: Path) -> list[dict[str, Any]]:
         seen_ids.add(profile["id"])
         validate_profile_booleans(profile)
         validate_profile_domain(profile)
+        validate_accelerator_metadata(profile)
     return profiles
 
 
@@ -65,6 +70,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
     for profile in profiles:
         booleans = validate_profile_booleans(profile)
         validate_profile_domain(profile)
+        validate_accelerator_metadata(profile)
         auto_ingest = booleans["auto_ingest"]
         auth_required = booleans["auth_required"]
         enabled = booleans["enabled"]
@@ -202,6 +208,45 @@ def validate_profile_domain(profile: dict[str, Any]) -> None:
         or ".." in domain_path.parts
     ):
         raise ValueError(f"Invalid domain path for profile {profile_id}: {domain}")
+
+
+def validate_accelerator_metadata(profile: dict[str, Any]) -> None:
+    profile_id = profile.get("id", "<unknown>")
+    has_accelerator_metadata = any(
+        key in profile
+        for key in (
+            "source_rank",
+            "accelerator_scope",
+            "extract_mode",
+            "vendor_hint",
+            "auto_resolve",
+        )
+    )
+    if not has_accelerator_metadata:
+        return
+
+    source_rank = profile.get("source_rank")
+    if source_rank not in ACCELERATOR_SOURCE_RANKS:
+        raise ValueError(f"profile {profile_id} invalid source_rank: {source_rank}")
+
+    scopes = profile.get("accelerator_scope")
+    if not isinstance(scopes, list) or not scopes:
+        raise ValueError(f"profile {profile_id} accelerator_scope must be a non-empty list")
+    invalid_scopes = sorted(str(scope) for scope in scopes if scope not in ACCELERATOR_SCOPES)
+    if invalid_scopes:
+        raise ValueError(
+            f"profile {profile_id} invalid accelerator_scope: {', '.join(invalid_scopes)}"
+        )
+
+    extract_mode = profile.get("extract_mode")
+    if extract_mode not in ACCELERATOR_EXTRACT_MODES:
+        raise ValueError(f"profile {profile_id} invalid extract_mode: {extract_mode}")
+
+    auto_resolve = profile.get("auto_resolve")
+    if not isinstance(auto_resolve, bool):
+        raise ValueError(f"profile {profile_id} key auto_resolve must be a boolean")
+    if source_rank == "S5" and auto_resolve:
+        raise ValueError(f"profile {profile_id} S5 profiles cannot auto_resolve")
 
 
 def _require_bool(profile: dict[str, Any], key: str, profile_id: object) -> bool:

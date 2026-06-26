@@ -149,6 +149,138 @@ sources:
     assert row["config_json"] == '{"fetch_article_body": true, "include_keywords": ["NCCL", "GPUDirect"]}'
 
 
+def test_yaml_profile_accepts_compute_accelerator_metadata(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: compute-accelerators-nvidia-h200
+    name: NVIDIA H200 accelerator specs
+    type: web
+    target_domain: ai_infra
+    url: https://www.nvidia.com/en-us/data-center/h200/
+    trust_level: trusted
+    schedule: weekly
+    auto_ingest: false
+    auth_required: false
+    topic: NVIDIA H200 accelerator specs
+    source_rank: S1
+    accelerator_scope:
+      - gpu
+    extract_mode: specs_candidate
+    vendor_hint: nvidia
+    auto_resolve: false
+""",
+        encoding="utf-8",
+    )
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        with transaction(db):
+            mirror_profiles(db, load_profiles_from_yaml(yaml_path))
+        row = db.execute(
+            "select config_json from source_profiles where id = 'compute-accelerators-nvidia-h200'"
+        ).fetchone()
+
+    assert row["config_json"] == (
+        '{"accelerator_scope": ["gpu"], "auto_resolve": false, '
+        '"extract_mode": "specs_candidate", "source_rank": "S1", "vendor_hint": "nvidia"}'
+    )
+
+
+def test_yaml_profile_rejects_invalid_accelerator_scope(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: bad-accelerator-scope
+    name: Bad accelerator scope
+    type: web
+    target_domain: ai_infra
+    url: https://example.com
+    trust_level: trusted
+    schedule: weekly
+    auto_ingest: false
+    auth_required: false
+    topic: bad accelerator scope
+    source_rank: S1
+    accelerator_scope:
+      - quantum
+    extract_mode: specs_candidate
+    auto_resolve: false
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid accelerator_scope"):
+        load_profiles_from_yaml(yaml_path)
+
+
+def test_yaml_profile_rejects_s5_auto_resolve(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: bad-s5-auto-resolve
+    name: Bad S5 auto resolve
+    type: web
+    target_domain: ai_infra
+    url: https://example.com
+    trust_level: untrusted
+    schedule: weekly
+    auto_ingest: false
+    auth_required: false
+    topic: bad S5 auto resolve
+    source_rank: S5
+    accelerator_scope:
+      - gpu
+    extract_mode: specs_candidate
+    auto_resolve: true
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="S5 profiles cannot auto_resolve"):
+        load_profiles_from_yaml(yaml_path)
+
+
+@pytest.mark.parametrize(
+    ("extra_yaml", "message"),
+    [
+        ("source_rank: S6", "invalid source_rank"),
+        ("extract_mode: full_extract", "invalid extract_mode"),
+        ('auto_resolve: "false"', "auto_resolve must be a boolean"),
+    ],
+)
+def test_yaml_profile_rejects_invalid_accelerator_metadata(tmp_path, extra_yaml, message):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        f"""
+sources:
+  - id: bad-accelerator-metadata
+    name: Bad accelerator metadata
+    type: web
+    target_domain: ai_infra
+    url: https://example.com
+    trust_level: trusted
+    schedule: weekly
+    auto_ingest: false
+    auth_required: false
+    topic: bad accelerator metadata
+    source_rank: S1
+    accelerator_scope:
+      - gpu
+    extract_mode: specs_candidate
+    auto_resolve: false
+    {extra_yaml}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        load_profiles_from_yaml(yaml_path)
+
+
 @pytest.mark.parametrize("key", ["auto_ingest", "auth_required", "enabled"])
 def test_yaml_profile_boolean_fields_must_be_bool(tmp_path, key):
     yaml_path = tmp_path / "sources.yaml"
