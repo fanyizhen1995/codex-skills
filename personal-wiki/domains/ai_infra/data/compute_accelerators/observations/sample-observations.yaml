@@ -1,0 +1,118 @@
+observations:
+  - observation_id: obs-nvidia-h200-memory-capacity
+    sku_id: nvidia-h200-sxm
+    field: memory_capacity
+    value: 141
+    unit: GB
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "NVIDIA H200 product page; memory specifications section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page lists 141GB HBM3e for H200.
+  - observation_id: obs-nvidia-h200-memory-bandwidth
+    sku_id: nvidia-h200-sxm
+    field: memory_bandwidth
+    value: 4.8
+    unit: TB/s
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "NVIDIA H200 product page; memory specifications section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page lists up to 4.8TB/s memory bandwidth.
+  - observation_id: obs-amd-mi325x-memory-capacity
+    sku_id: amd-mi325x-oam
+    field: memory_capacity
+    value: 256
+    unit: GB
+    source_id: amd-mi325x-product-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "AMD MI325X product page; product specifications"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official AMD page lists 256GB HBM3E memory.
+  - observation_id: obs-intel-gaudi-3-memory-capacity
+    sku_id: intel-gaudi-3-hl-338
+    field: memory_capacity
+    value: 128
+    unit: GB
+    source_id: intel-gaudi-3-white-paper
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "Intel Gaudi 3 white paper; accelerator memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official Intel white paper lists 128GB HBM2e.
+  - observation_id: obs-bluefield-3-network-bandwidth
+    sku_id: nvidia-bluefield-3-dpu
+    field: network_bandwidth
+    value: 400
+    unit: Gb/s
+    source_id: nvidia-bluefield-3-product-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "NVIDIA BlueField-3 product page; Ethernet and InfiniBand connectivity"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Represents a high-level official product capability; exact card SKUs can vary.
+  - observation_id: obs-aws-trn2-accelerator-count
+    sku_id: aws-trainium2-trn2-offering
+    field: cloud_accelerator_count
+    value: 16
+    unit: count
+    source_id: aws-trn2-instance-page
+    source_rank: S2
+    captured_at: "2026-06-27"
+    source_locator: "AWS Trn2 page; Trn2 instance family overview"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Cloud offering aggregate field; does not describe one chip package.
+  - observation_id: obs-google-tpu-v5p-source-entry
+    sku_id: google-cloud-tpu-v5p-offering
+    field: form_factor
+    value: cloud offering
+    unit: none
+    source_id: google-cloud-tpu-docs
+    source_rank: S2
+    captured_at: "2026-06-27"
+    source_locator: "Google Cloud TPU documentation entry point"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Source entry validates TPU scope coverage; detailed per-version fields can be added later.
+  - observation_id: obs-microsoft-maia-200-memory-capacity
+    sku_id: microsoft-maia-200
+    field: memory_capacity
+    value: 216
+    unit: GB
+    source_id: microsoft-maia-200-announcement
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "Microsoft Maia 200 announcement; memory system description"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official Microsoft announcement lists 216GB HBM3e.
+  - observation_id: obs-microsoft-maia-200-memory-bandwidth
+    sku_id: microsoft-maia-200
+    field: memory_bandwidth
+    value: 7
+    unit: TB/s
+    source_id: microsoft-maia-200-announcement
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "Microsoft Maia 200 announcement; memory system description"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official Microsoft announcement lists 7TB/s HBM3e bandwidth.

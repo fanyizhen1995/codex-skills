@@ -1,0 +1,73 @@
+skus:
+  - sku_id: nvidia-h200-sxm
+    vendor_id: nvidia
+    family_id: nvidia-hopper
+    canonical_name: NVIDIA H200 SXM
+    aliases: [H200 SXM, H200 Tensor Core GPU]
+    scope: gpu
+    form_factor: SXM module
+    release_status: released
+    source_refs: [nvidia-h200-product-page]
+  - sku_id: amd-mi325x-oam
+    vendor_id: amd
+    family_id: amd-instinct-mi300
+    canonical_name: AMD Instinct MI325X
+    aliases: [MI325X, Instinct MI325X]
+    scope: gpu
+    form_factor: OAM module
+    release_status: released
+    source_refs: [amd-mi325x-product-page]
+  - sku_id: intel-gaudi-3-hl-338
+    vendor_id: intel
+    family_id: intel-gaudi-3
+    canonical_name: Intel Gaudi 3 HL-338
+    aliases: [Gaudi 3, HL-338]
+    scope: ai_asic
+    form_factor: OAM module
+    release_status: released
+    source_refs: [intel-gaudi-3-white-paper]
+  - sku_id: nvidia-bluefield-3-dpu
+    vendor_id: nvidia
+    family_id: nvidia-bluefield
+    canonical_name: NVIDIA BlueField-3 DPU
+    aliases: [BlueField-3, BF3]
+    scope: dpu
+    form_factor: PCIe card or integrated DPU
+    release_status: released
+    source_refs: [nvidia-bluefield-3-product-page]
+  - sku_id: aws-trainium2-trn2-offering
+    vendor_id: aws
+    family_id: aws-trainium
+    canonical_name: AWS Trainium2 Trn2 offering
+    aliases: [Trainium2, Trn2]
+    scope: ai_asic
+    form_factor: cloud offering
+    release_status: released
+    source_refs: [aws-trn2-instance-page]
+  - sku_id: google-cloud-tpu-v5p-offering
+    vendor_id: google
+    family_id: google-cloud-tpu
+    canonical_name: Google Cloud TPU v5p offering
+    aliases: [Cloud TPU v5p, TPU v5p]
+    scope: tpu
+    form_factor: cloud offering
+    release_status: released
+    source_refs: [google-cloud-tpu-docs]
+  - sku_id: xilinx-alveo-v80
+    vendor_id: amd
+    family_id: amd-xilinx-alveo
+    canonical_name: AMD Alveo V80
+    aliases: [Xilinx Alveo V80, Alveo V80]
+    scope: fpga
+    form_factor: PCIe card
+    release_status: released
+    source_refs: [amd-alveo-v80-product-page]
+  - sku_id: microsoft-maia-200
+    vendor_id: microsoft
+    family_id: microsoft-maia
+    canonical_name: Microsoft Maia 200
+    aliases: [Azure Maia 200, Maia 200]
+    scope: dsa
+    form_factor: cloud-integrated accelerator
+    release_status: announced
+    source_refs: [microsoft-maia-200-announcement]
