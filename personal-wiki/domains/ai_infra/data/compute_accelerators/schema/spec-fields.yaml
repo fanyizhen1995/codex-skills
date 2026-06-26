@@ -1,0 +1,137 @@
+spec_fields:
+  memory_capacity:
+    group: common_specs
+    value_type: number
+    canonical_unit: GB
+    allowed_units: [GB]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Memory capacity attached to one accelerator or one cloud-visible accelerator slice.
+  memory_type:
+    group: common_specs
+    value_type: string
+    canonical_unit: none
+    allowed_units: [none]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Memory technology such as HBM2e, HBM3, HBM3e, GDDR6, or DDR.
+  memory_bandwidth:
+    group: common_specs
+    value_type: number
+    canonical_unit: TB/s
+    allowed_units: [TB/s, GB/s]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Peak memory bandwidth for one accelerator unless the field name says aggregate.
+  tdp:
+    group: common_specs
+    value_type: number
+    canonical_unit: W
+    allowed_units: [W]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Thermal design power or official maximum board power.
+  host_interface:
+    group: common_specs
+    value_type: string
+    canonical_unit: none
+    allowed_units: [none]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Host interface such as PCIe Gen5 x16, SXM, OAM, or cloud-integrated.
+  form_factor:
+    group: common_specs
+    value_type: string
+    canonical_unit: none
+    allowed_units: [none]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Card, module, appliance, or cloud-visible deployment format.
+  interconnect:
+    group: common_specs
+    value_type: string
+    canonical_unit: none
+    allowed_units: [none]
+    applies_to: [gpu, npu, tpu, dpu, ipu, fpga, dsa, ai_asic]
+    observation_kind: theoretical_or_official
+    description: Accelerator interconnect such as NVLink, Infinity Fabric, TPU ICI, Ethernet, or PCIe.
+  fp64_tflops:
+    group: compute_specs
+    value_type: number
+    canonical_unit: TFLOPS
+    allowed_units: [TFLOPS]
+    applies_to: [gpu, dsa]
+    observation_kind: theoretical_peak
+    description: Peak FP64 performance.
+  fp32_tflops:
+    group: compute_specs
+    value_type: number
+    canonical_unit: TFLOPS
+    allowed_units: [TFLOPS]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: theoretical_peak
+    description: Peak FP32 performance.
+  bf16_tflops:
+    group: compute_specs
+    value_type: number
+    canonical_unit: TFLOPS
+    allowed_units: [TFLOPS]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: theoretical_peak
+    description: Peak BF16 tensor or matrix performance.
+  fp8_tflops:
+    group: compute_specs
+    value_type: number
+    canonical_unit: TFLOPS
+    allowed_units: [TFLOPS]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: theoretical_peak
+    description: Peak FP8 tensor or matrix performance.
+  int8_tops:
+    group: compute_specs
+    value_type: number
+    canonical_unit: TOPS
+    allowed_units: [TOPS]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: theoretical_peak
+    description: Peak INT8 inference performance.
+  network_bandwidth:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: Gb/s
+    allowed_units: [Gb/s]
+    applies_to: [dpu, ipu]
+    observation_kind: theoretical_or_official
+    description: Network bandwidth exposed by DPU or IPU ports.
+  fpga_lut_count:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: count
+    allowed_units: [count]
+    applies_to: [fpga]
+    observation_kind: theoretical_or_official
+    description: FPGA lookup table count or equivalent logic cells when explicitly mapped.
+  fpga_dsp_count:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: count
+    allowed_units: [count]
+    applies_to: [fpga]
+    observation_kind: theoretical_or_official
+    description: FPGA DSP block count.
+  cloud_accelerator_count:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: count
+    allowed_units: [count]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: cloud_offering
+    description: Number of accelerators in a cloud instance, VM size, node, or slice.
+  aggregate_memory:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: GB
+    allowed_units: [GB]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: cloud_offering
+    description: Total accelerator memory in a cloud instance, VM size, node, or slice.

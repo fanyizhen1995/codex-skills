@@ -1,0 +1,100 @@
+sources:
+  - source_id: nvidia-h200-product-page
+    name: NVIDIA H200 Tensor Core GPU product page
+    url: https://www.nvidia.com/en-us/data-center/h200/
+    source_rank: S1
+    publisher: NVIDIA
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official NVIDIA page for H200 memory and product positioning.
+  - source_id: amd-mi325x-product-page
+    name: AMD Instinct MI325X product page
+    url: https://www.amd.com/en/products/accelerators/instinct/mi300/mi325x.html
+    source_rank: S1
+    publisher: AMD
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official AMD page for MI325X accelerator specifications.
+  - source_id: intel-gaudi-3-white-paper
+    name: Intel Gaudi 3 AI accelerator white paper
+    url: https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf
+    source_rank: S1
+    publisher: Intel
+    source_type: white_paper
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Intel white paper for Gaudi 3 accelerator specifications.
+  - source_id: nvidia-bluefield-3-product-page
+    name: NVIDIA BlueField-3 DPU product page
+    url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
+    source_rank: S1
+    publisher: NVIDIA
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official NVIDIA DPU page for BlueField-3 networking and offload positioning.
+  - source_id: amd-alveo-v80-product-page
+    name: AMD Alveo V80 compute accelerator product page
+    url: https://www.amd.com/en/products/accelerators/alveo/v80.html
+    source_rank: S1
+    publisher: AMD
+    source_type: product_page
+    trust_policy: official_vendor_fpga_card
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official AMD page for Alveo V80 FPGA-based compute accelerator specifications.
+  - source_id: microsoft-maia-200-announcement
+    name: Microsoft Maia 200 official announcement
+    url: https://blogs.microsoft.com/blog/2026/01/26/maia-200-the-ai-accelerator-built-for-inference/
+    source_rank: S1
+    publisher: Microsoft
+    source_type: official_blog
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Microsoft announcement for Maia 200 inference accelerator specifications.
+  - source_id: aws-trn2-instance-page
+    name: AWS EC2 Trn2 instances page
+    url: https://aws.amazon.com/ec2/instance-types/trn2/
+    source_rank: S2
+    publisher: AWS
+    source_type: cloud_doc
+    trust_policy: official_cloud_offering
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official AWS page for Trainium2 cloud offerings.
+  - source_id: google-cloud-tpu-docs
+    name: Google Cloud TPU documentation
+    url: https://cloud.google.com/tpu/docs
+    source_rank: S2
+    publisher: Google Cloud
+    source_type: cloud_doc
+    trust_policy: official_cloud_offering
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Google Cloud TPU documentation entry point.
+  - source_id: mlcommons-training-results
+    name: MLCommons training results
+    url: https://mlcommons.org/benchmarks/training/
+    source_rank: S3
+    publisher: MLCommons
+    source_type: benchmark_index
+    trust_policy: benchmark_submission
+    crawl_policy: snapshot_only
+    notes: Benchmark source for submitted system results, not theoretical peak specs.
+  - source_id: runtime-nvidia-smi
+    name: NVIDIA nvidia-smi runtime probe
+    url: https://docs.nvidia.com/deploy/nvidia-smi/index.html
+    source_rank: S4
+    publisher: NVIDIA
+    source_type: runtime_probe
+    trust_policy: observed_runtime_state
+    crawl_policy: manual_probe_only
+    notes: Runtime inventory and telemetry source for deployed NVIDIA accelerators.
+  - source_id: techpowerup-gpu-database
+    name: TechPowerUp GPU database
+    url: https://www.techpowerup.com/gpu-specs/
+    source_rank: S5
+    publisher: TechPowerUp
+    source_type: third_party_database
+    trust_policy: review_required
+    crawl_policy: snapshot_only_no_auto_resolve
+    notes: Third-party database; observations require review before resolution.

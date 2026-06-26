@@ -1,0 +1,60 @@
+source_ranks:
+  S1:
+    name: Original vendor official specifications
+    trust_level: highest
+    auto_resolve_allowed: conditional
+    description: Vendor product pages, datasheets, product briefs, official PDFs, and support documents.
+    allowed_for:
+      - official_single_accelerator_specs
+      - official_module_specs
+      - official_software_support
+    restrictions:
+      - Resolve automatically only when the field is unresolved or a same-source version update has no semantic conflict.
+  S2:
+    name: Cloud provider official specifications
+    trust_level: high
+    auto_resolve_allowed: cloud_offering_only
+    description: Official cloud instance, shape, accelerator, and TPU documentation.
+    allowed_for:
+      - cloud_offering_specs
+      - accelerator_count
+      - aggregate_memory
+      - networking
+      - region_availability
+    restrictions:
+      - Do not overwrite single-card vendor specifications.
+  S3:
+    name: Standards, registries, and benchmark submissions
+    trust_level: medium_high
+    auto_resolve_allowed: benchmark_or_registry_only
+    description: MLCommons, OCP, PCI ID, and standards or benchmark submissions.
+    allowed_for:
+      - benchmark_results
+      - module_standards
+      - device_identification
+      - submitted_system_configurations
+    restrictions:
+      - Do not overwrite theoretical peak specifications.
+  S4:
+    name: Runtime and inventory probe output
+    trust_level: observed
+    auto_resolve_allowed: observed_fields_only
+    description: nvidia-smi, NVML, DCGM, amd-smi, xpu-smi, npu-smi, lspci, and inventory tools.
+    allowed_for:
+      - observed_runtime_fields
+      - deployed_asset_state
+      - driver_firmware_versions
+      - configured_power_limits
+    restrictions:
+      - Do not overwrite official theoretical specifications.
+  S5:
+    name: Third-party, media, procurement, analyst, and community sources
+    trust_level: review_required
+    auto_resolve_allowed: false
+    description: Third-party databases, media articles, public procurement material, analyst reports, and community lists.
+    allowed_for:
+      - candidate_observations
+      - historical_notes
+      - gap_filling_candidates
+    restrictions:
+      - Never auto-resolve without reviewed_by metadata.

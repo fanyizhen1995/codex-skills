@@ -1,0 +1,53 @@
+accelerator_scopes:
+  gpu:
+    name: Graphics Processing Unit
+    description: Programmable parallel accelerators commonly used for AI training, inference, graphics, and HPC.
+    field_groups:
+      - common_specs
+      - compute_specs
+  npu:
+    name: Neural Processing Unit
+    description: AI-oriented accelerators marketed as NPUs or neural processors.
+    field_groups:
+      - common_specs
+      - compute_specs
+      - role_specific_specs
+  tpu:
+    name: Tensor Processing Unit
+    description: Google TPU accelerators and cloud-visible TPU offerings.
+    field_groups:
+      - common_specs
+      - compute_specs
+      - role_specific_specs
+  dpu:
+    name: Data Processing Unit
+    description: Programmable infrastructure processors for networking, storage, security, and virtualization offload.
+    field_groups:
+      - common_specs
+      - role_specific_specs
+  ipu:
+    name: Infrastructure Processing Unit
+    description: Infrastructure offload processors, including Intel IPU-style devices.
+    field_groups:
+      - common_specs
+      - role_specific_specs
+  fpga:
+    name: Field Programmable Gate Array
+    description: Reconfigurable accelerators and FPGA cards used for AI, networking, and custom pipelines.
+    field_groups:
+      - common_specs
+      - role_specific_specs
+  dsa:
+    name: Domain Specific Accelerator
+    description: Domain-specific accelerators that do not fit a narrower accelerator scope.
+    field_groups:
+      - common_specs
+      - compute_specs
+      - role_specific_specs
+  ai_asic:
+    name: AI ASIC
+    description: Custom AI accelerators and inference or training ASICs.
+    field_groups:
+      - common_specs
+      - compute_specs
+      - role_specific_specs
