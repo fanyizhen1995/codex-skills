@@ -325,6 +325,24 @@ sources:
   extract_mode: specs_candidate
   vendor_hint: intel
   auto_resolve: false
+- id: compute-accelerators-nxp-imx95-npu
+  name: NXP i.MX 95 eIQ Neutron NPU specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nxp.com/products/i.MX95
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NXP i.MX 95 integrated NPU specifications (disabled until fetch path is verified)
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: nxp
+  auto_resolve: false
+  enabled: false
 - id: compute-accelerators-nvidia-bluefield-3
   name: NVIDIA BlueField-3 DPU specs
   type: web
@@ -375,6 +393,59 @@ sources:
   - tpu
   extract_mode: specs_candidate
   vendor_hint: google
+  auto_resolve: false
+- id: compute-accelerators-amd-alveo-v80
+  name: AMD Alveo V80 FPGA accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/alveo/v80.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: AMD Alveo V80 FPGA accelerator specifications (disabled until fetch path is verified)
+  source_rank: S1
+  accelerator_scope:
+  - fpga
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+  enabled: false
+- id: compute-accelerators-intel-ipu-e2100
+  name: Intel IPU Adapter E2100 specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/network-io/ipu/adapter-e2100.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Intel IPU Adapter E2100 specifications (disabled until fetch path is verified)
+  source_rank: S1
+  accelerator_scope:
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+  enabled: false
+- id: compute-accelerators-microsoft-maia-200
+  name: Microsoft Maia 200 AI accelerator announcement
+  type: web
+  target_domain: ai_infra
+  url: https://blogs.microsoft.com/blog/2026/01/26/maia-200-the-ai-accelerator-built-for-inference/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: true
+  topic: Microsoft Maia 200 AI accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: microsoft
   auto_resolve: false
 - id: compute-accelerators-mlperf-training
   name: MLCommons training benchmark results

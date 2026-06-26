@@ -12,11 +12,13 @@
 - Added `validate-accelerators` to check schema, source refs, observations, resolved fields, shard expansion, duplicate resolved fields, and S5 review policy.
 - Added crawler source metadata validation and sample accelerator source profiles.
 - Marked fragile/unfetchable source profiles disabled until fetch stability or specialized fetch methods are available.
+- Addressed final review findings by adding NPU/IPU seed coverage, enforcing S2/S3/S4 resolved-field policy, and validating field `value_type`.
 - Evidence:
   - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators` -> pass
   - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
-  - `PYTHONPATH=personal-wiki/tests pytest -q personal-wiki/tests/test_accelerator_catalog.py` -> 12 passed
+  - `PYTHONPATH=personal-wiki/tests pytest -q personal-wiki/tests/test_accelerator_catalog.py` -> 21 passed
   - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py` -> 25 passed
+  - `.codex/evaluations/tasks/compute-accelerator-spec-catalog-01/20260626T185023Z-attempt-2/result.json` -> pass
 
 ## 2026-06-27 Harness Step4 Wiki Crawler E2E
 

@@ -1,0 +1,39 @@
+{
+  "task_id": "compute-accelerator-spec-catalog-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "accelerator-catalog-user-flow",
+      "user_goal": "As an ai_infra wiki user, confirm the compute accelerator catalog has durable structured data, explanatory pages, crawler source metadata, and validation coverage for GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC scopes.",
+      "prerequisites": [
+        "The personal-wiki ai_infra domain exists.",
+        "PyYAML and pytest are available in the local Python environment.",
+        "Crawler workbench backend test dependencies are available."
+      ],
+      "entrypoint": "bash -lc 'python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra && PYTHONPATH=personal-wiki/tests pytest -q personal-wiki/tests/test_accelerator_catalog.py && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py'",
+      "steps": [
+        "Run the accelerator catalog validator.",
+        "Run ai_infra domain wiki validation.",
+        "Run the accelerator catalog test module.",
+        "Run the crawler workbench profile tests that cover accelerator metadata."
+      ],
+      "expected_outcomes": [
+        "The accelerator catalog validator reports no issues.",
+        "The ai_infra wiki validator reports no issues.",
+        "Accelerator catalog tests pass.",
+        "Crawler profile tests pass, including accelerator metadata validation.",
+        "The checked scope set includes gpu, npu, tpu, dpu, ipu, fpga, dsa, and ai_asic."
+      ],
+      "failure_signals": [
+        "The structured catalog validator reports malformed YAML, missing references, unit mismatches, duplicate resolved fields, or an S5 resolution without reviewer metadata.",
+        "The ai_infra wiki validator reports broken curated pages or index issues.",
+        "Accelerator catalog tests fail.",
+        "Crawler profile tests fail or do not preserve accelerator metadata in config_json."
+      ],
+      "cleanup": [
+        "Remove .codex/evaluations/tasks/compute-accelerator-spec-catalog-01/ if a clean rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

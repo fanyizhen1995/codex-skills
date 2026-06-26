@@ -22,6 +22,9 @@ def build_catalog(root: Path) -> Path:
         {
             "source_ranks": {
                 "S1": {"auto_resolve_allowed": "conditional"},
+                "S2": {"auto_resolve_allowed": "cloud_offering_only"},
+                "S3": {"auto_resolve_allowed": "benchmark_or_registry_only"},
+                "S4": {"auto_resolve_allowed": "observed_fields_only"},
                 "S5": {"auto_resolve_allowed": "reviewed_only"},
             }
         },
@@ -35,14 +38,43 @@ def build_catalog(root: Path) -> Path:
         {
             "spec_fields": {
                 "memory_capacity": {
+                    "value_type": "number",
                     "canonical_unit": "GB",
                     "allowed_units": ["GB"],
                     "applies_to": ["gpu"],
                 },
+                "memory_type": {
+                    "value_type": "string",
+                    "canonical_unit": "none",
+                    "allowed_units": ["none"],
+                    "applies_to": ["gpu"],
+                },
                 "network_bandwidth": {
+                    "value_type": "number",
                     "canonical_unit": "Gb/s",
                     "allowed_units": ["Gb/s"],
                     "applies_to": ["dpu"],
+                },
+                "cloud_accelerator_count": {
+                    "value_type": "number",
+                    "canonical_unit": "count",
+                    "allowed_units": ["count"],
+                    "applies_to": ["gpu"],
+                    "observation_kind": "cloud_offering",
+                },
+                "benchmark_score": {
+                    "value_type": "number",
+                    "canonical_unit": "score",
+                    "allowed_units": ["score"],
+                    "applies_to": ["gpu"],
+                    "observation_kind": "benchmark_result",
+                },
+                "driver_version": {
+                    "value_type": "string",
+                    "canonical_unit": "none",
+                    "allowed_units": ["none"],
+                    "applies_to": ["gpu"],
+                    "observation_kind": "observed_runtime",
                 },
             }
         },
@@ -52,6 +84,9 @@ def build_catalog(root: Path) -> Path:
         {
             "sources": [
                 {"source_id": "official-source", "source_rank": "S1"},
+                {"source_id": "cloud-source", "source_rank": "S2"},
+                {"source_id": "benchmark-source", "source_rank": "S3"},
+                {"source_id": "runtime-source", "source_rank": "S4"},
                 {"source_id": "third-party-source", "source_rank": "S5"},
             ]
         },
@@ -215,6 +250,158 @@ def test_validate_catalog_reports_malformed_field_definition_without_crashing(
     issues = accelerator_catalog.validate_catalog(root)
 
     assert any(issue.code == "invalid_catalog_shape" for issue in issues)
+
+
+def test_validate_catalog_rejects_malformed_value_type(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    fields_path = base / "schema/spec-fields.yaml"
+    payload = yaml.safe_load(fields_path.read_text(encoding="utf-8"))
+    payload["spec_fields"]["memory_capacity"]["value_type"] = "quantity"
+    write_yaml(fields_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "invalid_field_value_type" for issue in issues)
+
+
+def test_validate_catalog_rejects_observation_value_type_mismatch(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    payload["observations"][0]["value"] = "one hundred forty one"
+    write_yaml(observations_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "invalid_value_type" for issue in issues)
+
+
+def test_validate_catalog_rejects_resolved_value_type_mismatch(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    observation_payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    observation_payload["observations"][0]["value"] = "141"
+    write_yaml(observations_path, observation_payload)
+    resolved_path = base / "resolved/sample-resolved-specs.yaml"
+    resolved_payload = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
+    resolved_payload["resolved_specs"][0]["resolved_fields"]["memory_capacity"]["value"] = "141"
+    write_yaml(resolved_path, resolved_payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "invalid_value_type" for issue in issues)
+
+
+def test_validate_catalog_rejects_s2_resolving_non_cloud_field(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    payload["observations"][0]["source_id"] = "cloud-source"
+    payload["observations"][0]["source_rank"] = "S2"
+    write_yaml(observations_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "source_rank_policy_violation" for issue in issues)
+
+
+def test_validate_catalog_allows_s2_resolving_cloud_field(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    observation_payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    observation_payload["observations"][0].update(
+        {
+            "field": "cloud_accelerator_count",
+            "value": 8,
+            "unit": "count",
+            "source_id": "cloud-source",
+            "source_rank": "S2",
+        }
+    )
+    write_yaml(observations_path, observation_payload)
+    resolved_path = base / "resolved/sample-resolved-specs.yaml"
+    resolved_payload = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
+    field_payload = resolved_payload["resolved_specs"][0]["resolved_fields"].pop("memory_capacity")
+    field_payload.update(
+        {
+            "value": 8,
+            "unit": "count",
+            "source_observation_id": "obs-memory",
+        }
+    )
+    resolved_payload["resolved_specs"][0]["resolved_fields"]["cloud_accelerator_count"] = field_payload
+    write_yaml(resolved_path, resolved_payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert issues == []
+
+
+def test_validate_catalog_rejects_s3_resolving_non_benchmark_field(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    payload["observations"][0]["source_id"] = "benchmark-source"
+    payload["observations"][0]["source_rank"] = "S3"
+    write_yaml(observations_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "source_rank_policy_violation" for issue in issues)
+
+
+def test_validate_catalog_rejects_s4_resolving_official_field(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    payload["observations"][0]["source_id"] = "runtime-source"
+    payload["observations"][0]["source_rank"] = "S4"
+    write_yaml(observations_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "source_rank_policy_violation" for issue in issues)
+
+
+def test_repo_seed_covers_all_declared_accelerator_scopes():
+    repo_root = Path(__file__).resolve().parents[1]
+    scopes_path = (
+        repo_root
+        / "domains/ai_infra/data/compute_accelerators/schema/accelerator-scopes.yaml"
+    )
+    skus_path = repo_root / "domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml"
+    declared_scopes = set(yaml.safe_load(scopes_path.read_text(encoding="utf-8"))["accelerator_scopes"])
+    sku_scopes = {
+        sku["scope"]
+        for sku in yaml.safe_load(skus_path.read_text(encoding="utf-8"))["skus"]
+    }
+
+    assert declared_scopes <= sku_scopes
+
+
+def test_crawler_profiles_cover_all_declared_accelerator_scopes():
+    repo_root = Path(__file__).resolve().parents[1]
+    scopes_path = (
+        repo_root
+        / "domains/ai_infra/data/compute_accelerators/schema/accelerator-scopes.yaml"
+    )
+    sources_path = repo_root / "apps/crawler_workbench/config/sources.example.yaml"
+    declared_scopes = set(yaml.safe_load(scopes_path.read_text(encoding="utf-8"))["accelerator_scopes"])
+    profile_scopes = {
+        scope
+        for profile in yaml.safe_load(sources_path.read_text(encoding="utf-8"))["sources"]
+        if profile["id"].startswith("compute-accelerators-")
+        for scope in profile.get("accelerator_scope", [])
+    }
+
+    assert declared_scopes <= profile_scopes
 
 
 def test_validate_catalog_rejects_resolved_value_mismatch(tmp_path: Path):

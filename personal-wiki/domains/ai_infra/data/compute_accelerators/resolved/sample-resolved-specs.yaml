@@ -37,6 +37,16 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-06-27"
+  - sku_id: nxp-imx95-eiq-neutron-npu
+    resolved_fields:
+      form_factor:
+        value: integrated SoC NPU
+        unit: none
+        source_observation_id: obs-nxp-imx95-npu-form-factor
+        resolved_by: rule
+        confidence: medium
+        conflict_status: clean
+        updated_at: "2026-06-27"
   - sku_id: nvidia-bluefield-3-dpu
     resolved_fields:
       network_bandwidth:
@@ -53,6 +63,16 @@ resolved_specs:
         value: 16
         unit: count
         source_observation_id: obs-aws-trn2-accelerator-count
+        resolved_by: rule
+        confidence: medium
+        conflict_status: clean
+        updated_at: "2026-06-27"
+  - sku_id: intel-ipu-adapter-e2100
+    resolved_fields:
+      network_bandwidth:
+        value: 200
+        unit: Gb/s
+        source_observation_id: obs-intel-ipu-e2100-network-bandwidth
         resolved_by: rule
         confidence: medium
         conflict_status: clean

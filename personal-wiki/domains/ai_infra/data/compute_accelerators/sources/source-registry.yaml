@@ -26,6 +26,15 @@ sources:
     trust_policy: official_vendor_single_accelerator
     crawl_policy: snapshot_and_candidate_extract
     notes: Official Intel white paper for Gaudi 3 accelerator specifications.
+  - source_id: nxp-imx95-product-page
+    name: NXP i.MX 95 applications processor product page
+    url: https://www.nxp.com/products/i.MX95
+    source_rank: S1
+    publisher: NXP
+    source_type: product_page
+    trust_policy: official_vendor_npu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official NXP product page entry point for i.MX 95 and its eIQ Neutron NPU.
   - source_id: nvidia-bluefield-3-product-page
     name: NVIDIA BlueField-3 DPU product page
     url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
@@ -44,6 +53,15 @@ sources:
     trust_policy: official_vendor_fpga_card
     crawl_policy: snapshot_and_candidate_extract
     notes: Official AMD page for Alveo V80 FPGA-based compute accelerator specifications.
+  - source_id: intel-ipu-e2100-product-page
+    name: Intel IPU Adapter E2100 product page
+    url: https://www.intel.com/content/www/us/en/products/details/network-io/ipu/adapter-e2100.html
+    source_rank: S1
+    publisher: Intel
+    source_type: product_page
+    trust_policy: official_vendor_ipu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Intel page for IPU Adapter E2100 infrastructure processor cards.
   - source_id: microsoft-maia-200-announcement
     name: Microsoft Maia 200 official announcement
     url: https://blogs.microsoft.com/blog/2026/01/26/maia-200-the-ai-accelerator-built-for-inference/

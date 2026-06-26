@@ -26,6 +26,15 @@ skus:
     form_factor: PCIe card
     release_status: released
     source_refs: [intel-gaudi-3-white-paper]
+  - sku_id: nxp-imx95-eiq-neutron-npu
+    vendor_id: nxp
+    family_id: nxp-imx95
+    canonical_name: NXP i.MX 95 eIQ Neutron NPU
+    aliases: [i.MX 95 NPU, eIQ Neutron NPU]
+    scope: npu
+    form_factor: integrated SoC NPU
+    release_status: released
+    source_refs: [nxp-imx95-product-page]
   - sku_id: nvidia-bluefield-3-dpu
     vendor_id: nvidia
     family_id: nvidia-bluefield
@@ -62,6 +71,15 @@ skus:
     form_factor: PCIe card
     release_status: released
     source_refs: [amd-alveo-v80-product-page]
+  - sku_id: intel-ipu-adapter-e2100
+    vendor_id: intel
+    family_id: intel-ipu-e2000
+    canonical_name: Intel IPU Adapter E2100
+    aliases: [IPU Adapter E2100, Intel E2100 IPU]
+    scope: ipu
+    form_factor: PCIe card
+    release_status: released
+    source_refs: [intel-ipu-e2100-product-page]
   - sku_id: microsoft-maia-200
     vendor_id: microsoft
     family_id: microsoft-maia

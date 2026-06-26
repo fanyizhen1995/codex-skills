@@ -51,6 +51,19 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official Intel white paper lists 128GB HBM2e.
+  - observation_id: obs-nxp-imx95-npu-form-factor
+    sku_id: nxp-imx95-eiq-neutron-npu
+    field: form_factor
+    value: integrated SoC NPU
+    unit: none
+    source_id: nxp-imx95-product-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "NXP i.MX 95 product page; eIQ Neutron NPU product positioning"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Official NXP product entry identifies the i.MX 95 family with an integrated eIQ Neutron NPU; numeric accelerator fields can be added after snapshot review.
   - observation_id: obs-bluefield-3-network-bandwidth
     sku_id: nvidia-bluefield-3-dpu
     field: network_bandwidth
@@ -90,6 +103,19 @@ observations:
     is_inferred: false
     confidence: medium
     notes: Source entry validates TPU scope coverage; detailed per-version fields can be added later.
+  - observation_id: obs-intel-ipu-e2100-network-bandwidth
+    sku_id: intel-ipu-adapter-e2100
+    field: network_bandwidth
+    value: 200
+    unit: Gb/s
+    source_id: intel-ipu-e2100-product-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "Intel IPU Adapter E2100 product page; network connectivity"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Official Intel product entry describes IPU Adapter E2100 networking capability; exact SKU variants should be reviewed before adding more fields.
   - observation_id: obs-microsoft-maia-200-memory-capacity
     sku_id: microsoft-maia-200
     field: memory_capacity

@@ -26,9 +26,9 @@ source-backed observations, and resolved fields with provenance.
 
 # Current Coverage
 
-The seed catalog validates the schema across representative GPU, TPU, DPU,
-FPGA, cloud custom accelerator, and AI ASIC records. It intentionally leaves
-incomplete public fields unresolved instead of inventing missing values.
+The seed catalog validates the schema across representative GPU, NPU, TPU,
+DPU, IPU, FPGA, DSA, and AI ASIC records. It intentionally leaves incomplete
+public fields unresolved instead of inventing missing values.
 
 # Data Flow
 

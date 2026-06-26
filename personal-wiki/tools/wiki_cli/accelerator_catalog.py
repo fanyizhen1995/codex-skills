@@ -8,6 +8,10 @@ import yaml
 
 
 CATALOG_RELATIVE = Path("domains/ai_infra/data/compute_accelerators")
+ALLOWED_FIELD_VALUE_TYPES = {"number", "string", "boolean"}
+S2_OBSERVATION_KINDS = {"cloud_offering"}
+S3_OBSERVATION_KINDS = {"benchmark_result", "registry", "standard"}
+S4_OBSERVATION_KINDS = {"observed_runtime", "runtime_probe"}
 
 
 @dataclass(frozen=True)
@@ -132,7 +136,7 @@ def _validate_fields(
         if not isinstance(payload, dict):
             issues.append(CatalogIssue("invalid_catalog_shape", path, f"{field} must be a mapping"))
             continue
-        for key in ("canonical_unit", "allowed_units", "applies_to"):
+        for key in ("value_type", "canonical_unit", "allowed_units", "applies_to"):
             if not _has_value(payload.get(key)):
                 issues.append(
                     CatalogIssue(
@@ -141,6 +145,15 @@ def _validate_fields(
                         f"field {field} missing required field {key}",
                     )
                 )
+        value_type = payload.get("value_type")
+        if _has_value(value_type) and value_type not in ALLOWED_FIELD_VALUE_TYPES:
+            issues.append(
+                CatalogIssue(
+                    "invalid_field_value_type",
+                    path,
+                    f"field {field} uses invalid value_type {value_type}",
+                )
+            )
         canonical_unit = payload.get("canonical_unit")
         allowed_units = _list_value(payload.get("allowed_units"))
         if _has_value(canonical_unit) and str(canonical_unit) not in allowed_units:
@@ -260,6 +273,17 @@ def _validate_observation(
                 "invalid_unit",
                 path,
                 f"observation {observation_id or '<unknown>'} field {field} uses invalid unit {unit}",
+            )
+        )
+    if field_definition is not None and not _value_matches_type(
+        observation.get("value"),
+        field_definition.get("value_type"),
+    ):
+        issues.append(
+            CatalogIssue(
+                "invalid_value_type",
+                path,
+                f"observation {observation_id or '<unknown>'} field {field} value does not match value_type {field_definition.get('value_type')}",
             )
         )
     if source_id not in source_ids:
@@ -412,6 +436,14 @@ def _validate_resolved_field(
                 f"resolved spec {sku_id or '<unknown>'} field {field} uses invalid unit {unit}",
             )
         )
+    if not _value_matches_type(value.get("value"), field_definition.get("value_type")):
+        issues.append(
+            CatalogIssue(
+                "invalid_value_type",
+                path,
+                f"resolved spec {sku_id or '<unknown>'} field {field} value does not match value_type {field_definition.get('value_type')}",
+            )
+        )
     observation_id = value.get("source_observation_id")
     if observation_id not in observation_ids:
         issues.append(
@@ -446,6 +478,15 @@ def _validate_resolved_field(
                 "s5_resolved_without_review",
                 path,
                 f"resolved spec {sku_id or '<unknown>'} field {field} uses S5 observation {observation_id} without reviewed_by",
+            )
+        )
+    policy_issue = _source_rank_policy_issue(effective_rank, field_definition)
+    if policy_issue is not None:
+        issues.append(
+            CatalogIssue(
+                "source_rank_policy_violation",
+                path,
+                f"resolved spec {sku_id or '<unknown>'} field {field} uses {effective_rank} observation {observation_id}: {policy_issue}",
             )
         )
 
@@ -576,6 +617,30 @@ def _effective_source_rank(
     if source_id in source_ids:
         return source_ids[source_id].get("source_rank")
     return observation.get("source_rank")
+
+
+def _source_rank_policy_issue(
+    source_rank: object,
+    field_definition: dict[str, Any],
+) -> str | None:
+    observation_kind = str(field_definition.get("observation_kind", "")).strip()
+    if source_rank == "S2" and observation_kind not in S2_OBSERVATION_KINDS:
+        return f"field observation_kind {observation_kind or '<missing>'} is not cloud_offering"
+    if source_rank == "S3" and observation_kind not in S3_OBSERVATION_KINDS:
+        return f"field observation_kind {observation_kind or '<missing>'} is not benchmark or registry"
+    if source_rank == "S4" and observation_kind not in S4_OBSERVATION_KINDS:
+        return f"field observation_kind {observation_kind or '<missing>'} is not observed runtime"
+    return None
+
+
+def _value_matches_type(value: object, value_type: object) -> bool:
+    if value_type == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if value_type == "string":
+        return isinstance(value, str)
+    if value_type == "boolean":
+        return isinstance(value, bool)
+    return True
 
 
 def _has_value(value: object) -> bool:
