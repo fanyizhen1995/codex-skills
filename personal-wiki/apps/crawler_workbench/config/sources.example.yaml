@@ -384,8 +384,8 @@ sources:
   schedule: monthly
   auto_ingest: false
   auth_required: false
-  baseline_on_first_run: true
-  topic: MLPerf training benchmark accelerator results
+  baseline_on_first_run: false
+  topic: MLPerf training benchmark accelerator results (disabled until fetchable endpoint is selected)
   source_rank: S3
   accelerator_scope:
   - gpu
@@ -394,6 +394,7 @@ sources:
   extract_mode: specs_candidate
   vendor_hint: mlcommons
   auto_resolve: false
+  enabled: false
 - id: compute-accelerators-techpowerup-gpu-db
   name: TechPowerUp GPU database monitor
   type: web
