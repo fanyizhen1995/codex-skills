@@ -1,0 +1,27 @@
+{
+  "task_id": "harness-evaluator-demo-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "EUS-01",
+      "user_goal": "Confirm the Step4 demo output exists and is valid.",
+      "prerequisites": [
+        "The developer task has run scripts/harness_evaluator_demo.py write-expected."
+      ],
+      "entrypoint": "python3 scripts/harness_evaluator_demo.py assert-expected --output-dir .codex/evaluator-demo/harness-evaluator-demo-01",
+      "steps": [
+        "Run the assert-expected command exactly once."
+      ],
+      "expected_outcomes": [
+        "The command exits with status 0.",
+        "The file .codex/evaluator-demo/harness-evaluator-demo-01/result.txt contains step4-ready."
+      ],
+      "failure_signals": [
+        "The command exits non-zero.",
+        "The file is missing or contains unexpected content."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    }
+  ]
+}

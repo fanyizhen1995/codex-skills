@@ -1,0 +1,39 @@
+{
+  "task_id": "wiki-crawler-e2e-eval-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "wiki-crawler-e2e-user-flow",
+      "user_goal": "As a wiki crawler user, prove that a trusted source can be fetched, approved, ingested, indexed, linked, and validated with durable evidence.",
+      "prerequisites": [
+        "Harness Step4 runtime is installed.",
+        "personal-wiki ai_infra domain exists.",
+        "Local Python dependencies for crawler_workbench are available."
+      ],
+      "entrypoint": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01",
+      "steps": [
+        "Run the evaluator helper entrypoint.",
+        "Inspect result.json and summary.md in the output directory.",
+        "Confirm domain and full wiki validation succeeded."
+      ],
+      "expected_outcomes": [
+        "At least one raw crawler evidence file is written.",
+        "The ingest task reaches succeeded.",
+        "Index and backlinks are rebuilt.",
+        "Domain and full wiki validation return zero issues.",
+        "The output result.json reports status pass with evidence paths."
+      ],
+      "failure_signals": [
+        "No raw evidence file is created.",
+        "The queue never contains an approvable task.",
+        "The ingest task fails or remains pending.",
+        "Wiki validation reports issues.",
+        "The output directory lacks result.json or summary.md."
+      ],
+      "cleanup": [
+        "Remove .codex/wiki-crawler-e2e/ if a clean rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "project": "codex-skills",
+  "last_updated": "2026-06-27",
+  "current_focus": "Install harness evaluator gates and validate the personal wiki crawler end-to-end.",
+  "eval_defaults": {
+    "task_level_required": true,
+    "final_level_required": false,
+    "task_scope": "local_repo_and_personal_wiki",
+    "final_scope": "report_and_artifacts",
+    "max_task_eval_attempts": 3,
+    "max_final_eval_attempts": 2
+  },
+  "tasks": [
+    {
+      "id": "wiki-crawler-e2e-eval-01",
+      "title": "Validate wiki crawler end-to-end through independent evaluator",
+      "description": "Run a dedicated evaluator scenario that exercises crawler fetch, queue approval, ingest, index, backlinks, and validation from a user perspective.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "harness-evaluator-demo-01",
+      "title": "验证 evaluator auto-trigger wiring 的最小 demo",
+      "description": "运行通用 demo helper 生成一个可验证输出，用于证明 Step4 安装后的 Stop hook 能自动触发 evaluator 并写出 verdict。",
+      "status": "pending",
+      "priority": "medium",
+      "blocked_by": "harness-step4-evaluator-gates-01",
+      "verify": "python3 scripts/harness_evaluator_demo.py assert-expected --output-dir .codex/evaluator-demo/harness-evaluator-demo-01",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "code_and_local_k3s",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    }
+  ]
+}

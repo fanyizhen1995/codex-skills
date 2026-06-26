@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Harness Evaluator Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "gate",
+    "task_id",
+    "final_bundle_id",
+    "attempt",
+    "summary",
+    "findings",
+    "scenario_results",
+    "rerun_commands",
+    "environment_checks",
+    "verdict_reason",
+    "next_action"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["pass", "fail", "blocked"]
+    },
+    "gate": {
+      "type": "string",
+      "enum": ["task", "final"]
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "final_bundle_id": {
+      "type": "string"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "summary": {
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "evidence",
+          "recommended_action"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommended_action": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "scenario_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scenario_id",
+          "status",
+          "evidence",
+          "notes"
+        ],
+        "properties": {
+          "scenario_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "blocked"]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rerun_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "environment_checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict_reason": {
+      "type": "string"
+    },
+    "next_action": {
+      "type": "string",
+      "enum": [
+        "repair_and_reevaluate",
+        "request_missing_evidence",
+        "proceed_to_user_acceptance",
+        "proceed_with_risk"
+      ]
+    }
+  }
+}
