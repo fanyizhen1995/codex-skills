@@ -230,6 +230,38 @@ def test_validate_catalog_rejects_resolved_value_mismatch(tmp_path: Path):
     assert any(issue.code == "resolved_observation_mismatch" for issue in issues)
 
 
+def test_validate_catalog_rejects_duplicate_resolved_field_across_files(
+    tmp_path: Path,
+):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    write_yaml(
+        base / "resolved/extra-resolved.yaml",
+        {
+            "resolved_specs": [
+                {
+                    "sku_id": "gpu-sku",
+                    "resolved_fields": {
+                        "memory_capacity": {
+                            "value": 141,
+                            "unit": "GB",
+                            "source_observation_id": "obs-memory",
+                            "resolved_by": "rule",
+                            "confidence": "high",
+                            "conflict_status": "clean",
+                            "updated_at": "2026-06-27",
+                        }
+                    },
+                }
+            ]
+        },
+    )
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "duplicate_resolved_field" for issue in issues)
+
+
 def test_validate_catalog_uses_registry_rank_for_s5_review_policy(tmp_path: Path):
     root = tmp_path / "personal-wiki"
     base = build_catalog(root)

@@ -77,6 +77,7 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
             issues,
         )
 
+    seen_resolved_fields: set[tuple[str, str]] = set()
     for resolved in resolved_payload:
         _validate_resolved_spec(
             resolved,
@@ -84,6 +85,7 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
             fields,
             source_ids,
             observation_ids,
+            seen_resolved_fields,
             _row_path(resolved),
             issues,
         )
@@ -294,6 +296,7 @@ def _validate_resolved_spec(
     fields: dict[str, Any],
     source_ids: dict[str, dict[str, Any]],
     observation_ids: dict[str, dict[str, Any]],
+    seen_resolved_fields: set[tuple[str, str]],
     path: Path,
     issues: list[CatalogIssue],
 ) -> None:
@@ -326,6 +329,17 @@ def _validate_resolved_spec(
                 )
             )
             continue
+        resolved_key = (str(sku_id), str(field))
+        if resolved_key in seen_resolved_fields:
+            issues.append(
+                CatalogIssue(
+                    "duplicate_resolved_field",
+                    path,
+                    f"resolved spec {sku_id or '<unknown>'} repeats field {field}",
+                )
+            )
+        else:
+            seen_resolved_fields.add(resolved_key)
         _validate_resolved_field(
             sku_id,
             field,
