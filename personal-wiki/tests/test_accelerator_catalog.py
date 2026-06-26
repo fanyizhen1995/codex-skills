@@ -202,6 +202,115 @@ def test_validate_catalog_rejects_field_not_applicable_to_scope(tmp_path: Path):
     assert any(issue.code == "field_not_applicable" for issue in issues)
 
 
+def test_validate_catalog_reports_malformed_field_definition_without_crashing(
+    tmp_path: Path,
+):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    fields_path = base / "schema/spec-fields.yaml"
+    payload = yaml.safe_load(fields_path.read_text(encoding="utf-8"))
+    payload["spec_fields"]["memory_capacity"] = "bad"
+    write_yaml(fields_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "invalid_catalog_shape" for issue in issues)
+
+
+def test_validate_catalog_rejects_resolved_value_mismatch(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    resolved_path = base / "resolved/sample-resolved-specs.yaml"
+    payload = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
+    payload["resolved_specs"][0]["resolved_fields"]["memory_capacity"]["value"] = 999
+    write_yaml(resolved_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "resolved_observation_mismatch" for issue in issues)
+
+
+def test_validate_catalog_uses_registry_rank_for_s5_review_policy(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    observations_path = base / "observations/sample-observations.yaml"
+    payload = yaml.safe_load(observations_path.read_text(encoding="utf-8"))
+    payload["observations"][0]["source_id"] = "third-party-source"
+    payload["observations"][0]["source_rank"] = "S1"
+    payload["observations"][0].pop("reviewed_by", None)
+    write_yaml(observations_path, payload)
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "source_rank_mismatch" for issue in issues)
+    assert any(issue.code == "s5_resolved_without_review" for issue in issues)
+
+
+def test_validate_catalog_loads_additional_data_files(tmp_path: Path):
+    root = tmp_path / "personal-wiki"
+    base = build_catalog(root)
+    write_yaml(
+        base / "skus/extra-skus.yaml",
+        {
+            "skus": [
+                {
+                    "sku_id": "extra-gpu-sku",
+                    "vendor_id": "vendor",
+                    "canonical_name": "Extra GPU SKU",
+                    "scope": "gpu",
+                    "source_refs": ["official-source"],
+                }
+            ]
+        },
+    )
+    write_yaml(
+        base / "observations/extra-observations.yaml",
+        {
+            "observations": [
+                {
+                    "observation_id": "obs-extra-memory",
+                    "sku_id": "extra-gpu-sku",
+                    "field": "memory_capacity",
+                    "value": 80,
+                    "unit": "GB",
+                    "source_id": "official-source",
+                    "source_rank": "S1",
+                    "captured_at": "2026-06-27",
+                    "source_locator": "fixture",
+                    "is_official": True,
+                    "is_inferred": False,
+                    "confidence": "high",
+                }
+            ]
+        },
+    )
+    write_yaml(
+        base / "resolved/extra-resolved-specs.yaml",
+        {
+            "resolved_specs": [
+                {
+                    "sku_id": "extra-gpu-sku",
+                    "resolved_fields": {
+                        "memory_capacity": {
+                            "value": 999,
+                            "unit": "GB",
+                            "source_observation_id": "obs-extra-memory",
+                            "resolved_by": "rule",
+                            "confidence": "high",
+                            "conflict_status": "clean",
+                            "updated_at": "2026-06-27",
+                        }
+                    },
+                }
+            ]
+        },
+    )
+
+    issues = accelerator_catalog.validate_catalog(root)
+
+    assert any(issue.code == "resolved_observation_mismatch" for issue in issues)
+
+
 def test_validate_accelerators_cli_reports_success_for_repo_catalog():
     cli = Path(__file__).resolve().parents[1] / "tools/wiki_cli/cli.py"
 

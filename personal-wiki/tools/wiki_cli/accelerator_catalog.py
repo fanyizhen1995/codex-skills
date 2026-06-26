@@ -26,17 +26,16 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
     scopes_path = base / "schema/accelerator-scopes.yaml"
     fields_path = base / "schema/spec-fields.yaml"
     sources_path = base / "sources/source-registry.yaml"
-    skus_path = base / "skus/sample-skus.yaml"
-    observations_path = base / "observations/sample-observations.yaml"
-    resolved_path = base / "resolved/sample-resolved-specs.yaml"
 
     source_ranks = _load_mapping(source_ranks_path, "source_ranks", issues)
     scopes = _load_mapping(scopes_path, "accelerator_scopes", issues)
     fields = _load_mapping(fields_path, "spec_fields", issues)
     sources_payload = _load_list(sources_path, "sources", issues)
-    skus_payload = _load_list(skus_path, "skus", issues)
-    observations_payload = _load_list(observations_path, "observations", issues)
-    resolved_payload = _load_list(resolved_path, "resolved_specs", issues)
+    skus_payload = _load_catalog_directory(base / "skus", "skus", issues)
+    observations_payload = _load_catalog_directory(
+        base / "observations", "observations", issues
+    )
+    resolved_payload = _load_catalog_directory(base / "resolved", "resolved_specs", issues)
 
     if issues:
         return issues
@@ -46,9 +45,12 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
     _validate_fields(fields, scopes, fields_path, issues)
 
     source_ids = _index_by_id(sources_payload, "source_id", sources_path, issues)
-    sku_ids = _index_by_id(skus_payload, "sku_id", skus_path, issues)
+    sku_ids = _index_by_id_with_row_path(skus_payload, "sku_id", issues)
     observation_ids = _index_by_id(
-        observations_payload, "observation_id", observations_path, issues
+        observations_payload,
+        "observation_id",
+        base / "observations",
+        issues,
     )
 
     for source in sources_payload:
@@ -63,7 +65,7 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
             )
 
     for sku in skus_payload:
-        _validate_sku(sku, scopes, source_ids, skus_path, issues)
+        _validate_sku(sku, scopes, source_ids, _row_path(sku), issues)
 
     for observation in observations_payload:
         _validate_observation(
@@ -71,7 +73,7 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
             sku_ids,
             fields,
             source_ids,
-            observations_path,
+            _row_path(observation),
             issues,
         )
 
@@ -80,8 +82,9 @@ def validate_catalog(root: Path) -> list[CatalogIssue]:
             resolved,
             sku_ids,
             fields,
+            source_ids,
             observation_ids,
-            resolved_path,
+            _row_path(resolved),
             issues,
         )
 
@@ -238,6 +241,7 @@ def _validate_observation(
                 f"observation {observation_id or '<unknown>'} references unknown sku {sku_id}",
             )
         )
+    field_definition = _mapping_value(fields.get(str(field)))
     if field not in fields:
         issues.append(
             CatalogIssue(
@@ -246,7 +250,9 @@ def _validate_observation(
                 f"observation {observation_id or '<unknown>'} uses unknown field {field}",
             )
         )
-    elif unit not in _list_value(fields[field].get("allowed_units")):
+    elif field_definition is None:
+        return
+    elif unit not in _list_value(field_definition.get("allowed_units")):
         issues.append(
             CatalogIssue(
                 "invalid_unit",
@@ -270,9 +276,9 @@ def _validate_observation(
                 f"observation {observation_id or '<unknown>'} source_rank {source_rank} does not match source {source_id}",
             )
         )
-    if sku_id in sku_ids and field in fields:
+    if sku_id in sku_ids and field_definition is not None:
         scope = sku_ids[sku_id].get("scope")
-        if scope not in _list_value(fields[field].get("applies_to")):
+        if scope not in _list_value(field_definition.get("applies_to")):
             issues.append(
                 CatalogIssue(
                     "field_not_applicable",
@@ -286,6 +292,7 @@ def _validate_resolved_spec(
     resolved: dict[str, Any],
     sku_ids: dict[str, dict[str, Any]],
     fields: dict[str, Any],
+    source_ids: dict[str, dict[str, Any]],
     observation_ids: dict[str, dict[str, Any]],
     path: Path,
     issues: list[CatalogIssue],
@@ -325,6 +332,7 @@ def _validate_resolved_spec(
             value,
             sku_ids,
             fields,
+            source_ids,
             observation_ids,
             path,
             issues,
@@ -337,6 +345,7 @@ def _validate_resolved_field(
     value: dict[str, Any],
     sku_ids: dict[str, dict[str, Any]],
     fields: dict[str, Any],
+    source_ids: dict[str, dict[str, Any]],
     observation_ids: dict[str, dict[str, Any]],
     path: Path,
     issues: list[CatalogIssue],
@@ -367,9 +376,12 @@ def _validate_resolved_field(
             )
         )
         return
+    field_definition = _mapping_value(fields[field])
+    if field_definition is None:
+        return
     if sku_id in sku_ids:
         scope = sku_ids[sku_id].get("scope")
-        if scope not in _list_value(fields[field].get("applies_to")):
+        if scope not in _list_value(field_definition.get("applies_to")):
             issues.append(
                 CatalogIssue(
                     "field_not_applicable",
@@ -378,7 +390,7 @@ def _validate_resolved_field(
                 )
             )
     unit = value.get("unit")
-    if unit not in _list_value(fields[field].get("allowed_units")):
+    if unit not in _list_value(field_definition.get("allowed_units")):
         issues.append(
             CatalogIssue(
                 "invalid_resolved_unit",
@@ -405,7 +417,16 @@ def _validate_resolved_field(
                 f"resolved spec {sku_id or '<unknown>'} field {field} points to incompatible observation {observation_id}",
             )
         )
-    if observation.get("source_rank") == "S5" and not observation.get("reviewed_by"):
+    if observation.get("value") != value.get("value") or observation.get("unit") != unit:
+        issues.append(
+            CatalogIssue(
+                "resolved_observation_mismatch",
+                path,
+                f"resolved spec {sku_id or '<unknown>'} field {field} value/unit does not match observation {observation_id}",
+            )
+        )
+    effective_rank = _effective_source_rank(observation, source_ids)
+    if effective_rank == "S5" and not observation.get("reviewed_by"):
         issues.append(
             CatalogIssue(
                 "s5_resolved_without_review",
@@ -413,6 +434,26 @@ def _validate_resolved_field(
                 f"resolved spec {sku_id or '<unknown>'} field {field} uses S5 observation {observation_id} without reviewed_by",
             )
         )
+
+
+def _load_catalog_directory(
+    directory: Path,
+    key: str,
+    issues: list[CatalogIssue],
+) -> list[dict[str, Any]]:
+    if not directory.exists():
+        issues.append(CatalogIssue("missing_file", directory, f"missing catalog directory {directory}"))
+        return []
+    rows: list[dict[str, Any]] = []
+    paths = sorted(directory.glob("*.yaml"))
+    if not paths:
+        issues.append(CatalogIssue("missing_file", directory, f"no {key} YAML files found"))
+        return []
+    for path in paths:
+        for row in _load_list(path, key, issues):
+            row["__catalog_path"] = path
+            rows.append(row)
+    return rows
 
 
 def _load_yaml(path: Path, issues: list[CatalogIssue]) -> Any:
@@ -456,6 +497,28 @@ def _load_list(path: Path, key: str, issues: list[CatalogIssue]) -> list[dict[st
     return objects
 
 
+def _index_by_id_with_row_path(
+    rows: list[dict[str, Any]],
+    key: str,
+    issues: list[CatalogIssue],
+) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        value = row.get(key)
+        path = _row_path(row)
+        if not _has_value(value):
+            issues.append(
+                CatalogIssue("missing_id", path, f"row missing required identifier {key}")
+            )
+            continue
+        text = str(value)
+        if text in indexed:
+            issues.append(CatalogIssue("duplicate_id", path, f"duplicate {key}: {text}"))
+            continue
+        indexed[text] = row
+    return indexed
+
+
 def _index_by_id(
     rows: list[dict[str, Any]],
     key: str,
@@ -476,6 +539,29 @@ def _index_by_id(
             continue
         indexed[text] = row
     return indexed
+
+
+def _row_path(row: dict[str, Any]) -> Path:
+    path = row.get("__catalog_path")
+    if isinstance(path, Path):
+        return path
+    return Path("<catalog>")
+
+
+def _mapping_value(value: object) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    return None
+
+
+def _effective_source_rank(
+    observation: dict[str, Any],
+    source_ids: dict[str, dict[str, Any]],
+) -> object:
+    source_id = observation.get("source_id")
+    if source_id in source_ids:
+        return source_ids[source_id].get("source_rank")
+    return observation.get("source_rank")
 
 
 def _has_value(value: object) -> bool:
