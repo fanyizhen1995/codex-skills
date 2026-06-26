@@ -299,19 +299,20 @@ sources:
   schedule: weekly
   auto_ingest: false
   auth_required: false
-  baseline_on_first_run: true
-  topic: AMD Instinct MI325X accelerator specifications
+  baseline_on_first_run: false
+  topic: AMD Instinct MI325X accelerator specifications (disabled until fetch stability is verified)
   source_rank: S1
   accelerator_scope:
   - gpu
   extract_mode: specs_candidate
   vendor_hint: amd
   auto_resolve: false
+  enabled: false
 - id: compute-accelerators-intel-gaudi-3
   name: Intel Gaudi 3 accelerator white paper
   type: web
   target_domain: ai_infra
-  url: https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf
+  url: https://www.intel.com/content/www/us/en/content-details/817486/intel-gaudi-3-ai-accelerator-white-paper.html
   trust_level: trusted
   schedule: monthly
   auto_ingest: false
