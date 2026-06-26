@@ -405,11 +405,12 @@ sources:
   schedule: monthly
   auto_ingest: false
   auth_required: false
-  baseline_on_first_run: true
-  topic: Third-party GPU database candidate monitor
+  baseline_on_first_run: false
+  topic: Third-party GPU database candidate monitor (disabled until fetch method is verified)
   source_rank: S5
   accelerator_scope:
   - gpu
   extract_mode: specs_candidate
   vendor_hint: techpowerup
   auto_resolve: false
+  enabled: false
