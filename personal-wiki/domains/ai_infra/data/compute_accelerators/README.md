@@ -28,7 +28,7 @@ normalized facts layer, and `wiki/` is the curated explanatory layer.
 
 ## Validation
 
-Run the structured catalog validator:
+After the accelerator catalog CLI validator is installed, run:
 
 ```bash
 python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators
