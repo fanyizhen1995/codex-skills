@@ -8,6 +8,7 @@ import sys
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import accelerator_catalog  # type: ignore
     import graph as graph_module  # type: ignore
     import html as html_module  # type: ignore
     import ingest  # type: ignore
@@ -15,6 +16,7 @@ if __package__ in (None, ""):
     import paths  # type: ignore
     import validate as validate_module  # type: ignore
 else:
+    from . import accelerator_catalog
     from . import graph as graph_module
     from . import html as html_module
     from . import ingest
@@ -31,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--domain")
     validate_parser.add_argument("--json", action="store_true")
+    subparsers.add_parser("validate-accelerators")
     init_domain_parser = subparsers.add_parser("init-domain")
     init_domain_parser.add_argument("name")
     index_parser = subparsers.add_parser("index")
@@ -61,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "validate":
             return _run_validate(root, args.domain, args.json)
+        if args.command == "validate-accelerators":
+            return _run_validate_accelerators(root)
         if args.command == "init-domain":
             return _run_init_domain(root, args.name)
         if args.command == "index":
@@ -110,6 +115,16 @@ def _run_validate(root: Path, domain: str | None, output_json: bool) -> int:
     else:
         print("No validation issues")
     return 1 if issues else 0
+
+
+def _run_validate_accelerators(root: Path) -> int:
+    issues = accelerator_catalog.validate_catalog(root)
+    if issues:
+        for issue in issues:
+            print(f"{issue.code} {issue.path} {issue.message}")
+        return 1
+    print("No accelerator catalog validation issues")
+    return 0
 
 
 def _run_init_domain(root: Path, name: str) -> int:
