@@ -60,6 +60,26 @@ def _insert_discovery_profile(db):
     )
 
 
+def _insert_h300_candidate(db) -> int:
+    upsert_candidates(
+        db,
+        DISCOVERY_PROFILE,
+        extract_accelerator_candidates(
+            DISCOVERY_PROFILE,
+            [
+                FetchResult(
+                    canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+                    title="NVIDIA products",
+                    content="NVIDIA H300 GPU accelerator",
+                    content_type="text/html",
+                    metadata={"source_url": "https://www.nvidia.com/en-us/data-center/products/"},
+                )
+            ],
+        ),
+    )
+    return int(list_candidates(db)[0]["id"])
+
+
 def test_extract_accelerator_candidates_from_index_text():
     result = FetchResult(
         canonical_url="https://www.nvidia.com/en-us/data-center/products/",
@@ -108,6 +128,31 @@ def test_upsert_candidates_deduplicates_and_strengthens_existing_rows(tmp_path):
     assert rows[0]["status"] == "pending"
 
 
+def test_upsert_candidates_leaves_transaction_control_to_caller(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidates = extract_accelerator_candidates(
+            DISCOVERY_PROFILE,
+            [
+                FetchResult(
+                    canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+                    title="NVIDIA products",
+                    content="NVIDIA H300 GPU accelerator",
+                    content_type="text/html",
+                )
+            ],
+        )
+
+        upsert_candidates(db, DISCOVERY_PROFILE, candidates)
+        db.rollback()
+        rows = list_candidates(db)
+
+    assert rows == []
+
+
 def test_reject_candidate_marks_rejected_without_creating_source(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:
@@ -133,6 +178,59 @@ def test_reject_candidate_marks_rejected_without_creating_source(tmp_path):
 
     assert rejected["status"] == "rejected"
     assert source is None
+
+
+def test_rejected_candidate_cannot_be_accepted(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidate_id = _insert_h300_candidate(db)
+        reject_candidate(db, candidate_id)
+
+        with pytest.raises(ValueError, match="pending"):
+            accept_candidate(
+                db,
+                candidate_id,
+                {
+                    "source_id": "compute-accelerators-nvidia-h300",
+                    "name": "NVIDIA H300 accelerator specs",
+                    "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                    "scope": ["gpu"],
+                    "source_rank": "S1",
+                },
+            )
+        source = db.execute("select 1 from source_profiles where id = 'compute-accelerators-nvidia-h300'").fetchone()
+
+    assert source is None
+
+
+def test_accepted_candidate_cannot_be_rejected(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidate_id = _insert_h300_candidate(db)
+        accept_candidate(
+            db,
+            candidate_id,
+            {
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": ["gpu"],
+                "source_rank": "S1",
+            },
+        )
+
+        with pytest.raises(ValueError, match="pending"):
+            reject_candidate(db, candidate_id)
+
+        candidate = list_candidates(db)[0]
+
+    assert candidate["status"] == "accepted"
 
 
 def test_accept_candidate_creates_one_shot_source(tmp_path):
@@ -178,6 +276,37 @@ def test_accept_candidate_creates_one_shot_source(tmp_path):
     assert source["run_policy"] == "once"
     assert source["auto_ingest"] == 0
     assert '"accelerator_scope": ["gpu"]' in source["config_json"]
+
+
+@pytest.mark.parametrize(
+    ("payload_override", "match"),
+    [
+        ({"source_rank": "S9"}, "invalid source_rank"),
+        ({"scope": []}, "accelerator_scope must be a non-empty list"),
+        ({"scope": ["bogus"]}, "invalid accelerator_scope"),
+    ],
+)
+def test_accept_candidate_rejects_invalid_accelerator_metadata(tmp_path, payload_override, match):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidate_id = _insert_h300_candidate(db)
+        payload = {
+            "source_id": "compute-accelerators-nvidia-h300",
+            "name": "NVIDIA H300 accelerator specs",
+            "url": "https://www.nvidia.com/en-us/data-center/h300/",
+            "scope": ["gpu"],
+            "source_rank": "S1",
+        }
+        payload.update(payload_override)
+
+        with pytest.raises(ValueError, match=match):
+            accept_candidate(db, candidate_id, payload)
+        source = db.execute("select 1 from source_profiles where id = 'compute-accelerators-nvidia-h300'").fetchone()
+
+    assert source is None
 
 
 def test_accept_candidate_rejects_unsafe_source_id(tmp_path):

@@ -7,7 +7,7 @@ import sqlite3
 from typing import Any
 
 from .fetchers.base import FetchResult
-from .profiles import validate_profile_source_id
+from .profiles import validate_accelerator_metadata, validate_profile_source_id
 
 
 MODEL_PATTERNS = [
@@ -130,7 +130,6 @@ def upsert_candidates(
             counts["updated"] += 1
         else:
             counts["unchanged"] += 1
-    db.commit()
     return counts
 
 
@@ -147,6 +146,7 @@ def list_candidates(db: sqlite3.Connection, status: str | None = None) -> list[d
 
 def reject_candidate(db: sqlite3.Connection, candidate_id: int) -> dict[str, Any]:
     candidate = _candidate_by_id(db, candidate_id)
+    _require_pending(candidate)
     db.execute(
         """
         update accelerator_candidates
@@ -161,19 +161,12 @@ def reject_candidate(db: sqlite3.Connection, candidate_id: int) -> dict[str, Any
 
 def accept_candidate(db: sqlite3.Connection, candidate_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     candidate = _candidate_by_id(db, candidate_id)
+    _require_pending(candidate)
     source_id = str(payload["source_id"])
-    validate_profile_source_id({"id": source_id})
-    config_json = json.dumps(
-        {
-            "source_rank": payload.get("source_rank", "S1"),
-            "accelerator_scope": payload["scope"],
-            "extract_mode": "specs_candidate",
-            "vendor_hint": candidate["vendor"],
-            "auto_resolve": False,
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
+    source_profile = _accepted_source_profile(candidate, payload, source_id)
+    validate_profile_source_id(source_profile)
+    validate_accelerator_metadata(source_profile)
+    config_json = _accepted_source_config_json(source_profile)
     db.execute(
         """
         insert into source_profiles (
@@ -198,11 +191,11 @@ def accept_candidate(db: sqlite3.Connection, candidate_id: int, payload: dict[st
           updated_at = current_timestamp
         """,
         (
-            source_id,
-            payload["name"],
-            payload["url"],
+            source_profile["id"],
+            source_profile["name"],
+            source_profile["url"],
             config_json,
-            f"{candidate['vendor']} {candidate['model_name']} accelerator specs",
+            source_profile["topic"],
         ),
     )
     db.execute(
@@ -228,6 +221,46 @@ def _candidate_by_id(db: sqlite3.Connection, candidate_id: int) -> dict[str, Any
     if row is None:
         raise ValueError(f"candidate not found: {candidate_id}")
     return dict(row)
+
+
+def _require_pending(candidate: dict[str, Any]) -> None:
+    if candidate["status"] != "pending":
+        raise ValueError(f"candidate {candidate['id']} must be pending")
+
+
+def _accepted_source_profile(candidate: dict[str, Any], payload: dict[str, Any], source_id: str) -> dict[str, Any]:
+    return {
+        "id": source_id,
+        "name": payload["name"],
+        "type": "web",
+        "target_domain": "ai_infra",
+        "url": payload["url"],
+        "trust_level": "trusted",
+        "schedule": "monthly",
+        "auto_ingest": False,
+        "auth_required": False,
+        "run_policy": "once",
+        "topic": f"{candidate['vendor']} {candidate['model_name']} accelerator specs",
+        "source_rank": payload.get("source_rank", "S1"),
+        "accelerator_scope": payload["scope"],
+        "extract_mode": "specs_candidate",
+        "vendor_hint": candidate["vendor"],
+        "auto_resolve": False,
+    }
+
+
+def _accepted_source_config_json(source_profile: dict[str, Any]) -> str:
+    return json.dumps(
+        {
+            "source_rank": source_profile["source_rank"],
+            "accelerator_scope": source_profile["accelerator_scope"],
+            "extract_mode": source_profile["extract_mode"],
+            "vendor_hint": source_profile["vendor_hint"],
+            "auto_resolve": source_profile["auto_resolve"],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
 
 
 def _model_matches(text: str) -> list[re.Match[str]]:
