@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-06-27 Wiki Crawler E2E Evaluator
+
+- Re-ran the wiki crawler end-to-end evaluator on current `main`.
+- Confirmed fetch, approval queue, approved ingest, raw crawler evidence, wiki page output, index/backlinks flow, and domain/full wiki validation in the isolated fixture repo.
+- Marked `wiki-crawler-e2e-eval-01` done in `tasks.json`.
+- Evidence:
+  - `python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01` -> pass
+  - `.codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01/result.json` -> pass
+  - `.codex/evaluations/tasks/wiki-crawler-e2e-eval-01/20260627T091913Z-attempt-4/result.json` -> pass
+
 ## 2026-06-27 Compute Accelerator Spec Catalog
 
 - Built the seed structured catalog under `personal-wiki/domains/ai_infra/data/compute_accelerators/`.

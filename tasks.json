@@ -33,7 +33,7 @@
       "id": "wiki-crawler-e2e-eval-01",
       "title": "Validate wiki crawler end-to-end through independent evaluator",
       "description": "Run a dedicated evaluator scenario that exercises crawler fetch, queue approval, ingest, index, backlinks, and validation from a user perspective.",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "blocked_by": "",
       "verify": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01",
