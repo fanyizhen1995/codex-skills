@@ -306,6 +306,62 @@ async def test_scheduler_skips_once_source_after_successful_evidence_capture(tmp
 
 
 @pytest.mark.asyncio
+async def test_scheduler_runs_once_source_with_only_baseline_content_version(tmp_path, monkeypatch):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_source_profile(db, "baseline-only", "monthly", run_policy="once")
+        db.execute(
+            """
+            insert into content_versions (source_id, canonical_url, content_hash, raw_item_id)
+            values ('baseline-only', 'https://example.com/baseline', 'baseline-hash', null)
+            """
+        )
+        db.commit()
+
+    called: list[str] = []
+
+    def fake_run_source_once(received_settings, db, source_id):
+        called.append(source_id)
+        return {"fetch_run_id": 1, "fetched_count": 1, "changed_count": 1, "skipped_count": 0}
+
+    monkeypatch.setattr("crawler_workbench.scheduler.run_source_once", fake_run_source_once)
+
+    ran_count = await Scheduler(settings).run_once()
+
+    assert ran_count == 1
+    assert called == ["baseline-only"]
+
+
+@pytest.mark.asyncio
+async def test_scheduler_runs_once_source_after_successful_fetch_without_changed_evidence(tmp_path, monkeypatch):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_source_profile(db, "unchanged-fetch", "monthly", run_policy="once")
+        db.execute(
+            """
+            insert into fetch_runs (source_id, status, finished_at, fetched_count, changed_count, skipped_count)
+            values ('unchanged-fetch', 'succeeded', current_timestamp, 1, 0, 1)
+            """
+        )
+        db.commit()
+
+    called: list[str] = []
+
+    def fake_run_source_once(received_settings, db, source_id):
+        called.append(source_id)
+        return {"fetch_run_id": 2, "fetched_count": 1, "changed_count": 1, "skipped_count": 0}
+
+    monkeypatch.setattr("crawler_workbench.scheduler.run_source_once", fake_run_source_once)
+
+    ran_count = await Scheduler(settings).run_once()
+
+    assert ran_count == 1
+    assert called == ["unchanged-fetch"]
+
+
+@pytest.mark.asyncio
 async def test_scheduler_runs_once_source_until_successful_capture_exists(tmp_path, monkeypatch):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:

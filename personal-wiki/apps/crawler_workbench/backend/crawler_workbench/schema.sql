@@ -42,6 +42,9 @@ create table if not exists fetch_runs (
   error text
 );
 
+create index if not exists fetch_runs_source_status_idx
+on fetch_runs(source_id, status);
+
 create table if not exists raw_items (
   id integer primary key autoincrement,
   source_id text not null references source_profiles(id) on delete cascade,
@@ -67,6 +70,9 @@ create table if not exists content_versions (
   created_at text not null default current_timestamp,
   unique(source_id, canonical_url, content_hash)
 );
+
+create index if not exists content_versions_source_raw_item_idx
+on content_versions(source_id, raw_item_id);
 
 create table if not exists accelerator_candidates (
   id integer primary key autoincrement,

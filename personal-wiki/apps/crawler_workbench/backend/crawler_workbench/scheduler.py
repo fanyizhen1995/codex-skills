@@ -127,7 +127,7 @@ def _is_completed_once_source(db, row) -> bool:
         from fetch_runs
         where source_id = ?
           and status = 'succeeded'
-          and (changed_count > 0 or fetched_count > 0)
+          and changed_count > 0
         limit 1
         """,
         (row["id"],),
@@ -135,7 +135,13 @@ def _is_completed_once_source(db, row) -> bool:
     if existing is not None:
         return True
     baseline = db.execute(
-        "select 1 from content_versions where source_id = ? limit 1",
+        """
+        select 1
+        from content_versions
+        join raw_items on raw_items.id = content_versions.raw_item_id
+        where content_versions.source_id = ?
+        limit 1
+        """,
         (row["id"],),
     ).fetchone()
     return baseline is not None
