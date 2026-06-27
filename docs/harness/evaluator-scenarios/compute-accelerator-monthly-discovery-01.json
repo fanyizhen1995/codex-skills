@@ -1,0 +1,42 @@
+{
+  "task_id": "compute-accelerator-monthly-discovery-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "accelerator-monthly-discovery-user-flow",
+      "user_goal": "As an ai_infra wiki maintainer, verify that known accelerator model sources are one-shot and new hardware discovery is monthly, candidate-based, and manually accepted.",
+      "prerequisites": [
+        "The crawler workbench backend and frontend dependencies are available.",
+        "The accelerator monthly discovery implementation has been completed.",
+        "The source example YAML includes known accelerator model sources and monthly discovery sources."
+      ],
+      "entrypoint": "bash -lc 'cd /home/fyz/codex-skills/.worktrees/accelerator-monthly-discovery/personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd /home/fyz/codex-skills/.worktrees/accelerator-monthly-discovery && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra'",
+      "steps": [
+        "Run backend profile, scheduler, and discovery tests.",
+        "Run frontend tests for source subscriptions and accelerator candidates.",
+        "Build the frontend.",
+        "Validate accelerator catalog metadata and the ai_infra wiki domain."
+      ],
+      "expected_outcomes": [
+        "Known compute-accelerators model/spec profiles use run_policy once.",
+        "Scheduler skips one-shot sources after a successful evidence capture.",
+        "Monthly discovery profiles create or update accelerator candidates instead of creating formal source profiles automatically.",
+        "Candidate accept creates a one-shot source; candidate reject does not create a source.",
+        "The Sources page exposes run policy and pending accelerator candidates.",
+        "Wiki accelerator validation and ai_infra validation pass."
+      ],
+      "failure_signals": [
+        "A known model source remains weekly or monthly scheduled without run_policy once.",
+        "A discovery source auto-creates formal source profiles without review.",
+        "Candidate deduplication creates repeated rows for the same vendor/model/evidence URL.",
+        "The frontend hides candidate evidence or cannot accept/reject candidates.",
+        "Backend or frontend tests fail.",
+        "Wiki validation fails."
+      ],
+      "cleanup": [
+        "Remove .codex/evaluations/tasks/compute-accelerator-monthly-discovery-01/ if a clean rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

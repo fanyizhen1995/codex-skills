@@ -419,6 +419,50 @@ sources:
         load_profiles_from_yaml(yaml_path)
 
 
+def test_accelerator_profiles_use_once_policy_and_discovery_profiles_are_monthly():
+    import yaml
+
+    config_path = Path(__file__).parents[2] / "config" / "sources.example.yaml"
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    sources = {source["id"]: source for source in data["sources"]}
+    accelerator_sources = [
+        source
+        for source in sources.values()
+        if source["id"].startswith("compute-accelerators-")
+        and source.get("extract_mode") == "specs_candidate"
+    ]
+    discovery_sources = [
+        source
+        for source in sources.values()
+        if source.get("discovery_mode") == "accelerator_models"
+    ]
+    expected_discovery_ids = {
+        "compute-accelerator-discovery-nvidia-products",
+        "compute-accelerator-discovery-amd-instinct",
+        "compute-accelerator-discovery-intel-gaudi",
+        "compute-accelerator-discovery-huawei-ascend",
+        "compute-accelerator-discovery-cambricon-products",
+        "compute-accelerator-discovery-kunlunxin-products",
+        "compute-accelerator-discovery-metax-products",
+        "compute-accelerator-discovery-moore-threads-products",
+        "compute-accelerator-discovery-biren-products",
+        "compute-accelerator-discovery-iluvatar-products",
+        "compute-accelerator-discovery-enflame-products",
+        "compute-accelerator-discovery-aws-ec2-accelerators",
+        "compute-accelerator-discovery-google-cloud-tpu-docs",
+    }
+
+    assert accelerator_sources
+    assert expected_discovery_ids <= {source["id"] for source in discovery_sources}
+    assert all(source.get("run_policy") == "once" for source in accelerator_sources)
+    assert all(source["schedule"] == "monthly" for source in discovery_sources)
+    assert all(source.get("run_policy") == "scheduled" for source in discovery_sources)
+    assert all(source["extract_mode"] == "discovery_index" for source in discovery_sources)
+    assert all(source["auto_ingest"] is False for source in discovery_sources)
+    assert all(source["auth_required"] is False for source in discovery_sources)
+    assert all(source.get("accelerator_scope") for source in discovery_sources)
+
+
 def test_yaml_profile_rejects_invalid_accelerator_scope(tmp_path):
     yaml_path = tmp_path / "sources.yaml"
     yaml_path.write_text(
