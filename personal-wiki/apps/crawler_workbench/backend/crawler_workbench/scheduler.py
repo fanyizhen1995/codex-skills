@@ -48,7 +48,7 @@ class Scheduler:
             placeholders = ", ".join("?" for _ in _SCHEDULE_INTERVALS)
             rows = db.execute(
                 f"""
-                select id, schedule, next_run_at from source_profiles
+                select id, schedule, next_run_at, run_policy from source_profiles
                 where enabled = 1
                   and schedule in ({placeholders})
                   and auth_state = 'ready'
@@ -56,7 +56,11 @@ class Scheduler:
                 """,
                 tuple(_SCHEDULE_INTERVALS),
             ).fetchall()
-            due_rows = [row for row in rows if _is_due(row["next_run_at"], now)]
+            due_rows = [
+                row
+                for row in rows
+                if _is_due(row["next_run_at"], now) and not _is_completed_once_source(db, row)
+            ]
 
             for row in due_rows:
                 source_id = str(row["id"])
@@ -112,6 +116,29 @@ def _is_due(next_run_at: str | None, now: datetime) -> bool:
     if next_run_at is None:
         return True
     return datetime.fromisoformat(next_run_at) <= now
+
+
+def _is_completed_once_source(db, row) -> bool:
+    if row["run_policy"] != "once":
+        return False
+    existing = db.execute(
+        """
+        select 1
+        from fetch_runs
+        where source_id = ?
+          and status = 'succeeded'
+          and (changed_count > 0 or fetched_count > 0)
+        limit 1
+        """,
+        (row["id"],),
+    ).fetchone()
+    if existing is not None:
+        return True
+    baseline = db.execute(
+        "select 1 from content_versions where source_id = ? limit 1",
+        (row["id"],),
+    ).fetchone()
+    return baseline is not None
 
 
 def _approved_task_ids(db) -> list[int]:
