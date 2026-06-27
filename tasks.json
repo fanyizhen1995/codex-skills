@@ -15,10 +15,10 @@
       "id": "compute-accelerator-monthly-discovery-01",
       "title": "Add monthly accelerator model discovery",
       "description": "Separate one-shot accelerator model source captures from monthly discovery sources, add a candidate review queue for newly discovered GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC models, and expose candidates in the crawler workbench UI for manual acceptance before creating formal source profiles.",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "blocked_by": "",
-      "verify": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd /home/fyz/codex-skills && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "verify": "REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd \"$REPO_ROOT\" && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,
