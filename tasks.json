@@ -51,7 +51,7 @@
       "id": "harness-evaluator-demo-01",
       "title": "验证 evaluator auto-trigger wiring 的最小 demo",
       "description": "运行通用 demo helper 生成一个可验证输出，用于证明 Step4 安装后的 Stop hook 能自动触发 evaluator 并写出 verdict。",
-      "status": "pending",
+      "status": "done",
       "priority": "medium",
       "blocked_by": "harness-step4-evaluator-gates-01",
       "verify": "python3 scripts/harness_evaluator_demo.py assert-expected --output-dir .codex/evaluator-demo/harness-evaluator-demo-01",

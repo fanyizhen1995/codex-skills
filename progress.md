@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-06-27 Harness Evaluator Demo
+
+- Prepared the Step4 demo output for `harness-evaluator-demo-01`.
+- Ran the task verify command and a fresh task-level evaluator attempt for required scenario `EUS-01`.
+- Validated the evaluator `result.json` contract against `input.json`.
+- Marked `harness-evaluator-demo-01` done in `tasks.json`.
+- Evidence:
+  - `python3 scripts/harness_evaluator_demo.py write-expected --output-dir .codex/evaluator-demo/harness-evaluator-demo-01` -> pass
+  - `python3 scripts/harness_evaluator_demo.py assert-expected --output-dir .codex/evaluator-demo/harness-evaluator-demo-01` -> pass
+  - `python3 scripts/harness_evaluator_cli.py prepare-task --repo-root . --task-id harness-evaluator-demo-01 --attempt 1` -> `.codex/evaluations/tasks/harness-evaluator-demo-01/20260627T095240Z-attempt-1`
+  - `.codex/evaluations/tasks/harness-evaluator-demo-01/20260627T095240Z-attempt-1/result.json` -> pass
+
 ## 2026-06-27 Wiki Crawler E2E Evaluator
 
 - Re-ran the wiki crawler end-to-end evaluator on current `main`.
