@@ -64,6 +64,21 @@ def test_verify_manifest_fails_when_succeeded_raw_path_is_missing(tmp_path: Path
     assert "missing raw path" in message
 
 
+def test_verify_manifest_fails_when_succeeded_count_has_no_succeeded_entries(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    raw_path = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.md"
+    manifest = full_manifest(repo_root, raw_path)
+    manifest["succeeded"] = []
+    manifest["raw_paths"] = []
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
+
+    assert ok is False
+    assert "succeeded entries" in message
+
+
 def test_verify_manifest_fails_when_required_top_level_key_is_missing(tmp_path: Path) -> None:
     repo_root = tmp_path
     raw_path = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.md"
@@ -92,6 +107,115 @@ def test_verify_manifest_passes_for_minimal_valid_manifest_and_raw_file(tmp_path
 
     assert ok is True
     assert message == "manifest verified"
+
+
+def test_run_formal_crawl_fails_self_verification_when_no_raw_captures(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path
+    source_path = repo_root / "personal-wiki/apps/crawler_workbench/config/sources.example.yaml"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text(
+        """
+sources:
+  - id: accelerator-source
+    enabled: true
+    source_rank: S1
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    def fake_mirror_profiles_and_run(repo_root, state_dir, run_profiles, manifest):
+        manifest["ran_source_ids"].append("accelerator-source")
+        manifest["succeeded"].append(
+            {
+                "source_id": "accelerator-source",
+                "fetch_run": {"fetch_run_id": 123},
+                "raw_paths": [],
+                "ingest_task_ids": [],
+            }
+        )
+
+    monkeypatch.setattr(crawl, "_mirror_profiles_and_run", fake_mirror_profiles_and_run)
+
+    try:
+        crawl.run_formal_crawl(repo_root=repo_root, output_dir=tmp_path / "out", source_ids=[])
+    except ValueError as exc:
+        assert "generated manifest failed verification" in str(exc)
+    else:
+        raise AssertionError("run_formal_crawl should fail when its manifest has no raw captures")
+
+
+def test_mirror_profiles_records_no_raw_captures_as_failed(monkeypatch, tmp_path: Path) -> None:
+    class FakeTransaction:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, query, params=()):
+            class Rows:
+                def fetchall(self):
+                    return []
+
+            return Rows()
+
+    monkeypatch.setitem(sys.modules, "crawler_workbench", type(sys)("crawler_workbench"))
+    for module_name in [
+        "crawler_workbench.db",
+        "crawler_workbench.fetch_service",
+        "crawler_workbench.profiles",
+        "crawler_workbench.settings",
+    ]:
+        monkeypatch.setitem(sys.modules, module_name, type(sys)(module_name))
+
+    sys.modules["crawler_workbench.db"].migrate = lambda db: None
+    sys.modules["crawler_workbench.db"].open_db = lambda database_path: FakeDb()
+    sys.modules["crawler_workbench.db"].transaction = lambda db: FakeTransaction()
+    sys.modules["crawler_workbench.fetch_service"].run_source_once = lambda settings, db, source_id: {
+        "fetch_run_id": 123
+    }
+    sys.modules["crawler_workbench.profiles"].load_profiles_from_yaml = lambda path: []
+    sys.modules["crawler_workbench.profiles"].mirror_profiles = lambda db, profiles: None
+
+    class Settings:
+        def __init__(self, repo_root, state_dir, bind_host):
+            self.repo_root = repo_root
+            self.state_dir = state_dir
+            self.bind_host = bind_host
+            self.database_path = state_dir / "crawler.db"
+            self.sources_yaml_path = state_dir / "sources.yaml"
+
+    sys.modules["crawler_workbench.settings"].Settings = Settings
+
+    manifest = {
+        "ran_source_ids": [],
+        "succeeded": [],
+        "failed": [],
+        "raw_paths": [],
+        "ingest_tasks": [],
+    }
+
+    crawl._mirror_profiles_and_run(
+        repo_root=tmp_path,
+        state_dir=tmp_path / "state",
+        run_profiles=[{"id": "accelerator-source"}],
+        manifest=manifest,
+    )
+
+    assert manifest["succeeded"] == []
+    assert manifest["failed"] == [
+        {"source_id": "accelerator-source", "error": "no raw captures produced"}
+    ]
 
 
 def full_manifest(repo_root: Path, raw_path: Path) -> dict[str, object]:

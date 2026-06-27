@@ -123,6 +123,9 @@ def run_formal_crawl(repo_root: Path, output_dir: Path, source_ids: Sequence[str
     }
     manifest_path = output_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    ok, message = verify_manifest(repo_root=repo_root, manifest_path=manifest_path, min_succeeded=1)
+    if not ok:
+        raise ValueError(f"generated manifest failed verification: {message}")
     return manifest
 
 
@@ -179,6 +182,8 @@ def verify_manifest(repo_root: Path, manifest_path: Path, min_succeeded: int = 1
         return False, f"manifest succeeded_count {succeeded_count} is below required {min_succeeded}"
 
     succeeded = manifest["succeeded"]
+    if len(succeeded) < min_succeeded:
+        return False, f"manifest has {len(succeeded)} succeeded entries below required {min_succeeded}"
     for entry in succeeded:
         if not isinstance(entry, dict) or not entry.get("source_id"):
             return False, "each succeeded entry must include source_id"
@@ -239,6 +244,8 @@ def _mirror_profiles_and_run(
             try:
                 run_result = run_source_once(settings, db, source_id)
                 raw_paths = _raw_paths_for_fetch_run(repo_root, db, int(run_result["fetch_run_id"]))
+                if not raw_paths:
+                    raise ValueError("no raw captures produced")
                 ingest_tasks = _ingest_tasks_for_source(db, source_id)
                 manifest["raw_paths"].extend(raw_paths)
                 manifest["ingest_tasks"].extend(ingest_tasks)
