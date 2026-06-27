@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-06-27",
-  "current_focus": "Install harness evaluator gates and validate the personal wiki crawler end-to-end.",
+  "current_focus": "Review formal compute accelerator raw captures and prepare candidate extraction.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -15,7 +15,7 @@
       "id": "compute-accelerator-formal-crawl-01",
       "title": "formal crawl of compute accelerator source profiles",
       "description": "Run the controlled formal crawl CLI for compute accelerator source profiles and verify its manifest, raw evidence, and ai_infra wiki validation before evaluator acceptance.",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "blocked_by": "",
       "verify": "pytest -q scripts/tests/test_compute_accelerator_formal_crawl.py && python3 scripts/compute_accelerator_formal_crawl.py verify-manifest --repo-root . --manifest .codex/accelerator-crawl/compute-accelerator-formal-crawl-01/manifest.json --min-succeeded 1 && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",

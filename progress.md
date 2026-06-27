@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-06-27 Compute Accelerator Formal Crawl
+
+- Added a controlled formal crawl CLI and evaluator scenario for compute accelerator source profiles.
+- Ran the formal crawl against enabled accelerator profiles using crawler workbench APIs and saved raw evidence for successful sources.
+- Results:
+  - Succeeded: `compute-accelerators-nvidia-h200`, `compute-accelerators-intel-gaudi-3`, `compute-accelerators-nvidia-bluefield-3`, `compute-accelerators-aws-trn2`.
+  - Failed and recorded in manifest: `compute-accelerators-google-tpu` timed out, `compute-accelerators-microsoft-maia-200` returned HTTP 403.
+  - Skipped disabled fragile sources: AMD MI325X, NXP i.MX95 NPU, AMD Alveo V80, Intel IPU E2100, MLPerf training, TechPowerUp GPU DB.
+- Raw evidence:
+  - `personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260627T102027151096Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md`
+  - `personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-intel-gaudi-3/20260627T102038339892Z-www-intel-com-content-www-us-en-content-details-817486-intel-gaudi-3-ai-accelerator-white-72421ce95f.md`
+  - `personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T102038871241Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md`
+  - `personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T102039887117Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md`
+- Evidence:
+  - `python3 scripts/compute_accelerator_formal_crawl.py run --repo-root . --output-dir .codex/accelerator-crawl/compute-accelerator-formal-crawl-01` -> 4 succeeded, 2 failed, 6 skipped disabled
+  - `.codex/accelerator-crawl/compute-accelerator-formal-crawl-01/manifest.json` -> verified
+  - `pytest -q scripts/tests/test_compute_accelerator_formal_crawl.py` -> 8 passed
+  - `python3 scripts/compute_accelerator_formal_crawl.py verify-manifest --repo-root . --manifest .codex/accelerator-crawl/compute-accelerator-formal-crawl-01/manifest.json --min-succeeded 1` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
+  - `.codex/evaluations/tasks/compute-accelerator-formal-crawl-01/20260627T102325Z-attempt-1/result.json` -> pass
+
 ## 2026-06-27 Harness Evaluator Demo
 
 - Prepared the Step4 demo output for `harness-evaluator-demo-01`.
