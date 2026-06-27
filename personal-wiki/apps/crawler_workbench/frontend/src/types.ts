@@ -36,6 +36,7 @@ export interface SourceProfile {
   url: string;
   trust_level: string;
   schedule: string;
+  run_policy: "scheduled" | "once" | string;
   auto_ingest: boolean;
   auth_required: boolean;
   auth_state: string;
@@ -43,6 +44,31 @@ export interface SourceProfile {
   enabled: boolean;
   last_run_at?: string;
   last_run_status?: string;
+}
+
+export interface AcceleratorCandidate {
+  id: number;
+  vendor: string;
+  model_name: string;
+  normalized_model: string;
+  scope: string;
+  source_profile_id: string;
+  source_url: string;
+  evidence_url?: string | null;
+  evidence_text: string;
+  confidence: number;
+  status: "pending" | "accepted" | "rejected" | string;
+  accepted_source_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AcceptAcceleratorCandidatePayload {
+  source_id: string;
+  name: string;
+  url: string;
+  scope: string[];
+  source_rank: string;
 }
 
 export interface RunSummary {

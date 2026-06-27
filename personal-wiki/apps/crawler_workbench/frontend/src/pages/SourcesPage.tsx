@@ -1,9 +1,9 @@
-import { Play } from "lucide-react";
+import { Check, Play, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { getSources, runSource } from "../api";
+import { acceptAcceleratorCandidate, getAcceleratorCandidates, getSources, rejectAcceleratorCandidate, runSource } from "../api";
 import { StatusBadge } from "../components/StatusBadge";
-import type { SourceProfile, Status } from "../types";
+import type { AcceleratorCandidate, SourceProfile, Status } from "../types";
 
 function groupKey(source: SourceProfile) {
   return `${source.type} / ${source.target_domain}`;
@@ -36,18 +36,35 @@ function timeLabel(value?: string) {
   });
 }
 
+function runPolicyLabel(source: SourceProfile) {
+  return source.run_policy === "once" ? "一次性" : "定时";
+}
+
+function acceptPayload(candidate: AcceleratorCandidate) {
+  return {
+    source_id: `compute-accelerators-${candidate.vendor}-${candidate.normalized_model}`.toLowerCase(),
+    name: `${candidate.vendor} ${candidate.model_name} accelerator specs`,
+    url: candidate.evidence_url || candidate.source_url,
+    scope: [candidate.scope],
+    source_rank: "S1"
+  };
+}
+
 export function SourcesPage() {
   const [sources, setSources] = useState<SourceProfile[]>([]);
+  const [candidates, setCandidates] = useState<AcceleratorCandidate[]>([]);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [runningSource, setRunningSource] = useState("");
+  const [reviewingCandidate, setReviewingCandidate] = useState<number | null>(null);
 
   async function loadSources() {
     setLoading(true);
     try {
-      const response = await getSources();
+      const [response, candidateResponse] = await Promise.all([getSources(), getAcceleratorCandidates()]);
       setSources(response);
+      setCandidates(candidateResponse.filter((candidate) => candidate.status === "pending"));
       setError("");
       return response;
     } catch (error) {
@@ -89,6 +106,36 @@ export function SourcesPage() {
     }
   }
 
+  async function handleAccept(candidate: AcceleratorCandidate) {
+    setReviewingCandidate(candidate.id);
+    setNotice("");
+    setError("");
+    try {
+      await acceptAcceleratorCandidate(candidate.id, acceptPayload(candidate));
+      await loadSources();
+      setNotice(`${candidate.model_name} 已接受为来源`);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "接受候选失败");
+    } finally {
+      setReviewingCandidate(null);
+    }
+  }
+
+  async function handleReject(candidate: AcceleratorCandidate) {
+    setReviewingCandidate(candidate.id);
+    setNotice("");
+    setError("");
+    try {
+      await rejectAcceleratorCandidate(candidate.id);
+      await loadSources();
+      setNotice(`${candidate.model_name} 已拒绝`);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "拒绝候选失败");
+    } finally {
+      setReviewingCandidate(null);
+    }
+  }
+
   return (
     <section className="page-section" aria-labelledby="sources-title">
       <div className="page-heading">
@@ -96,12 +143,73 @@ export function SourcesPage() {
           <p className="eyebrow">订阅与抓取</p>
           <h1 id="sources-title">来源订阅</h1>
         </div>
-        <StatusBadge status={statusForSources(sources, error)} />
+        <div className="inline-actions">
+          <button className="icon-button" type="button" onClick={() => loadSources()} disabled={loading}>
+            <RefreshCw aria-hidden="true" size={16} />
+            刷新来源
+          </button>
+          <StatusBadge status={statusForSources(sources, error)} />
+        </div>
       </div>
 
       {(error || notice) && <small role="status">{error || notice}</small>}
 
       <div className="source-groups">
+        <div className="work-panel">
+          <h2>新硬件候选</h2>
+          {candidates.length === 0 ? (
+            <div className="empty-state">{loading ? "正在加载候选" : "暂无新硬件候选"}</div>
+          ) : (
+            <div className="responsive-table" role="table" aria-label="新硬件候选">
+              <div className="table-row table-head" role="row">
+                <span role="columnheader">型号</span>
+                <span role="columnheader">证据</span>
+                <span role="columnheader">来源</span>
+                <span role="columnheader">操作</span>
+              </div>
+              {candidates.map((candidate) => (
+                <div className="table-row" role="row" key={candidate.id}>
+                  <span role="cell">
+                    <strong>{candidate.model_name}</strong>
+                    <small>
+                      {candidate.vendor} · {candidate.scope} · {(candidate.confidence * 100).toFixed(0)}%
+                    </small>
+                  </span>
+                  <span role="cell">
+                    {candidate.evidence_text}
+                    <small>{candidate.evidence_url || candidate.source_url}</small>
+                  </span>
+                  <span role="cell">{candidate.source_profile_id}</span>
+                  <span role="cell">
+                    <div className="inline-actions">
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`接受 ${candidate.model_name}`}
+                        onClick={() => handleAccept(candidate)}
+                        disabled={reviewingCandidate === candidate.id}
+                      >
+                        <Check aria-hidden="true" size={16} />
+                        接受
+                      </button>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`拒绝 ${candidate.model_name}`}
+                        onClick={() => handleReject(candidate)}
+                        disabled={reviewingCandidate === candidate.id}
+                      >
+                        <X aria-hidden="true" size={16} />
+                        拒绝
+                      </button>
+                    </div>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {sources.length === 0 ? (
           <div className="work-panel">
             <h2>来源列表</h2>
@@ -127,7 +235,10 @@ export function SourcesPage() {
                       <small>{source.url}</small>
                     </span>
                     <span role="cell">{source.trust_level}</span>
-                    <span role="cell">{source.schedule || "未配置"}</span>
+                    <span role="cell">
+                      {source.schedule || "未配置"}
+                      <small>{runPolicyLabel(source)}</small>
+                    </span>
                     <span role="cell">{source.auth_required ? source.auth_state : "无需认证"}</span>
                     <span role="cell">
                       {timeLabel(source.last_run_at)}

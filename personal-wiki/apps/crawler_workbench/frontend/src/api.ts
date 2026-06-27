@@ -1,4 +1,6 @@
 import type {
+  AcceptAcceleratorCandidatePayload,
+  AcceleratorCandidate,
   AskResponse,
   CodexJob,
   Domain,
@@ -18,7 +20,7 @@ import type {
 
 const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL);
 
-type RequestBody = Record<string, unknown> | undefined;
+type RequestBody = object | undefined;
 
 class ApiError extends Error {
   constructor(
@@ -89,6 +91,21 @@ export async function runSource(id: string): Promise<RunSummary> {
   return request<RunSummary>(`/sources/${encodeURIComponent(id)}/run`, { method: "POST" });
 }
 
+export async function getAcceleratorCandidates(): Promise<AcceleratorCandidate[]> {
+  return request<AcceleratorCandidate[]>("/accelerator-candidates");
+}
+
+export async function acceptAcceleratorCandidate(
+  id: number,
+  payload: AcceptAcceleratorCandidatePayload
+): Promise<AcceleratorCandidate> {
+  return request<AcceleratorCandidate>(`/accelerator-candidates/${id}/accept`, { method: "POST", body: payload });
+}
+
+export async function rejectAcceleratorCandidate(id: number): Promise<AcceleratorCandidate> {
+  return request<AcceleratorCandidate>(`/accelerator-candidates/${id}/reject`, { method: "POST" });
+}
+
 export async function getRuns(): Promise<FetchRun[]> {
   return request<FetchRun[]>("/runs");
 }
@@ -146,6 +163,9 @@ export const api = {
   domains: getDomains,
   sources: getSources,
   runSource,
+  acceleratorCandidates: getAcceleratorCandidates,
+  acceptAcceleratorCandidate,
+  rejectAcceleratorCandidate,
   runs: getRuns,
   queue: getQueue,
   wikiMetrics: getWikiMetrics,

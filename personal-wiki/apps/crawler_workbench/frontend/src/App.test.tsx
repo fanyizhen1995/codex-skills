@@ -3,7 +3,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
-import { getQueue, getRuns, getSources, getWikiMetrics, trustQueueSource, validateWiki } from "./api";
+import type { AcceleratorCandidate } from "./types";
+import {
+  acceptAcceleratorCandidate,
+  getAcceleratorCandidates,
+  getQueue,
+  getRuns,
+  getSources,
+  getWikiMetrics,
+  rejectAcceleratorCandidate,
+  trustQueueSource,
+  validateWiki
+} from "./api";
 
 function defaultWikiMetrics() {
   return {
@@ -61,10 +72,44 @@ const mockWikiMetrics = {
   }
 };
 
+function mockAcceleratorCandidate(status: AcceleratorCandidate["status"] = "pending"): AcceleratorCandidate {
+  return {
+    id: 1,
+    vendor: "nvidia",
+    model_name: "H300",
+    normalized_model: "h300",
+    scope: "gpu",
+    source_profile_id: "compute-accelerator-discovery-nvidia-products",
+    source_url: "https://www.nvidia.com/en-us/data-center/products/",
+    evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+    evidence_text: "NVIDIA H300 GPU accelerator",
+    confidence: 0.85,
+    status,
+    created_at: "2026-06-28 01:00:00",
+    updated_at: "2026-06-28 01:00:00"
+  };
+}
+
 vi.mock("./api", () => ({
   askCodex: vi.fn(),
   approveTask: vi.fn(),
+  acceptAcceleratorCandidate: vi.fn().mockResolvedValue({
+    id: 1,
+    vendor: "nvidia",
+    model_name: "H300",
+    normalized_model: "h300",
+    scope: "gpu",
+    source_profile_id: "compute-accelerator-discovery-nvidia-products",
+    source_url: "https://www.nvidia.com/en-us/data-center/products/",
+    evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+    evidence_text: "NVIDIA H300 GPU accelerator",
+    confidence: 0.85,
+    status: "accepted",
+    created_at: "2026-06-28 01:00:00",
+    updated_at: "2026-06-28 01:00:00"
+  }),
   getDomains: vi.fn().mockResolvedValue([{ id: "ai_infra", name: "ai_infra" }]),
+  getAcceleratorCandidates: vi.fn().mockResolvedValue([]),
   getGraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   getHealth: vi.fn().mockResolvedValue({
     status: "ok",
@@ -104,6 +149,21 @@ vi.mock("./api", () => ({
     }
   }),
   rebuildSearch: vi.fn(),
+  rejectAcceleratorCandidate: vi.fn().mockResolvedValue({
+    id: 1,
+    vendor: "nvidia",
+    model_name: "H300",
+    normalized_model: "h300",
+    scope: "gpu",
+    source_profile_id: "compute-accelerator-discovery-nvidia-products",
+    source_url: "https://www.nvidia.com/en-us/data-center/products/",
+    evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+    evidence_text: "NVIDIA H300 GPU accelerator",
+    confidence: 0.85,
+    status: "rejected",
+    created_at: "2026-06-28 01:00:00",
+    updated_at: "2026-06-28 01:00:00"
+  }),
   rejectTask: vi.fn(),
   runSource: vi.fn(),
   searchWiki: vi.fn(),
@@ -113,6 +173,9 @@ vi.mock("./api", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.mocked(getAcceleratorCandidates).mockResolvedValue([]);
+  vi.mocked(acceptAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("accepted"));
+  vi.mocked(rejectAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("rejected"));
   vi.mocked(getQueue).mockResolvedValue([]);
   vi.mocked(getRuns).mockResolvedValue([]);
   vi.mocked(getSources).mockResolvedValue([]);
@@ -283,6 +346,7 @@ describe("App", () => {
         url: "http://export.arxiv.org/api/query?search_query=all:nccl",
         trust_level: "trusted",
         schedule: "weekly",
+        run_policy: "scheduled",
         auto_ingest: true,
         auth_required: false,
         auth_state: "ready",
@@ -297,6 +361,7 @@ describe("App", () => {
         url: "https://github.com/example/private/issues",
         trust_level: "trusted",
         schedule: "daily",
+        run_policy: "scheduled",
         auto_ingest: true,
         auth_required: true,
         auth_state: "needs_auth_config",
@@ -341,6 +406,7 @@ describe("App", () => {
         url: "http://export.arxiv.org/api/query?search_query=all:nccl",
         trust_level: "trusted",
         schedule: "weekly",
+        run_policy: "scheduled",
         auto_ingest: true,
         auth_required: false,
         auth_state: "ready",
@@ -360,6 +426,114 @@ describe("App", () => {
     expect(screen.getByText("succeeded")).toBeInTheDocument();
     expect(screen.queryByText("未运行")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无状态")).not.toBeInTheDocument();
+  });
+
+  it("shows source run policy and accelerator discovery candidates", async () => {
+    vi.mocked(getSources).mockResolvedValue([
+      {
+        id: "compute-accelerators-nvidia-h200",
+        name: "NVIDIA H200 accelerator specs",
+        type: "web",
+        target_domain: "ai_infra",
+        url: "https://www.nvidia.com/en-us/data-center/h200/",
+        trust_level: "trusted",
+        schedule: "monthly",
+        run_policy: "once",
+        auto_ingest: false,
+        auth_required: false,
+        auth_state: "ready",
+        topic: "NVIDIA H200 accelerator specifications",
+        enabled: true,
+        last_run_status: "succeeded"
+      }
+    ]);
+    vi.mocked(getAcceleratorCandidates).mockResolvedValue([
+      {
+        id: 7,
+        vendor: "nvidia",
+        model_name: "H300",
+        normalized_model: "h300",
+        scope: "gpu",
+        source_profile_id: "compute-accelerator-discovery-nvidia-products",
+        source_url: "https://www.nvidia.com/en-us/data-center/products/",
+        evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+        evidence_text: "NVIDIA H300 GPU accelerator now available",
+        confidence: 0.85,
+        status: "pending",
+        created_at: "2026-06-28 01:00:00",
+        updated_at: "2026-06-28 01:00:00"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+
+    expect(await screen.findByText("新硬件候选")).toBeInTheDocument();
+    expect(screen.getByText("H300")).toBeInTheDocument();
+    expect(screen.getByText(/NVIDIA H300 GPU accelerator/)).toBeInTheDocument();
+    expect(screen.getByText("一次性")).toBeInTheDocument();
+  });
+
+  it("accepts and rejects accelerator discovery candidates", async () => {
+    vi.mocked(getAcceleratorCandidates)
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          vendor: "nvidia",
+          model_name: "H300",
+          normalized_model: "h300",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-nvidia-products",
+          source_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_text: "NVIDIA H300 GPU accelerator now available",
+          confidence: 0.85,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        }
+      ])
+      .mockResolvedValueOnce([]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "接受 H300" }));
+
+    await waitFor(() =>
+      expect(acceptAcceleratorCandidate).toHaveBeenCalledWith(7, {
+        source_id: "compute-accelerators-nvidia-h300",
+        name: "nvidia H300 accelerator specs",
+        url: "https://www.nvidia.com/en-us/data-center/products/",
+        scope: ["gpu"],
+        source_rank: "S1"
+      })
+    );
+
+    vi.mocked(getAcceleratorCandidates)
+      .mockResolvedValueOnce([
+        {
+          id: 8,
+          vendor: "nvidia",
+          model_name: "H301",
+          normalized_model: "h301",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-nvidia-products",
+          source_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_text: "NVIDIA H301 GPU accelerator",
+          confidence: 0.75,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        }
+      ])
+      .mockResolvedValueOnce([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "刷新来源" }));
+    fireEvent.click(await screen.findByRole("button", { name: "拒绝 H301" }));
+
+    await waitFor(() => expect(rejectAcceleratorCandidate).toHaveBeenCalledWith(8));
   });
 
   it("shows pending queue item details with source link and raw preview", async () => {
