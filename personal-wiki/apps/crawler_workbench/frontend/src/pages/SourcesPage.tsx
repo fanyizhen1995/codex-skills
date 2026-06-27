@@ -112,13 +112,18 @@ export function SourcesPage() {
     setError("");
     try {
       await acceptAcceleratorCandidate(candidate.id, acceptPayload(candidate));
-      await loadSources();
+      setCandidates((currentCandidates) => currentCandidates.filter((item) => item.id !== candidate.id));
       setNotice(`${candidate.model_name} 已接受为来源`);
     } catch (error) {
       setError(error instanceof Error ? error.message : "接受候选失败");
-    } finally {
       setReviewingCandidate(null);
+      return;
     }
+    const refreshed = await loadSources();
+    if (refreshed === null) {
+      setError("候选已接受，刷新来源失败");
+    }
+    setReviewingCandidate(null);
   }
 
   async function handleReject(candidate: AcceleratorCandidate) {
@@ -127,13 +132,18 @@ export function SourcesPage() {
     setError("");
     try {
       await rejectAcceleratorCandidate(candidate.id);
-      await loadSources();
+      setCandidates((currentCandidates) => currentCandidates.filter((item) => item.id !== candidate.id));
       setNotice(`${candidate.model_name} 已拒绝`);
     } catch (error) {
       setError(error instanceof Error ? error.message : "拒绝候选失败");
-    } finally {
       setReviewingCandidate(null);
+      return;
     }
+    const refreshed = await loadSources();
+    if (refreshed === null) {
+      setError("候选已拒绝，刷新来源失败");
+    }
+    setReviewingCandidate(null);
   }
 
   return (

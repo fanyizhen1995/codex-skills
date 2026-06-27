@@ -536,6 +536,69 @@ describe("App", () => {
     await waitFor(() => expect(rejectAcceleratorCandidate).toHaveBeenCalledWith(8));
   });
 
+  it("keeps accepted candidates removed when post-accept refresh fails", async () => {
+    vi.mocked(getAcceleratorCandidates)
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          vendor: "nvidia",
+          model_name: "H300",
+          normalized_model: "h300",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-nvidia-products",
+          source_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_text: "NVIDIA H300 GPU accelerator now available",
+          confidence: 0.85,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        }
+      ])
+      .mockRejectedValueOnce(new Error("refresh failed"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "接受 H300" }));
+
+    await waitFor(() => expect(acceptAcceleratorCandidate).toHaveBeenCalledWith(7, expect.any(Object)));
+    await waitFor(() => expect(screen.queryByText("H300")).not.toBeInTheDocument());
+    expect(screen.getByText("候选已接受，刷新来源失败")).toBeInTheDocument();
+    expect(screen.queryByText("接受候选失败")).not.toBeInTheDocument();
+  });
+
+  it("keeps rejected candidates removed when post-reject refresh fails", async () => {
+    vi.mocked(getAcceleratorCandidates)
+      .mockResolvedValueOnce([
+        {
+          id: 8,
+          vendor: "nvidia",
+          model_name: "H301",
+          normalized_model: "h301",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-nvidia-products",
+          source_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_text: "NVIDIA H301 GPU accelerator",
+          confidence: 0.75,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        }
+      ])
+      .mockRejectedValueOnce(new Error("refresh failed"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "拒绝 H301" }));
+
+    await waitFor(() => expect(rejectAcceleratorCandidate).toHaveBeenCalledWith(8));
+    await waitFor(() => expect(screen.queryByText("H301")).not.toBeInTheDocument());
+    expect(screen.getByText("候选已拒绝，刷新来源失败")).toBeInTheDocument();
+    expect(screen.queryByText("拒绝候选失败")).not.toBeInTheDocument();
+  });
+
   it("shows pending queue item details with source link and raw preview", async () => {
     vi.mocked(getQueue).mockResolvedValue([
       {
