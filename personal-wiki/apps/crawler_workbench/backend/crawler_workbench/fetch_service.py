@@ -6,9 +6,8 @@ import sqlite3
 from typing import Any
 
 from .fetchers import Fetcher, fetcher_for
-from .hashing import content_hash
 from .policy import ingest_decision
-from .raw_store import write_raw_item
+from .raw_store import raw_capture_hash, write_raw_item
 from .settings import Settings
 
 
@@ -48,7 +47,7 @@ def run_source_once(
         results = runner.fetch(profile)
         for result in results:
             fetched_count += 1
-            digest = content_hash(result.content)
+            digest = raw_capture_hash(result.content, result.attachment_bytes)
             existing = db.execute(
                 """
                 select id from content_versions
@@ -81,8 +80,13 @@ def run_source_once(
                 title=result.title,
                 content=result.content,
                 metadata=result.metadata,
+                attachment_bytes=result.attachment_bytes,
+                attachment_extension=result.attachment_extension,
+                attachment_content_type=result.attachment_content_type,
             )
             written_raw_paths.append(raw_write.path)
+            if raw_write.attachment_path is not None:
+                written_raw_paths.append(raw_write.attachment_path)
             raw_item_id = db.execute(
                 """
                 insert into raw_items (

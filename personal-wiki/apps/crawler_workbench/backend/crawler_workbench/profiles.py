@@ -50,6 +50,7 @@ def load_profiles_from_yaml(path: Path) -> list[dict[str, Any]]:
         if profile["id"] in seen_ids:
             raise ValueError(f"duplicate source id: {profile['id']}")
         seen_ids.add(profile["id"])
+        validate_profile_source_id(profile)
         validate_profile_booleans(profile)
         validate_profile_domain(profile)
         validate_accelerator_metadata(profile)
@@ -68,6 +69,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
         connection.execute("update source_profiles set enabled = 0, updated_at = current_timestamp")
 
     for profile in profiles:
+        validate_profile_source_id(profile)
         booleans = validate_profile_booleans(profile)
         validate_profile_domain(profile)
         validate_accelerator_metadata(profile)
@@ -208,6 +210,20 @@ def validate_profile_domain(profile: dict[str, Any]) -> None:
         or ".." in domain_path.parts
     ):
         raise ValueError(f"Invalid domain path for profile {profile_id}: {domain}")
+
+
+def validate_profile_source_id(profile: dict[str, Any]) -> None:
+    source_id = str(profile.get("id", ""))
+    source_path = Path(source_id)
+    if (
+        not source_id
+        or source_path.is_absolute()
+        or len(source_path.parts) != 1
+        or "/" in source_id
+        or "\\" in source_id
+        or ".." in source_path.parts
+    ):
+        raise ValueError(f"Invalid source id path: {source_id}")
 
 
 def validate_accelerator_metadata(profile: dict[str, Any]) -> None:

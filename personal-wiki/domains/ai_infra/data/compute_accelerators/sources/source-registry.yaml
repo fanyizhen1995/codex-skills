@@ -116,3 +116,426 @@ sources:
     trust_policy: review_required
     crawl_policy: snapshot_only_no_auto_resolve
     notes: Third-party database; observations require review before resolution.
+  - source_id: huawei-atlas-300i-a2-product-page
+    name: Huawei Atlas 300I A2 inference card product page
+    url: https://e.huawei.com/cn/products/computing/ascend/atlas-300i-a2
+    source_rank: S1
+    publisher: Huawei
+    source_type: product_page
+    trust_policy: official_vendor_npu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Huawei Enterprise page for Atlas 300I A2 inference card specifications.
+  - source_id: huawei-atlas-800t-a3-product-page
+    name: Huawei Atlas 800T A3 training server product page
+    url: https://e.huawei.com/cn/products/computing/ascend/atlas-800t-a3
+    source_rank: S1
+    publisher: Huawei
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator_system
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Huawei Enterprise page for Atlas 800T A3 accelerator system specifications.
+  - source_id: cambricon-mlu370-s4-s8-product-page
+    name: Cambricon MLU370-S4/S8 accelerator card product page
+    url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=365
+    source_rank: S1
+    publisher: Cambricon
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Cambricon page for MLU370-S4/S8 card specifications.
+  - source_id: cambricon-mlu370-x4-product-page
+    name: Cambricon MLU370-X4 accelerator card product page
+    url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=371
+    source_rank: S1
+    publisher: Cambricon
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Cambricon page for MLU370-X4 card specifications.
+  - source_id: cambricon-mlu370-x8-product-page
+    name: Cambricon MLU370-X8 accelerator card product page
+    url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=406
+    source_rank: S1
+    publisher: Cambricon
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Cambricon page for MLU370-X8 card specifications.
+  - source_id: kunlunxin-r200-product-page
+    name: Kunlunxin R200 AI accelerator card product page
+    url: https://www.kunlunxin.com/product/274.html
+    source_rank: S1
+    publisher: Kunlunxin
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Kunlunxin page for R200 card specifications.
+  - source_id: kunlunxin-rg800-product-page
+    name: Kunlunxin RG800 AI accelerator card product page
+    url: https://www.kunlunxin.com/product/2842.html
+    source_rank: S1
+    publisher: Kunlunxin
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Kunlunxin page for RG800 card specifications.
+  - source_id: kunlunxin-r480-x8-product-page
+    name: Kunlunxin R480-X8 accelerator group product page
+    url: https://www.kunlunxin.com/product/272.html
+    source_rank: S1
+    publisher: Kunlunxin
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator_system
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Kunlunxin page for R480-X8 multi-card accelerator system specifications.
+  - source_id: metax-c500-product-page
+    name: MetaX C500 GPU accelerator product page
+    url: https://www.metax-tech.com/prod.html?cid=107&id=21
+    source_rank: S1
+    publisher: MetaX
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official MetaX page for C500 GPU accelerator specifications.
+  - source_id: metax-c550-product-page
+    name: MetaX C550 GPU accelerator product page
+    url: https://www.metax-tech.com/prod.html?cid=107&id=35
+    source_rank: S1
+    publisher: MetaX
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official MetaX page for C550 GPU accelerator specifications.
+  - source_id: metax-c500x-product-page
+    name: MetaX C500X GPU accelerator product page
+    url: https://www.metax-tech.com/prod.html?cid=107&id=36
+    source_rank: S1
+    publisher: MetaX
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official MetaX page for C500X GPU accelerator specifications.
+  - source_id: metax-c588-product-page
+    name: MetaX C588 GPU accelerator product page
+    url: https://www.metax-tech.com/prod.html?cid=107&id=67
+    source_rank: S1
+    publisher: MetaX
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official MetaX page for C588 GPU accelerator specifications.
+  - source_id: metax-c600-product-page
+    name: MetaX C600 GPU accelerator product page
+    url: https://www.metax-tech.com/prod.html?cid=107&id=68
+    source_rank: S1
+    publisher: MetaX
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official MetaX page for C600 GPU accelerator specifications.
+  - source_id: mthreads-s5000-product-page
+    name: Moore Threads MTT S5000 GPU accelerator product page
+    url: https://www.mthreads.com/product/S5000
+    source_rank: S1
+    publisher: Moore Threads
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Moore Threads page for MTT S5000 accelerator specifications.
+  - source_id: mthreads-s4000-product-page
+    name: Moore Threads MTT S4000 GPU accelerator product page
+    url: https://www.mthreads.com/product/S4000
+    source_rank: S1
+    publisher: Moore Threads
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Moore Threads page for MTT S4000 accelerator specifications.
+  - source_id: mthreads-s3000-product-page
+    name: Moore Threads MTT S3000 GPU product page
+    url: https://www.mthreads.com/product/S3000
+    source_rank: S1
+    publisher: Moore Threads
+    source_type: product_page
+    trust_policy: official_vendor_single_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Moore Threads page for MTT S3000 server GPU specifications.
+  - source_id: biren-166l-product-page
+    name: Biren Bili 166L AI accelerator module product page
+    url: https://www.birentech.com/product/hardware/166l/
+    source_rank: S1
+    publisher: Biren
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Biren page for 166L liquid-cooled OAM module specifications.
+  - source_id: biren-166m-product-page
+    name: Biren Bili 166M AI accelerator module product page
+    url: https://www.birentech.com/product/hardware/166m/
+    source_rank: S1
+    publisher: Biren
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Biren page for 166M air-cooled OAM module specifications.
+  - source_id: biren-166c-product-page
+    name: Biren Bili 166C AI accelerator card product page
+    url: https://www.birentech.com/product/hardware/166c/
+    source_rank: S1
+    publisher: Biren
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Biren page for 166C PCIe card specifications.
+  - source_id: biren-106m-product-page
+    name: Biren Bili 106M AI accelerator module product page
+    url: https://www.birentech.com/product/hardware/106m/
+    source_rank: S1
+    publisher: Biren
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Biren page for 106M OAM module specifications.
+  - source_id: biren-106b-product-page
+    name: Biren Bili 106B AI accelerator card product page
+    url: https://www.birentech.com/product/hardware/106b/
+    source_rank: S1
+    publisher: Biren
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Biren page for 106B PCIe card specifications.
+  - source_id: iluvatar-tg100-product-page
+    name: Iluvatar Tiangai 100 accelerator product page
+    url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-xlxl-tg100
+    source_rank: S1
+    publisher: Iluvatar CoreX
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Iluvatar page for Tiangai 100 accelerator specifications; page is Nuxt-heavy.
+  - source_id: iluvatar-tg150-product-page
+    name: Iluvatar Tiangai 150 accelerator product page
+    url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-xlxl-tg150
+    source_rank: S1
+    publisher: Iluvatar CoreX
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Iluvatar page for Tiangai 150 accelerator specifications; page is Nuxt-heavy.
+  - source_id: iluvatar-zk100-product-page
+    name: Iluvatar Zhikai 100 inference accelerator product page
+    url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-tlxltt-zk100
+    source_rank: S1
+    publisher: Iluvatar CoreX
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Iluvatar page for Zhikai 100 inference accelerator specifications; page is Nuxt-heavy.
+  - source_id: enflame-s60-product-page
+    name: Enflame S60 inference accelerator card product page
+    url: https://www.enflame-tech.com/s60
+    source_rank: S1
+    publisher: Enflame
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Enflame page for S60 inference accelerator card specifications.
+  - source_id: enflame-ds-server-product-page
+    name: Enflame DS Server product page
+    url: https://www.enflame-tech.com/DS-server
+    source_rank: S1
+    publisher: Enflame
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator_system
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Enflame page for DS Server inference system specifications.
+  - source_id: enflame-cloudblazer-matrix-product-page
+    name: Enflame CloudBlazer Matrix product page
+    url: https://www.enflame-tech.com/cloudblazer-matrix/268
+    source_rank: S1
+    publisher: Enflame
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator_system
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Enflame page for CloudBlazer Matrix accelerator system specifications.
+  - source_id: vastai-va1-product-page
+    name: Vastai VA1 inference accelerator card product page
+    url: https://www.vastaitech.com/product/general/va1
+    source_rank: S1
+    publisher: Vastai
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Vastai page for VA1 inference accelerator card specifications.
+  - source_id: vastai-va10-product-page
+    name: Vastai VA10 inference accelerator card product page
+    url: https://www.vastaitech.com/product/general/va10
+    source_rank: S1
+    publisher: Vastai
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Vastai page for VA10 inference accelerator card specifications.
+  - source_id: denglin-goldwasser-i-l-product-page
+    name: Denglin Goldwasser I L-series product page
+    url: https://denglinai.com/h-col-252.html
+    source_rank: S1
+    publisher: Denglin
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Denglin page for Goldwasser I L-series enterprise data-center GPU+ specifications.
+  - source_id: denglin-goldwasser-ii-gs-product-page
+    name: Denglin Goldwasser II GS-series product page
+    url: https://denglinai.com/h-col-299.html
+    source_rank: S1
+    publisher: Denglin
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Denglin page for Goldwasser II GS-series enterprise data-center GPU+ specifications.
+  - source_id: hygon-dcu-product-page
+    name: Hygon DCU accelerator product page
+    url: https://www.hygon.cn/product/accelerator
+    source_rank: S1
+    publisher: Hygon
+    source_type: product_page
+    trust_policy: official_vendor_ai_accelerator
+    crawl_policy: snapshot_and_candidate_extract_js_heavy
+    notes: Official Hygon DCU accelerator entry; static fetch captures JS shell and rendered extraction may be needed for full parameters.
+  - source_id: nebulamatrix-dpu200-product-page
+    name: NebulaMatrix DPU200 product page
+    url: https://www.nebula-matrix.com/dpu200
+    source_rank: S1
+    publisher: NebulaMatrix
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract_js_heavy
+    notes: Official NebulaMatrix DPU200 page; page body may require Referer-aware JS asset fetch for full text.
+  - source_id: nebulamatrix-s1400-product-page
+    name: NebulaMatrix S1400 SmartNIC product page
+    url: https://www.nebula-matrix.com/snic_s1400
+    source_rank: S1
+    publisher: NebulaMatrix
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract_js_heavy
+    notes: Official NebulaMatrix S1400 SmartNIC page.
+  - source_id: nebulamatrix-rnic-ip-product-page
+    name: NebulaMatrix RNIC IP product page
+    url: https://www.nebula-matrix.com/RNIC_IP
+    source_rank: S1
+    publisher: NebulaMatrix
+    source_type: product_page
+    trust_policy: official_vendor_dsa
+    crawl_policy: snapshot_and_candidate_extract_js_heavy
+    notes: Official NebulaMatrix RNIC IP page for RDMA network accelerator IP.
+  - source_id: yusur-k2-pro-product-page
+    name: Yusur K2 Pro DPU product page
+    url: https://www.yusur.tech/dpu/K2-Pro
+    source_rank: S1
+    publisher: Yusur
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Yusur page for K2 Pro DPU chip specifications.
+  - source_id: yusur-swift-2200n-product-page
+    name: Yusur SWIFT-2200N product page
+    url: https://www.yusur.tech/product/swift/swift2200n
+    source_rank: S1
+    publisher: Yusur
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Yusur page for SWIFT-2200N DPU card specifications.
+  - source_id: resnics-stargate-n1025-product-page
+    name: Resnics Stargate-N1025 DPU product page
+    url: https://www.resnics.com/product/stargate-n1025-dpu/
+    source_rank: S1
+    publisher: Resnics
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Resnics page for Stargate-N1025 DPU SmartNIC specifications.
+  - source_id: resnics-stargate-n2025-product-page
+    name: Resnics Stargate-N2025 DPU product page
+    url: https://www.resnics.com/product/stargate-n2025-dpu/
+    source_rank: S1
+    publisher: Resnics
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Resnics page for Stargate-N2025 DPU SmartNIC specifications.
+  - source_id: resnics-stargate-s1100-product-page
+    name: Resnics Stargate-S1100 NVMe-oF product page
+    url: https://www.resnics.com/product/stargate-s1100-nvme-of/
+    source_rank: S1
+    publisher: Resnics
+    source_type: product_page
+    trust_policy: official_vendor_dsa
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Resnics page for Stargate-S1100 NVMe-oF storage accelerator card specifications.
+  - source_id: dayu-paratus1-product-page
+    name: Dayu Paratus 1.0 DPU product page
+    url: https://www.dayudpu.com/product/paratus1
+    source_rank: S1
+    publisher: Dayu
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Dayu page for Paratus 1.0 DPU and SmartNIC product specifications.
+  - source_id: dayu-paratus2-product-page
+    name: Dayu Paratus 2.0 DPU product page
+    url: https://www.dayudpu.com/product/paratus2
+    source_rank: S1
+    publisher: Dayu
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Dayu page for Paratus 2.0 DPU and SmartNIC product specifications.
+  - source_id: jaguarmicro-yunxiao-dpu-announcement
+    name: JaguarMicro Yunxiao DPU official announcement
+    url: https://www.jaguarmicro.com/n4.html
+    source_rank: S1
+    publisher: JaguarMicro
+    source_type: official_announcement
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official JaguarMicro announcement for Yunxiao DPU product capabilities.
+  - source_id: corigine-agilio-cx-product-brief
+    name: Corigine Agilio CX 2x25GbE SmartNIC product brief
+    url: https://storage.corigine.com.cn/UploadFiles/pdf/2022-01-24/1-Agilio__%20CX%202x25GbE%20SmartNIC%20%E4%BA%A7%E5%93%81%E7%AE%80%E4%BB%8B.pdf
+    source_rank: S1
+    publisher: Corigine
+    source_type: product_brief_pdf
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract_with_pdf_text
+    notes: Official Corigine PDF product brief for Agilio CX 2x25GbE SmartNIC.
+  - source_id: asterfusion-helium-dpu-product-page
+    name: Asterfusion Helium DPU product page
+    url: https://asterfusion.com/product/helium_dpu/
+    source_rank: S1
+    publisher: Asterfusion
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Asterfusion page for Helium DPU card specifications.
+  - source_id: asterfusion-cx102s-dpu-product-page
+    name: Asterfusion CX102S-DPU product page
+    url: https://asterfusion.com/product/cx102s-dpu/
+    source_rank: S1
+    publisher: Asterfusion
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official Asterfusion page for CX102S-DPU hardware platform specifications.
+  - source_id: enflame-sse-disclosure-pdf
+    name: Enflame SSE disclosure PDF
+    url: https://static.sse.com.cn/stock/disclosure/announcement/c/202604/002175_20260416_WQ4O.pdf
+    source_rank: S5
+    publisher: Shanghai Stock Exchange
+    source_type: disclosure_pdf
+    trust_policy: review_required
+    crawl_policy: snapshot_only_no_auto_resolve_with_pdf_text
+    notes: Exchange disclosure supplement for Enflame product-system context; not a substitute for official product specifications.

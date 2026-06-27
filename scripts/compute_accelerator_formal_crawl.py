@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -38,6 +39,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--repo-root", required=True)
     run_parser.add_argument("--output-dir", required=True)
     run_parser.add_argument("--source-id", action="append", default=[])
+    run_parser.add_argument("--task-id", default=TASK_ID)
 
     verify_parser = subparsers.add_parser("verify-manifest")
     verify_parser.add_argument("--repo-root", required=True)
@@ -51,6 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 repo_root=Path(args.repo_root).resolve(),
                 output_dir=Path(args.output_dir).resolve(),
                 source_ids=args.source_id,
+                task_id=args.task_id,
             )
         except Exception as exc:
             print(f"formal crawl failed: {exc}", file=sys.stderr)
@@ -73,7 +76,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 1
 
 
-def run_formal_crawl(repo_root: Path, output_dir: Path, source_ids: Sequence[str]) -> dict[str, Any]:
+def run_formal_crawl(
+    repo_root: Path,
+    output_dir: Path,
+    source_ids: Sequence[str],
+    task_id: str = TASK_ID,
+) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     state_dir = output_dir / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -92,7 +100,7 @@ def run_formal_crawl(repo_root: Path, output_dir: Path, source_ids: Sequence[str
     _write_profiles_yaml(local_sources_yaml, [*run_profiles, *disabled_profiles])
 
     manifest: dict[str, Any] = {
-        "task_id": TASK_ID,
+        "task_id": task_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo_root": str(repo_root),
         "sources_yaml": str(local_sources_yaml),
@@ -200,10 +208,14 @@ def verify_manifest(repo_root: Path, manifest_path: Path, min_succeeded: int = 1
             else:
                 relative_raw_path = raw_path
                 raw_path = repo_root / raw_path
-            if not _is_under_raw_prefix(relative_raw_path):
+            if not _is_under_raw_prefix(repo_root, raw_path):
                 return False, f"raw path is outside accelerator crawler raw area: {relative_raw_path}"
             if not raw_path.exists():
                 return False, f"missing raw path: {relative_raw_path}"
+            if raw_path.suffix == ".md":
+                ok, message = _verify_raw_attachments(raw_path)
+                if not ok:
+                    return False, message
 
     failed = manifest["failed"]
     for entry in failed:
@@ -263,18 +275,28 @@ def _mirror_profiles_and_run(
 
 def _raw_paths_for_fetch_run(repo_root: Path, db: Any, fetch_run_id: int) -> list[str]:
     rows = db.execute(
-        "select raw_path from raw_items where fetch_run_id = ? order by id",
+        "select raw_path, metadata_json from raw_items where fetch_run_id = ? order by id",
         (fetch_run_id,),
     ).fetchall()
     paths: list[str] = []
     for row in rows:
         raw_path = Path(str(row["raw_path"]))
+        original_raw_path = raw_path
         if raw_path.is_absolute():
             try:
                 raw_path = raw_path.relative_to(repo_root)
             except ValueError:
                 pass
         paths.append(raw_path.as_posix())
+        attachment_filename = _attachment_filename_from_metadata(row["metadata_json"])
+        if attachment_filename:
+            attachment_path = original_raw_path.parent / attachment_filename
+            if attachment_path.is_absolute():
+                try:
+                    attachment_path = attachment_path.relative_to(repo_root)
+                except ValueError:
+                    pass
+            paths.append(attachment_path.as_posix())
     return paths
 
 
@@ -317,9 +339,55 @@ def _is_enabled(profile: dict[str, Any]) -> bool:
     return bool(profile.get("enabled", True))
 
 
-def _is_under_raw_prefix(path: Path) -> bool:
-    normalized = Path(*path.parts)
-    return normalized == RAW_PREFIX or RAW_PREFIX in normalized.parents
+def _is_under_raw_prefix(repo_root: Path, path: Path) -> bool:
+    raw_root = (repo_root / RAW_PREFIX).resolve()
+    resolved_path = path.resolve()
+    return resolved_path == raw_root or raw_root in resolved_path.parents
+
+
+def _attachment_filename_from_metadata(metadata_json: object) -> str | None:
+    if not isinstance(metadata_json, str) or not metadata_json:
+        return None
+    try:
+        metadata = json.loads(metadata_json)
+    except json.JSONDecodeError:
+        return None
+    attachment_filename = metadata.get("attachment_filename") if isinstance(metadata, dict) else None
+    if not attachment_filename:
+        return None
+    attachment_path = Path(str(attachment_filename))
+    if attachment_path.is_absolute() or ".." in attachment_path.parts or len(attachment_path.parts) != 1:
+        return None
+    return str(attachment_filename)
+
+
+def _verify_raw_attachments(raw_path: Path) -> tuple[bool, str]:
+    try:
+        text = raw_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        return False, f"raw path is not valid UTF-8 markdown: {raw_path}: {exc}"
+    if not text.startswith("---\n"):
+        return True, ""
+    try:
+        frontmatter_text = text.split("---\n", 2)[1]
+        frontmatter = yaml.safe_load(frontmatter_text) or {}
+    except (IndexError, yaml.YAMLError) as exc:
+        return False, f"raw frontmatter is invalid: {raw_path}: {exc}"
+    attachment_filename = frontmatter.get("attachment_filename")
+    if not attachment_filename:
+        return True, ""
+    attachment_path = Path(str(attachment_filename))
+    if attachment_path.is_absolute() or ".." in attachment_path.parts or len(attachment_path.parts) != 1:
+        return False, f"raw attachment filename is unsafe: {raw_path}: {attachment_filename}"
+    resolved_attachment = raw_path.parent / attachment_path
+    if not resolved_attachment.exists():
+        return False, f"missing raw attachment: {resolved_attachment}"
+    expected_sha256 = frontmatter.get("attachment_sha256")
+    if expected_sha256:
+        actual_sha256 = hashlib.sha256(resolved_attachment.read_bytes()).hexdigest()
+        if str(expected_sha256) != actual_sha256:
+            return False, f"attachment sha256 mismatch: {resolved_attachment}"
+    return True, ""
 
 
 if __name__ == "__main__":

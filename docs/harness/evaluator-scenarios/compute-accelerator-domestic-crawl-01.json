@@ -1,0 +1,40 @@
+{
+  "task_id": "compute-accelerator-domestic-crawl-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "domestic-accelerator-crawl-manifest",
+      "user_goal": "As an ai_infra wiki maintainer, verify that domestic accelerator source profiles and PDF evidence are crawled into durable raw evidence.",
+      "prerequisites": [
+        "The domestic accelerator crawl has run under harness rules.",
+        "The manifest exists at .codex/accelerator-crawl/compute-accelerator-domestic-crawl-01/manifest.json.",
+        "The personal-wiki ai_infra raw crawler evidence area exists."
+      ],
+      "entrypoint": "python3 scripts/compute_accelerator_formal_crawl.py verify-manifest --repo-root . --manifest .codex/accelerator-crawl/compute-accelerator-domestic-crawl-01/manifest.json --min-succeeded 1",
+      "steps": [
+        "Run the manifest verification command.",
+        "Confirm at least one domestic accelerator profile succeeded.",
+        "Confirm each successful source has raw evidence under personal-wiki/domains/ai_infra/raw/crawler/.",
+        "Inspect PDF-backed captures when present and confirm the markdown raw capture references a saved PDF attachment."
+      ],
+      "expected_outcomes": [
+        "The command exits with status 0.",
+        "summary.succeeded_count is at least 1.",
+        "Every succeeded manifest entry includes an existing raw crawler path.",
+        "PDF-backed captures preserve both markdown text evidence and the original PDF attachment.",
+        "Failed and skipped-disabled manifest entries include diagnostic source IDs and reason or error fields."
+      ],
+      "failure_signals": [
+        "The manifest is missing or invalid JSON.",
+        "The succeeded count is below the required threshold.",
+        "A succeeded source has no raw path or references a missing file.",
+        "A PDF source only stores mojibake text without preserving the PDF attachment.",
+        "A failed or skipped-disabled entry lacks source_id, error, or reason details."
+      ],
+      "cleanup": [
+        "Remove .codex/accelerator-crawl/compute-accelerator-domestic-crawl-01/ if a clean rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

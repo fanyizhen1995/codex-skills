@@ -2,6 +2,7 @@ import httpx
 import pytest
 
 from crawler_workbench.fetchers import fetcher_for
+from crawler_workbench.fetchers import web as web_module
 from crawler_workbench.fetchers.arxiv import ArxivFetcher
 from crawler_workbench.fetchers.base import ResilientHttpClient
 from crawler_workbench.fetchers.github import GitHubFetcher
@@ -12,6 +13,13 @@ from crawler_workbench.fetchers.web import WebFetcher
 def client_for(status_code: int, text: str, headers: dict[str, str] | None = None) -> httpx.Client:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(status_code, text=text, headers=headers or {})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def bytes_client_for(status_code: int, content: bytes, headers: dict[str, str] | None = None) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, content=content, headers=headers or {})
 
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -173,6 +181,53 @@ def test_web_fetcher_canonicalizes_url():
     fetcher = WebFetcher(client=client_for(200, "<html><title>Doc</title><body>Hello</body></html>"))
     results = fetcher.fetch({"url": "HTTPS://Example.COM:443/doc?utm_source=x&z=1#section", "name": "Doc"})
     assert results[0].canonical_url == "https://example.com/doc?z=1"
+
+
+@pytest.mark.parametrize(
+    ("url", "headers"),
+    [
+        ("https://example.com/report", {"content-type": "application/pdf", "etag": "pdf-etag"}),
+        ("https://example.com/report.pdf?download=1", {"content-type": "application/octet-stream"}),
+    ],
+)
+def test_web_fetcher_extracts_pdf_text_and_attaches_original_bytes(monkeypatch, url, headers):
+    pdf_bytes = b"%PDF-1.4\n<title>Not HTML</title>\n%%EOF"
+    extracted_payloads = []
+
+    def fake_extract_pdf_text(payload):
+        extracted_payloads.append(payload)
+        return "Extracted PDF text", None
+
+    monkeypatch.setattr(web_module, "_extract_pdf_text", fake_extract_pdf_text, raising=False)
+    fetcher = WebFetcher(client=bytes_client_for(200, pdf_bytes, headers))
+
+    results = fetcher.fetch({"url": url, "name": "GPU Report"})
+
+    assert extracted_payloads == [pdf_bytes]
+    assert len(results) == 1
+    assert results[0].title == "GPU Report"
+    assert "Extracted PDF text" in results[0].content
+    assert "<title>Not HTML</title>" not in results[0].content
+    assert results[0].attachment_bytes == pdf_bytes
+    assert results[0].attachment_extension == ".pdf"
+    assert results[0].attachment_content_type == "application/pdf"
+    assert results[0].etag == headers.get("etag")
+
+
+def test_web_fetcher_records_pdf_text_extraction_errors(monkeypatch):
+    pdf_bytes = b"%PDF-1.4\n%%EOF"
+
+    def fake_extract_pdf_text(payload):
+        return "", "pdftotext failed"
+
+    monkeypatch.setattr(web_module, "_extract_pdf_text", fake_extract_pdf_text, raising=False)
+    fetcher = WebFetcher(client=bytes_client_for(200, pdf_bytes, {"content-type": "application/pdf"}))
+
+    results = fetcher.fetch({"url": "https://example.com/report.pdf", "name": "GPU Report"})
+
+    assert results[0].attachment_bytes == pdf_bytes
+    assert results[0].metadata["pdf_extract_error"] == "pdftotext failed"
+    assert "PDF text extraction failed: pdftotext failed" in results[0].content
 
 
 def test_rss_fetcher_returns_entries():

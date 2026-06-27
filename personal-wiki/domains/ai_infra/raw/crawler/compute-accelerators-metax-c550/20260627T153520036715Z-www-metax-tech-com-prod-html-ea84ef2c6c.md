@@ -1,0 +1,17 @@
+---
+source_id: compute-accelerators-metax-c550
+title: 曦云C550产品-产品与解决方案
+canonical_url: https://www.metax-tech.com/prod.html?cid=107&id=35
+captured_at: '2026-06-27T15:35:20.036715+00:00'
+content_hash: ea84ef2c6c0d4259227b111fed940e9d2b6ce323e2049cdf20c906497186a482
+---
+# 曦云C550产品-产品与解决方案
+
+URL: https://www.metax-tech.com/prod.html?cid=107&id=35
+
+Headers:
+- Content-Type: text/html; charset=utf-8
+- ETag: 
+- Last-Modified: 
+
+English 中文简体 首页 产品与解决方案 GPU加速卡 曦思N系列 曦思N100 曦思N260 曦思N300 曦云C系列 曦云C500 曦云C550 曦云C500X 曦云C588 曦云C600 曦彩G系列 曦彩G100 曦索X系列 曦索X206 曦索X301 曦索X302 服务器 GPU服务器 曦思N260服务器 曦思N300服务器 曦云C500服务器 曦云C550服务器 曦云C588服务器 曦云C600服务器 曦索X206服务器 曦索X302服务器 GPU工作站 曦思N260工作站 GPU超节点 曦云C550 Shanghai Cube液冷整机柜 曦云C500X光链超节点 曦云C550 3D Mesh超节点 解决方案 数字算力底座 金融 医疗健康 能源 教科研 交通 大文娱 X（其它行业） 异构计算平台 MXMACA异构计算平台 开发者社区 文档下载 开发者博客 软件下载 DeepSeek 专区 新闻中心 企业新闻 媒体报道 智算芯闻 招贤纳士 生活在沐曦股份 加入沐曦股份 关于沐曦股份 公司介绍 企业文化 里程碑 企业社会责任 联系我们 投资者关系 内容检索 搜索 清空 首页 产品与解决方案 GPU加速卡 曦思N系列 曦思N100 曦思N260 曦思N300 曦云C系列 曦云C500 曦云C550 曦云C500X 曦云C588 曦云C600 曦彩G系列 曦彩G100 曦索X系列 曦索X206 曦索X301 曦索X302 服务器 GPU服务器 曦思N260服务器 曦思N300服务器 曦云C500服务器 曦云C550服务器 曦云C588服务器 曦云C600服务器 曦索X206服务器 曦索X302服务器 GPU工作站 曦思N260工作站 GPU超节点 曦云C550 Shanghai Cube液冷整机柜 曦云C500X光链超节点 曦云C550 3D Mesh超节点 解决方案 数字算力底座 金融 医疗健康 能源 教科研 交通 大文娱 X（其它行业） 异构计算平台 MXMACA异构计算平台 开发者社区 文档下载 开发者博客 软件下载 DeepSeek 专区 新闻中心 企业新闻 媒体报道 智算芯闻 招贤纳士 生活在沐曦股份 加入沐曦股份 关于沐曦股份 公司介绍 企业文化 里程碑 企业社会责任 联系我们 投资者关系 English 中文简体 产品与解决方案 | 曦云C550 曦云C550 Introduction 介绍 曦云C550是沐曦股份基于自主知识产权核心GPU IP打造的旗舰级OAM模组形态通用GPU产品，支持OAM1.5和2.0标准规范，具有强大的多精度混合算力、大容量高带宽显存、 896GB/s的八卡全互连带宽、全兼容主流GPU生态的MXMACA软件栈，完美支持智算、通用计算和数据处理等应用场景。 Product features 产品特点 单模组配备64GB高带宽显存，支持全链路ECC保护 MetaXLink互连技术支持8卡全互连，带宽高达896GB/s 支持最小达1%颗粒度的软切分虚拟化技术 符合OAM1.5和OAM2.0规范的扣卡式模组，最大功耗450W Product features 应用场景 模型训练和推理 数据处理 通用计算 大模型及生成式人工智能应用 商务合作 Business@metax-tech.com 投资者联系 ir@metax-tech.com 招贤纳士 关于我们 开发者社区 Gitee Github CSDN 隐私政策 法律声明 联系我们 ©沐曦股份 沪ICP备2020031767号-1 . Digital BY VTHINK 商务合作：Business@metax-tech.com 投资者联系：ir@metax-tech.com 关注沐曦 开发者社区 Gitee Github CSDN 隐私政策 法律声明 联系我们 ©沐曦股份 沪ICP备2020031767号-1 . Digital BY VTHINK

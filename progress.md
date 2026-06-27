@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-06-27 Compute Accelerator Domestic Crawl
+
+- Expanded accelerator crawler coverage for domestic GPU/NPU/DPU/DSA/AI ASIC sources and retained existing global accelerator sources.
+- Added PDF fetch support that saves original PDF attachments next to extracted Markdown raw captures and records attachment metadata/sha256 in frontmatter and DB metadata.
+- Ran the formal domestic crawl into `ai_infra` raw evidence and crawler workbench state.
+- Results:
+  - Source profiles: 59 total accelerator profiles, 53 enabled and attempted, 6 disabled/skipped.
+  - Succeeded: 51 sources, including 47 domestic accelerator sources.
+  - Failed and recorded in manifest: `compute-accelerators-google-tpu` timed out, `compute-accelerators-microsoft-maia-200` returned HTTP 403.
+  - Raw evidence: 53 manifest raw paths, including 2 saved PDF attachments.
+  - DB state: 53 fetch runs, 51 raw items, 51 pending ingest tasks.
+- Added hardening after review:
+  - Reject unsafe `source_id` path segments before profile mirroring or raw writes.
+  - Verify PDF attachment SHA-256 in formal crawl manifest checks.
+  - Preserve PDF attachment paths in manifest raw evidence.
+- Evidence:
+  - `.codex/accelerator-crawl/compute-accelerator-domestic-crawl-01/manifest.json` -> verified
+  - `.codex/evaluations/tasks/compute-accelerator-domestic-crawl-01/20260627T155014Z-attempt-1/result.json` -> pass
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_fetchers.py tests/test_hashing_raw_store.py tests/test_db_profiles.py` -> 72 passed
+  - `pytest -q scripts/tests/test_compute_accelerator_formal_crawl.py` -> 14 passed
+  - `python3 scripts/compute_accelerator_formal_crawl.py verify-manifest --repo-root . --manifest .codex/accelerator-crawl/compute-accelerator-domestic-crawl-01/manifest.json --min-succeeded 1` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
+
 ## 2026-06-27 Compute Accelerator Formal Crawl
 
 - Added a controlled formal crawl CLI and evaluator scenario for compute accelerator source profiles.

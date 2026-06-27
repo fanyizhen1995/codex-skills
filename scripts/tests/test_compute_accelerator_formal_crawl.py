@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sys
+import hashlib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -109,6 +110,53 @@ def test_verify_manifest_passes_for_minimal_valid_manifest_and_raw_file(tmp_path
     assert message == "manifest verified"
 
 
+def test_verify_manifest_fails_when_declared_pdf_attachment_is_missing(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    raw_path = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.md"
+    raw_path.parent.mkdir(parents=True)
+    raw_path.write_text(
+        """---
+source_id: source-a
+title: PDF capture
+canonical_url: https://example.com/report.pdf
+captured_at: '2026-06-27T00:00:00+00:00'
+content_hash: abc
+attachment_filename: capture.pdf
+attachment_sha256: deadbeef
+attachment_content_type: application/pdf
+---
+# PDF capture
+""",
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(full_manifest(repo_root, raw_path)), encoding="utf-8")
+
+    ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
+
+    assert ok is False
+    assert "missing raw attachment" in message
+
+
+def test_verify_manifest_rejects_raw_paths_that_escape_raw_prefix_with_parent_segments(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    escaped_path = repo_root / "personal-wiki/domains/ai_infra/wiki/projects/fake.md"
+    escaped_path.parent.mkdir(parents=True)
+    escaped_path.write_text("# not raw\n", encoding="utf-8")
+    (repo_root / "personal-wiki/domains/ai_infra/raw/crawler").mkdir(parents=True)
+    escaped_manifest_path = "personal-wiki/domains/ai_infra/raw/crawler/../../wiki/projects/fake.md"
+    manifest = full_manifest(repo_root, repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.md")
+    manifest["succeeded"] = [{"source_id": "source-a", "raw_paths": [escaped_manifest_path]}]
+    manifest["raw_paths"] = [escaped_manifest_path]
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
+
+    assert ok is False
+    assert "raw path is outside accelerator crawler raw area" in message
+
+
 def test_run_formal_crawl_fails_self_verification_when_no_raw_captures(
     tmp_path: Path,
     monkeypatch,
@@ -145,6 +193,51 @@ sources:
         assert "generated manifest failed verification" in str(exc)
     else:
         raise AssertionError("run_formal_crawl should fail when its manifest has no raw captures")
+
+
+def test_run_formal_crawl_accepts_custom_task_id(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path
+    source_path = repo_root / "personal-wiki/apps/crawler_workbench/config/sources.example.yaml"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text(
+        """
+sources:
+  - id: accelerator-source
+    enabled: true
+    source_rank: S1
+""".lstrip(),
+        encoding="utf-8",
+    )
+    raw_path = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/accelerator-source/capture.md"
+    raw_path.parent.mkdir(parents=True)
+    raw_path.write_text("# raw\n", encoding="utf-8")
+
+    def fake_mirror_profiles_and_run(repo_root, state_dir, run_profiles, manifest):
+        relative_raw_path = raw_path.relative_to(repo_root).as_posix()
+        manifest["ran_source_ids"].append("accelerator-source")
+        manifest["raw_paths"].append(relative_raw_path)
+        manifest["succeeded"].append(
+            {
+                "source_id": "accelerator-source",
+                "fetch_run": {"fetch_run_id": 123},
+                "raw_paths": [relative_raw_path],
+                "ingest_task_ids": [],
+            }
+        )
+
+    monkeypatch.setattr(crawl, "_mirror_profiles_and_run", fake_mirror_profiles_and_run)
+
+    manifest = crawl.run_formal_crawl(
+        repo_root=repo_root,
+        output_dir=tmp_path / "out",
+        source_ids=[],
+        task_id="compute-accelerator-domestic-crawl-01",
+    )
+
+    assert manifest["task_id"] == "compute-accelerator-domestic-crawl-01"
 
 
 def test_mirror_profiles_records_no_raw_captures_as_failed(monkeypatch, tmp_path: Path) -> None:
@@ -216,6 +309,107 @@ def test_mirror_profiles_records_no_raw_captures_as_failed(monkeypatch, tmp_path
     assert manifest["failed"] == [
         {"source_id": "accelerator-source", "error": "no raw captures produced"}
     ]
+
+
+def test_raw_paths_for_fetch_run_includes_pdf_attachment_from_metadata(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    raw_dir = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a"
+    raw_dir.mkdir(parents=True)
+    raw_path = raw_dir / "capture.md"
+    attachment_path = raw_dir / "capture.pdf"
+    raw_path.write_text("# capture\n", encoding="utf-8")
+    attachment_path.write_bytes(b"%PDF-1.4\n%%EOF")
+
+    class FakeDb:
+        def execute(self, query, params=()):
+            class Rows:
+                def fetchall(self):
+                    return [
+                        {
+                            "raw_path": str(raw_path),
+                            "metadata_json": json.dumps({"attachment_filename": "capture.pdf"}),
+                        }
+                    ]
+
+            return Rows()
+
+    paths = crawl._raw_paths_for_fetch_run(repo_root, FakeDb(), fetch_run_id=1)
+
+    assert paths == [
+        "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.pdf",
+    ]
+
+
+def test_verify_manifest_accepts_pdf_attachment_raw_path_without_utf8_frontmatter(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    raw_dir = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a"
+    raw_dir.mkdir(parents=True)
+    raw_path = raw_dir / "capture.md"
+    attachment_path = raw_dir / "capture.pdf"
+    attachment_bytes = b"%PDF-1.4\n\xb5\n%%EOF"
+    raw_path.write_text(
+        f"""---
+source_id: source-a
+title: PDF capture
+canonical_url: https://example.com/report.pdf
+captured_at: '2026-06-27T00:00:00+00:00'
+content_hash: abc
+attachment_filename: capture.pdf
+attachment_sha256: {hashlib.sha256(attachment_bytes).hexdigest()}
+attachment_content_type: application/pdf
+---
+# PDF capture
+""",
+        encoding="utf-8",
+    )
+    attachment_path.write_bytes(attachment_bytes)
+    manifest = full_manifest(repo_root, raw_path)
+    attachment_relative_path = str(attachment_path.relative_to(repo_root))
+    manifest["succeeded"][0]["raw_paths"].append(attachment_relative_path)
+    manifest["raw_paths"].append(attachment_relative_path)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
+
+    assert ok is True
+    assert message == "manifest verified"
+
+
+def test_verify_manifest_rejects_pdf_attachment_sha_mismatch(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    raw_dir = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a"
+    raw_dir.mkdir(parents=True)
+    raw_path = raw_dir / "capture.md"
+    attachment_path = raw_dir / "capture.pdf"
+    raw_path.write_text(
+        """---
+source_id: source-a
+title: PDF capture
+canonical_url: https://example.com/report.pdf
+captured_at: '2026-06-27T00:00:00+00:00'
+content_hash: abc
+attachment_filename: capture.pdf
+attachment_sha256: deadbeef
+attachment_content_type: application/pdf
+---
+# PDF capture
+""",
+        encoding="utf-8",
+    )
+    attachment_path.write_bytes(b"%PDF-1.4\nchanged\n%%EOF")
+    manifest = full_manifest(repo_root, raw_path)
+    attachment_relative_path = str(attachment_path.relative_to(repo_root))
+    manifest["succeeded"][0]["raw_paths"].append(attachment_relative_path)
+    manifest["raw_paths"].append(attachment_relative_path)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
+
+    assert ok is False
+    assert "attachment sha256 mismatch" in message
 
 
 def full_manifest(repo_root: Path, raw_path: Path) -> dict[str, object]:

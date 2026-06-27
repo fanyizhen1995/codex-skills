@@ -16,6 +16,9 @@ class FetchResult:
     metadata: dict[str, object] = field(default_factory=dict)
     etag: str | None = None
     last_modified: str | None = None
+    attachment_bytes: bytes | None = None
+    attachment_extension: str | None = None
+    attachment_content_type: str | None = None
 
 
 class Fetcher(Protocol):

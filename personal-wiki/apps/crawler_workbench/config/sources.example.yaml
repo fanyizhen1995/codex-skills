@@ -485,3 +485,837 @@ sources:
   vendor_hint: techpowerup
   auto_resolve: false
   enabled: false
+- id: compute-accelerators-huawei-atlas-300i-a2
+  name: Huawei Atlas 300I A2 inference card specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend/atlas-300i-a2
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Huawei Ascend Atlas 300I A2 inference card specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas-800t-a3
+  name: Huawei Atlas 800T A3 training server specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend/atlas-800t-a3
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Huawei Ascend Atlas 800T A3 training server accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-cambricon-mlu370-s4-s8
+  name: Cambricon MLU370-S4/S8 accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=365
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Cambricon MLU370-S4/S8 intelligent accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: cambricon
+  auto_resolve: false
+- id: compute-accelerators-cambricon-mlu370-x4
+  name: Cambricon MLU370-X4 accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=371
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Cambricon MLU370-X4 intelligent accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: cambricon
+  auto_resolve: false
+- id: compute-accelerators-cambricon-mlu370-x8
+  name: Cambricon MLU370-X8 accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=406
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Cambricon MLU370-X8 intelligent accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: cambricon
+  auto_resolve: false
+- id: compute-accelerators-kunlunxin-r200
+  name: Kunlunxin R200 AI accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.kunlunxin.com/product/274.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Kunlunxin R200 AI accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: kunlunxin
+  auto_resolve: false
+- id: compute-accelerators-kunlunxin-rg800
+  name: Kunlunxin RG800 AI accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.kunlunxin.com/product/2842.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Kunlunxin RG800 AI accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: kunlunxin
+  auto_resolve: false
+- id: compute-accelerators-kunlunxin-r480-x8
+  name: Kunlunxin R480-X8 accelerator group specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.kunlunxin.com/product/272.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Kunlunxin R480-X8 multi-accelerator system specifications
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: kunlunxin
+  auto_resolve: false
+- id: compute-accelerators-metax-c500
+  name: MetaX C500 GPU accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.metax-tech.com/prod.html?cid=107&id=21
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: MetaX C500 GPU accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: metax
+  auto_resolve: false
+- id: compute-accelerators-metax-c550
+  name: MetaX C550 GPU accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.metax-tech.com/prod.html?cid=107&id=35
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: MetaX C550 GPU accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: metax
+  auto_resolve: false
+- id: compute-accelerators-metax-c500x
+  name: MetaX C500X GPU accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.metax-tech.com/prod.html?cid=107&id=36
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: MetaX C500X GPU accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: metax
+  auto_resolve: false
+- id: compute-accelerators-metax-c588
+  name: MetaX C588 GPU accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.metax-tech.com/prod.html?cid=107&id=67
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: MetaX C588 GPU accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: metax
+  auto_resolve: false
+- id: compute-accelerators-metax-c600
+  name: MetaX C600 GPU accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.metax-tech.com/prod.html?cid=107&id=68
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: MetaX C600 GPU accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: metax
+  auto_resolve: false
+- id: compute-accelerators-mthreads-s5000
+  name: Moore Threads MTT S5000 GPU accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product/S5000
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Moore Threads MTT S5000 full-function GPU accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: mthreads
+  auto_resolve: false
+- id: compute-accelerators-mthreads-s4000
+  name: Moore Threads MTT S4000 GPU accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product/S4000
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Moore Threads MTT S4000 large-model GPU accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: mthreads
+  auto_resolve: false
+- id: compute-accelerators-mthreads-s3000
+  name: Moore Threads MTT S3000 GPU accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product/S3000
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Moore Threads MTT S3000 server GPU specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: mthreads
+  auto_resolve: false
+- id: compute-accelerators-biren-166l
+  name: Biren Bili 166L AI accelerator module specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.birentech.com/product/hardware/166l/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Biren Bili 166L liquid-cooled OAM AI accelerator module specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: biren
+  auto_resolve: false
+- id: compute-accelerators-biren-166m
+  name: Biren Bili 166M AI accelerator module specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.birentech.com/product/hardware/166m/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Biren Bili 166M air-cooled OAM AI accelerator module specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: biren
+  auto_resolve: false
+- id: compute-accelerators-biren-166c
+  name: Biren Bili 166C AI accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.birentech.com/product/hardware/166c/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Biren Bili 166C PCIe AI inference accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: biren
+  auto_resolve: false
+- id: compute-accelerators-biren-106m
+  name: Biren Bili 106M AI accelerator module specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.birentech.com/product/hardware/106m/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Biren Bili 106M OAM AI accelerator module specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: biren
+  auto_resolve: false
+- id: compute-accelerators-biren-106b
+  name: Biren Bili 106B AI accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.birentech.com/product/hardware/106b/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Biren Bili 106B PCIe AI accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: biren
+  auto_resolve: false
+- id: compute-accelerators-iluvatar-tg100
+  name: Iluvatar CoreX Tiangai 100 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-xlxl-tg100
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Iluvatar Tiangai 100 accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: iluvatar
+  auto_resolve: false
+- id: compute-accelerators-iluvatar-tg150
+  name: Iluvatar CoreX Tiangai 150 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-xlxl-tg150
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Iluvatar Tiangai 150 accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: iluvatar
+  auto_resolve: false
+- id: compute-accelerators-iluvatar-zk100
+  name: Iluvatar CoreX Zhikai 100 inference accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-tlxltt-zk100
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Iluvatar Zhikai 100 inference accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: iluvatar
+  auto_resolve: false
+- id: compute-accelerators-enflame-s60
+  name: Enflame S60 inference accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.enflame-tech.com/s60
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Enflame S60 AI inference accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: enflame
+  auto_resolve: false
+- id: compute-accelerators-enflame-ds-server
+  name: Enflame DS Server accelerator system specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.enflame-tech.com/DS-server
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Enflame DS Server AI inference server specifications
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: enflame
+  auto_resolve: false
+- id: compute-accelerators-enflame-cloudblazer-matrix
+  name: Enflame CloudBlazer Matrix accelerator system specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.enflame-tech.com/cloudblazer-matrix/268
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Enflame CloudBlazer Matrix training and inference accelerator system specifications
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: enflame
+  auto_resolve: false
+- id: compute-accelerators-vastaitech-va1
+  name: Vastai VA1 inference accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.vastaitech.com/product/general/va1
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Vastai VA1 AI inference accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: vastai
+  auto_resolve: false
+- id: compute-accelerators-vastaitech-va10
+  name: Vastai VA10 inference accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.vastaitech.com/product/general/va10
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Vastai VA10 AI inference accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: vastai
+  auto_resolve: false
+- id: compute-accelerators-denglin-goldwasser-i-l
+  name: Denglin Goldwasser I L-series GPU+ specs
+  type: web
+  target_domain: ai_infra
+  url: https://denglinai.com/h-col-252.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Denglin Goldwasser I L-series enterprise data-center GPU+ specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: denglin
+  auto_resolve: false
+- id: compute-accelerators-denglin-goldwasser-ii-gs
+  name: Denglin Goldwasser II GS-series GPU+ specs
+  type: web
+  target_domain: ai_infra
+  url: https://denglinai.com/h-col-299.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Denglin Goldwasser II GS-series enterprise data-center GPU+ specifications
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: denglin
+  auto_resolve: false
+- id: compute-accelerators-hygon-dcu
+  name: Hygon DCU accelerator product page
+  type: web
+  target_domain: ai_infra
+  url: https://www.hygon.cn/product/accelerator
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Hygon DCU accelerator product page (JS-heavy snapshot)
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: hygon
+  auto_resolve: false
+- id: compute-accelerators-nebula-dpu200
+  name: NebulaMatrix DPU200 DPU card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nebula-matrix.com/dpu200
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NebulaMatrix DPU200 DPU card specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: nebulamatrix
+  auto_resolve: false
+- id: compute-accelerators-nebula-snic-s1400
+  name: NebulaMatrix S1400 SmartNIC specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nebula-matrix.com/snic_s1400
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NebulaMatrix S1400 AI and RDMA SmartNIC specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: nebulamatrix
+  auto_resolve: false
+- id: compute-accelerators-nebula-rnic-ip
+  name: NebulaMatrix RNIC IP specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nebula-matrix.com/RNIC_IP
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NebulaMatrix RNIC IP accelerator specifications
+  source_rank: S1
+  accelerator_scope:
+  - dsa
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: nebulamatrix
+  auto_resolve: false
+- id: compute-accelerators-yusur-k2-pro
+  name: Yusur K2 Pro DPU chip specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.yusur.tech/dpu/K2-Pro
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Yusur K2 Pro DPU chip specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: yusur
+  auto_resolve: false
+- id: compute-accelerators-yusur-swift-2200n
+  name: Yusur SWIFT-2200N DPU card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.yusur.tech/product/swift/swift2200n
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Yusur SWIFT-2200N low-latency DPU card specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: yusur
+  auto_resolve: false
+- id: compute-accelerators-resnics-stargate-n1025
+  name: Resnics Stargate-N1025 DPU SmartNIC specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.resnics.com/product/stargate-n1025-dpu/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Resnics Stargate-N1025 DPU SmartNIC specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: resnics
+  auto_resolve: false
+- id: compute-accelerators-resnics-stargate-n2025
+  name: Resnics Stargate-N2025 DPU SmartNIC specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.resnics.com/product/stargate-n2025-dpu/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Resnics Stargate-N2025 DPU SmartNIC specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: resnics
+  auto_resolve: false
+- id: compute-accelerators-resnics-stargate-s1100
+  name: Resnics Stargate-S1100 NVMe-oF accelerator card specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.resnics.com/product/stargate-s1100-nvme-of/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Resnics Stargate-S1100 NVMe-oF storage accelerator card specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: resnics
+  auto_resolve: false
+- id: compute-accelerators-dayu-paratus1
+  name: Dayu Paratus 1.0 DPU product specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.dayudpu.com/product/paratus1
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Dayu Paratus 1.0 DPU and SmartNIC product specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: dayu
+  auto_resolve: false
+- id: compute-accelerators-dayu-paratus2
+  name: Dayu Paratus 2.0 DPU product specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.dayudpu.com/product/paratus2
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Dayu Paratus 2.0 DPU and SmartNIC product specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: dayu
+  auto_resolve: false
+- id: compute-accelerators-jaguarmicro-yunxiao-dpu
+  name: JaguarMicro Yunxiao DPU announcement
+  type: web
+  target_domain: ai_infra
+  url: https://www.jaguarmicro.com/n4.html
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: JaguarMicro Yunxiao DPU product announcement and capabilities
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: jaguarmicro
+  auto_resolve: false
+- id: compute-accelerators-corigine-agilio-cx-pdf
+  name: Corigine Agilio CX 2x25GbE SmartNIC product brief PDF
+  type: web
+  target_domain: ai_infra
+  url: https://storage.corigine.com.cn/UploadFiles/pdf/2022-01-24/1-Agilio__%20CX%202x25GbE%20SmartNIC%20%E4%BA%A7%E5%93%81%E7%AE%80%E4%BB%8B.pdf
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Corigine Agilio CX 2x25GbE SmartNIC product brief PDF
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: corigine
+  auto_resolve: false
+- id: compute-accelerators-asterfusion-helium-dpu
+  name: Asterfusion Helium DPU card specs
+  type: web
+  target_domain: ai_infra
+  url: https://asterfusion.com/product/helium_dpu/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Asterfusion Helium DPU card specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: asterfusion
+  auto_resolve: false
+- id: compute-accelerators-asterfusion-cx102s-dpu
+  name: Asterfusion CX102S-DPU hardware platform specs
+  type: web
+  target_domain: ai_infra
+  url: https://asterfusion.com/product/cx102s-dpu/
+  trust_level: trusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Asterfusion CX102S-DPU hardware platform specifications
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: asterfusion
+  auto_resolve: false
+- id: compute-accelerators-enflame-sse-disclosure-pdf
+  name: Enflame SSE disclosure PDF
+  type: web
+  target_domain: ai_infra
+  url: https://static.sse.com.cn/stock/disclosure/announcement/c/202604/002175_20260416_WQ4O.pdf
+  trust_level: untrusted
+  schedule: monthly
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Enflame exchange disclosure PDF for product-system supplementary evidence
+  source_rank: S5
+  accelerator_scope:
+  - ai_asic
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: enflame
+  auto_resolve: false
