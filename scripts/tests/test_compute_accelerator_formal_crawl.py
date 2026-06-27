@@ -55,29 +55,29 @@ def test_prepare_run_profiles_forces_baseline_false_without_mutating_original() 
 def test_verify_manifest_fails_when_succeeded_raw_path_is_missing(tmp_path: Path) -> None:
     repo_root = tmp_path
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "summary": {"succeeded_count": 1},
-                "succeeded": [
-                    {
-                        "source_id": "source-a",
-                        "raw_paths": [
-                            "personal-wiki/domains/ai_infra/raw/crawler/source-a/missing.md"
-                        ],
-                    }
-                ],
-                "failed": [],
-                "skipped_disabled": [],
-            }
-        ),
-        encoding="utf-8",
-    )
+    missing_raw_path = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a/missing.md"
+    manifest_path.write_text(json.dumps(full_manifest(repo_root, missing_raw_path)), encoding="utf-8")
 
     ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
 
     assert ok is False
     assert "missing raw path" in message
+
+
+def test_verify_manifest_fails_when_required_top_level_key_is_missing(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    raw_path = repo_root / "personal-wiki/domains/ai_infra/raw/crawler/source-a/capture.md"
+    raw_path.parent.mkdir(parents=True)
+    raw_path.write_text("# raw\n", encoding="utf-8")
+    manifest = full_manifest(repo_root, raw_path)
+    del manifest["task_id"]
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
+
+    assert ok is False
+    assert "missing required manifest key: task_id" in message
 
 
 def test_verify_manifest_passes_for_minimal_valid_manifest_and_raw_file(tmp_path: Path) -> None:
@@ -86,21 +86,32 @@ def test_verify_manifest_passes_for_minimal_valid_manifest_and_raw_file(tmp_path
     raw_path.parent.mkdir(parents=True)
     raw_path.write_text("# raw\n", encoding="utf-8")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "summary": {"succeeded_count": 1},
-                "succeeded": [
-                    {"source_id": "source-a", "raw_paths": [str(raw_path.relative_to(repo_root))]}
-                ],
-                "failed": [{"source_id": "source-b", "error": "fetch failed"}],
-                "skipped_disabled": [{"source_id": "source-c", "reason": "disabled"}],
-            }
-        ),
-        encoding="utf-8",
-    )
+    manifest_path.write_text(json.dumps(full_manifest(repo_root, raw_path)), encoding="utf-8")
 
     ok, message = crawl.verify_manifest(repo_root, manifest_path, min_succeeded=1)
 
     assert ok is True
     assert message == "manifest verified"
+
+
+def full_manifest(repo_root: Path, raw_path: Path) -> dict[str, object]:
+    raw_relative_path = str(raw_path.relative_to(repo_root))
+    return {
+        "task_id": crawl.TASK_ID,
+        "generated_at": "2026-06-27T00:00:00+00:00",
+        "repo_root": str(repo_root),
+        "sources_yaml": str(repo_root / ".codex/state/sources.yaml"),
+        "ran_source_ids": ["source-a"],
+        "succeeded": [{"source_id": "source-a", "raw_paths": [raw_relative_path]}],
+        "failed": [{"source_id": "source-b", "error": "fetch failed"}],
+        "skipped_disabled": [{"source_id": "source-c", "reason": "disabled"}],
+        "raw_paths": [raw_relative_path],
+        "ingest_tasks": [{"id": 1, "source_id": "source-a", "status": "pending"}],
+        "summary": {
+            "selected_count": 1,
+            "attempted_count": 1,
+            "succeeded_count": 1,
+            "failed_count": 1,
+            "skipped_disabled_count": 1,
+        },
+    }

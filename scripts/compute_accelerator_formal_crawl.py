@@ -15,6 +15,19 @@ import yaml
 TASK_ID = "compute-accelerator-formal-crawl-01"
 RAW_PREFIX = Path("personal-wiki/domains/ai_infra/raw/crawler")
 ACCELERATOR_METADATA_KEYS = {"source_rank", "accelerator_scope", "extract_mode"}
+REQUIRED_MANIFEST_KEYS: dict[str, type[object]] = {
+    "task_id": str,
+    "generated_at": str,
+    "repo_root": str,
+    "sources_yaml": str,
+    "ran_source_ids": list,
+    "succeeded": list,
+    "failed": list,
+    "skipped_disabled": list,
+    "raw_paths": list,
+    "ingest_tasks": list,
+    "summary": dict,
+}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -152,18 +165,20 @@ def verify_manifest(repo_root: Path, manifest_path: Path, min_succeeded: int = 1
     if not isinstance(manifest, dict):
         return False, "manifest must be a JSON object"
 
-    summary = manifest.get("summary")
-    if not isinstance(summary, dict):
-        return False, "manifest missing summary object"
+    for key, expected_type in REQUIRED_MANIFEST_KEYS.items():
+        if key not in manifest:
+            return False, f"missing required manifest key: {key}"
+        if not isinstance(manifest[key], expected_type):
+            return False, f"manifest {key} must be a {expected_type.__name__}"
+
+    summary = manifest["summary"]
     succeeded_count = summary.get("succeeded_count")
     if not isinstance(succeeded_count, int):
         return False, "manifest summary.succeeded_count must be an integer"
     if succeeded_count < min_succeeded:
         return False, f"manifest succeeded_count {succeeded_count} is below required {min_succeeded}"
 
-    succeeded = manifest.get("succeeded", [])
-    if not isinstance(succeeded, list):
-        return False, "manifest succeeded must be a list"
+    succeeded = manifest["succeeded"]
     for entry in succeeded:
         if not isinstance(entry, dict) or not entry.get("source_id"):
             return False, "each succeeded entry must include source_id"
@@ -185,16 +200,12 @@ def verify_manifest(repo_root: Path, manifest_path: Path, min_succeeded: int = 1
             if not raw_path.exists():
                 return False, f"missing raw path: {relative_raw_path}"
 
-    failed = manifest.get("failed", [])
-    if not isinstance(failed, list):
-        return False, "manifest failed must be a list"
+    failed = manifest["failed"]
     for entry in failed:
         if not isinstance(entry, dict) or not entry.get("source_id") or not entry.get("error"):
             return False, "each failed entry must include source_id and error"
 
-    skipped = manifest.get("skipped_disabled", [])
-    if not isinstance(skipped, list):
-        return False, "manifest skipped_disabled must be a list"
+    skipped = manifest["skipped_disabled"]
     for entry in skipped:
         if not isinstance(entry, dict) or not entry.get("source_id") or not entry.get("reason"):
             return False, "each skipped_disabled entry must include source_id and reason"
