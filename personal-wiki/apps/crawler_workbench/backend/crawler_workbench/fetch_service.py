@@ -45,6 +45,10 @@ def run_source_once(
         if runner is None:
             runner = fetcher_for(str(profile["type"]))
         results = runner.fetch(profile)
+        if profile.get("discovery_mode") == "accelerator_models":
+            from .discovery import extract_accelerator_candidates, upsert_candidates
+
+            upsert_candidates(db, profile, extract_accelerator_candidates(profile, results))
         for result in results:
             fetched_count += 1
             digest = raw_capture_hash(result.content, result.attachment_bytes)
