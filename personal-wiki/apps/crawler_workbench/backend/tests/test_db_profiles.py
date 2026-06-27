@@ -89,6 +89,60 @@ def test_schema_migration_adds_baseline_column_to_existing_profile_table(tmp_pat
     assert "config_json" in columns
 
 
+def test_schema_migration_adds_run_policy_and_candidates_to_existing_database(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        db.execute(
+            """
+            create table source_profiles (
+              id text primary key,
+              name text not null,
+              type text not null,
+              target_domain text not null,
+              url text not null,
+              trust_level text not null,
+              schedule text not null,
+              auto_ingest integer not null default 0,
+              auth_required integer not null default 0,
+              baseline_on_first_run integer not null default 0,
+              auth_state text not null default 'ready',
+              auth_method text,
+              auth_ref text,
+              config_json text not null default '{}',
+              topic text not null,
+              enabled integer not null default 1,
+              last_run_at text,
+              next_run_at text,
+              created_at text not null default current_timestamp,
+              updated_at text not null default current_timestamp
+            )
+            """
+        )
+        db.commit()
+
+        migrate(db)
+        profile_columns = {row["name"] for row in db.execute("pragma table_info(source_profiles)").fetchall()}
+        candidate_columns = {
+            row["name"] for row in db.execute("pragma table_info(accelerator_candidates)").fetchall()
+        }
+
+    assert "run_policy" in profile_columns
+    assert {
+        "id",
+        "vendor",
+        "model_name",
+        "normalized_model",
+        "scope",
+        "source_profile_id",
+        "source_url",
+        "evidence_url",
+        "evidence_text",
+        "confidence",
+        "status",
+        "accepted_source_id",
+    } <= candidate_columns
+
+
 def test_open_db_closes_connection(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:
@@ -186,6 +240,88 @@ sources:
         '{"accelerator_scope": ["gpu"], "auto_resolve": false, '
         '"extract_mode": "specs_candidate", "source_rank": "S1", "vendor_hint": "nvidia"}'
     )
+
+
+def test_yaml_profile_accepts_run_policy_and_discovery_metadata(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: compute-accelerator-discovery-nvidia-products
+    name: NVIDIA accelerator discovery
+    type: web
+    target_domain: ai_infra
+    url: https://www.nvidia.com/en-us/data-center/products/
+    trust_level: trusted
+    schedule: monthly
+    auto_ingest: false
+    auth_required: false
+    topic: NVIDIA accelerator product discovery
+    run_policy: scheduled
+    discovery_mode: accelerator_models
+    extract_mode: discovery_index
+    vendor_hint: nvidia
+    accelerator_scope:
+      - gpu
+    include_patterns:
+      - H[0-9]{3}
+""",
+        encoding="utf-8",
+    )
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        with transaction(db):
+            mirror_profiles(db, load_profiles_from_yaml(yaml_path))
+        row = db.execute(
+            "select run_policy, config_json from source_profiles where id = 'compute-accelerator-discovery-nvidia-products'"
+        ).fetchone()
+
+    assert row["run_policy"] == "scheduled"
+    assert row["config_json"] == (
+        '{"accelerator_scope": ["gpu"], "discovery_mode": "accelerator_models", '
+        '"extract_mode": "discovery_index", "include_patterns": ["H[0-9]{3}"], "vendor_hint": "nvidia"}'
+    )
+
+
+def test_yaml_profile_defaults_run_policy_to_scheduled(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(PROFILE_YAML, encoding="utf-8")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        with transaction(db):
+            mirror_profiles(db, load_profiles_from_yaml(yaml_path))
+        rows = db.execute("select id, run_policy from source_profiles order by id").fetchall()
+
+    assert {row["id"]: row["run_policy"] for row in rows} == {
+        "nccl-releases": "scheduled",
+        "private-github": "scheduled",
+    }
+
+
+def test_yaml_profile_rejects_invalid_run_policy(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: bad-run-policy
+    name: Bad run policy
+    type: web
+    target_domain: ai_infra
+    url: https://example.com
+    trust_level: trusted
+    schedule: daily
+    auto_ingest: false
+    auth_required: false
+    topic: bad run policy
+    run_policy: forever
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid run_policy"):
+        load_profiles_from_yaml(yaml_path)
 
 
 def test_yaml_profile_rejects_invalid_accelerator_scope(tmp_path):
@@ -514,6 +650,7 @@ def test_sources_endpoint_projects_safe_fields_and_booleans(tmp_path):
     assert data[0]["auto_ingest"] is True
     assert data[0]["auth_required"] is False
     assert data[0]["baseline_on_first_run"] is False
+    assert data[0]["run_policy"] == "scheduled"
     assert data[0]["enabled"] is True
     assert "auth_method" not in data[1]
     assert "auth_ref" not in data[1]
@@ -528,6 +665,7 @@ def test_sources_endpoint_projects_safe_fields_and_booleans(tmp_path):
         "auto_ingest",
         "auth_required",
         "baseline_on_first_run",
+        "run_policy",
         "auth_state",
         "topic",
         "enabled",

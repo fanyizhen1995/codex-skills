@@ -29,6 +29,7 @@ def open_db(path: Path) -> Iterator[sqlite3.Connection]:
 def migrate(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     _ensure_column(connection, "source_profiles", "baseline_on_first_run", "integer not null default 0")
+    _ensure_column(connection, "source_profiles", "run_policy", "text not null default 'scheduled'")
     _ensure_column(connection, "source_profiles", "config_json", "text not null default '{}'")
     connection.commit()
 

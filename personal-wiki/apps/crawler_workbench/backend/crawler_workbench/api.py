@@ -168,6 +168,7 @@ def sources(request: Request) -> list[SourceProfileResponse]:
             auto_ingest=bool(row["auto_ingest"]),
             auth_required=bool(row["auth_required"]),
             baseline_on_first_run=bool(row["baseline_on_first_run"]),
+            run_policy=row["run_policy"],
             auth_state=row["auth_state"],
             topic=row["topic"],
             enabled=bool(row["enabled"]),

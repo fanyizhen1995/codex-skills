@@ -9,6 +9,7 @@ create table if not exists source_profiles (
   auto_ingest integer not null default 0,
   auth_required integer not null default 0,
   baseline_on_first_run integer not null default 0,
+  run_policy text not null default 'scheduled' check (run_policy in ('scheduled', 'once')),
   auth_state text not null default 'ready',
   auth_method text,
   auth_ref text,
@@ -65,6 +66,24 @@ create table if not exists content_versions (
   raw_item_id integer references raw_items(id) on delete set null,
   created_at text not null default current_timestamp,
   unique(source_id, canonical_url, content_hash)
+);
+
+create table if not exists accelerator_candidates (
+  id integer primary key autoincrement,
+  vendor text not null,
+  model_name text not null,
+  normalized_model text not null,
+  scope text not null,
+  source_profile_id text not null references source_profiles(id) on delete cascade,
+  source_url text not null,
+  evidence_url text,
+  evidence_text text not null,
+  confidence real not null,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'rejected')),
+  accepted_source_id text references source_profiles(id) on delete set null,
+  created_at text not null default current_timestamp,
+  updated_at text not null default current_timestamp,
+  unique(vendor, normalized_model, evidence_url)
 );
 
 create table if not exists ingest_tasks (

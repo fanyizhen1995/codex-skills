@@ -14,6 +14,7 @@ class SourceProfileResponse(BaseModel):
     auto_ingest: bool
     auth_required: bool
     baseline_on_first_run: bool
+    run_policy: str
     auth_state: str
     topic: str
     enabled: bool

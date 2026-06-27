@@ -28,11 +28,15 @@ PROFILE_STORAGE_KEYS = REQUIRED_PROFILE_KEYS | {
     "enabled",
     "auth_method",
     "auth_ref",
+    "run_policy",
 }
 
+RUN_POLICIES = {"scheduled", "once"}
 ACCELERATOR_SOURCE_RANKS = {"S1", "S2", "S3", "S4", "S5"}
 ACCELERATOR_SCOPES = {"gpu", "npu", "tpu", "dpu", "ipu", "fpga", "dsa", "ai_asic"}
-ACCELERATOR_EXTRACT_MODES = {"specs_candidate", "snapshot_only", "manual_probe"}
+ACCELERATOR_EXTRACT_MODES = {"specs_candidate", "snapshot_only", "manual_probe", "discovery_index"}
+DISCOVERY_MODES = {"accelerator_models"}
+DISCOVERY_OPTIONAL_LIST_KEYS = {"include_patterns", "exclude_patterns", "candidate_url_patterns"}
 
 
 def load_profiles_from_yaml(path: Path) -> list[dict[str, Any]]:
@@ -52,6 +56,7 @@ def load_profiles_from_yaml(path: Path) -> list[dict[str, Any]]:
         seen_ids.add(profile["id"])
         validate_profile_source_id(profile)
         validate_profile_booleans(profile)
+        validate_run_policy(profile)
         validate_profile_domain(profile)
         validate_accelerator_metadata(profile)
     return profiles
@@ -71,6 +76,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
     for profile in profiles:
         validate_profile_source_id(profile)
         booleans = validate_profile_booleans(profile)
+        run_policy = validate_run_policy(profile)
         validate_profile_domain(profile)
         validate_accelerator_metadata(profile)
         auto_ingest = booleans["auto_ingest"]
@@ -98,9 +104,9 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
             """
             insert into source_profiles (
               id, name, type, target_domain, url, trust_level, schedule,
-              auto_ingest, auth_required, baseline_on_first_run, auth_state, auth_method, auth_ref, config_json, topic, enabled, updated_at
+              auto_ingest, auth_required, baseline_on_first_run, run_policy, auth_state, auth_method, auth_ref, config_json, topic, enabled, updated_at
             )
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
             on conflict(id) do update set
               name = excluded.name,
               type = excluded.type,
@@ -111,6 +117,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
               auto_ingest = excluded.auto_ingest,
               auth_required = excluded.auth_required,
               baseline_on_first_run = excluded.baseline_on_first_run,
+              run_policy = excluded.run_policy,
               auth_state = excluded.auth_state,
               auth_method = excluded.auth_method,
               auth_ref = excluded.auth_ref,
@@ -130,6 +137,7 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
                 int(auto_ingest),
                 int(auth_required),
                 int(bool(profile.get("baseline_on_first_run", False))),
+                run_policy,
                 auth_state,
                 auth_method,
                 auth_ref,
@@ -197,6 +205,14 @@ def validate_profile_booleans(profile: dict[str, Any]) -> dict[str, bool]:
     return values
 
 
+def validate_run_policy(profile: dict[str, Any]) -> str:
+    profile_id = profile.get("id", "<unknown>")
+    run_policy = str(profile.get("run_policy", "scheduled"))
+    if run_policy not in RUN_POLICIES:
+        raise ValueError(f"profile {profile_id} invalid run_policy: {run_policy}")
+    return run_policy
+
+
 def validate_profile_domain(profile: dict[str, Any]) -> None:
     profile_id = profile.get("id", "<unknown>")
     domain = str(profile.get("target_domain", ""))
@@ -228,6 +244,28 @@ def validate_profile_source_id(profile: dict[str, Any]) -> None:
 
 def validate_accelerator_metadata(profile: dict[str, Any]) -> None:
     profile_id = profile.get("id", "<unknown>")
+    if profile.get("discovery_mode") is not None:
+        if profile["discovery_mode"] not in DISCOVERY_MODES:
+            raise ValueError(f"profile {profile_id} invalid discovery_mode: {profile['discovery_mode']}")
+        if profile.get("extract_mode") != "discovery_index":
+            raise ValueError(f"profile {profile_id} discovery profiles require extract_mode: discovery_index")
+        scopes = profile.get("accelerator_scope")
+        if not isinstance(scopes, list) or not scopes:
+            raise ValueError(f"profile {profile_id} accelerator_scope must be a non-empty list")
+        if not all(isinstance(scope, str) for scope in scopes):
+            raise ValueError(f"profile {profile_id} accelerator_scope entries must be strings")
+        invalid_scopes = sorted(str(scope) for scope in scopes if scope not in ACCELERATOR_SCOPES)
+        if invalid_scopes:
+            raise ValueError(
+                f"profile {profile_id} invalid accelerator_scope: {', '.join(invalid_scopes)}"
+            )
+        for key in DISCOVERY_OPTIONAL_LIST_KEYS:
+            if key in profile and (
+                not isinstance(profile[key], list) or not all(isinstance(item, str) for item in profile[key])
+            ):
+                raise ValueError(f"profile {profile_id} {key} must be a list of strings")
+        return
+
     has_accelerator_metadata = any(
         key in profile
         for key in (
