@@ -504,3 +504,56 @@ def test_candidates_api_returns_400_for_invalid_accept_metadata(tmp_path, monkey
         )
 
     assert response.status_code == 400
+
+
+def test_candidates_api_returns_409_when_accepting_rejected_candidate(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidate_id = _insert_h300_candidate(db)
+        reject_candidate(db, candidate_id)
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/accelerator-candidates/{candidate_id}/accept",
+            json={
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": ["gpu"],
+                "source_rank": "S1",
+            },
+        )
+
+    assert response.status_code == 409
+
+
+def test_candidates_api_returns_409_when_rejecting_accepted_candidate(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidate_id = _insert_h300_candidate(db)
+        accept_candidate(
+            db,
+            candidate_id,
+            {
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": ["gpu"],
+                "source_rank": "S1",
+            },
+        )
+
+    with TestClient(app) as client:
+        response = client.post(f"/api/accelerator-candidates/{candidate_id}/reject")
+
+    assert response.status_code == 409

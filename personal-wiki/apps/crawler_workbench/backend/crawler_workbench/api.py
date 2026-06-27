@@ -230,7 +230,7 @@ def reject_accelerator_candidate(candidate_id: int, request: Request) -> Acceler
         try:
             return AcceleratorCandidateResponse(**reject_candidate(db, candidate_id))
         except ValueError as exc:
-            status_code = 404 if _is_candidate_not_found(exc) else 400
+            status_code = _candidate_error_status_code(exc)
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
@@ -245,12 +245,24 @@ def accept_accelerator_candidate(
         try:
             return AcceleratorCandidateResponse(**accept_candidate(db, candidate_id, payload.model_dump()))
         except ValueError as exc:
-            status_code = 404 if _is_candidate_not_found(exc) else 400
+            status_code = _candidate_error_status_code(exc)
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+def _candidate_error_status_code(exc: ValueError) -> int:
+    if _is_candidate_not_found(exc):
+        return 404
+    if _is_candidate_state_conflict(exc):
+        return 409
+    return 400
 
 
 def _is_candidate_not_found(exc: ValueError) -> bool:
     return str(exc).startswith("candidate not found:")
+
+
+def _is_candidate_state_conflict(exc: ValueError) -> bool:
+    return "must be pending" in str(exc)
 
 
 @router.get("/wiki/metrics")
