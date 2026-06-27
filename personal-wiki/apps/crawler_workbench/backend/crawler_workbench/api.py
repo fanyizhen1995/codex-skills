@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 
 from .codex_worker import run_codex_job
 from .db import open_db
+from .discovery import accept_candidate, list_candidates, reject_candidate
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
 from .graph_api import domain_graph
 from .ingest import (
@@ -19,7 +20,7 @@ from .ingest import (
 )
 from .profiles import list_profiles
 from .search import rebuild_search_index, search_wiki, validate_domain
-from .schemas import HealthResponse, SourceProfileResponse
+from .schemas import AcceptAcceleratorCandidateRequest, AcceleratorCandidateResponse, HealthResponse, SourceProfileResponse
 from .trusted_sources import TrustSourceInputError, trust_task_source
 from .wiki_metrics import collect_wiki_metrics
 from .wiki_cli import run_validate, wiki_cli_command
@@ -213,6 +214,43 @@ def queue(request: Request) -> list[dict[str, object]]:
     request.app.state.initialize_database(request.app)
     with open_db(request.app.state.settings.database_path) as db:
         return list_queue(db)
+
+
+@router.get("/accelerator-candidates", response_model=list[AcceleratorCandidateResponse])
+def accelerator_candidates(request: Request) -> list[AcceleratorCandidateResponse]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        return [AcceleratorCandidateResponse(**row) for row in list_candidates(db)]
+
+
+@router.post("/accelerator-candidates/{candidate_id}/reject", response_model=AcceleratorCandidateResponse)
+def reject_accelerator_candidate(candidate_id: int, request: Request) -> AcceleratorCandidateResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return AcceleratorCandidateResponse(**reject_candidate(db, candidate_id))
+        except ValueError as exc:
+            status_code = 404 if _is_candidate_not_found(exc) else 400
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@router.post("/accelerator-candidates/{candidate_id}/accept", response_model=AcceleratorCandidateResponse)
+def accept_accelerator_candidate(
+    candidate_id: int,
+    payload: AcceptAcceleratorCandidateRequest,
+    request: Request,
+) -> AcceleratorCandidateResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return AcceleratorCandidateResponse(**accept_candidate(db, candidate_id, payload.model_dump()))
+        except ValueError as exc:
+            status_code = 404 if _is_candidate_not_found(exc) else 400
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+def _is_candidate_not_found(exc: ValueError) -> bool:
+    return str(exc).startswith("candidate not found:")
 
 
 @router.get("/wiki/metrics")

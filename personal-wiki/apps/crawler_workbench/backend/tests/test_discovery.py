@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
 
 from crawler_workbench.db import migrate, open_db
 from crawler_workbench.discovery import (
@@ -11,6 +12,7 @@ from crawler_workbench.discovery import (
     upsert_candidates,
 )
 from crawler_workbench.fetchers.base import FetchResult
+from crawler_workbench.main import create_app
 from crawler_workbench.settings import Settings
 
 
@@ -344,3 +346,161 @@ def test_accept_candidate_rejects_unsafe_source_id(tmp_path):
                     "source_rank": "S1",
                 },
             )
+
+
+def test_candidates_api_lists_pending_candidates(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        upsert_candidates(
+            db,
+            DISCOVERY_PROFILE,
+            extract_accelerator_candidates(
+                DISCOVERY_PROFILE,
+                [
+                    FetchResult(
+                        canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+                        title="NVIDIA products",
+                        content="NVIDIA H300 GPU accelerator",
+                        content_type="text/html",
+                    )
+                ],
+            ),
+        )
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.get("/api/accelerator-candidates")
+
+    assert response.status_code == 200
+    assert response.json()[0]["model_name"] == "H300"
+    assert response.json()[0]["status"] == "pending"
+
+
+def test_candidates_api_accepts_candidate_and_creates_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        upsert_candidates(
+            db,
+            DISCOVERY_PROFILE,
+            extract_accelerator_candidates(
+                DISCOVERY_PROFILE,
+                [
+                    FetchResult(
+                        canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+                        title="NVIDIA products",
+                        content="NVIDIA H300 GPU accelerator",
+                        content_type="text/html",
+                    )
+                ],
+            ),
+        )
+        candidate_id = list_candidates(db)[0]["id"]
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/accelerator-candidates/{candidate_id}/accept",
+            json={
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": ["gpu"],
+                "source_rank": "S1",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["accepted_source_id"] == "compute-accelerators-nvidia-h300"
+
+
+def test_candidates_api_rejects_candidate(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        upsert_candidates(
+            db,
+            DISCOVERY_PROFILE,
+            extract_accelerator_candidates(
+                DISCOVERY_PROFILE,
+                [
+                    FetchResult(
+                        canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+                        title="NVIDIA products",
+                        content="NVIDIA H300 GPU accelerator",
+                        content_type="text/html",
+                    )
+                ],
+            ),
+        )
+        candidate_id = list_candidates(db)[0]["id"]
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.post(f"/api/accelerator-candidates/{candidate_id}/reject")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+
+
+def test_candidates_api_returns_404_for_missing_candidate(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+
+    with TestClient(app) as client:
+        reject_response = client.post("/api/accelerator-candidates/999/reject")
+        accept_response = client.post(
+            "/api/accelerator-candidates/999/accept",
+            json={
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": ["gpu"],
+                "source_rank": "S1",
+            },
+        )
+
+    assert reject_response.status_code == 404
+    assert accept_response.status_code == 404
+
+
+def test_candidates_api_returns_400_for_invalid_accept_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        candidate_id = _insert_h300_candidate(db)
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/accelerator-candidates/{candidate_id}/accept",
+            json={
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": [],
+                "source_rank": "S1",
+            },
+        )
+
+    assert response.status_code == 400

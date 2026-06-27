@@ -22,6 +22,31 @@ class SourceProfileResponse(BaseModel):
     last_run_status: str | None = None
 
 
+class AcceleratorCandidateResponse(BaseModel):
+    id: int
+    vendor: str
+    model_name: str
+    normalized_model: str
+    scope: str
+    source_profile_id: str
+    source_url: str
+    evidence_url: str | None = None
+    evidence_text: str
+    confidence: float
+    status: str
+    accepted_source_id: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class AcceptAcceleratorCandidateRequest(BaseModel):
+    source_id: str
+    name: str
+    url: str
+    scope: list[str]
+    source_rank: str = "S1"
+
+
 class HealthResponse(BaseModel):
     status: str
     bind_host: str
