@@ -242,3 +242,11 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
                 "The file .codex/evaluator-demo/harness-evaluator-demo-01/result.txt contains step4-ready.",
             ],
         )
+
+    def test_compute_accelerator_monthly_discovery_entrypoint_is_portable(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        contract = load_task_scenarios(repo_root, "compute-accelerator-monthly-discovery-01")
+        entrypoint = contract["user_scenarios"][0]["entrypoint"]
+
+        self.assertNotIn(".worktrees", entrypoint)
+        self.assertIn("personal-wiki/apps/crawler_workbench/backend", entrypoint)

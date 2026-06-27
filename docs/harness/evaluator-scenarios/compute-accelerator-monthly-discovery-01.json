@@ -10,7 +10,7 @@
         "The accelerator monthly discovery implementation has been completed.",
         "The source example YAML includes known accelerator model sources and monthly discovery sources."
       ],
-      "entrypoint": "bash -lc 'cd /home/fyz/codex-skills/.worktrees/accelerator-monthly-discovery/personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd /home/fyz/codex-skills/.worktrees/accelerator-monthly-discovery && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra'",
+      "entrypoint": "bash -lc 'REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd \"$REPO_ROOT\" && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra'",
       "steps": [
         "Run backend profile, scheduler, and discovery tests.",
         "Run frontend tests for source subscriptions and accelerator candidates.",
