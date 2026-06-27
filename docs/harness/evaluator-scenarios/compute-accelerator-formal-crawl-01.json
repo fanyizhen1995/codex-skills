@@ -1,0 +1,37 @@
+{
+  "task_id": "compute-accelerator-formal-crawl-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "compute-accelerator-formal-crawl-manifest",
+      "user_goal": "As an ai_infra wiki maintainer, verify that the formal compute accelerator crawl produced a durable manifest with at least one successful raw evidence capture.",
+      "prerequisites": [
+        "The formal crawl has run under harness rules.",
+        "The manifest exists at .codex/accelerator-crawl/compute-accelerator-formal-crawl-01/manifest.json.",
+        "The personal-wiki ai_infra raw crawler evidence area exists."
+      ],
+      "entrypoint": "python3 scripts/compute_accelerator_formal_crawl.py verify-manifest --repo-root . --manifest .codex/accelerator-crawl/compute-accelerator-formal-crawl-01/manifest.json --min-succeeded 1",
+      "steps": [
+        "Run the manifest verification command.",
+        "Confirm the manifest parses and reports at least one successful source.",
+        "Confirm each successful source has raw evidence under personal-wiki/domains/ai_infra/raw/crawler/."
+      ],
+      "expected_outcomes": [
+        "The command exits with status 0.",
+        "summary.succeeded_count is at least 1.",
+        "Every succeeded manifest entry includes an existing raw crawler path.",
+        "Failed and skipped-disabled manifest entries include diagnostic source IDs and reason or error fields."
+      ],
+      "failure_signals": [
+        "The manifest is missing or invalid JSON.",
+        "The succeeded count is below the required threshold.",
+        "A succeeded source has no raw path or references a missing file.",
+        "A failed or skipped-disabled entry lacks source_id, error, or reason details."
+      ],
+      "cleanup": [
+        "Remove .codex/accelerator-crawl/compute-accelerator-formal-crawl-01/ if a clean rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

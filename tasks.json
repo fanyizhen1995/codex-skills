@@ -12,6 +12,24 @@
   },
   "tasks": [
     {
+      "id": "compute-accelerator-formal-crawl-01",
+      "title": "formal crawl of compute accelerator source profiles",
+      "description": "Run the controlled formal crawl CLI for compute accelerator source profiles and verify its manifest, raw evidence, and ai_infra wiki validation before evaluator acceptance.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "pytest -q scripts/tests/test_compute_accelerator_formal_crawl.py && python3 scripts/compute_accelerator_formal_crawl.py verify-manifest --repo-root . --manifest .codex/accelerator-crawl/compute-accelerator-formal-crawl-01/manifest.json --min-succeeded 1 && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
       "id": "compute-accelerator-spec-catalog-01",
       "title": "Build compute accelerator spec catalog seed",
       "description": "Create the structured accelerator spec catalog, curated wiki pages, crawler source metadata, and validation checks for GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC coverage.",
