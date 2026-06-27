@@ -143,6 +143,72 @@ def test_schema_migration_adds_run_policy_and_candidates_to_existing_database(tm
     } <= candidate_columns
 
 
+def test_accelerator_candidates_are_unique_by_effective_evidence_url(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        db.execute(
+            """
+            insert into source_profiles (
+              id, name, type, target_domain, url, trust_level, schedule,
+              auto_ingest, auth_required, topic
+            )
+            values (
+              'compute-accelerator-discovery-nvidia-products',
+              'NVIDIA accelerator discovery',
+              'web',
+              'ai_infra',
+              'https://www.nvidia.com/en-us/data-center/products/',
+              'trusted',
+              'monthly',
+              0,
+              0,
+              'NVIDIA accelerator product discovery'
+            )
+            """
+        )
+        db.execute(
+            """
+            insert into accelerator_candidates (
+              vendor, model_name, normalized_model, scope, source_profile_id,
+              source_url, evidence_url, evidence_text, confidence
+            )
+            values (
+              'nvidia',
+              'H300',
+              'h300',
+              'gpu',
+              'compute-accelerator-discovery-nvidia-products',
+              'https://www.nvidia.com/en-us/data-center/products/',
+              null,
+              'NVIDIA H300 GPU accelerator',
+              0.8
+            )
+            """
+        )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute(
+                """
+                insert into accelerator_candidates (
+                  vendor, model_name, normalized_model, scope, source_profile_id,
+                  source_url, evidence_url, evidence_text, confidence
+                )
+                values (
+                  'nvidia',
+                  'H300',
+                  'h300',
+                  'gpu',
+                  'compute-accelerator-discovery-nvidia-products',
+                  'https://www.nvidia.com/en-us/data-center/products/',
+                  null,
+                  'Duplicate NVIDIA H300 GPU accelerator',
+                  0.7
+                )
+                """
+            )
+
+
 def test_open_db_closes_connection(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:
@@ -321,6 +387,35 @@ sources:
     )
 
     with pytest.raises(ValueError, match="invalid run_policy"):
+        load_profiles_from_yaml(yaml_path)
+
+
+def test_yaml_profile_rejects_discovery_profile_run_policy_once(tmp_path):
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(
+        """
+sources:
+  - id: compute-accelerator-discovery-once
+    name: NVIDIA accelerator discovery
+    type: web
+    target_domain: ai_infra
+    url: https://www.nvidia.com/en-us/data-center/products/
+    trust_level: trusted
+    schedule: monthly
+    auto_ingest: false
+    auth_required: false
+    topic: NVIDIA accelerator product discovery
+    run_policy: once
+    discovery_mode: accelerator_models
+    extract_mode: discovery_index
+    vendor_hint: nvidia
+    accelerator_scope:
+      - gpu
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="discovery profiles require run_policy: scheduled"):
         load_profiles_from_yaml(yaml_path)
 
 

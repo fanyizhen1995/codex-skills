@@ -86,6 +86,9 @@ create table if not exists accelerator_candidates (
   unique(vendor, normalized_model, evidence_url)
 );
 
+create unique index if not exists accelerator_candidates_effective_evidence_url_idx
+on accelerator_candidates(vendor, normalized_model, coalesce(evidence_url, source_url));
+
 create table if not exists ingest_tasks (
   id integer primary key autoincrement,
   source_id text not null references source_profiles(id) on delete cascade,

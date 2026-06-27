@@ -245,6 +245,8 @@ def validate_profile_source_id(profile: dict[str, Any]) -> None:
 def validate_accelerator_metadata(profile: dict[str, Any]) -> None:
     profile_id = profile.get("id", "<unknown>")
     if profile.get("discovery_mode") is not None:
+        if profile.get("run_policy", "scheduled") != "scheduled":
+            raise ValueError(f"profile {profile_id} discovery profiles require run_policy: scheduled")
         if profile["discovery_mode"] not in DISCOVERY_MODES:
             raise ValueError(f"profile {profile_id} invalid discovery_mode: {profile['discovery_mode']}")
         if profile.get("extract_mode") != "discovery_index":
