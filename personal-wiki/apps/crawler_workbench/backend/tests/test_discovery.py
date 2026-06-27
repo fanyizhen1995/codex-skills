@@ -13,6 +13,7 @@ from crawler_workbench.discovery import (
 )
 from crawler_workbench.fetchers.base import FetchResult
 from crawler_workbench.main import create_app
+from crawler_workbench.profiles import load_profiles_from_yaml, mirror_profiles
 from crawler_workbench.settings import Settings
 
 
@@ -99,6 +100,45 @@ def test_extract_accelerator_candidates_from_index_text():
     assert candidates[0].source_url == "https://www.nvidia.com/en-us/data-center/products/"
     assert "H300 GPU accelerator" in candidates[0].evidence_text
     assert candidates[0].confidence >= 0.7
+
+
+def test_extract_accelerator_candidates_uses_profile_include_patterns():
+    profile = {
+        **DISCOVERY_PROFILE,
+        "id": "compute-accelerator-discovery-intel-gaudi",
+        "vendor_hint": "intel",
+        "accelerator_scope": ["ai_asic"],
+        "include_patterns": ["Gaudi [0-9]"],
+    }
+    result = FetchResult(
+        canonical_url="https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html",
+        title="Intel Gaudi accelerators",
+        content="Intel Gaudi 4 AI accelerator platform announced for training systems.",
+        content_type="text/html",
+        metadata={"source_url": "https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html"},
+    )
+
+    candidates = extract_accelerator_candidates(profile, [result])
+
+    assert [candidate.model_name for candidate in candidates] == ["GAUDI4"]
+    assert candidates[0].scope == "ai_asic"
+
+
+def test_extract_accelerator_candidates_ignores_invalid_include_patterns():
+    profile = {
+        **DISCOVERY_PROFILE,
+        "include_patterns": ["[bad"],
+    }
+    result = FetchResult(
+        canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+        title="NVIDIA products",
+        content="NVIDIA H300 GPU accelerator",
+        content_type="text/html",
+    )
+
+    candidates = extract_accelerator_candidates(profile, [result])
+
+    assert [candidate.model_name for candidate in candidates] == ["H300"]
 
 
 def test_upsert_candidates_deduplicates_and_strengthens_existing_rows(tmp_path):
@@ -278,6 +318,65 @@ def test_accept_candidate_creates_one_shot_source(tmp_path):
     assert source["run_policy"] == "once"
     assert source["auto_ingest"] == 0
     assert '"accelerator_scope": ["gpu"]' in source["config_json"]
+
+
+def test_accept_candidate_persists_source_to_yaml_for_next_mirror(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    settings.resolved_state_dir.mkdir(parents=True)
+    settings.sources_yaml_path.write_text(
+        """
+sources:
+  - id: compute-accelerator-discovery-nvidia-products
+    name: NVIDIA accelerator discovery
+    type: web
+    target_domain: ai_infra
+    url: https://www.nvidia.com/en-us/data-center/products/
+    trust_level: trusted
+    schedule: monthly
+    auto_ingest: false
+    auth_required: false
+    topic: NVIDIA accelerator product discovery
+    run_policy: scheduled
+    discovery_mode: accelerator_models
+    extract_mode: discovery_index
+    vendor_hint: nvidia
+    accelerator_scope:
+      - gpu
+""",
+        encoding="utf-8",
+    )
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        with db:
+            mirror_profiles(db, load_profiles_from_yaml(settings.sources_yaml_path))
+        candidate_id = _insert_h300_candidate(db)
+
+        accept_candidate(
+            db,
+            candidate_id,
+            {
+                "source_id": "compute-accelerators-nvidia-h300",
+                "name": "NVIDIA H300 accelerator specs",
+                "url": "https://www.nvidia.com/en-us/data-center/h300/",
+                "scope": ["gpu"],
+                "source_rank": "S1",
+                "sources_yaml_path": settings.sources_yaml_path,
+            },
+        )
+        with db:
+            mirror_profiles(db, load_profiles_from_yaml(settings.sources_yaml_path))
+        source = db.execute(
+            "select id, enabled, run_policy from source_profiles where id = ?",
+            ("compute-accelerators-nvidia-h300",),
+        ).fetchone()
+
+    yaml_profiles = load_profiles_from_yaml(settings.sources_yaml_path)
+    yaml_source = next(profile for profile in yaml_profiles if profile["id"] == "compute-accelerators-nvidia-h300")
+    assert source["enabled"] == 1
+    assert source["run_policy"] == "once"
+    assert yaml_source["run_policy"] == "once"
+    assert yaml_source["extract_mode"] == "specs_candidate"
+    assert yaml_source["accelerator_scope"] == ["gpu"]
 
 
 @pytest.mark.parametrize(

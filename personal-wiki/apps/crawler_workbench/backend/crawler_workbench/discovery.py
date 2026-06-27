@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from pathlib import Path
 import re
 import sqlite3
+import tempfile
 from typing import Any
 
+import yaml
+
 from .fetchers.base import FetchResult
-from .profiles import validate_accelerator_metadata, validate_profile_source_id
+from .profiles import load_profiles_from_yaml, validate_accelerator_metadata, validate_profile_source_id
 
 
 MODEL_PATTERNS = [
@@ -48,7 +52,7 @@ def extract_accelerator_candidates(profile: dict[str, Any], results: list[FetchR
     candidates: dict[tuple[str, str], AcceleratorCandidate] = {}
     for result in results:
         source_url = str(result.metadata.get("source_url") or result.canonical_url)
-        for match in _model_matches(result.content):
+        for match in _model_matches(result.content, profile):
             model = _clean_model(match.group(0))
             normalized = normalize_model(model)
             evidence = _evidence_window(result.content, match.start(), match.end())
@@ -167,6 +171,9 @@ def accept_candidate(db: sqlite3.Connection, candidate_id: int, payload: dict[st
     validate_profile_source_id(source_profile)
     validate_accelerator_metadata(source_profile)
     config_json = _accepted_source_config_json(source_profile)
+    sources_yaml_path = payload.get("sources_yaml_path")
+    if sources_yaml_path is not None:
+        _persist_accepted_source(Path(sources_yaml_path), source_profile)
     db.execute(
         """
         insert into source_profiles (
@@ -263,11 +270,86 @@ def _accepted_source_config_json(source_profile: dict[str, Any]) -> str:
     )
 
 
-def _model_matches(text: str) -> list[re.Match[str]]:
+def _persist_accepted_source(path: Path, source_profile: dict[str, Any]) -> None:
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    else:
+        data = {}
+    sources = data.get("sources")
+    if sources is None:
+        sources = []
+        data["sources"] = sources
+    if not isinstance(sources, list):
+        raise ValueError("sources must be a list")
+
+    yaml_source = _accepted_source_yaml(source_profile)
+    for index, source in enumerate(sources):
+        if isinstance(source, dict) and source.get("id") == source_profile["id"]:
+            sources[index] = yaml_source
+            break
+    else:
+        sources.append(yaml_source)
+
+    rendered = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+    _validate_profiles_yaml_text(rendered)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(rendered, encoding="utf-8")
+
+
+def _accepted_source_yaml(source_profile: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": source_profile["id"],
+        "name": source_profile["name"],
+        "type": source_profile["type"],
+        "target_domain": source_profile["target_domain"],
+        "url": source_profile["url"],
+        "trust_level": source_profile["trust_level"],
+        "schedule": source_profile["schedule"],
+        "run_policy": source_profile["run_policy"],
+        "auto_ingest": source_profile["auto_ingest"],
+        "auth_required": source_profile["auth_required"],
+        "baseline_on_first_run": False,
+        "topic": source_profile["topic"],
+        "source_rank": source_profile["source_rank"],
+        "accelerator_scope": source_profile["accelerator_scope"],
+        "extract_mode": source_profile["extract_mode"],
+        "vendor_hint": source_profile["vendor_hint"],
+        "auto_resolve": source_profile["auto_resolve"],
+    }
+
+
+def _validate_profiles_yaml_text(rendered: str) -> None:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".yaml") as handle:
+        handle.write(rendered)
+        handle.flush()
+        load_profiles_from_yaml(Path(handle.name))
+
+
+def _model_matches(text: str, profile: dict[str, Any]) -> list[re.Match[str]]:
     matches: list[re.Match[str]] = []
-    for pattern in MODEL_PATTERNS:
+    for pattern in _model_patterns_for_profile(profile):
         matches.extend(pattern.finditer(text))
-    return sorted(matches, key=lambda match: match.start())
+    unique: dict[tuple[int, int, str], re.Match[str]] = {}
+    for match in matches:
+        unique.setdefault((match.start(), match.end(), match.group(0)), match)
+    return sorted(unique.values(), key=lambda match: match.start())
+
+
+def _model_patterns_for_profile(profile: dict[str, Any]) -> list[re.Pattern[str]]:
+    patterns = list(MODEL_PATTERNS)
+    seen = {(pattern.pattern, pattern.flags) for pattern in patterns}
+    for pattern_text in profile.get("include_patterns", []):
+        if not isinstance(pattern_text, str):
+            continue
+        try:
+            pattern = re.compile(pattern_text, re.I)
+        except re.error:
+            continue
+        key = (pattern.pattern, pattern.flags)
+        if key not in seen:
+            patterns.append(pattern)
+            seen.add(key)
+    return patterns
 
 
 def _clean_model(model: str) -> str:

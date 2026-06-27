@@ -243,7 +243,9 @@ def accept_accelerator_candidate(
     request.app.state.initialize_database(request.app)
     with open_db(request.app.state.settings.database_path) as db:
         try:
-            return AcceleratorCandidateResponse(**accept_candidate(db, candidate_id, payload.model_dump()))
+            accept_payload = payload.model_dump()
+            accept_payload["sources_yaml_path"] = request.app.state.settings.sources_yaml_path
+            return AcceleratorCandidateResponse(**accept_candidate(db, candidate_id, accept_payload))
         except ValueError as exc:
             status_code = _candidate_error_status_code(exc)
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc

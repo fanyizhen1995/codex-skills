@@ -461,6 +461,12 @@ def test_accelerator_profiles_use_once_policy_and_discovery_profiles_are_monthly
     assert all(source["auto_ingest"] is False for source in discovery_sources)
     assert all(source["auth_required"] is False for source in discovery_sources)
     assert all(source.get("accelerator_scope") for source in discovery_sources)
+    discovered_scopes = {
+        scope
+        for source in discovery_sources
+        for scope in source.get("accelerator_scope", [])
+    }
+    assert {"gpu", "npu", "tpu", "dpu", "ipu", "fpga", "dsa", "ai_asic"} <= discovered_scopes
 
 
 def test_yaml_profile_rejects_invalid_accelerator_scope(tmp_path):

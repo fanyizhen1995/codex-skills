@@ -1641,3 +1641,83 @@ sources:
   include_patterns:
   - TPU v[0-9]+[a-z]*
   - Cloud TPU [A-Za-z0-9 -]+
+- id: compute-accelerator-discovery-nvidia-bluefield-dpu
+  name: NVIDIA BlueField DPU discovery
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: NVIDIA BlueField DPU product index discovery
+  discovery_mode: accelerator_models
+  extract_mode: discovery_index
+  vendor_hint: nvidia
+  accelerator_scope:
+  - dpu
+  include_patterns:
+  - BlueField-[0-9]+
+  - BlueField [0-9]+
+- id: compute-accelerator-discovery-intel-dsa-docs
+  name: Intel DSA documentation discovery
+  type: web
+  target_domain: ai_infra
+  url: https://docs.kernel.org/driver-api/idxd/index.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Intel Data Streaming Accelerator documentation discovery
+  discovery_mode: accelerator_models
+  extract_mode: discovery_index
+  vendor_hint: intel
+  accelerator_scope:
+  - dsa
+  include_patterns:
+  - DSA
+  - IAA
+- id: compute-accelerator-discovery-intel-ipu-products
+  name: Intel IPU product discovery
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/network-io/ipu.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: Intel IPU product index discovery
+  discovery_mode: accelerator_models
+  extract_mode: discovery_index
+  vendor_hint: intel
+  accelerator_scope:
+  - ipu
+  include_patterns:
+  - IPU Adapter [A-Za-z0-9 -]+
+  - E[0-9]{4}
+- id: compute-accelerator-discovery-amd-alveo
+  name: AMD Alveo FPGA accelerator discovery
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/alveo.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: AMD Alveo FPGA accelerator product index discovery
+  discovery_mode: accelerator_models
+  extract_mode: discovery_index
+  vendor_hint: amd
+  accelerator_scope:
+  - fpga
+  include_patterns:
+  - Alveo [A-Z]?[0-9]+[A-Z0-9-]*
+  - V[0-9]{2}

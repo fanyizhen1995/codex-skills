@@ -10,14 +10,15 @@
 - Added one-shot run policy for concrete accelerator model/spec sources so completed evidence captures are not scheduled again after a successful raw capture.
 - Added monthly discovery profiles for future GPU/NPU/TPU/DPU/IPU/FPGA/DSA/AI ASIC model discovery while retaining the existing NCCL and SGLang subscriptions.
 - Added accelerator candidate extraction, deduplication, accept/reject service logic, API endpoints, and Sources page review UI.
-- Configured source YAML with 86 sources total: 13 NCCL, 1 SGLang, 59 concrete accelerator one-shot sources, and 13 monthly discovery sources.
+- Addressed final review findings by persisting accepted candidates back to runtime `sources.yaml`, using profile `include_patterns` during discovery extraction, and broadening monthly discovery coverage across DPU/IPU/FPGA/DSA.
+- Configured source YAML with 90 sources total: 13 NCCL, 1 SGLang, 59 concrete accelerator one-shot sources, and 17 monthly discovery sources.
 - Evidence:
-  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py` -> 62 passed
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py tests/test_scheduler.py tests/test_discovery.py` -> 65 passed
   - `cd personal-wiki/apps/crawler_workbench/frontend && npm test` -> 19 passed
   - `cd personal-wiki/apps/crawler_workbench/frontend && npm run build` -> pass, with existing Vite chunk-size warning
   - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators` -> pass
   - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
-  - `.codex/evaluations/tasks/compute-accelerator-monthly-discovery-01/20260627T195554Z-attempt-2/result.json` -> pass
+  - `.codex/evaluations/tasks/compute-accelerator-monthly-discovery-01/20260627T201140Z-attempt-2/result.json` -> pass
 
 ## 2026-06-27 Compute Accelerator Domestic Crawl
 
