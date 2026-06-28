@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 
 from .accelerator_specs import extract_specs_for_all_raw_items, list_accelerator_specs
-from .codex_worker import run_codex_job
+from .codex_worker import create_codex_job, run_existing_codex_job
 from .db import open_db
 from .discovery import accept_candidate, list_candidates, reject_candidate
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
@@ -441,9 +443,19 @@ def ask(payload: AskRequest, request: Request) -> dict[str, object]:
     request.app.state.initialize_database(request.app)
     settings = request.app.state.settings
     with open_db(settings.database_path) as db:
-        # Task 7 intentionally executes synchronously; background job dispatch is out of scope.
-        job_id = run_codex_job(settings, db, "query", payload.domain, payload.question, persist=payload.persist)
+        job_id = create_codex_job(settings, db, "query", payload.domain, payload.question, persist=payload.persist)
+    worker = threading.Thread(
+        target=_run_codex_job_background,
+        args=(settings, job_id, payload.persist),
+        daemon=True,
+    )
+    worker.start()
     return {"job_id": job_id}
+
+
+def _run_codex_job_background(settings, job_id: int, persist: bool) -> None:
+    with open_db(settings.database_path) as db:
+        run_existing_codex_job(settings, db, job_id, persist=persist)
 
 
 @router.get("/jobs/{job_id}")

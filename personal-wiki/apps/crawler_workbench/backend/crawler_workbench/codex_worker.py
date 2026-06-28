@@ -27,6 +27,19 @@ def run_codex_job(
     user_input: str,
     persist: bool = False,
 ) -> int:
+    job_id = create_codex_job(settings, db, job_type, domain, user_input, persist=persist)
+    run_existing_codex_job(settings, db, job_id, persist=persist)
+    return job_id
+
+
+def create_codex_job(
+    settings: Any,
+    db: Any,
+    job_type: str,
+    domain: str | None,
+    user_input: str,
+    persist: bool = False,
+) -> int:
     if job_type != "query":
         raise ValueError("Only query codex jobs are supported")
 
@@ -37,7 +50,16 @@ def run_codex_job(
     )
     job_id = int(cursor.lastrowid)
     db.commit()
+    return job_id
 
+
+def run_existing_codex_job(settings: Any, db: Any, job_id: int, persist: bool = False) -> int:
+    row = db.execute("select prompt, status from codex_jobs where id = ?", (job_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"codex job not found: {job_id}")
+    if row["status"] != "pending":
+        raise ValueError(f"codex job must be pending: {job_id}")
+    prompt = row["prompt"]
     db.execute("update codex_jobs set status = ?, started_at = current_timestamp where id = ?", ("running", job_id))
     db.commit()
 

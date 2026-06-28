@@ -1,10 +1,12 @@
 import subprocess
+import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 
 from crawler_workbench.codex_worker import build_query_prompt, run_codex_job
-from crawler_workbench.db import connect, migrate
+from crawler_workbench.db import connect, migrate, open_db
 from crawler_workbench.main import create_app
 from crawler_workbench.settings import Settings
 
@@ -136,6 +138,70 @@ def test_codex_job_rejects_non_query_job_type_before_creating_row(tmp_path):
             run_codex_job(settings, db, "ingest", "ai_infra", "Question", persist=False)
         count = db.execute("select count(*) as count from codex_jobs").fetchone()["count"]
     assert count == 0
+
+
+def test_ask_endpoint_returns_before_codex_command_finishes(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    fake = tmp_path / "codex"
+    started = tmp_path / "codex-started"
+    release = tmp_path / "codex-release"
+    monkeypatch.setenv("CODEX_STARTED_PATH", str(started))
+    monkeypatch.setenv("CODEX_RELEASE_PATH", str(release))
+    fake.write_text(
+        "#!/usr/bin/env bash\n"
+        'touch "$CODEX_STARTED_PATH"\n'
+        'while [ ! -f "$CODEX_RELEASE_PATH" ]; do sleep 0.05; done\n'
+        "echo answer after release\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state", codex_command=str(fake))
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        responses = []
+        errors = []
+
+        def post_ask():
+            try:
+                responses.append(
+                    client.post(
+                        "/api/ask",
+                        json={"domain": "ai_infra", "question": "NCCL trend?", "persist": False},
+                    )
+                )
+            except Exception as exc:
+                errors.append(exc)
+
+        thread = threading.Thread(target=post_ask)
+        thread.start()
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and not responses and not errors:
+            time.sleep(0.01)
+
+        try:
+            assert errors == []
+            assert responses, "ask endpoint did not return before the Codex command finished"
+            response = responses[0]
+            assert response.status_code == 200
+            job_id = response.json()["job_id"]
+            with open_db(settings.database_path) as db:
+                row = db.execute("select status, finished_at from codex_jobs where id = ?", (job_id,)).fetchone()
+            assert row["status"] in {"pending", "running"}
+            assert row["finished_at"] is None
+        finally:
+            release.write_text("go", encoding="utf-8")
+
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+        for _ in range(100):
+            with open_db(settings.database_path) as db:
+                row = db.execute("select status, stdout from codex_jobs where id = ?", (job_id,)).fetchone()
+            if row["status"] == "succeeded":
+                break
+            time.sleep(0.05)
+        assert row["status"] == "succeeded"
+        assert "answer after release" in row["stdout"]
 
 
 def test_ask_endpoint_requires_question(tmp_path):
