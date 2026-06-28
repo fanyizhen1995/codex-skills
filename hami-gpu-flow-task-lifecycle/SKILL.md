@@ -12,13 +12,20 @@ Treat a GPU Flow task as a state machine. Do not mark `done`, squash, or merge u
 ## Workflow
 
 1. Restore state: read `AGENTS.md`, `progress.md`, `tasks.json`, relevant `docs/design/*`, `docs/superpowers/specs/*`, `docs/superpowers/plans/*`, `git status --short --branch`, recent commits, and `.codex/session-state/*.json`.
-2. Pick or confirm one independent task. Prefer existing `tasks.json` entries; if registering a new task, fill all fields and set `requires_eval` based on risk.
+2. Pick or confirm one independent task. Prefer existing `tasks.json` entries; if registering a new task, fill all fields and set `requires_eval` based on risk. Use `scripts/gpu_flow_task_candidates.py --repo <hami>` first when the user asks to claim an unowned task.
 3. Claim it: create or update `.codex/session-state/<task-id>-<session>.json`; take `.codex/locks/*.json` only for shared resources such as local k3s, Helm release, Volcano config, or production gray.
 4. Before implementation, write or update the design/plan and ask for confirmation when the user required pre-implementation approval.
 5. Implement in an isolated worktree. Keep root `tasks.json`, `progress.md`, `sprint_output.md`, and `AGENTS.md` updates for the integration/coordination step unless explicitly authorized.
 6. Verify using project scripts first: focused Go tests, `scripts/go-in-docker.sh make test`, license, tidy, import aliases, golangci-lint, build, Helm lint/package, Docker build/save, `git diff --check`, and task-specific E2E docs.
 7. Record evidence paths in `sprint_output.md`; if `requires_eval=true`, wait for evaluator/user acceptance before setting `done`.
 8. After acceptance, update `tasks.json`, prepend `progress.md`, squash or merge to `poc` only as requested, and include verification evidence in the final summary.
+
+## Automation
+
+- `scripts/gpu_flow_status_snapshot.py --repo <hami>`: read-only summary of branch, dirty files, task counts, session-state, locks, worktrees, progress head, and recent commits. Use before cross-session handoff or status recovery.
+- `scripts/gpu_flow_task_candidates.py --repo <hami>`: read-only ranking of pending tasks. It flags `active_session`, `active_lock`, `blocked_by`, `existing_worktree`, and `requires_eval`, and recommends `claim`, `coordinate`, `wait`, or `review`.
+- `scripts/gpu_flow_cleanup_candidates.py --repo <hami>`: read-only cleanup review for worktrees, session-state files, and locks. It classifies `active_keep`, `stale_review`, `safe_review`, and `unknown_manual`; never delete from this report without human confirmation.
+- Add `--json` for machine-readable output. These scripts do not claim tasks, create locks, edit `tasks.json`, or change git state.
 
 ## Evidence Packet
 

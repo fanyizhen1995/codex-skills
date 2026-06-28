@@ -1,3 +1,15 @@
 __pycache__/
 *.py[cod]
 .worktrees/
+personal-wiki/apps/crawler_workbench/frontend/node_modules/
+personal-wiki/apps/crawler_workbench/frontend/dist/
+.personal-wiki-workbench/*.sqlite3
+.mindfs/
+.superpowers/
+.codex/accelerator-crawl/
+.codex/backups/
+.codex/evaluator-demo/
+.codex/session-state/
+.codex/tmp/
+.codex/wiki-crawler-e2e/
+.codex/evaluations/tasks/
