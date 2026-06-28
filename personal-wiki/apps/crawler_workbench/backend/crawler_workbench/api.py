@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 
+from .accelerator_specs import extract_specs_for_all_raw_items, list_accelerator_specs
 from .codex_worker import run_codex_job
 from .db import open_db
 from .discovery import accept_candidate, list_candidates, reject_candidate
@@ -20,7 +21,14 @@ from .ingest import (
 )
 from .profiles import list_profiles
 from .search import rebuild_search_index, search_wiki, validate_domain
-from .schemas import AcceptAcceleratorCandidateRequest, AcceleratorCandidateResponse, HealthResponse, SourceProfileResponse
+from .schemas import (
+    AcceptAcceleratorCandidateRequest,
+    AcceleratorCandidateResponse,
+    AcceleratorSpecExtractionResponse,
+    AcceleratorSpecResponse,
+    HealthResponse,
+    SourceProfileResponse,
+)
 from .trusted_sources import TrustSourceInputError, trust_task_source
 from .wiki_metrics import collect_wiki_metrics
 from .wiki_cli import run_validate, wiki_cli_command
@@ -265,6 +273,23 @@ def _is_candidate_not_found(exc: ValueError) -> bool:
 
 def _is_candidate_state_conflict(exc: ValueError) -> bool:
     return "must be pending" in str(exc)
+
+
+@router.get("/accelerator-specs", response_model=list[AcceleratorSpecResponse])
+def accelerator_specs(request: Request) -> list[AcceleratorSpecResponse]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        return [AcceleratorSpecResponse(**row) for row in list_accelerator_specs(db)]
+
+
+@router.post("/accelerator-specs/extract", response_model=AcceleratorSpecExtractionResponse)
+def extract_accelerator_specs(request: Request) -> AcceleratorSpecExtractionResponse:
+    request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
+    with open_db(settings.database_path) as db:
+        counts = extract_specs_for_all_raw_items(settings, db)
+        db.commit()
+        return AcceleratorSpecExtractionResponse(**counts)
 
 
 @router.get("/wiki/metrics")

@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-06-28 Compute Accelerator Spec Extraction
+
+- Added structured extraction tables and services for compute accelerator SKUs, source-backed observations, and resolved specs.
+- Wired `specs_candidate` fetches to extract observations inside the fetch transaction and added API endpoints:
+  - `GET /api/accelerator-specs`
+  - `POST /api/accelerator-specs/extract`
+- Added crawler workbench `参数库` page with resolved fields, expandable observation evidence, per-observation provenance/raw paths, and manual backfill.
+- Backfilled the live workbench DB from existing accelerator raw captures:
+  - `accelerator_skus`: 19
+  - `accelerator_observations`: 29
+  - `accelerator_resolved_specs`: 27
+- Marked `compute-accelerator-spec-extraction-01` done in `tasks.json`.
+- Evidence:
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_accelerator_specs.py tests/test_fetch_service_policy.py` -> 24 passed
+  - `cd personal-wiki/apps/crawler_workbench/frontend && npm test && npm run build` -> 22 passed, build passed with Vite chunk-size warning
+  - `REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_accelerator_specs.py tests/test_fetch_service_policy.py tests/test_api.py tests/test_db_profiles.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd "$REPO_ROOT" && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> backend 92 passed, frontend 22 passed, build passed, wiki validation passed
+  - `.codex/evaluations/tasks/compute-accelerator-spec-extraction-01/20260628T070902Z-attempt-1/result.json` -> pass
+
 ## 2026-06-28 Compute Accelerator Monthly Discovery
 
 - Added one-shot run policy for concrete accelerator model/spec sources so completed evidence captures are not scheduled again after a successful raw capture.

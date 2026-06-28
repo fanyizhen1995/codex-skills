@@ -1,4 +1,4 @@
-export type PageKey = "overview" | "sources" | "queue" | "knowledge" | "sourceWorkbench" | "settings";
+export type PageKey = "overview" | "sources" | "queue" | "knowledge" | "acceleratorSpecs" | "sourceWorkbench" | "settings";
 
 export type Status =
   | "ready"
@@ -69,6 +69,51 @@ export interface AcceptAcceleratorCandidatePayload {
   url: string;
   scope: string[];
   source_rank: string;
+}
+
+export interface AcceleratorObservation {
+  id: number;
+  field: string;
+  value_text: string;
+  value_number?: number | null;
+  unit: string;
+  source_profile_id: string;
+  source_rank: string;
+  raw_item_id?: number | null;
+  raw_path: string;
+  evidence_text: string;
+  confidence: number;
+}
+
+export interface AcceleratorResolvedField {
+  field: string;
+  value_text: string;
+  value_number?: number | null;
+  unit: string;
+  source_observation_id: number;
+  resolved_by: string;
+  confidence: string;
+  conflict_status: string;
+}
+
+export interface AcceleratorSpecRecord {
+  sku_id: string;
+  vendor: string;
+  model_name: string;
+  normalized_model: string;
+  scope: string;
+  source_profile_id: string;
+  source_url: string;
+  raw_item_id?: number | null;
+  raw_path: string;
+  observations: AcceleratorObservation[];
+  resolved_specs: AcceleratorResolvedField[];
+}
+
+export interface AcceleratorSpecExtractionResponse {
+  skus: number;
+  observations: number;
+  resolved: number;
 }
 
 export interface RunSummary {

@@ -95,6 +95,53 @@ create table if not exists accelerator_candidates (
 create unique index if not exists accelerator_candidates_effective_evidence_url_idx
 on accelerator_candidates(vendor, normalized_model, coalesce(evidence_url, source_url));
 
+create table if not exists accelerator_skus (
+  sku_id text primary key,
+  vendor text not null,
+  model_name text not null,
+  normalized_model text not null,
+  scope text not null,
+  source_profile_id text not null references source_profiles(id) on delete cascade,
+  source_url text not null,
+  raw_item_id integer references raw_items(id) on delete set null,
+  raw_path text not null,
+  created_at text not null default current_timestamp,
+  updated_at text not null default current_timestamp
+);
+
+create table if not exists accelerator_observations (
+  id integer primary key autoincrement,
+  sku_id text not null references accelerator_skus(sku_id) on delete cascade,
+  field text not null,
+  value_text text not null,
+  value_number real,
+  unit text not null,
+  source_profile_id text not null references source_profiles(id) on delete cascade,
+  source_rank text not null,
+  raw_item_id integer references raw_items(id) on delete set null,
+  raw_path text not null,
+  evidence_text text not null,
+  confidence real not null,
+  created_at text not null default current_timestamp,
+  updated_at text not null default current_timestamp,
+  unique(sku_id, field, value_text, unit, raw_path)
+);
+
+create table if not exists accelerator_resolved_specs (
+  id integer primary key autoincrement,
+  sku_id text not null references accelerator_skus(sku_id) on delete cascade,
+  field text not null,
+  value_text text not null,
+  value_number real,
+  unit text not null,
+  source_observation_id integer not null references accelerator_observations(id) on delete cascade,
+  resolved_by text not null default 'rule',
+  confidence text not null,
+  conflict_status text not null default 'clean',
+  updated_at text not null default current_timestamp,
+  unique(sku_id, field)
+);
+
 create table if not exists ingest_tasks (
   id integer primary key autoincrement,
   source_id text not null references source_profiles(id) on delete cascade,

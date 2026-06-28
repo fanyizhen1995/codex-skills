@@ -144,6 +144,10 @@ def run_source_once(
                     decision.reason,
                 ),
             )
+            if profile.get("extract_mode") == "specs_candidate":
+                from .accelerator_specs import upsert_extracted_specs_for_raw_item
+
+                upsert_extracted_specs_for_raw_item(settings, db, int(raw_item_id))
             changed_count += 1
 
         db.execute(

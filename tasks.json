@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-06-28",
-  "current_focus": "Add monthly compute accelerator discovery with one-shot model source captures.",
+  "current_focus": "Compute accelerator raw evidence now has structured spec extraction and crawler workbench inspection UI.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -11,6 +11,24 @@
     "max_final_eval_attempts": 2
   },
   "tasks": [
+    {
+      "id": "compute-accelerator-spec-extraction-01",
+      "title": "Extract accelerator raw captures into structured specs",
+      "description": "Turn compute accelerator raw crawler evidence into structured, source-backed SKU, observation, and resolved spec data for GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC models, and expose the structured data through crawler workbench APIs and UI.",
+      "status": "done",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_accelerator_specs.py tests/test_db_profiles.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd \"$REPO_ROOT\" && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
     {
       "id": "compute-accelerator-monthly-discovery-01",
       "title": "Add monthly accelerator model discovery",

@@ -1,7 +1,8 @@
-import { BookOpen, DatabaseZap, Gauge, ListChecks, Rss, Settings, Waypoints } from "lucide-react";
+import { BookOpen, DatabaseZap, Gauge, ListChecks, Microchip, Rss, Settings, Waypoints } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Layout, type NavigationItem } from "./components/Layout";
+import { AcceleratorSpecsPage } from "./pages/AcceleratorSpecsPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { QueuePage } from "./pages/QueuePage";
@@ -21,6 +22,7 @@ function App() {
       { key: "sources", label: "来源订阅", icon: Rss },
       { key: "queue", label: "入库队列", icon: ListChecks },
       { key: "knowledge", label: "知识工作台", icon: BookOpen },
+      { key: "acceleratorSpecs", label: "参数库", icon: Microchip },
       { key: "sourceWorkbench", label: "来源工作台", icon: DatabaseZap },
       { key: "settings", label: "设置", icon: Settings }
     ],
@@ -36,6 +38,7 @@ function App() {
       {activePage === "sources" && <SourcesPage />}
       {activePage === "queue" && <QueuePage />}
       {activePage === "knowledge" && <KnowledgePage />}
+      {activePage === "acceleratorSpecs" && <AcceleratorSpecsPage />}
       {activePage === "sourceWorkbench" && <SourceWorkbenchPage />}
       {activePage === "settings" && <SettingsPage />}
       <div className="footer-note">

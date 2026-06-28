@@ -1,6 +1,8 @@
 import type {
   AcceptAcceleratorCandidatePayload,
   AcceleratorCandidate,
+  AcceleratorSpecExtractionResponse,
+  AcceleratorSpecRecord,
   AskResponse,
   CodexJob,
   Domain,
@@ -106,6 +108,14 @@ export async function rejectAcceleratorCandidate(id: number): Promise<Accelerato
   return request<AcceleratorCandidate>(`/accelerator-candidates/${id}/reject`, { method: "POST" });
 }
 
+export async function getAcceleratorSpecs(): Promise<AcceleratorSpecRecord[]> {
+  return request<AcceleratorSpecRecord[]>("/accelerator-specs");
+}
+
+export async function extractAcceleratorSpecs(): Promise<AcceleratorSpecExtractionResponse> {
+  return request<AcceleratorSpecExtractionResponse>("/accelerator-specs/extract", { method: "POST" });
+}
+
 export async function getRuns(): Promise<FetchRun[]> {
   return request<FetchRun[]>("/runs");
 }
@@ -166,6 +176,8 @@ export const api = {
   acceleratorCandidates: getAcceleratorCandidates,
   acceptAcceleratorCandidate,
   rejectAcceleratorCandidate,
+  acceleratorSpecs: getAcceleratorSpecs,
+  extractAcceleratorSpecs,
   runs: getRuns,
   queue: getQueue,
   wikiMetrics: getWikiMetrics,

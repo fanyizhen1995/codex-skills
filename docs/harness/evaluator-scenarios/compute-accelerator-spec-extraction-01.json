@@ -1,0 +1,42 @@
+{
+  "task_id": "compute-accelerator-spec-extraction-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "accelerator-spec-extraction-user-flow",
+      "user_goal": "As an ai_infra wiki maintainer, verify that crawled accelerator raw evidence is converted into structured SKU, observation, and resolved specification data that can be inspected from the crawler workbench.",
+      "prerequisites": [
+        "The crawler workbench backend and frontend dependencies are available.",
+        "Compute accelerator raw crawler evidence exists under personal-wiki/domains/ai_infra/raw/crawler/.",
+        "The structured accelerator catalog exists under personal-wiki/domains/ai_infra/data/compute_accelerators/."
+      ],
+      "entrypoint": "bash -lc 'REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_accelerator_specs.py tests/test_db_profiles.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd \"$REPO_ROOT\" && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra'",
+      "steps": [
+        "Run backend tests for accelerator spec extraction and existing profile/discovery behavior.",
+        "Run frontend tests that cover structured accelerator specs visibility.",
+        "Build the frontend.",
+        "Validate the accelerator catalog and ai_infra wiki domain."
+      ],
+      "expected_outcomes": [
+        "Raw captures from specs_candidate accelerator sources produce source-backed structured observations.",
+        "Known extracted fields preserve source_id, raw_path or source locator, source rank, confidence, units, and captured timestamp.",
+        "Resolved specs are created only when source policy allows it; S5 sources are not auto-resolved.",
+        "The crawler workbench exposes structured accelerator specs without hiding the existing source subscriptions or candidate queue.",
+        "Backend and frontend tests pass.",
+        "Wiki accelerator validation and ai_infra validation pass."
+      ],
+      "failure_signals": [
+        "The extractor writes unproven values without source references.",
+        "The extractor overwrites conflicting observations instead of preserving provenance.",
+        "S5 or low-trust data is auto-resolved without review metadata.",
+        "The frontend cannot display extracted accelerator specs or regresses the existing Sources page.",
+        "Backend or frontend tests fail.",
+        "Wiki validation fails."
+      ],
+      "cleanup": [
+        "Remove .codex/evaluations/tasks/compute-accelerator-spec-extraction-01/ if a clean rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

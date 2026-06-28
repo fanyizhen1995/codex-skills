@@ -405,6 +405,88 @@ p {
   overflow-wrap: anywhere;
 }
 
+.specs-metrics {
+  margin-bottom: 12px;
+}
+
+.specs-panel {
+  margin-top: 12px;
+}
+
+.specs-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(260px, 1.4fr) minmax(240px, 1.3fr) minmax(220px, 1.1fr);
+  min-width: 920px;
+  align-items: flex-start;
+}
+
+.spec-field-list,
+.spec-observation-list {
+  display: grid;
+  gap: 6px;
+}
+
+.spec-field-pill {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 28px;
+  border: 1px solid #d6e0e5;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f8fafb;
+  color: #243138;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.spec-field-pill b {
+  color: #183b3f;
+}
+
+.link-button {
+  width: fit-content;
+  min-height: 28px;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  color: #256d72;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.link-button:hover {
+  color: #184f52;
+}
+
+.spec-observation-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.spec-observation-card {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #d9e0e4;
+  border-radius: 6px;
+  padding: 8px;
+  background: #ffffff;
+}
+
+.spec-observation-card strong {
+  color: #263d42;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 small {
   display: block;
   color: #66757b;

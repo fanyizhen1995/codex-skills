@@ -3,10 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
-import type { AcceleratorCandidate } from "./types";
+import type { AcceleratorCandidate, AcceleratorSpecRecord } from "./types";
 import {
   acceptAcceleratorCandidate,
+  extractAcceleratorSpecs,
   getAcceleratorCandidates,
+  getAcceleratorSpecs,
   getQueue,
   getRuns,
   getSources,
@@ -90,6 +92,60 @@ function mockAcceleratorCandidate(status: AcceleratorCandidate["status"] = "pend
   };
 }
 
+function mockAcceleratorSpec(): AcceleratorSpecRecord {
+  return {
+    sku_id: "biren-166l",
+    vendor: "biren",
+    model_name: "166l",
+    normalized_model: "166L",
+    scope: "ai_asic",
+    source_profile_id: "compute-accelerators-biren-166l",
+    source_url: "https://www.birentech.com/product/hardware/166l/",
+    raw_item_id: 7,
+    raw_path: "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/item.md",
+    observations: [
+      {
+        id: 9,
+        field: "tdp",
+        value_text: "600",
+        value_number: 600,
+        unit: "W",
+        source_profile_id: "compute-accelerators-biren-166l",
+        source_rank: "S1",
+        raw_item_id: 7,
+        raw_path: "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/item.md",
+        evidence_text: "峰值功耗 600W",
+        confidence: 0.9
+      },
+      {
+        id: 10,
+        field: "memory_capacity",
+        value_text: "256",
+        value_number: 256,
+        unit: "GB",
+        source_profile_id: "compute-accelerators-biren-166l",
+        source_rank: "S1",
+        raw_item_id: 8,
+        raw_path: "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/memory.md",
+        evidence_text: "显存容量 256GB HBM3e",
+        confidence: 0.85
+      }
+    ],
+    resolved_specs: [
+      {
+        field: "tdp",
+        value_text: "600",
+        value_number: 600,
+        unit: "W",
+        source_observation_id: 9,
+        resolved_by: "rule",
+        confidence: "0.9",
+        conflict_status: "clean"
+      }
+    ]
+  };
+}
+
 vi.mock("./api", () => ({
   askCodex: vi.fn(),
   approveTask: vi.fn(),
@@ -108,8 +164,10 @@ vi.mock("./api", () => ({
     created_at: "2026-06-28 01:00:00",
     updated_at: "2026-06-28 01:00:00"
   }),
+  extractAcceleratorSpecs: vi.fn().mockResolvedValue({ skus: 1, observations: 1, resolved: 1 }),
   getDomains: vi.fn().mockResolvedValue([{ id: "ai_infra", name: "ai_infra" }]),
   getAcceleratorCandidates: vi.fn().mockResolvedValue([]),
+  getAcceleratorSpecs: vi.fn().mockResolvedValue([]),
   getGraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   getHealth: vi.fn().mockResolvedValue({
     status: "ok",
@@ -174,6 +232,8 @@ vi.mock("./api", () => ({
 afterEach(() => {
   cleanup();
   vi.mocked(getAcceleratorCandidates).mockResolvedValue([]);
+  vi.mocked(getAcceleratorSpecs).mockResolvedValue([]);
+  vi.mocked(extractAcceleratorSpecs).mockResolvedValue({ skus: 1, observations: 1, resolved: 1 });
   vi.mocked(acceptAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("accepted"));
   vi.mocked(rejectAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("rejected"));
   vi.mocked(getQueue).mockResolvedValue([]);
@@ -473,6 +533,51 @@ describe("App", () => {
     expect(screen.getByText("H300")).toBeInTheDocument();
     expect(screen.getByText(/NVIDIA H300 GPU accelerator/)).toBeInTheDocument();
     expect(screen.getByText("一次性")).toBeInTheDocument();
+  });
+
+  it("renders accelerator specs and refreshes after extraction backfill", async () => {
+    vi.mocked(getAcceleratorSpecs)
+      .mockResolvedValueOnce([mockAcceleratorSpec()])
+      .mockResolvedValueOnce([
+        {
+          ...mockAcceleratorSpec(),
+          resolved_specs: [
+            ...mockAcceleratorSpec().resolved_specs,
+            {
+              field: "host_interface",
+              value_text: "PCIe Gen5 x16",
+              value_number: null,
+              unit: "none",
+              source_observation_id: 10,
+              resolved_by: "rule",
+              confidence: "0.9",
+              conflict_status: "clean"
+            }
+          ]
+        }
+      ]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("参数库")[0]);
+
+    expect(await screen.findByText("biren-166l")).toBeInTheDocument();
+    expect(screen.getByText(/ai_asic/)).toBeInTheDocument();
+    expect(screen.getByText("tdp")).toBeInTheDocument();
+    expect(screen.getByText("600 W")).toBeInTheDocument();
+    expect(screen.getByText(/compute-accelerators-biren-166l\/item\.md/)).toBeInTheDocument();
+    expect(screen.queryByText("显存容量 256GB HBM3e")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开 biren-166l 观测证据" }));
+
+    expect(screen.getByText("显存容量 256GB HBM3e")).toBeInTheDocument();
+    expect(screen.getByText(/compute-accelerators-biren-166l\/memory\.md/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "回填参数" }));
+
+    await waitFor(() => expect(extractAcceleratorSpecs).toHaveBeenCalled());
+    expect(await screen.findByText("host_interface")).toBeInTheDocument();
+    expect(screen.getByText("已处理 1 个 SKU，1 条观测，1 个 resolved 字段")).toBeInTheDocument();
   });
 
   it("accepts and rejects accelerator discovery candidates", async () => {

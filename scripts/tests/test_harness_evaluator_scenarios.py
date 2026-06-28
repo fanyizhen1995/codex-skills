@@ -250,3 +250,12 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
 
         self.assertNotIn(".worktrees", entrypoint)
         self.assertIn("personal-wiki/apps/crawler_workbench/backend", entrypoint)
+
+    def test_compute_accelerator_spec_extraction_contract_is_registered(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        contract = load_task_scenarios(repo_root, "compute-accelerator-spec-extraction-01")
+        entrypoint = contract["user_scenarios"][0]["entrypoint"]
+
+        self.assertEqual(contract["task_id"], "compute-accelerator-spec-extraction-01")
+        self.assertIn("tests/test_accelerator_specs.py", entrypoint)
+        self.assertIn("validate-accelerators", entrypoint)

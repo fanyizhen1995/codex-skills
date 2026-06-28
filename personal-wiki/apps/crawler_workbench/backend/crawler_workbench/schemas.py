@@ -47,6 +47,51 @@ class AcceptAcceleratorCandidateRequest(BaseModel):
     source_rank: str = "S1"
 
 
+class AcceleratorObservationResponse(BaseModel):
+    id: int
+    field: str
+    value_text: str
+    value_number: float | None = None
+    unit: str
+    source_profile_id: str
+    source_rank: str
+    raw_item_id: int | None = None
+    raw_path: str
+    evidence_text: str
+    confidence: float
+
+
+class AcceleratorResolvedSpecResponse(BaseModel):
+    field: str
+    value_text: str
+    value_number: float | None = None
+    unit: str
+    source_observation_id: int
+    resolved_by: str
+    confidence: str
+    conflict_status: str
+
+
+class AcceleratorSpecResponse(BaseModel):
+    sku_id: str
+    vendor: str
+    model_name: str
+    normalized_model: str
+    scope: str
+    source_profile_id: str
+    source_url: str
+    raw_item_id: int | None = None
+    raw_path: str
+    observations: list[AcceleratorObservationResponse]
+    resolved_specs: list[AcceleratorResolvedSpecResponse]
+
+
+class AcceleratorSpecExtractionResponse(BaseModel):
+    skus: int
+    observations: int
+    resolved: int
+
+
 class HealthResponse(BaseModel):
     status: str
     bind_host: str

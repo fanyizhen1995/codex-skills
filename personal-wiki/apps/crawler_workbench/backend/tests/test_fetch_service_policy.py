@@ -34,7 +34,14 @@ class CloseTrackingFetcher(StaticFetcher):
         self.closed = True
 
 
-def profile(auto_ingest=True, trust_level="trusted", auth_required=False, enabled=True, baseline_on_first_run=False):
+def profile(
+    auto_ingest=True,
+    trust_level="trusted",
+    auth_required=False,
+    enabled=True,
+    baseline_on_first_run=False,
+    **extra,
+):
     return {
         "id": "src",
         "name": "Source",
@@ -48,6 +55,7 @@ def profile(auto_ingest=True, trust_level="trusted", auth_required=False, enable
         "baseline_on_first_run": baseline_on_first_run,
         "topic": "topic",
         "enabled": enabled,
+        **extra,
     }
 
 
@@ -188,6 +196,39 @@ def test_run_source_once_cleans_raw_files_and_counts_after_insert_failure(tmp_pa
     assert version_count == 0
     assert task_count == 0
     assert raw_files == []
+
+
+def test_specs_candidate_fetch_rolls_back_raw_and_specs_after_later_insert_failure(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    results = [
+        FetchResult("https://example.com/one", "One", "峰值功耗 600W", "text/markdown"),
+        FetchResult("https://example.com/two", None, "two", "text/markdown"),
+    ]
+    with connect(settings.database_path) as db:
+        migrate(db)
+        mirror_profiles(
+            db,
+            [
+                profile(
+                    source_rank="S1",
+                    accelerator_scope=["gpu"],
+                    extract_mode="specs_candidate",
+                    vendor_hint="src",
+                    auto_resolve=False,
+                )
+            ],
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            run_source_once(settings, db, "src", fetcher=StaticFetcher(results))
+        raw_count = db.execute("select count(*) as count from raw_items").fetchone()["count"]
+        sku_count = db.execute("select count(*) as count from accelerator_skus").fetchone()["count"]
+        observation_count = db.execute("select count(*) as count from accelerator_observations").fetchone()["count"]
+        resolved_count = db.execute("select count(*) as count from accelerator_resolved_specs").fetchone()["count"]
+
+    assert raw_count == 0
+    assert sku_count == 0
+    assert observation_count == 0
+    assert resolved_count == 0
 
 
 def test_run_source_once_records_failed_run_when_fetcher_raises(tmp_path):
