@@ -28,7 +28,9 @@ _No pages yet._
 
 ## References
 
+- [Compute Accelerator Crawl Inventory](references/compute-accelerator-crawl-inventory.md) - Inventory of raw crawler captures for compute accelerator discovery and specification evidence.
 - [Compute Accelerator Field Glossary](references/compute-accelerator-field-glossary.md) - Canonical field names, units, and scope applicability for accelerator specifications.
+- [Compute Accelerator Parameter Comparison](references/compute-accelerator-parameter-comparison.md) - Current cross-vendor parameter comparison for accelerator, cloud offering, system, DPU, and SmartNIC records captured in ai_infra.
 - [Compute Accelerator Spec Sources](references/compute-accelerator-spec-sources.md) - Source ranking and provenance policy for the compute accelerator specification catalog.
 - [NCCL GitHub Closed Issues](references/nccl-github-closed-issues.md) - Local raw corpus and curated operational signals from closed NVIDIA/nccl GitHub issues and issue comments.
 - [NCCL Release Notes](references/nccl-release-notes.md) - Complete local catalog of official NVIDIA NCCL release-note pages from 2.30.7 back to 2.0.2.
