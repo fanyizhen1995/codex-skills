@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-29 Crawler Workbench Sync And Commit Cleanup
+
+- Confirmed there are no untracked compute accelerator raw/wiki files left to ingest; compute accelerator crawl evidence is already curated in `personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md` and `personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md`.
+- Confirmed the live workbench database contains accelerator records: 178 `raw_items`, 21 `accelerator_skus`, 31 `accelerator_observations`, and 29 `accelerator_resolved_specs`.
+- Recovered legacy dirty-baseline failures to approved retry state and confirmed the local DB has no remaining `baseline dirty paths include files outside the ingest task` failed rows.
+- Verified the crawler workbench UI hides approved retry tasks from the manual queue; stale frontend screenshots were from an old running frontend/backend state and need service restart after commit.
+- Evidence:
+  - `pytest personal-wiki/apps/crawler_workbench/backend/tests/test_api.py personal-wiki/apps/crawler_workbench/backend/tests/test_codex_worker.py personal-wiki/apps/crawler_workbench/backend/tests/test_db_profiles.py personal-wiki/apps/crawler_workbench/backend/tests/test_discovery.py personal-wiki/apps/crawler_workbench/backend/tests/test_fetchers.py -q` -> 117 passed
+  - `cd personal-wiki/apps/crawler_workbench/frontend && npm test -- src/App.test.tsx && npm run build && npm run test:ui:live` -> 22 passed, build passed, live Playwright flow passed
+  - `python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators` -> pass
+
 ## 2026-06-28 Compute Accelerator Spec Extraction
 
 - Added structured extraction tables and services for compute accelerator SKUs, source-backed observations, and resolved specs.
@@ -22,6 +35,21 @@
   - `cd personal-wiki/apps/crawler_workbench/frontend && npm test && npm run build` -> 22 passed, build passed with Vite chunk-size warning
   - `REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_accelerator_specs.py tests/test_fetch_service_policy.py tests/test_api.py tests/test_db_profiles.py tests/test_discovery.py && cd ../frontend && npm test && npm run build && cd "$REPO_ROOT" && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> backend 92 passed, frontend 22 passed, build passed, wiki validation passed
   - `.codex/evaluations/tasks/compute-accelerator-spec-extraction-01/20260628T070902Z-attempt-1/result.json` -> pass
+
+## 2026-06-28 Compute Accelerator Crawl Backfill
+
+- Confirmed the accelerator crawl did write to the workbench database: 75 compute accelerator fetch runs total, 67 succeeded, 8 historical failed, 63 raw_items, and 71 accelerator candidates.
+- Fixed verified dead discovery URLs for Biren, Enflame, Kunlunxin, Intel DSA, and Microsoft Maia 200, mirrored runtime `sources.yaml` into SQLite, and reran those sources plus AMD Instinct.
+- Backfill results:
+  - Succeeded: `compute-accelerator-discovery-amd-instinct`, `compute-accelerator-discovery-biren-products`, `compute-accelerator-discovery-enflame-products`, `compute-accelerator-discovery-kunlunxin-products`, `compute-accelerator-discovery-intel-dsa-docs`, `compute-accelerators-microsoft-maia-200`.
+  - `compute-accelerators-microsoft-maia-200` now uses Microsoft TechCommunity and succeeded as a first-run baseline; because the source has `baseline_on_first_run: true`, it did not create a raw item on that first success.
+  - Remaining unresolved connectivity failures: `compute-accelerator-discovery-google-cloud-tpu-docs` and `compute-accelerators-google-tpu` (TLS EOF/direct timeout from this environment).
+- Added `compute-accelerator-spec-extraction-01` as the next high-priority task for converting raw accelerator evidence into structured SKU, observation, and resolved spec data visible in the crawler workbench.
+- Evidence:
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_db_profiles.py::test_accelerator_discovery_profiles_use_reachable_product_indexes tests/test_db_profiles.py::test_accelerator_profiles_use_once_policy_and_discovery_profiles_are_monthly` -> 2 passed
+  - `python3 -m unittest scripts.tests.test_harness_evaluator_scenarios.HarnessEvaluatorScenarioTests.test_compute_accelerator_spec_extraction_contract_is_registered` -> pass
+  - `python3 -m json.tool tasks.json >/dev/null` -> pass
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/compute-accelerator-spec-extraction-01.json >/dev/null` -> pass
 
 ## 2026-06-28 Compute Accelerator Monthly Discovery
 

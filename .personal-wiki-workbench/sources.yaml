@@ -292,24 +292,23 @@ sources:
   vendor_hint: nvidia
   auto_resolve: false
 - id: compute-accelerators-amd-mi325x
-  name: AMD Instinct MI325X accelerator specs
+  name: amd MI325X accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.amd.com/en/products/accelerators/instinct/mi300/mi325x.html
+  url: https://www.amd.com/en/products/accelerators/instinct.html
   trust_level: trusted
-  schedule: weekly
+  schedule: monthly
   run_policy: once
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: AMD Instinct MI325X accelerator specifications (disabled until fetch stability is verified)
+  topic: amd MI325X accelerator specs
   source_rank: S1
   accelerator_scope:
   - gpu
   extract_mode: specs_candidate
   vendor_hint: amd
   auto_resolve: false
-  enabled: false
 - id: compute-accelerators-intel-gaudi-3
   name: Intel Gaudi 3 accelerator white paper
   type: web
@@ -412,7 +411,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: AMD Alveo V80 FPGA accelerator specifications (disabled until fetch path is verified)
+  topic: AMD Alveo V80 FPGA accelerator specifications (disabled until fetch path
+    is verified)
   source_rank: S1
   accelerator_scope:
   - fpga
@@ -440,17 +440,17 @@ sources:
   auto_resolve: false
   enabled: false
 - id: compute-accelerators-microsoft-maia-200
-  name: Microsoft Maia 200 AI accelerator announcement
+  name: Microsoft Maia 200 AI accelerator architecture
   type: web
   target_domain: ai_infra
-  url: https://blogs.microsoft.com/blog/2026/01/26/maia-200-the-ai-accelerator-built-for-inference/
+  url: https://techcommunity.microsoft.com/blog/azureinfrastructureblog/deep-dive-into-the-maia-200-architecture/4489312
   trust_level: trusted
   schedule: monthly
   run_policy: once
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: true
-  topic: Microsoft Maia 200 AI accelerator specifications
+  topic: Microsoft Maia 200 AI accelerator architecture specifications
   source_rank: S1
   accelerator_scope:
   - dsa
@@ -468,7 +468,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: MLPerf training benchmark accelerator results (disabled until fetchable endpoint is selected)
+  topic: MLPerf training benchmark accelerator results (disabled until fetchable endpoint
+    is selected)
   source_rank: S3
   accelerator_scope:
   - gpu
@@ -489,7 +490,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: Third-party GPU database candidate monitor (disabled until fetch method is verified)
+  topic: Third-party GPU database candidate monitor (disabled until fetch method is
+    verified)
   source_rank: S5
   accelerator_scope:
   - gpu
@@ -560,9 +562,9 @@ sources:
   target_domain: ai_infra
   url: https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=371
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Cambricon MLU370-X4 intelligent accelerator card specifications
@@ -593,40 +595,38 @@ sources:
   vendor_hint: cambricon
   auto_resolve: false
 - id: compute-accelerators-kunlunxin-r200
-  name: Kunlunxin R200 AI accelerator card specs
+  name: kunlunxin R200 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.kunlunxin.com/product/274.html
+  url: https://www.kunlunxin.com/
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: Kunlunxin R200 AI accelerator card specifications
+  topic: kunlunxin R200 accelerator specs
   source_rank: S1
   accelerator_scope:
   - npu
-  - ai_asic
   extract_mode: specs_candidate
   vendor_hint: kunlunxin
   auto_resolve: false
 - id: compute-accelerators-kunlunxin-rg800
-  name: Kunlunxin RG800 AI accelerator card specs
+  name: kunlunxin RG800 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.kunlunxin.com/product/2842.html
+  url: https://www.kunlunxin.com/
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: Kunlunxin RG800 AI accelerator card specifications
+  topic: kunlunxin RG800 accelerator specs
   source_rank: S1
   accelerator_scope:
   - npu
-  - ai_asic
   extract_mode: specs_candidate
   vendor_hint: kunlunxin
   auto_resolve: false
@@ -638,7 +638,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Kunlunxin R480-X8 multi-accelerator system specifications
@@ -650,17 +650,17 @@ sources:
   vendor_hint: kunlunxin
   auto_resolve: false
 - id: compute-accelerators-metax-c500
-  name: MetaX C500 GPU accelerator card specs
+  name: metax C500 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.metax-tech.com/prod.html?cid=107&id=21
+  url: https://www.metax-tech.com/product
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: MetaX C500 GPU accelerator card specifications
+  topic: metax C500 accelerator specs
   source_rank: S1
   accelerator_scope:
   - gpu
@@ -668,17 +668,17 @@ sources:
   vendor_hint: metax
   auto_resolve: false
 - id: compute-accelerators-metax-c550
-  name: MetaX C550 GPU accelerator card specs
+  name: metax C550 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.metax-tech.com/prod.html?cid=107&id=35
+  url: https://www.metax-tech.com/product
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: MetaX C550 GPU accelerator card specifications
+  topic: metax C550 accelerator specs
   source_rank: S1
   accelerator_scope:
   - gpu
@@ -686,17 +686,17 @@ sources:
   vendor_hint: metax
   auto_resolve: false
 - id: compute-accelerators-metax-c500x
-  name: MetaX C500X GPU accelerator card specs
+  name: metax C500X accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.metax-tech.com/prod.html?cid=107&id=36
+  url: https://www.metax-tech.com/product
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: MetaX C500X GPU accelerator card specifications
+  topic: metax C500X accelerator specs
   source_rank: S1
   accelerator_scope:
   - gpu
@@ -704,17 +704,17 @@ sources:
   vendor_hint: metax
   auto_resolve: false
 - id: compute-accelerators-metax-c588
-  name: MetaX C588 GPU accelerator card specs
+  name: metax C588 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.metax-tech.com/prod.html?cid=107&id=67
+  url: https://www.metax-tech.com/product
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: MetaX C588 GPU accelerator card specifications
+  topic: metax C588 accelerator specs
   source_rank: S1
   accelerator_scope:
   - gpu
@@ -722,17 +722,17 @@ sources:
   vendor_hint: metax
   auto_resolve: false
 - id: compute-accelerators-metax-c600
-  name: MetaX C600 GPU accelerator card specs
+  name: metax C600 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.metax-tech.com/prod.html?cid=107&id=68
+  url: https://www.metax-tech.com/product
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: MetaX C600 GPU accelerator card specifications
+  topic: metax C600 accelerator specs
   source_rank: S1
   accelerator_scope:
   - gpu
@@ -747,7 +747,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Moore Threads MTT S5000 full-function GPU accelerator specifications
@@ -765,7 +765,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Moore Threads MTT S4000 large-model GPU accelerator specifications
@@ -783,7 +783,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Moore Threads MTT S3000 server GPU specifications
@@ -837,9 +837,9 @@ sources:
   target_domain: ai_infra
   url: https://www.birentech.com/product/hardware/166c/
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Biren Bili 166C PCIe AI inference accelerator card specifications
@@ -946,21 +946,20 @@ sources:
   vendor_hint: iluvatar
   auto_resolve: false
 - id: compute-accelerators-enflame-s60
-  name: Enflame S60 inference accelerator card specs
+  name: enflame S60 accelerator specs
   type: web
   target_domain: ai_infra
-  url: https://www.enflame-tech.com/s60
+  url: https://www.enflame-tech.com/
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
-  topic: Enflame S60 AI inference accelerator card specifications
+  topic: enflame S60 accelerator specs
   source_rank: S1
   accelerator_scope:
   - ai_asic
-  - dsa
   extract_mode: specs_candidate
   vendor_hint: enflame
   auto_resolve: false
@@ -972,7 +971,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Enflame DS Server AI inference server specifications
@@ -991,7 +990,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Enflame CloudBlazer Matrix training and inference accelerator system specifications
@@ -1010,7 +1009,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Vastai VA1 AI inference accelerator card specifications
@@ -1029,7 +1028,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Vastai VA10 AI inference accelerator card specifications
@@ -1046,9 +1045,9 @@ sources:
   target_domain: ai_infra
   url: https://denglinai.com/h-col-252.html
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Denglin Goldwasser I L-series enterprise data-center GPU+ specifications
@@ -1086,7 +1085,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Hygon DCU accelerator product page (JS-heavy snapshot)
@@ -1105,7 +1104,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: NebulaMatrix DPU200 DPU card specifications
@@ -1123,7 +1122,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: NebulaMatrix S1400 AI and RDMA SmartNIC specifications
@@ -1142,7 +1141,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: NebulaMatrix RNIC IP accelerator specifications
@@ -1161,7 +1160,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Yusur K2 Pro DPU chip specifications
@@ -1179,7 +1178,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Yusur SWIFT-2200N low-latency DPU card specifications
@@ -1198,7 +1197,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Resnics Stargate-N1025 DPU SmartNIC specifications
@@ -1217,7 +1216,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Resnics Stargate-N2025 DPU SmartNIC specifications
@@ -1236,7 +1235,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Resnics Stargate-S1100 NVMe-oF storage accelerator card specifications
@@ -1272,9 +1271,9 @@ sources:
   target_domain: ai_infra
   url: https://www.dayudpu.com/product/paratus2
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Dayu Paratus 2.0 DPU and SmartNIC product specifications
@@ -1293,7 +1292,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: JaguarMicro Yunxiao DPU product announcement and capabilities
@@ -1311,7 +1310,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Corigine Agilio CX 2x25GbE SmartNIC product brief PDF
@@ -1330,7 +1329,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Asterfusion Helium DPU card specifications
@@ -1348,7 +1347,7 @@ sources:
   trust_level: trusted
   schedule: monthly
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Asterfusion CX102S-DPU hardware platform specifications
@@ -1384,9 +1383,9 @@ sources:
   target_domain: ai_infra
   url: https://www.nvidia.com/en-us/data-center/products/
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: scheduled
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: NVIDIA accelerator product index discovery
@@ -1443,9 +1442,9 @@ sources:
   target_domain: ai_infra
   url: https://e.huawei.com/cn/products/computing/ascend
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: scheduled
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Huawei Ascend accelerator product index discovery
@@ -1482,7 +1481,7 @@ sources:
   name: Kunlunxin accelerator discovery
   type: web
   target_domain: ai_infra
-  url: https://www.kunlunxin.com/product.html
+  url: https://www.kunlunxin.com/wp-sitemap-posts-product-1.xml
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1541,7 +1540,7 @@ sources:
   name: Biren accelerator discovery
   type: web
   target_domain: ai_infra
-  url: https://www.birentech.com/product
+  url: https://www.birentech.com/
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1563,9 +1562,9 @@ sources:
   target_domain: ai_infra
   url: https://www.iluvatar.com/product
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: scheduled
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Iluvatar accelerator product index discovery
@@ -1582,7 +1581,7 @@ sources:
   name: Enflame accelerator discovery
   type: web
   target_domain: ai_infra
-  url: https://www.enflame-tech.com/product
+  url: https://www.enflame-tech.com/
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1665,7 +1664,7 @@ sources:
   name: Intel DSA documentation discovery
   type: web
   target_domain: ai_infra
-  url: https://docs.kernel.org/driver-api/idxd/index.html
+  url: https://www.intel.com/content/www/us/en/content-details/671116/intel-data-streaming-accelerator-architecture-specification.html
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1707,9 +1706,9 @@ sources:
   target_domain: ai_infra
   url: https://www.amd.com/en/products/accelerators/alveo.html
   trust_level: trusted
-  schedule: monthly
+  schedule: manual
   run_policy: scheduled
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: AMD Alveo FPGA accelerator product index discovery
@@ -1721,3 +1720,1121 @@ sources:
   include_patterns:
   - Alveo [A-Z]?[0-9]+[A-Z0-9-]*
   - V[0-9]{2}
+- id: compute-accelerators-nvidia-gb300
+  name: nvidia GB300 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/data-center/products/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: nvidia GB300 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-nvidia-b300
+  name: nvidia B300 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/data-center/products/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: nvidia B300 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-nvidia-gb200
+  name: nvidia GB200 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/data-center/products/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: nvidia GB200 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-nvidia-b200
+  name: nvidia B200 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/data-center/products/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: nvidia B200 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-nvidia-bluefield4
+  name: nvidia BLUEFIELD-4 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: nvidia BLUEFIELD-4 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-nvidia-bluefield3
+  name: nvidia BLUEFIELD-3 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: nvidia BLUEFIELD-3 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - dpu
+  extract_mode: specs_candidate
+  vendor_hint: nvidia
+  auto_resolve: false
+- id: compute-accelerators-huawei-b637ec19bbea8e0d01fca776ef1f93c1
+  name: huawei B637EC19BBEA8E0D01FCA776EF1F93C1 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei B637EC19BBEA8E0D01FCA776EF1F93C1 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas200i
+  name: huawei ATLAS200I accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS200I accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas200idk
+  name: huawei ATLAS200IDK accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS200IDK accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas200ia2
+  name: huawei ATLAS200IA2 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS200IA2 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas300i
+  name: huawei ATLAS300I accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS300I accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas300ia2
+  name: huawei ATLAS300IA2 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS300IA2 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas300ipro
+  name: huawei ATLAS300IPRO accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS300IPRO accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas300iduo
+  name: huawei ATLAS300IDUO accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS300IDUO accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas300v
+  name: huawei ATLAS300V accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS300V accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas300vpro
+  name: huawei ATLAS300VPRO accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS300VPRO accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas500
+  name: huawei ATLAS500 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS500 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas500a2
+  name: huawei ATLAS500A2 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS500A2 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas500pro
+  name: huawei ATLAS500PRO accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS500PRO accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800
+  name: huawei ATLAS800 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800t
+  name: huawei ATLAS800T accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800T accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800ta2
+  name: huawei ATLAS800TA2 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800TA2 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800i
+  name: huawei ATLAS800I accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800I accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800ia2
+  name: huawei ATLAS800IA2 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800IA2 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800ta3
+  name: huawei ATLAS800TA3 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800TA3 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas800ia3
+  name: huawei ATLAS800IA3 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS800IA3 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas900
+  name: huawei ATLAS900 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS900 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas900ai
+  name: huawei ATLAS900AI accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS900AI accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas900a2podatlas900a3superpod
+  name: huawei ATLAS900A2PODATLAS900A3SUPERPOD accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS900A2PODATLAS900A3SUPERPOD accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlasai
+  name: huawei ATLASAI accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLASAI accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-huawei-atlas200ai
+  name: huawei ATLAS200AI accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://e.huawei.com/cn/products/computing/ascend
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: huawei ATLAS200AI accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: huawei
+  auto_resolve: false
+- id: compute-accelerators-amd-alveox3
+  name: amd ALVEOX3 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/alveo.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd ALVEOX3 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - fpga
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-v26
+  name: amd V26 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/alveo.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd V26 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - fpga
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-v80
+  name: amd V80 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/alveo.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd V80 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - fpga
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi350p
+  name: amd MI350P accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI350P accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi350
+  name: amd MI350 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI350 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi355x
+  name: amd MI355X accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI355X accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi350x
+  name: amd MI350X accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI350X accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi300
+  name: amd MI300 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI300 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi300x
+  name: amd MI300X accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI300X accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi300a
+  name: amd MI300A accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI300A accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi200
+  name: amd MI200 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI200 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi250x
+  name: amd MI250X accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI250X accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi250
+  name: amd MI250 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI250 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-amd-mi210
+  name: amd MI210 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.amd.com/en/products/accelerators/instinct.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: false
+  auth_required: false
+  baseline_on_first_run: false
+  topic: amd MI210 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: amd
+  auto_resolve: false
+- id: compute-accelerators-intel-h100
+  name: intel H100 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: intel H100 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-intel-gaudi3
+  name: intel GAUDI3 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: intel GAUDI3 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-intel-gaudi2
+  name: intel GAUDI2 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: intel GAUDI2 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - ai_asic
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-intel-ipuadaptere2100cloudandenterprisesocbasedhighperformanceipuadapter
+  name: intel IPUADAPTERE2100CLOUDANDENTERPRISESOC-BASEDHIGH-PERFORMANCEIPUADAPTER
+    accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/network-io/ipu.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: intel IPUADAPTERE2100CLOUDANDENTERPRISESOC-BASEDHIGH-PERFORMANCEIPUADAPTER
+    accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-intel-e2100
+  name: intel E2100 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/products/details/network-io/ipu.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: intel E2100 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - ipu
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-intel-dsa
+  name: intel DSA accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.intel.com/content/www/us/en/content-details/671116/intel-data-streaming-accelerator-architecture-specification.html
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: intel DSA accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - dsa
+  extract_mode: specs_candidate
+  vendor_hint: intel
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s5000
+  name: moore_threads S5000 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S5000 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s4000
+  name: moore_threads S4000 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S4000 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s3000
+  name: moore_threads S3000 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S3000 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s2000
+  name: moore_threads S2000 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S2000 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s80
+  name: moore_threads S80 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S80 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s70
+  name: moore_threads S70 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S70 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s50
+  name: moore_threads S50 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S50 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s30
+  name: moore_threads S30 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S30 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-moore_threads-s10
+  name: moore_threads S10 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.mthreads.com/product
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: moore_threads S10 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - gpu
+  extract_mode: specs_candidate
+  vendor_hint: moore_threads
+  auto_resolve: false
+- id: compute-accelerators-kunlunxin-r100
+  name: kunlunxin R100 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.kunlunxin.com/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: kunlunxin R100 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: kunlunxin
+  auto_resolve: false
+- id: compute-accelerators-kunlunxin-r480x8
+  name: kunlunxin R480-X8 accelerator specs
+  type: web
+  target_domain: ai_infra
+  url: https://www.kunlunxin.com/
+  trust_level: trusted
+  schedule: monthly
+  run_policy: once
+  auto_ingest: true
+  auth_required: false
+  baseline_on_first_run: false
+  topic: kunlunxin R480-X8 accelerator specs
+  source_rank: S1
+  accelerator_scope:
+  - npu
+  extract_mode: specs_candidate
+  vendor_hint: kunlunxin
+  auto_resolve: false

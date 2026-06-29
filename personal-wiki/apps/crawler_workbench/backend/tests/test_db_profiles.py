@@ -555,6 +555,29 @@ def test_accelerator_profiles_use_once_policy_and_discovery_profiles_are_monthly
     assert {"gpu", "npu", "tpu", "dpu", "ipu", "fpga", "dsa", "ai_asic"} <= discovered_scopes
 
 
+def test_accelerator_discovery_profiles_use_reachable_product_indexes():
+    import yaml
+
+    config_path = Path(__file__).parents[2] / "config" / "sources.example.yaml"
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    sources = {source["id"]: source for source in data["sources"]}
+
+    assert sources["compute-accelerator-discovery-biren-products"]["url"] == "https://www.birentech.com/"
+    assert sources["compute-accelerator-discovery-enflame-products"]["url"] == "https://www.enflame-tech.com/"
+    assert (
+        sources["compute-accelerator-discovery-kunlunxin-products"]["url"]
+        == "https://www.kunlunxin.com/wp-sitemap-posts-product-1.xml"
+    )
+    assert (
+        sources["compute-accelerator-discovery-intel-dsa-docs"]["url"]
+        == "https://www.intel.com/content/www/us/en/content-details/671116/intel-data-streaming-accelerator-architecture-specification.html"
+    )
+    assert (
+        sources["compute-accelerators-microsoft-maia-200"]["url"]
+        == "https://techcommunity.microsoft.com/blog/azureinfrastructureblog/deep-dive-into-the-maia-200-architecture/4489312"
+    )
+
+
 def test_yaml_profile_rejects_invalid_accelerator_scope(tmp_path):
     yaml_path = tmp_path / "sources.yaml"
     yaml_path.write_text(

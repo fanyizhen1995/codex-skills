@@ -440,17 +440,17 @@ sources:
   auto_resolve: false
   enabled: false
 - id: compute-accelerators-microsoft-maia-200
-  name: Microsoft Maia 200 AI accelerator announcement
+  name: Microsoft Maia 200 AI accelerator architecture
   type: web
   target_domain: ai_infra
-  url: https://blogs.microsoft.com/blog/2026/01/26/maia-200-the-ai-accelerator-built-for-inference/
+  url: https://techcommunity.microsoft.com/blog/azureinfrastructureblog/deep-dive-into-the-maia-200-architecture/4489312
   trust_level: trusted
   schedule: monthly
   run_policy: once
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: true
-  topic: Microsoft Maia 200 AI accelerator specifications
+  topic: Microsoft Maia 200 AI accelerator architecture specifications
   source_rank: S1
   accelerator_scope:
   - dsa
@@ -1482,7 +1482,7 @@ sources:
   name: Kunlunxin accelerator discovery
   type: web
   target_domain: ai_infra
-  url: https://www.kunlunxin.com/product.html
+  url: https://www.kunlunxin.com/wp-sitemap-posts-product-1.xml
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1541,7 +1541,7 @@ sources:
   name: Biren accelerator discovery
   type: web
   target_domain: ai_infra
-  url: https://www.birentech.com/product
+  url: https://www.birentech.com/
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1582,7 +1582,7 @@ sources:
   name: Enflame accelerator discovery
   type: web
   target_domain: ai_infra
-  url: https://www.enflame-tech.com/product
+  url: https://www.enflame-tech.com/
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
@@ -1665,7 +1665,7 @@ sources:
   name: Intel DSA documentation discovery
   type: web
   target_domain: ai_infra
-  url: https://docs.kernel.org/driver-api/idxd/index.html
+  url: https://www.intel.com/content/www/us/en/content-details/671116/intel-data-streaming-accelerator-architecture-specification.html
   trust_level: trusted
   schedule: monthly
   run_policy: scheduled
