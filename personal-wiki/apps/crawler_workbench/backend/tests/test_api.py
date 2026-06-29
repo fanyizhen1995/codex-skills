@@ -140,6 +140,146 @@ def test_wiki_metrics_endpoint_reports_counts_sizes_and_light_health(tmp_path, m
     assert data["health"]["latest_validation_at"] == "2026-06-26 02:00:00"
 
 
+def test_wiki_pages_endpoint_lists_curated_pages(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    wiki_root = settings.wiki_root
+    domain_wiki = wiki_root / "domains" / "ai_infra" / "wiki"
+    for path, text in [
+        (
+            domain_wiki / "index.md",
+            "---\ntitle: Index\n---\n# Index\n",
+        ),
+        (
+            domain_wiki / "projects" / "index.md",
+            "---\ntitle: Projects\n---\n# Projects\n",
+        ),
+        (
+            domain_wiki / "projects" / "nccl.md",
+            """---
+domain: ai_infra
+type: project
+title: NCCL Tracker
+description: NCCL curated notes
+status: draft
+tags:
+  - nccl
+  - networking
+source_refs:
+  - raw/crawler/nccl/item.md
+---
+# NCCL Tracker
+""",
+        ),
+        (
+            domain_wiki / "references" / "sglang.md",
+            """---
+domain: ai_infra
+type: reference
+title: SGLang
+description: Serving notes
+status: reviewed
+tags:
+  - inference
+source_refs:
+  - raw/crawler/sglang/item.md
+---
+# SGLang
+""",
+        ),
+    ]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    app = create_app(settings)
+    with TestClient(app) as client:
+        response = client.get("/api/wiki/pages", params={"domain": "ai_infra"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [page["path"] for page in data] == ["projects/nccl.md", "references/sglang.md"]
+    assert data[0] == {
+        "domain": "ai_infra",
+        "path": "projects/nccl.md",
+        "full_path": "domains/ai_infra/wiki/projects/nccl.md",
+        "type": "project",
+        "title": "NCCL Tracker",
+        "description": "NCCL curated notes",
+        "status": "draft",
+        "tags": ["nccl", "networking"],
+        "source_refs": ["raw/crawler/nccl/item.md"],
+    }
+
+
+def test_wiki_page_endpoint_reads_content_and_body_without_frontmatter(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    page = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "projects" / "nccl.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    content = """---
+domain: ai_infra
+type: project
+title: NCCL Tracker
+description: NCCL curated notes
+status: draft
+tags:
+  - nccl
+source_refs:
+  - raw/crawler/nccl/item.md
+---
+# NCCL Tracker
+
+Body text.
+"""
+    page.write_text(content, encoding="utf-8")
+
+    app = create_app(settings)
+    with TestClient(app) as client:
+        response = client.get("/api/wiki/page", params={"domain": "ai_infra", "path": "projects/nccl.md"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["path"] == "projects/nccl.md"
+    assert data["full_path"] == "domains/ai_infra/wiki/projects/nccl.md"
+    assert data["title"] == "NCCL Tracker"
+    assert data["content"] == content
+    assert data["body"] == "# NCCL Tracker\n\nBody text.\n"
+
+
+def test_wiki_page_endpoint_handles_symlinked_repo_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    real_repo = tmp_path / "real-repo"
+    symlinked_repo = tmp_path / "linked-repo"
+    real_repo.mkdir()
+    symlinked_repo.symlink_to(real_repo, target_is_directory=True)
+    settings = Settings(repo_root=symlinked_repo, state_dir=tmp_path / ".state")
+    page = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "projects" / "nccl.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text("---\ntitle: NCCL Tracker\n---\n# NCCL Tracker\n", encoding="utf-8")
+
+    app = create_app(settings)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/wiki/page", params={"domain": "ai_infra", "path": "projects/nccl.md"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["path"] == "projects/nccl.md"
+    assert data["full_path"] == "domains/ai_infra/wiki/projects/nccl.md"
+
+
+def test_wiki_page_endpoint_rejects_parent_path_escape(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+
+    app = create_app(settings)
+    with TestClient(app) as client:
+        response = client.get("/api/wiki/page", params={"domain": "ai_infra", "path": "../raw/secret.md"})
+        backslash_response = client.get("/api/wiki/page", params={"domain": "ai_infra", "path": r"projects\nccl.md"})
+
+    assert response.status_code == 400
+    assert backslash_response.status_code == 400
+
+
 def test_runs_endpoint_exposes_failure_reason_for_failed_runs(tmp_path, monkeypatch):
     monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")

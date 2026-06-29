@@ -15,7 +15,10 @@ import type {
   SearchResult,
   SettingsResponse,
   SourceProfile,
+  TrustAcceleratorCandidatesResponse,
   ValidationResponse,
+  WikiPageDetail,
+  WikiPageSummary,
   WikiMetricsResponse,
   WikiGraphResponse
 } from "./types";
@@ -104,6 +107,10 @@ export async function acceptAcceleratorCandidate(
   return request<AcceleratorCandidate>(`/accelerator-candidates/${id}/accept`, { method: "POST", body: payload });
 }
 
+export async function trustAcceleratorCandidateSource(id: number): Promise<TrustAcceleratorCandidatesResponse> {
+  return request<TrustAcceleratorCandidatesResponse>(`/accelerator-candidates/${id}/trust-source`, { method: "POST" });
+}
+
 export async function rejectAcceleratorCandidate(id: number): Promise<AcceleratorCandidate> {
   return request<AcceleratorCandidate>(`/accelerator-candidates/${id}/reject`, { method: "POST" });
 }
@@ -126,6 +133,14 @@ export async function getQueue(): Promise<IngestTask[]> {
 
 export async function getWikiMetrics(): Promise<WikiMetricsResponse> {
   return request<WikiMetricsResponse>("/wiki/metrics");
+}
+
+export async function getWikiPages(domain: string): Promise<WikiPageSummary[]> {
+  return request<WikiPageSummary[]>(withQuery("/wiki/pages", { domain }));
+}
+
+export async function getWikiPage(domain: string, path: string): Promise<WikiPageDetail> {
+  return request<WikiPageDetail>(withQuery("/wiki/page", { domain, path }));
 }
 
 export async function approveTask(id: number): Promise<Record<string, unknown>> {
@@ -155,6 +170,10 @@ export async function getJob(id: number): Promise<CodexJob> {
   return request<CodexJob>(`/jobs/${id}`);
 }
 
+export async function getLatestJob(domain?: string): Promise<CodexJob | null> {
+  return request<CodexJob | null>(withQuery("/jobs/latest", { domain }));
+}
+
 export async function getGraph(domain?: string): Promise<WikiGraphResponse> {
   return request<WikiGraphResponse>(withQuery("/graph", { domain }));
 }
@@ -175,12 +194,15 @@ export const api = {
   runSource,
   acceleratorCandidates: getAcceleratorCandidates,
   acceptAcceleratorCandidate,
+  trustAcceleratorCandidateSource,
   rejectAcceleratorCandidate,
   acceleratorSpecs: getAcceleratorSpecs,
   extractAcceleratorSpecs,
   runs: getRuns,
   queue: getQueue,
   wikiMetrics: getWikiMetrics,
+  wikiPages: getWikiPages,
+  wikiPage: getWikiPage,
   approveQueueTask: approveTask,
   rejectQueueTask: rejectTask,
   trustQueueSource,
@@ -193,7 +215,8 @@ export const api = {
   ask: askCodex,
   graph: (domain?: string) => getGraph(domain) as Promise<GraphResponse>,
   validate: validateWiki,
-  job: getJob
+  job: getJob,
+  latestJob: getLatestJob
 };
 
 export { ApiError, request, resolveApiBase };

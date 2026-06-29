@@ -133,7 +133,7 @@ export function AcceleratorSpecsPage() {
               <span role="columnheader">SKU</span>
               <span role="columnheader">Resolved 字段</span>
               <span role="columnheader">观测证据</span>
-              <span role="columnheader">Raw Path</span>
+              <span role="columnheader">来源</span>
             </div>
             {specs.map((spec) => (
               <div className="table-row specs-row" role="row" key={spec.sku_id}>
@@ -203,7 +203,9 @@ export function AcceleratorSpecsPage() {
                   </div>
                 </span>
                 <span role="cell">
-                  <small>{spec.raw_path}</small>
+                  <a href={spec.source_url} target="_blank" rel="noreferrer">
+                    {spec.source_url}
+                  </a>
                 </span>
               </div>
             ))}

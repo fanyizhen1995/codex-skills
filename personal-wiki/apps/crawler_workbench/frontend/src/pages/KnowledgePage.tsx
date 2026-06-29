@@ -1,7 +1,8 @@
 import { RefreshCw, Search, Send } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import { askCodex, getDomains, getGraph, getJob, rebuildSearch, searchWiki } from "../api";
+import { askCodex, getDomains, getGraph, getJob, getLatestJob, rebuildSearch, searchWiki } from "../api";
 import { WikiGraph } from "../components/WikiGraph";
 import { StatusBadge } from "../components/StatusBadge";
 import type { CodexJob, Domain, SearchResult, WikiGraphResponse } from "../types";
@@ -14,7 +15,7 @@ function jobAnswer(job: CodexJob | null) {
   if (!job) {
     return "尚未发起查询。";
   }
-  return job.answer ?? job.stdout ?? job.error ?? job.stderr ?? `任务状态：${job.status}`;
+  return firstNonEmpty(job.answer, job.stdout, job.error, job.stderr) ?? `任务状态：${job.status}`;
 }
 
 function jobCitations(job: CodexJob | null, results: SearchResult[]) {
@@ -23,6 +24,252 @@ function jobCitations(job: CodexJob | null, results: SearchResult[]) {
     return citations;
   }
   return results.slice(0, 3).map((result) => result.path);
+}
+
+function firstNonEmpty(...values: Array<unknown>) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function jobNumericId(job: CodexJob | null) {
+  return typeof job?.id === "number" ? job.id : typeof job?.job_id === "number" ? job.job_id : null;
+}
+
+type AnswerBlock =
+  | { type: "heading"; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "list"; items: string[] }
+  | { type: "code"; code: string }
+  | { type: "table"; rows: string[][] };
+
+function splitTableRow(line: string) {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function isTableDivider(line: string) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function isTableStart(lines: string[], index: number) {
+  return lines[index]?.trim().includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1]);
+}
+
+function parseAnswerBlocks(markdown: string): AnswerBlock[] {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const blocks: AnswerBlock[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const trimmed = lines[index].trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith("```")) {
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push({ type: "code", code: codeLines.join("\n") });
+      index += 1;
+      continue;
+    }
+
+    const heading = trimmed.match(/^#{1,4}\s+(.+)$/);
+    if (heading) {
+      blocks.push({ type: "heading", text: heading[1] });
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
+        index += 1;
+      }
+      blocks.push({ type: "list", items });
+      continue;
+    }
+
+    const boldHeading = trimmed.match(/^\*\*([^*]+)\*\*$/);
+    if (boldHeading) {
+      blocks.push({ type: "heading", text: boldHeading[1] });
+      index += 1;
+      continue;
+    }
+
+    if (isTableStart(lines, index)) {
+      const rows = [splitTableRow(lines[index])];
+      index += 2;
+      while (index < lines.length && lines[index].trim().includes("|") && lines[index].trim()) {
+        rows.push(splitTableRow(lines[index]));
+        index += 1;
+      }
+      blocks.push({ type: "table", rows });
+      continue;
+    }
+
+    const paragraphLines = [trimmed];
+    index += 1;
+    while (index < lines.length) {
+      const next = lines[index].trim();
+      if (
+        !next ||
+        next.startsWith("```") ||
+        /^#{1,4}\s+/.test(next) ||
+        /^[-*]\s+/.test(next) ||
+        /^\*\*[^*]+\*\*$/.test(next) ||
+        isTableStart(lines, index)
+      ) {
+        break;
+      }
+      paragraphLines.push(next);
+      index += 1;
+    }
+    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
+  }
+
+  return blocks;
+}
+
+function isSafeExternalUrl(url: string) {
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function compactPathLabel(value: string) {
+  const path = value.trim().split(/[?#]/)[0].replace(/\/+$/, "");
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || value.trim();
+}
+
+function displayReferenceLabel(label: string, url: string) {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return compactPathLabel(url);
+  }
+  return trimmed.includes("/") || trimmed.includes("\\") ? compactPathLabel(trimmed) : trimmed;
+}
+
+function renderAnswerInline(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  const inlinePattern = /\[([^\]]+)\]\(([^)\s]+)\)|`([^`]+)`|\*\*([^*]+)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = inlinePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[1] !== undefined && match[2] !== undefined) {
+      const label = displayReferenceLabel(match[1], match[2]);
+      const url = match[2].trim();
+      if (isSafeExternalUrl(url)) {
+        parts.push(
+          <a href={url} key={`${url}-${match.index}`} rel="noreferrer" target="_blank">
+            {label}
+          </a>
+        );
+      } else {
+        parts.push(
+          <span className="answer-reference" key={`${url}-${match.index}`} title={url}>
+            {label}
+          </span>
+        );
+      }
+    } else if (match[3] !== undefined) {
+      parts.push(
+        <code className="answer-inline-code" key={`code-${match.index}`}>
+          {match[3]}
+        </code>
+      );
+    } else if (match[4] !== undefined) {
+      parts.push(<strong key={`strong-${match.index}`}>{match[4]}</strong>);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
+function AnswerContent({ answer }: { answer: string }) {
+  const blocks = useMemo(() => parseAnswerBlocks(answer), [answer]);
+
+  return (
+    <div className="answer-content">
+      {blocks.map((block, index) => {
+        if (block.type === "heading") {
+          return <h3 key={index}>{renderAnswerInline(block.text)}</h3>;
+        }
+        if (block.type === "list") {
+          return (
+            <ul key={index}>
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderAnswerInline(item)}</li>
+              ))}
+            </ul>
+          );
+        }
+        if (block.type === "code") {
+          return (
+            <pre key={index}>
+              <code>{block.code}</code>
+            </pre>
+          );
+        }
+        if (block.type === "table") {
+          const [head, ...body] = block.rows;
+          return (
+            <div className="answer-table-wrap" key={index}>
+              <table>
+                <thead>
+                  <tr>
+                    {head.map((cell, cellIndex) => (
+                      <th key={cellIndex}>{renderAnswerInline(cell)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {body.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {row.map((cell, cellIndex) => (
+                        <td key={cellIndex}>{renderAnswerInline(cell)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        return <p key={index}>{renderAnswerInline(block.text)}</p>;
+      })}
+    </div>
+  );
 }
 
 export function KnowledgePage() {
@@ -104,6 +351,35 @@ export function KnowledgePage() {
   }, [domain]);
 
   useEffect(() => {
+    if (!domain || jobId !== null) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    getLatestJob(domain)
+      .then((latestJob) => {
+        if (cancelled || latestJob === null) {
+          return;
+        }
+        setJob(latestJob);
+        const latestJobId = jobNumericId(latestJob);
+        if (latestJobId !== null && (latestJob.status === "pending" || latestJob.status === "running")) {
+          setJobId(latestJobId);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setMessage(error instanceof Error ? error.message : "恢复 Codex 查询状态失败");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [domain, jobId]);
+
+  useEffect(() => {
     if (jobId === null) {
       return undefined;
     }
@@ -180,6 +456,7 @@ export function KnowledgePage() {
       const response = await askCodex(domain, trimmed, persist);
       setJob({ status: "pending", job_id: response.job_id, question: trimmed });
       setJobId(response.job_id);
+      setMessage(`已提交 Codex 查询 #${response.job_id}，后台执行中。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Codex 查询失败");
     } finally {
@@ -276,7 +553,7 @@ export function KnowledgePage() {
         </div>
       </div>
 
-      <div className="panel-grid">
+      <div className="panel-grid knowledge-grid">
         <div className="work-panel">
           <h2>搜索结果</h2>
           <div className="compact-list">
@@ -297,10 +574,10 @@ export function KnowledgePage() {
           </div>
         </div>
 
-        <div className="work-panel">
+        <div className="work-panel answer-panel">
           <h2>回答</h2>
-          <p>{jobAnswer(job)}</p>
-          {job?.status && <small>状态：{job.status}</small>}
+          <AnswerContent answer={jobAnswer(job)} />
+          {job?.status && <small>{`状态：${job.status}${jobNumericId(job) !== null ? ` · 任务 #${jobNumericId(job)}` : ""}`}</small>}
         </div>
 
         <div className="work-panel">

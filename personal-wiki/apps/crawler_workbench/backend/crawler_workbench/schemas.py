@@ -47,6 +47,14 @@ class AcceptAcceleratorCandidateRequest(BaseModel):
     source_rank: str = "S1"
 
 
+class TrustAcceleratorCandidatesResponse(BaseModel):
+    domain: str
+    accepted_count: int
+    candidate_ids: list[int]
+    accepted_source_ids: list[str]
+    candidates: list[AcceleratorCandidateResponse]
+
+
 class AcceleratorObservationResponse(BaseModel):
     id: int
     field: str

@@ -119,7 +119,7 @@ def test_resilient_http_client_defaults_to_follow_redirects():
     assert kwargs_seen == [{"follow_redirects": True, "timeout": 60}]
 
 
-def test_resilient_http_client_does_not_retry_github_without_env_proxy():
+def test_resilient_http_client_retries_github_api_connection_errors_without_env_proxy():
     calls: list[tuple[bool, str]] = []
 
     class Client:
@@ -128,17 +128,22 @@ def test_resilient_http_client_does_not_retry_github_without_env_proxy():
 
         def get(self, url, **kwargs):
             calls.append((self.trust_env, url))
-            raise httpx.ConnectError("direct github blocked")
+            if self.trust_env:
+                raise httpx.ConnectError("proxy failed")
+            return httpx.Response(200, text="ok")
 
         def close(self):
             pass
 
     client = ResilientHttpClient(client_factory=Client)
 
-    with pytest.raises(httpx.ConnectError):
-        client.get("https://github.com/NVIDIA/nccl/releases.atom")
+    response = client.get("https://api.github.com/repos/NVIDIA/nccl/issues?state=closed")
 
-    assert calls == [(True, "https://github.com/NVIDIA/nccl/releases.atom")]
+    assert response.status_code == 200
+    assert calls == [
+        (True, "https://api.github.com/repos/NVIDIA/nccl/issues?state=closed"),
+        (False, "https://api.github.com/repos/NVIDIA/nccl/issues?state=closed"),
+    ]
 
 
 def test_resilient_http_client_retries_empty_non_github_5xx_without_env_proxy():

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -12,8 +12,13 @@ import {
   getQueue,
   getRuns,
   getSources,
+  getJob,
+  getLatestJob,
+  getWikiPage,
+  getWikiPages,
   getWikiMetrics,
   rejectAcceleratorCandidate,
+  trustAcceleratorCandidateSource,
   trustQueueSource,
   validateWiki
 } from "./api";
@@ -177,9 +182,36 @@ vi.mock("./api", () => ({
     warning: "无登录：仅可暴露在可信网络。后端可触发本机 Codex。"
   }),
   getJob: vi.fn(),
+  getLatestJob: vi.fn(),
   getQueue: vi.fn().mockResolvedValue([]),
   getRuns: vi.fn().mockResolvedValue([]),
   getSources: vi.fn().mockResolvedValue([]),
+  getWikiPage: vi.fn().mockResolvedValue({
+    domain: "ai_infra",
+    path: "projects/nccl.md",
+    full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    type: "project",
+    title: "NCCL",
+    description: "NCCL notes",
+    status: "active",
+    tags: ["nccl"],
+    source_refs: ["../../raw/nccl.md"],
+    content: "# NCCL\n\nNCCL content.",
+    body: "NCCL content."
+  }),
+  getWikiPages: vi.fn().mockResolvedValue([
+    {
+      domain: "ai_infra",
+      path: "projects/nccl.md",
+      full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+      type: "project",
+      title: "NCCL",
+      description: "NCCL notes",
+      status: "active",
+      tags: ["nccl"],
+      source_refs: ["../../raw/nccl.md"]
+    }
+  ]),
   getWikiMetrics: vi.fn().mockResolvedValue({
     counts: {
       domain_count: 1,
@@ -226,6 +258,13 @@ vi.mock("./api", () => ({
   runSource: vi.fn(),
   searchWiki: vi.fn(),
   trustQueueSource: vi.fn().mockResolvedValue({ domain: "vllm.ai", approved_count: 1 }),
+  trustAcceleratorCandidateSource: vi.fn().mockResolvedValue({
+    domain: "nvidia.com",
+    accepted_count: 1,
+    candidate_ids: [1],
+    accepted_source_ids: ["compute-accelerators-nvidia-h300"],
+    candidates: []
+  }),
   validateWiki: vi.fn().mockResolvedValue({ status: "succeeded", stdout: "ok", stderr: "", validation_run_id: 7 })
 }));
 
@@ -239,8 +278,51 @@ afterEach(() => {
   vi.mocked(getQueue).mockResolvedValue([]);
   vi.mocked(getRuns).mockResolvedValue([]);
   vi.mocked(getSources).mockResolvedValue([]);
+  vi.mocked(getJob).mockResolvedValue({
+    id: 42,
+    status: "running",
+    target_domain: "ai_infra",
+    prompt: "使用 personal-wiki-manager，目标 domain: ai_infra，基于已有 wiki/raw 回答 \"横向对比\"",
+    stdout: "",
+    stderr: "",
+    created_at: "2026-06-28 14:59:24"
+  });
+  vi.mocked(getLatestJob).mockResolvedValue(null);
+  vi.mocked(getWikiPage).mockResolvedValue({
+    domain: "ai_infra",
+    path: "projects/nccl.md",
+    full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    type: "project",
+    title: "NCCL",
+    description: "NCCL notes",
+    status: "active",
+    tags: ["nccl"],
+    source_refs: ["../../raw/nccl.md"],
+    content: "# NCCL\n\nNCCL content.",
+    body: "NCCL content."
+  });
+  vi.mocked(getWikiPages).mockResolvedValue([
+    {
+      domain: "ai_infra",
+      path: "projects/nccl.md",
+      full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+      type: "project",
+      title: "NCCL",
+      description: "NCCL notes",
+      status: "active",
+      tags: ["nccl"],
+      source_refs: ["../../raw/nccl.md"]
+    }
+  ]);
   vi.mocked(getWikiMetrics).mockResolvedValue(defaultWikiMetrics());
   vi.mocked(trustQueueSource).mockResolvedValue({ domain: "vllm.ai", approved_count: 1 });
+  vi.mocked(trustAcceleratorCandidateSource).mockResolvedValue({
+    domain: "nvidia.com",
+    accepted_count: 1,
+    candidate_ids: [1],
+    accepted_source_ids: ["compute-accelerators-nvidia-h300"],
+    candidates: []
+  });
   vi.mocked(validateWiki).mockResolvedValue({ status: "succeeded", stdout: "ok", stderr: "", validation_run_id: 7 });
 });
 
@@ -277,6 +359,123 @@ describe("App", () => {
 
     expect(screen.getByRole("option", { name: "ai_infra" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "engineering" })).not.toBeInTheDocument();
+  });
+
+  it("restores the latest Codex job when opening the knowledge page", async () => {
+    vi.mocked(getLatestJob).mockResolvedValueOnce({
+      id: 42,
+      status: "running",
+      target_domain: "ai_infra",
+      prompt: "使用 personal-wiki-manager，目标 domain: ai_infra，基于已有 wiki/raw 回答 \"横向对比\"",
+      stdout: "",
+      stderr: "",
+      created_at: "2026-06-28 14:59:24"
+    });
+    vi.mocked(getJob).mockResolvedValue({
+      id: 42,
+      status: "running",
+      target_domain: "ai_infra",
+      prompt: "使用 personal-wiki-manager，目标 domain: ai_infra，基于已有 wiki/raw 回答 \"横向对比\"",
+      stdout: "",
+      stderr: "",
+      created_at: "2026-06-28 14:59:24"
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("知识工作台")[0]);
+
+    expect(await screen.findByText("任务状态：running")).toBeInTheDocument();
+    expect(await screen.findByText(/任务 #42/)).toBeInTheDocument();
+    expect(getLatestJob).toHaveBeenCalledWith("ai_infra");
+  });
+
+  it("renders Codex markdown answers as structured readable content", async () => {
+    vi.mocked(getLatestJob).mockResolvedValueOnce({
+      id: 43,
+      status: "succeeded",
+      target_domain: "ai_infra",
+      prompt: "横向对比",
+      stdout:
+        "已基于 `ai_infra` 现有 wiki/raw 做了横向对比，并把可复用摘要沉淀到了： " +
+        "[compute-accelerator-parameter-comparison.md](/home/fyz/codex-skills/personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md)\n\n" +
+        "**结论速览**\n\n" +
+        "| 类别 | 型号/记录 | 参数重点 |\n" +
+        "| --- | --- | --- |\n" +
+        "| 高端单卡/模块 | NVIDIA H200 SXM/NVL | 141 GB；NVLink 900 GB/s |\n" +
+        "| 国产卡级对比 | Cambricon MLU370 | 参数较完整，可比 compute/memory/interface/power |\n\n" +
+        "关键引用路径包括：\n" +
+        "- [H200 raw](/home/fyz/codex-skills/personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/item.md)\n" +
+        "- [unsafe](javascript:alert(1))",
+      stderr: "",
+      created_at: "2026-06-28 15:30:00"
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("知识工作台")[0]);
+
+    expect(await screen.findByText("结论速览")).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("型号/记录")).toBeInTheDocument();
+    expect(within(table).getByText("NVIDIA H200 SXM/NVL")).toBeInTheDocument();
+    expect(screen.queryByText(/\|\s*---\s*\|/)).not.toBeInTheDocument();
+    expect(screen.getByText("compute-accelerator-parameter-comparison.md")).toHaveAttribute(
+      "title",
+      expect.stringContaining("/home/fyz/codex-skills/")
+    );
+    expect(screen.getByText("H200 raw")).toHaveAttribute("title", expect.stringContaining("/raw/crawler/"));
+    expect(screen.queryByRole("link", { name: "H200 raw" })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href^="javascript:"]')).not.toBeInTheDocument();
+  });
+
+  it("loads and renders wiki browser pages from the selected domain", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("Wiki 浏览")[0]);
+
+    expect(await screen.findByRole("button", { name: /NCCL/ })).toBeInTheDocument();
+    expect(await screen.findByText("NCCL content.")).toBeInTheDocument();
+    expect(screen.getAllByText("projects/nccl.md").length).toBeGreaterThan(0);
+    expect(screen.getByText("../../raw/nccl.md")).toBeInTheDocument();
+    expect(getWikiPages).toHaveBeenCalledWith("ai_infra");
+    expect(getWikiPage).toHaveBeenCalledWith("ai_infra", "projects/nccl.md");
+  });
+
+  it("renders wiki markdown links safely and tolerates simple markdown edge cases", async () => {
+    vi.mocked(getWikiPage).mockResolvedValueOnce({
+      domain: "ai_infra",
+      path: "projects/nccl.md",
+      full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+      type: "project",
+      title: "NCCL",
+      description: "NCCL notes",
+      status: "active",
+      tags: ["nccl"],
+      source_refs: ["../../raw/nccl.md"],
+      content: "",
+      body:
+        "[safe](https://example.com/doc) and [bad](javascript:alert(1))\n\n" +
+        "- list item\n\n" +
+        "| Name | Value |\n" +
+        "| --- | --- |\n" +
+        "| row | cell |\n\n" +
+        "```\n" +
+        "unfinished code"
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("Wiki 浏览")[0]);
+
+    expect(await screen.findByRole("link", { name: "safe" })).toHaveAttribute("href", "https://example.com/doc");
+    expect(screen.queryByRole("link", { name: "bad" })).not.toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent?.includes("bad"))).toBeInTheDocument();
+    expect(screen.getByText("list item")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("cell")).toBeInTheDocument();
+    expect(screen.getByText("unfinished code")).toBeInTheDocument();
+    expect(document.querySelector('a[href^="javascript:"]')).not.toBeInTheDocument();
   });
 
   it("does not render sample content when live APIs return empty data", async () => {
@@ -535,6 +734,44 @@ describe("App", () => {
     expect(screen.getByText("一次性")).toBeInTheDocument();
   });
 
+  it("renders accelerator discovery candidates in a readable review layout", async () => {
+    const longEvidence =
+      "Control to keep AI pipelines running at full speed. Learn More NVIDIA GB300 NVL72 connects 36 NVIDIA Grace CPUs and 72 NVIDIA Blackwell Ultra GPUs in a rack-scale design.";
+    vi.mocked(getAcceleratorCandidates).mockResolvedValue([
+      {
+        id: 11,
+        vendor: "nvidia",
+        model_name: "GB300",
+        normalized_model: "gb300",
+        scope: "gpu",
+        source_profile_id: "compute-accelerator-discovery-nvidia-products",
+        source_url: "https://www.nvidia.com/en-us/data-center/products/",
+        evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+        evidence_text: longEvidence,
+        confidence: 0.9,
+        status: "pending",
+        created_at: "2026-06-28 01:00:00",
+        updated_at: "2026-06-28 01:00:00"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+
+    const candidateTable = await screen.findByRole("table", { name: "新硬件候选" });
+    const row = within(candidateTable).getByText("GB300").closest('[role="row"]');
+    expect(row).toHaveClass("candidate-row");
+    expect(within(row as HTMLElement).getByText(longEvidence)).toHaveClass("candidate-evidence-text");
+    expect(within(row as HTMLElement).getByText(longEvidence)).toHaveAttribute("title", longEvidence);
+    expect(within(row as HTMLElement).getByText("compute-accelerator-discovery-nvidia-products")).toHaveClass(
+      "candidate-source-id"
+    );
+    expect(within(row as HTMLElement).getByText("https://www.nvidia.com/en-us/data-center/products/")).toHaveClass(
+      "candidate-evidence-url"
+    );
+  });
+
   it("renders accelerator specs and refreshes after extraction backfill", async () => {
     vi.mocked(getAcceleratorSpecs)
       .mockResolvedValueOnce([mockAcceleratorSpec()])
@@ -565,12 +802,17 @@ describe("App", () => {
     expect(screen.getByText(/ai_asic/)).toBeInTheDocument();
     expect(screen.getByText("tdp")).toBeInTheDocument();
     expect(screen.getByText("600 W")).toBeInTheDocument();
-    expect(screen.getByText(/compute-accelerators-biren-166l\/item\.md/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "https://www.birentech.com/product/hardware/166l/" })).toHaveAttribute(
+      "href",
+      "https://www.birentech.com/product/hardware/166l/"
+    );
+    expect(screen.queryByText(/compute-accelerators-biren-166l\/item\.md/)).not.toBeInTheDocument();
     expect(screen.queryByText("显存容量 256GB HBM3e")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "展开 biren-166l 观测证据" }));
 
     expect(screen.getByText("显存容量 256GB HBM3e")).toBeInTheDocument();
+    expect(screen.getByText(/compute-accelerators-biren-166l\/item\.md/)).toBeInTheDocument();
     expect(screen.getByText(/compute-accelerators-biren-166l\/memory\.md/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "回填参数" }));
@@ -639,6 +881,92 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "拒绝 H301" }));
 
     await waitFor(() => expect(rejectAcceleratorCandidate).toHaveBeenCalledWith(8));
+  });
+
+  it("trusts the same base URL for accelerator discovery candidates", async () => {
+    vi.mocked(getAcceleratorCandidates)
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          vendor: "nvidia",
+          model_name: "GB300",
+          normalized_model: "gb300",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-nvidia-products",
+          source_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_text: "NVIDIA GB300 GPU accelerator",
+          confidence: 0.9,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        },
+        {
+          id: 8,
+          vendor: "nvidia",
+          model_name: "GB200",
+          normalized_model: "gb200",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-nvidia-products",
+          source_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_url: "https://www.nvidia.com/en-us/data-center/products/",
+          evidence_text: "NVIDIA GB200 GPU accelerator",
+          confidence: 0.9,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        },
+        {
+          id: 9,
+          vendor: "example",
+          model_name: "X900",
+          normalized_model: "x900",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-example-products",
+          source_url: "https://example.com/products/",
+          evidence_url: "https://example.com/products/",
+          evidence_text: "Example X900 GPU accelerator",
+          confidence: 0.8,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        }
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 9,
+          vendor: "example",
+          model_name: "X900",
+          normalized_model: "x900",
+          scope: "gpu",
+          source_profile_id: "compute-accelerator-discovery-example-products",
+          source_url: "https://example.com/products/",
+          evidence_url: "https://example.com/products/",
+          evidence_text: "Example X900 GPU accelerator",
+          confidence: 0.8,
+          status: "pending",
+          created_at: "2026-06-28 01:00:00",
+          updated_at: "2026-06-28 01:00:00"
+        }
+      ]);
+    vi.mocked(trustAcceleratorCandidateSource).mockResolvedValueOnce({
+      domain: "nvidia.com",
+      accepted_count: 2,
+      candidate_ids: [7, 8],
+      accepted_source_ids: ["compute-accelerators-nvidia-gb300", "compute-accelerators-nvidia-gb200"],
+      candidates: []
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "信任同站 GB300" }));
+
+    await waitFor(() => expect(trustAcceleratorCandidateSource).toHaveBeenCalledWith(7));
+    expect(await screen.findByText("已信任 nvidia.com，同站接受 2 个候选")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("GB300")).not.toBeInTheDocument());
+    expect(screen.queryByText("GB200")).not.toBeInTheDocument();
+    expect(screen.getByText("X900")).toBeInTheDocument();
   });
 
   it("keeps accepted candidates removed when post-accept refresh fails", async () => {
@@ -726,6 +1054,9 @@ describe("App", () => {
 
     fireEvent.click(screen.getAllByText("入库队列")[0]);
     await screen.findByText("NCCL Inspector");
+    expect(screen.getByText(/#42 · nccl-technical-blog · https:\/\/developer\.nvidia\.com\/blog\/nccl-inspector\//)).toBeInTheDocument();
+    expect(screen.queryByText("personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/item.md")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "查看任务 42 详情" }));
 
     expect(screen.getByRole("link", { name: "https://developer.nvidia.com/blog/nccl-inspector/" })).toHaveAttribute(

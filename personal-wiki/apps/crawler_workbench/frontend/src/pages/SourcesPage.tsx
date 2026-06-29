@@ -1,7 +1,14 @@
-import { Check, Play, RefreshCw, X } from "lucide-react";
+import { Check, Play, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { acceptAcceleratorCandidate, getAcceleratorCandidates, getSources, rejectAcceleratorCandidate, runSource } from "../api";
+import {
+  acceptAcceleratorCandidate,
+  getAcceleratorCandidates,
+  getSources,
+  rejectAcceleratorCandidate,
+  runSource,
+  trustAcceleratorCandidateSource
+} from "../api";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AcceleratorCandidate, SourceProfile, Status } from "../types";
 
@@ -126,6 +133,26 @@ export function SourcesPage() {
     setReviewingCandidate(null);
   }
 
+  async function handleTrustCandidateSource(candidate: AcceleratorCandidate) {
+    setReviewingCandidate(candidate.id);
+    setNotice("");
+    setError("");
+    try {
+      const result = await trustAcceleratorCandidateSource(candidate.id);
+      setCandidates((currentCandidates) => currentCandidates.filter((item) => !result.candidate_ids.includes(item.id)));
+      setNotice(`已信任 ${result.domain}，同站接受 ${result.accepted_count} 个候选`);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "信任同站候选失败");
+      setReviewingCandidate(null);
+      return;
+    }
+    const refreshed = await loadSources();
+    if (refreshed === null) {
+      setError("候选已信任，刷新来源失败");
+    }
+    setReviewingCandidate(null);
+  }
+
   async function handleReject(candidate: AcceleratorCandidate) {
     setReviewingCandidate(candidate.id);
     setNotice("");
@@ -170,15 +197,15 @@ export function SourcesPage() {
           {candidates.length === 0 ? (
             <div className="empty-state">{loading ? "正在加载候选" : "暂无新硬件候选"}</div>
           ) : (
-            <div className="responsive-table" role="table" aria-label="新硬件候选">
-              <div className="table-row table-head" role="row">
+            <div className="responsive-table candidate-table" role="table" aria-label="新硬件候选">
+              <div className="table-row table-head candidate-row" role="row">
                 <span role="columnheader">型号</span>
                 <span role="columnheader">证据</span>
                 <span role="columnheader">来源</span>
                 <span role="columnheader">操作</span>
               </div>
               {candidates.map((candidate) => (
-                <div className="table-row" role="row" key={candidate.id}>
+                <div className="table-row candidate-row" role="row" key={candidate.id}>
                   <span role="cell">
                     <strong>{candidate.model_name}</strong>
                     <small>
@@ -186,10 +213,16 @@ export function SourcesPage() {
                     </small>
                   </span>
                   <span role="cell">
-                    {candidate.evidence_text}
-                    <small>{candidate.evidence_url || candidate.source_url}</small>
+                    <span className="candidate-evidence-text" title={candidate.evidence_text}>
+                      {candidate.evidence_text}
+                    </span>
+                    <small className="candidate-evidence-url" title={candidate.evidence_url || candidate.source_url}>
+                      {candidate.evidence_url || candidate.source_url}
+                    </small>
                   </span>
-                  <span role="cell">{candidate.source_profile_id}</span>
+                  <span className="candidate-source-id" role="cell" title={candidate.source_profile_id}>
+                    {candidate.source_profile_id}
+                  </span>
                   <span role="cell">
                     <div className="inline-actions">
                       <button
@@ -201,6 +234,16 @@ export function SourcesPage() {
                       >
                         <Check aria-hidden="true" size={16} />
                         接受
+                      </button>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`信任同站 ${candidate.model_name}`}
+                        onClick={() => handleTrustCandidateSource(candidate)}
+                        disabled={reviewingCandidate === candidate.id}
+                      >
+                        <ShieldCheck aria-hidden="true" size={16} />
+                        同站
                       </button>
                       <button
                         className="icon-button"

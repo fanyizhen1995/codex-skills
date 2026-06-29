@@ -25,6 +25,10 @@ function shouldShowInManualQueue(task: IngestTask) {
   return task.status === "pending" || task.status === "running" || task.status === "failed";
 }
 
+function taskSourceLabel(task: IngestTask) {
+  return task.canonical_url ?? task.path ?? "未生成路径";
+}
+
 export function QueuePage() {
   const [tasks, setTasks] = useState<IngestTask[]>([]);
   const [notice, setNotice] = useState("");
@@ -163,9 +167,9 @@ export function QueuePage() {
                     <div className="task-main">
                       <span className={`status-dot status-${task.status}`} />
                       <div>
-                        <strong>{task.title ?? task.path ?? `任务 #${task.id}`}</strong>
+                        <strong>{task.title ?? taskSourceLabel(task) ?? `任务 #${task.id}`}</strong>
                         <small>
-                          #{task.id} · {task.source_id ?? "未知来源"} · {task.path ?? "未生成路径"}
+                          #{task.id} · {task.source_id ?? "未知来源"} · {taskSourceLabel(task)}
                         </small>
                         {task.reason && <small>原因：{task.reason}</small>}
                       </div>

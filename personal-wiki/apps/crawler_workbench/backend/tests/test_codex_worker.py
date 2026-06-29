@@ -204,6 +204,42 @@ def test_ask_endpoint_returns_before_codex_command_finishes(tmp_path, monkeypatc
         assert "answer after release" in row["stdout"]
 
 
+def test_latest_job_endpoint_returns_latest_query_for_domain(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        db.execute(
+            "insert into codex_jobs (job_type, target_domain, prompt, status) values (?, ?, ?, ?)",
+            ("query", "ai_infra", "older question", "succeeded"),
+        )
+        latest_id = db.execute(
+            "insert into codex_jobs (job_type, target_domain, prompt, status) values (?, ?, ?, ?)",
+            ("query", "ai_infra", "latest question", "running"),
+        ).lastrowid
+        db.execute(
+            "insert into codex_jobs (job_type, target_domain, prompt, status) values (?, ?, ?, ?)",
+            ("query", "other", "other domain question", "running"),
+        )
+        db.execute(
+            "insert into codex_jobs (job_type, target_domain, prompt, status) values (?, ?, ?, ?)",
+            ("ingest", "ai_infra", "newer ingest job", "running"),
+        )
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.get("/api/jobs/latest", params={"domain": "ai_infra"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == latest_id
+    assert data["job_type"] == "query"
+    assert data["target_domain"] == "ai_infra"
+    assert data["prompt"] == "latest question"
+    assert data["status"] == "running"
+
+
 def test_ask_endpoint_requires_question(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     app = create_app(settings)

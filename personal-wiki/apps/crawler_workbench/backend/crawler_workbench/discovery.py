@@ -7,6 +7,7 @@ import re
 import sqlite3
 import tempfile
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 
@@ -180,7 +181,7 @@ def accept_candidate(db: sqlite3.Connection, candidate_id: int, payload: dict[st
           id, name, type, target_domain, url, trust_level, schedule,
           auto_ingest, auth_required, run_policy, auth_state, config_json, topic, enabled
         )
-        values (?, ?, 'web', 'ai_infra', ?, 'trusted', 'monthly', 0, 0, 'once', 'ready', ?, ?, 1)
+        values (?, ?, 'web', 'ai_infra', ?, 'trusted', 'monthly', ?, 0, 'once', 'ready', ?, ?, 1)
         on conflict(id) do update set
           name = excluded.name,
           type = excluded.type,
@@ -201,6 +202,7 @@ def accept_candidate(db: sqlite3.Connection, candidate_id: int, payload: dict[st
             source_profile["id"],
             source_profile["name"],
             source_profile["url"],
+            int(bool(source_profile["auto_ingest"])),
             config_json,
             source_profile["topic"],
         ),
@@ -217,6 +219,30 @@ def accept_candidate(db: sqlite3.Connection, candidate_id: int, payload: dict[st
     )
     db.commit()
     return _candidate_by_id(db, candidate_id)
+
+
+def trust_candidate_source(db: sqlite3.Connection, candidate_id: int, sources_yaml_path: Path | None = None) -> dict[str, Any]:
+    candidate = _candidate_by_id(db, candidate_id)
+    _require_pending(candidate)
+    source_domain = _source_domain(_candidate_effective_url(candidate))
+    rows = [
+        row
+        for row in list_candidates(db, status="pending")
+        if _domain_matches(_source_domain(_candidate_effective_url(row)), source_domain)
+    ]
+    accepted: list[dict[str, Any]] = []
+    for row in rows:
+        payload = _auto_accept_payload(row)
+        if sources_yaml_path is not None:
+            payload["sources_yaml_path"] = sources_yaml_path
+        accepted.append(accept_candidate(db, int(row["id"]), payload))
+    return {
+        "domain": source_domain,
+        "accepted_count": len(accepted),
+        "candidate_ids": [int(row["id"]) for row in accepted],
+        "accepted_source_ids": [str(row["accepted_source_id"]) for row in accepted],
+        "candidates": accepted,
+    }
 
 
 def normalize_model(model: str) -> str:
@@ -244,7 +270,7 @@ def _accepted_source_profile(candidate: dict[str, Any], payload: dict[str, Any],
         "url": payload["url"],
         "trust_level": "trusted",
         "schedule": "monthly",
-        "auto_ingest": False,
+        "auto_ingest": True,
         "auth_required": False,
         "run_policy": "once",
         "topic": f"{candidate['vendor']} {candidate['model_name']} accelerator specs",
@@ -254,6 +280,38 @@ def _accepted_source_profile(candidate: dict[str, Any], payload: dict[str, Any],
         "vendor_hint": candidate["vendor"],
         "auto_resolve": False,
     }
+
+
+def _auto_accept_payload(candidate: dict[str, Any]) -> dict[str, Any]:
+    vendor = str(candidate["vendor"])
+    normalized_model = str(candidate["normalized_model"])
+    source_id = f"compute-accelerators-{vendor}-{normalized_model}".lower()
+    return {
+        "source_id": source_id,
+        "name": f"{vendor} {candidate['model_name']} accelerator specs",
+        "url": _candidate_effective_url(candidate),
+        "scope": [str(candidate["scope"])],
+        "source_rank": "S1",
+    }
+
+
+def _candidate_effective_url(candidate: dict[str, Any]) -> str:
+    return str(candidate.get("evidence_url") or candidate["source_url"])
+
+
+def _source_domain(url: str) -> str:
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise ValueError(f"candidate source URL has no hostname: {url}")
+    host = hostname.lower()
+    for prefix in ("www.", "blog."):
+        if host.startswith(prefix):
+            return host[len(prefix) :]
+    return host
+
+
+def _domain_matches(candidate: str, trusted_domain: str) -> bool:
+    return candidate == trusted_domain or candidate.endswith(f".{trusted_domain}") or trusted_domain.endswith(f".{candidate}")
 
 
 def _accepted_source_config_json(source_profile: dict[str, Any]) -> str:

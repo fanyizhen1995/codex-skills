@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 from .accelerator_specs import extract_specs_for_all_raw_items, list_accelerator_specs
 from .codex_worker import create_codex_job, run_existing_codex_job
 from .db import open_db
-from .discovery import accept_candidate, list_candidates, reject_candidate
+from .discovery import accept_candidate, list_candidates, reject_candidate, trust_candidate_source
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
 from .graph_api import domain_graph
 from .ingest import (
@@ -30,10 +30,12 @@ from .schemas import (
     AcceleratorSpecResponse,
     HealthResponse,
     SourceProfileResponse,
+    TrustAcceleratorCandidatesResponse,
 )
 from .trusted_sources import TrustSourceInputError, trust_task_source
 from .wiki_metrics import collect_wiki_metrics
 from .wiki_cli import run_validate, wiki_cli_command
+from .wiki_pages import WikiPageError, list_wiki_pages, read_wiki_page
 
 
 router = APIRouter(prefix="/api")
@@ -261,6 +263,18 @@ def accept_accelerator_candidate(
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
+@router.post("/accelerator-candidates/{candidate_id}/trust-source", response_model=TrustAcceleratorCandidatesResponse)
+def trust_accelerator_candidate_source(candidate_id: int, request: Request) -> TrustAcceleratorCandidatesResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            result = trust_candidate_source(db, candidate_id, request.app.state.settings.sources_yaml_path)
+            return TrustAcceleratorCandidatesResponse(**result)
+        except ValueError as exc:
+            status_code = _candidate_error_status_code(exc)
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
 def _candidate_error_status_code(exc: ValueError) -> int:
     if _is_candidate_not_found(exc):
         return 404
@@ -300,6 +314,24 @@ def wiki_metrics(request: Request) -> dict[str, object]:
     settings = request.app.state.settings
     with open_db(settings.database_path) as db:
         return collect_wiki_metrics(settings, db)
+
+
+@router.get("/wiki/pages")
+def wiki_pages(request: Request, domain: str) -> list[dict[str, object]]:
+    try:
+        return list_wiki_pages(request.app.state.settings, domain)
+    except WikiPageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/wiki/page")
+def wiki_page(request: Request, domain: str, path: str) -> dict[str, object]:
+    try:
+        return read_wiki_page(request.app.state.settings, domain, path)
+    except WikiPageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="wiki page not found") from exc
 
 
 @router.post("/queue/{task_id}/approve")
@@ -456,6 +488,20 @@ def ask(payload: AskRequest, request: Request) -> dict[str, object]:
 def _run_codex_job_background(settings, job_id: int, persist: bool) -> None:
     with open_db(settings.database_path) as db:
         run_existing_codex_job(settings, db, job_id, persist=persist)
+
+
+@router.get("/jobs/latest")
+def latest_job(request: Request, domain: str | None = None) -> dict[str, object] | None:
+    request.app.state.initialize_database(request.app)
+    query = "select * from codex_jobs where job_type = ?"
+    params: list[object] = ["query"]
+    if domain is not None:
+        query += " and target_domain = ?"
+        params.append(domain)
+    query += " order by id desc limit 1"
+    with open_db(request.app.state.settings.database_path) as db:
+        row = db.execute(query, params).fetchone()
+    return dict(row) if row is not None else None
 
 
 @router.get("/jobs/{job_id}")

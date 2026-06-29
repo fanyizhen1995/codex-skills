@@ -1,4 +1,12 @@
-export type PageKey = "overview" | "sources" | "queue" | "knowledge" | "acceleratorSpecs" | "sourceWorkbench" | "settings";
+export type PageKey =
+  | "overview"
+  | "sources"
+  | "queue"
+  | "knowledge"
+  | "wikiBrowser"
+  | "acceleratorSpecs"
+  | "sourceWorkbench"
+  | "settings";
 
 export type Status =
   | "ready"
@@ -69,6 +77,14 @@ export interface AcceptAcceleratorCandidatePayload {
   url: string;
   scope: string[];
   source_rank: string;
+}
+
+export interface TrustAcceleratorCandidatesResponse {
+  domain: string;
+  accepted_count: number;
+  candidate_ids: number[];
+  accepted_source_ids: string[];
+  candidates: AcceleratorCandidate[];
 }
 
 export interface AcceleratorObservation {
@@ -194,6 +210,23 @@ export interface WikiGraphResponse {
 }
 
 export type GraphResponse = WikiGraphResponse;
+
+export interface WikiPageSummary {
+  domain: string;
+  path: string;
+  full_path: string;
+  type?: string | null;
+  title?: string | null;
+  description?: string | null;
+  status?: string | null;
+  tags?: string[];
+  source_refs?: string[];
+}
+
+export interface WikiPageDetail extends WikiPageSummary {
+  content?: string;
+  body?: string;
+}
 
 export interface ValidationResponse {
   status: "succeeded" | "failed";

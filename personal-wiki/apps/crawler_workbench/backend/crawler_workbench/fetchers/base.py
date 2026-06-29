@@ -71,7 +71,9 @@ class HttpClientOwner:
 
 def _should_retry_without_env_proxy(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower()
-    if host in {"github.com", "api.github.com"} or host.endswith(".github.com"):
+    if host == "api.github.com":
+        return True
+    if host == "github.com" or host.endswith(".github.com"):
         return False
     return True
 

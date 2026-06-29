@@ -316,7 +316,7 @@ def test_accept_candidate_creates_one_shot_source(tmp_path):
     assert accepted["accepted_source_id"] == "compute-accelerators-nvidia-h300"
     assert source["schedule"] == "monthly"
     assert source["run_policy"] == "once"
-    assert source["auto_ingest"] == 0
+    assert source["auto_ingest"] == 1
     assert '"accelerator_scope": ["gpu"]' in source["config_json"]
 
 
@@ -374,6 +374,7 @@ sources:
     yaml_source = next(profile for profile in yaml_profiles if profile["id"] == "compute-accelerators-nvidia-h300")
     assert source["enabled"] == 1
     assert source["run_policy"] == "once"
+    assert yaml_source["auto_ingest"] is True
     assert yaml_source["run_policy"] == "once"
     assert yaml_source["extract_mode"] == "specs_candidate"
     assert yaml_source["accelerator_scope"] == ["gpu"]
@@ -520,6 +521,62 @@ def test_candidates_api_accepts_candidate_and_creates_source(tmp_path, monkeypat
 
     assert response.status_code == 200
     assert response.json()["accepted_source_id"] == "compute-accelerators-nvidia-h300"
+
+
+def test_candidates_api_trusts_same_base_url_candidates(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        _insert_discovery_profile(db)
+        db.commit()
+        upsert_candidates(
+            db,
+            DISCOVERY_PROFILE,
+            extract_accelerator_candidates(
+                DISCOVERY_PROFILE,
+                [
+                    FetchResult(
+                        canonical_url="https://www.nvidia.com/en-us/data-center/products/",
+                        title="NVIDIA products",
+                        content="NVIDIA GB300 GPU accelerator and NVIDIA GB200 GPU accelerator",
+                        content_type="text/html",
+                    ),
+                    FetchResult(
+                        canonical_url="https://example.com/products/",
+                        title="Example products",
+                        content="NVIDIA H301 GPU accelerator",
+                        content_type="text/html",
+                    ),
+                ],
+            ),
+        )
+        candidates = {row["model_name"]: row for row in list_candidates(db)}
+        selected_id = candidates["GB300"]["id"]
+        db.commit()
+
+    with TestClient(app) as client:
+        response = client.post(f"/api/accelerator-candidates/{selected_id}/trust-source")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["domain"] == "nvidia.com"
+    assert data["accepted_count"] == 2
+    assert set(data["candidate_ids"]) == {candidates["GB300"]["id"], candidates["GB200"]["id"]}
+    with open_db(settings.database_path) as db:
+        rows = {row["model_name"]: row for row in list_candidates(db)}
+        sources = {
+            row["id"]
+            for row in db.execute("select id from source_profiles where run_policy = 'once'").fetchall()
+        }
+
+    assert rows["GB300"]["status"] == "accepted"
+    assert rows["GB200"]["status"] == "accepted"
+    assert rows["H301"]["status"] == "pending"
+    assert "compute-accelerators-nvidia-gb300" in sources
+    assert "compute-accelerators-nvidia-gb200" in sources
+    assert "compute-accelerators-nvidia-h301" not in sources
 
 
 def test_candidates_api_rejects_candidate(tmp_path, monkeypatch):
