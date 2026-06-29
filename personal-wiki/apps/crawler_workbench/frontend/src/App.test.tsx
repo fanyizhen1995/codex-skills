@@ -443,25 +443,68 @@ describe("App", () => {
   });
 
   it("renders wiki markdown links safely and tolerates simple markdown edge cases", async () => {
-    vi.mocked(getWikiPage).mockResolvedValueOnce({
-      domain: "ai_infra",
-      path: "projects/nccl.md",
-      full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
-      type: "project",
-      title: "NCCL",
-      description: "NCCL notes",
-      status: "active",
-      tags: ["nccl"],
-      source_refs: ["../../raw/nccl.md"],
-      content: "",
-      body:
-        "[safe](https://example.com/doc) and [bad](javascript:alert(1))\n\n" +
-        "- list item\n\n" +
-        "| Name | Value |\n" +
-        "| --- | --- |\n" +
-        "| row | cell |\n\n" +
-        "```\n" +
-        "unfinished code"
+    vi.mocked(getWikiPages).mockResolvedValueOnce([
+      {
+        domain: "ai_infra",
+        path: "projects/nccl.md",
+        full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        type: "project",
+        title: "NCCL",
+        description: "NCCL notes",
+        status: "active",
+        tags: ["nccl"],
+        source_refs: ["../../raw/nccl.md"]
+      },
+      {
+        domain: "ai_infra",
+        path: "references/nccl-release-notes.md",
+        full_path: "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+        type: "reference",
+        title: "NCCL Release Notes",
+        description: "Release notes",
+        status: "active",
+        tags: ["nccl"],
+        source_refs: []
+      }
+    ]);
+    vi.mocked(getWikiPage).mockImplementation(async (_domain, path) => {
+      if (path === "references/nccl-release-notes.md") {
+        return {
+          domain: "ai_infra",
+          path,
+          full_path: "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+          type: "reference",
+          title: "NCCL Release Notes",
+          description: "Release notes",
+          status: "active",
+          tags: ["nccl"],
+          source_refs: [],
+          content: "",
+          body: "Release note detail."
+        };
+      }
+      return {
+        domain: "ai_infra",
+        path: "projects/nccl.md",
+        full_path: "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        type: "project",
+        title: "NCCL",
+        description: "NCCL notes",
+        status: "active",
+        tags: ["nccl"],
+        source_refs: ["../../raw/nccl.md"],
+        content: "",
+        body:
+          "[safe](https://example.com/doc) and [bad](javascript:alert(1))\n\n" +
+          "[release notes](../references/nccl-release-notes.md)\n\n" +
+          "[capture](../../raw/crawler/compute/item.md)\n\n" +
+          "- list item\n\n" +
+          "| Name | Value |\n" +
+          "| --- | --- |\n" +
+          "| row | cell |\n\n" +
+          "```\n" +
+          "unfinished code"
+      };
     });
 
     render(<App />);
@@ -470,12 +513,22 @@ describe("App", () => {
 
     expect(await screen.findByRole("link", { name: "safe" })).toHaveAttribute("href", "https://example.com/doc");
     expect(screen.queryByRole("link", { name: "bad" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "capture" })).not.toBeInTheDocument();
+    expect(screen.getByText("capture")).toHaveAttribute("title", expect.stringContaining("../../raw/crawler/compute/item.md"));
     expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent?.includes("bad"))).toBeInTheDocument();
     expect(screen.getByText("list item")).toBeInTheDocument();
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("cell")).toBeInTheDocument();
     expect(screen.getByText("unfinished code")).toBeInTheDocument();
     expect(document.querySelector('a[href^="javascript:"]')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "release notes" }));
+    await screen.findByText("Release note detail.");
+    expect(getWikiPage).toHaveBeenLastCalledWith("ai_infra", "references/nccl-release-notes.md");
+    fireEvent.click(screen.getByRole("button", { name: /NCCL Release Notes/ }));
+    await screen.findByText("Release note detail.");
+    fireEvent.change(screen.getByLabelText("过滤 Wiki 页面"), { target: { value: "release" } });
+    expect(screen.queryByRole("button", { name: /^NCCL projects/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /NCCL Release Notes/ })).toBeInTheDocument();
   });
 
   it("does not render sample content when live APIs return empty data", async () => {
@@ -586,6 +639,13 @@ describe("App", () => {
     expect(await screen.findByText("Wiki 监控")).toBeInTheDocument();
     expect(screen.getByText("3 页")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
+    const storageCard = screen.getByLabelText("Wiki 占用空间明细");
+    expect(within(storageCard).getByText("wiki")).toBeInTheDocument();
+    expect(within(storageCard).getByText("1.0 KB")).toBeInTheDocument();
+    expect(within(storageCard).getByText("raw")).toBeInTheDocument();
+    expect(within(storageCard).getByText("768 B")).toBeInTheDocument();
+    expect(within(storageCard).getByText("其他")).toBeInTheDocument();
+    expect(within(storageCard).getByText("256 B")).toBeInTheDocument();
     expect(screen.getByText("100 分")).toBeInTheDocument();
     expect(screen.getByText(/最近校验：succeeded/)).toBeInTheDocument();
 

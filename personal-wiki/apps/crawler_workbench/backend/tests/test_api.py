@@ -92,6 +92,7 @@ def test_wiki_metrics_endpoint_reports_counts_sizes_and_light_health(tmp_path, m
     raw_path = domain_root / "raw" / "crawler" / "src" / "item.md"
     for path, text in [
         (wiki_root / "WIKI.md", "# Wiki\n"),
+        (wiki_root / "apps" / "crawler_workbench" / "node_modules" / "bundle.js", "tool artifact\n"),
         (domain_root / "wiki" / "index.md", "# Index\n"),
         (domain_root / "wiki" / "nccl.md", "# NCCL\n"),
         (raw_path, "raw evidence\n"),
@@ -132,7 +133,13 @@ def test_wiki_metrics_endpoint_reports_counts_sizes_and_light_health(tmp_path, m
     assert data["counts"]["raw_file_count"] == 1
     assert data["counts"]["raw_item_count"] == 1
     assert data["counts"]["total_file_count"] == 5
-    assert data["sizes"]["total_bytes"] == sum(path.stat().st_size for path in wiki_root.rglob("*") if path.is_file())
+    expected_content_bytes = sum(
+        path.stat().st_size
+        for root in (wiki_root / "domains", wiki_root / "global", wiki_root / "WIKI.md")
+        for path in ([root] if root.is_file() else root.rglob("*"))
+        if path.is_file()
+    )
+    assert data["sizes"]["total_bytes"] == expected_content_bytes
     assert data["sizes"]["raw_bytes"] == raw_path.stat().st_size
     assert data["health"]["status"] == "healthy"
     assert data["health"]["score"] == 100

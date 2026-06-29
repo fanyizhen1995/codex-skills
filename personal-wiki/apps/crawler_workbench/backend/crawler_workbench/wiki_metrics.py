@@ -7,7 +7,7 @@ from typing import Any
 
 def collect_wiki_metrics(settings: Any, db: sqlite3.Connection) -> dict[str, object]:
     wiki_root = settings.wiki_root
-    files = _files_under(wiki_root)
+    files = _content_files(wiki_root)
     raw_files = _raw_files(wiki_root)
     wiki_files = _wiki_files(wiki_root)
     global_files = _files_under(wiki_root / "global")
@@ -34,6 +34,16 @@ def _files_under(root: Path) -> list[Path]:
     if not root.exists():
         return []
     return [path for path in root.rglob("*") if path.is_file()]
+
+
+def _content_files(wiki_root: Path) -> list[Path]:
+    files: list[Path] = []
+    for root in (wiki_root / "domains", wiki_root / "global"):
+        files.extend(_files_under(root))
+    protocol = wiki_root / "WIKI.md"
+    if protocol.is_file():
+        files.append(protocol)
+    return files
 
 
 def _wiki_files(wiki_root: Path) -> list[Path]:

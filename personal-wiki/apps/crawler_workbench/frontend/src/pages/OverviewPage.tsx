@@ -46,6 +46,10 @@ function sizeLabel(bytes?: number) {
   return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
+function otherWikiBytes(metrics: WikiMetricsResponse) {
+  return Math.max(0, metrics.sizes.total_bytes - metrics.sizes.wiki_bytes - metrics.sizes.raw_bytes);
+}
+
 function scheduleLabel(schedule?: string) {
   const labels: Record<string, string> = {
     hourly: "每小时",
@@ -328,11 +332,24 @@ export function OverviewPage() {
         <div className="metric-card">
           <span className="metric-label">Wiki 占用空间</span>
           <strong>{sizeLabel(wikiMetrics?.sizes.total_bytes)}</strong>
-          <span className="metric-help">
-            {wikiMetrics
-              ? `wiki ${sizeLabel(wikiMetrics.sizes.wiki_bytes)}，raw ${sizeLabel(wikiMetrics.sizes.raw_bytes)}`
-              : "正在读取 wiki 占用空间"}
-          </span>
+          {wikiMetrics ? (
+            <span className="metric-breakdown" aria-label="Wiki 占用空间明细">
+              <span>
+                <span>wiki</span>
+                <strong>{sizeLabel(wikiMetrics.sizes.wiki_bytes)}</strong>
+              </span>
+              <span>
+                <span>raw</span>
+                <strong>{sizeLabel(wikiMetrics.sizes.raw_bytes)}</strong>
+              </span>
+              <span>
+                <span>其他</span>
+                <strong>{sizeLabel(otherWikiBytes(wikiMetrics))}</strong>
+              </span>
+            </span>
+          ) : (
+            <span className="metric-help">正在读取 wiki 占用空间</span>
+          )}
         </div>
         <div className="metric-card">
           <span className="metric-label">Wiki 健康度</span>

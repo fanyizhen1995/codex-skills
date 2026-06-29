@@ -110,10 +110,7 @@ function isSafeMarkdownUrl(url: string) {
   if (!trimmed) {
     return false;
   }
-  if (trimmed.startsWith("#") || trimmed.startsWith("./") || trimmed.startsWith("../")) {
-    return true;
-  }
-  if (/^[^:/?#]+(?:[/?#]|$)/.test(trimmed)) {
+  if (trimmed.startsWith("#")) {
     return true;
   }
 
@@ -125,7 +122,47 @@ function isSafeMarkdownUrl(url: string) {
   }
 }
 
-function renderInlineMarkdown(text: string): ReactNode[] {
+function normalizeWikiPath(path: string) {
+  const segments: string[] = [];
+  for (const segment of path.split("/")) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+  return segments.join("/");
+}
+
+function resolveWikiLink(target: string, currentPath: string, pagePaths: Set<string>) {
+  const trimmed = target.trim();
+  const withoutHash = trimmed.split("#")[0];
+  if (!trimmed || trimmed.startsWith("#") || !withoutHash.endsWith(".md")) {
+    return null;
+  }
+  const currentDir = currentPath.includes("/") ? currentPath.slice(0, currentPath.lastIndexOf("/")) : "";
+  const candidates = [
+    normalizeWikiPath(withoutHash),
+    normalizeWikiPath(currentDir ? `${currentDir}/${withoutHash}` : withoutHash)
+  ];
+  return candidates.find((candidate) => pagePaths.has(candidate)) ?? null;
+}
+
+function isLocalEvidenceUrl(url: string) {
+  return /(^|\/)(raw|data)\//.test(normalizeWikiPath(url));
+}
+
+function renderInlineMarkdown(
+  text: string,
+  options: {
+    currentPath: string;
+    pagePaths: Set<string>;
+    onSelectPath: (path: string) => void;
+  }
+): ReactNode[] {
   const parts: ReactNode[] = [];
   const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
   let lastIndex = 0;
@@ -135,14 +172,34 @@ function renderInlineMarkdown(text: string): ReactNode[] {
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
     }
-    if (isSafeMarkdownUrl(match[2])) {
+    const wikiPath = resolveWikiLink(match[2], options.currentPath, options.pagePaths);
+    if (wikiPath) {
+      parts.push(
+        <button
+          className="wiki-inline-link"
+          key={`${match[2]}-${match.index}`}
+          type="button"
+          onClick={() => options.onSelectPath(wikiPath)}
+        >
+          {match[1]}
+        </button>
+      );
+    } else if (isSafeMarkdownUrl(match[2])) {
       parts.push(
         <a href={match[2]} key={`${match[2]}-${match.index}`} rel="noreferrer" target="_blank">
           {match[1]}
         </a>
       );
     } else {
-      parts.push(match[1]);
+      parts.push(
+        <span
+          className={isLocalEvidenceUrl(match[2]) ? "local-reference evidence-reference" : "local-reference"}
+          key={`${match[2]}-${match.index}`}
+          title={match[2]}
+        >
+          {match[1]}
+        </span>
+      );
     }
     lastIndex = match.index + match[0].length;
   }
@@ -154,8 +211,22 @@ function renderInlineMarkdown(text: string): ReactNode[] {
   return parts;
 }
 
-function MarkdownBody({ markdown }: { markdown: string }) {
+function MarkdownBody({
+  currentPath,
+  markdown,
+  onSelectPath,
+  pagePaths
+}: {
+  currentPath: string;
+  markdown: string;
+  onSelectPath: (path: string) => void;
+  pagePaths: Set<string>;
+}) {
   const blocks = useMemo(() => parseMarkdown(markdown), [markdown]);
+  const inlineOptions = useMemo(
+    () => ({ currentPath, onSelectPath, pagePaths }),
+    [currentPath, onSelectPath, pagePaths]
+  );
 
   if (blocks.length === 0) {
     return <div className="empty-state">暂无正文</div>;
@@ -166,13 +237,13 @@ function MarkdownBody({ markdown }: { markdown: string }) {
       {blocks.map((block, index) => {
         if (block.type === "heading") {
           const Heading = `h${block.level}` as "h1" | "h2" | "h3";
-          return <Heading key={index}>{renderInlineMarkdown(block.text)}</Heading>;
+          return <Heading key={index}>{renderInlineMarkdown(block.text, inlineOptions)}</Heading>;
         }
         if (block.type === "list") {
           return (
             <ul key={index}>
               {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+                <li key={itemIndex}>{renderInlineMarkdown(item, inlineOptions)}</li>
               ))}
             </ul>
           );
@@ -192,7 +263,7 @@ function MarkdownBody({ markdown }: { markdown: string }) {
                 <thead>
                   <tr>
                     {head.map((cell, cellIndex) => (
-                      <th key={cellIndex}>{renderInlineMarkdown(cell)}</th>
+                      <th key={cellIndex}>{renderInlineMarkdown(cell, inlineOptions)}</th>
                     ))}
                   </tr>
                 </thead>
@@ -200,7 +271,7 @@ function MarkdownBody({ markdown }: { markdown: string }) {
                   {body.map((row, rowIndex) => (
                     <tr key={rowIndex}>
                       {row.map((cell, cellIndex) => (
-                        <td key={cellIndex}>{renderInlineMarkdown(cell)}</td>
+                        <td key={cellIndex}>{renderInlineMarkdown(cell, inlineOptions)}</td>
                       ))}
                     </tr>
                   ))}
@@ -209,7 +280,7 @@ function MarkdownBody({ markdown }: { markdown: string }) {
             </div>
           );
         }
-        return <p key={index}>{renderInlineMarkdown(block.text)}</p>;
+        return <p key={index}>{renderInlineMarkdown(block.text, inlineOptions)}</p>;
       })}
     </div>
   );
@@ -222,6 +293,7 @@ export function WikiBrowserPage() {
   const [selectedPath, setSelectedPath] = useState("");
   const [detail, setDetail] = useState<WikiPageDetail | null>(null);
   const [message, setMessage] = useState("");
+  const [pageFilter, setPageFilter] = useState("");
   const [loadingPages, setLoadingPages] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -326,7 +398,19 @@ export function WikiBrowserPage() {
     };
   }, [domain, selectedPath]);
 
-  const groupedPages = useMemo(() => groupPages(pages), [pages]);
+  const filteredPages = useMemo(() => {
+    const query = pageFilter.trim().toLowerCase();
+    if (!query) {
+      return pages;
+    }
+    return pages.filter((page) =>
+      [page.title, page.path, page.description, page.type, ...(page.tags ?? [])]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }, [pageFilter, pages]);
+  const groupedPages = useMemo(() => groupPages(filteredPages), [filteredPages]);
+  const pagePaths = useMemo(() => new Set(pages.map((page) => page.path)), [pages]);
   const body = detail?.body ?? detail?.content ?? "";
   const tags = detail?.tags ?? [];
   const sourceRefs = detail?.source_refs ?? [];
@@ -360,8 +444,21 @@ export function WikiBrowserPage() {
 
       <div className="wiki-browser-grid">
         <aside className="wiki-page-list" aria-label="Wiki 页面列表">
+          <label className="wiki-filter">
+            <span>过滤页面</span>
+            <input
+              aria-label="过滤 Wiki 页面"
+              placeholder="标题、路径或标签"
+              type="search"
+              value={pageFilter}
+              onChange={(event) => setPageFilter(event.target.value)}
+            />
+          </label>
           {loadingPages ? <div className="empty-state">正在加载页面</div> : null}
           {!loadingPages && pages.length === 0 ? <div className="empty-state">暂无 wiki 页面</div> : null}
+          {!loadingPages && pages.length > 0 && filteredPages.length === 0 ? (
+            <div className="empty-state">没有匹配页面</div>
+          ) : null}
           {Object.entries(groupedPages).map(([type, group]) => (
             <section className="wiki-page-group" key={type}>
               <h2>{type}</h2>
@@ -417,7 +514,12 @@ export function WikiBrowserPage() {
                 </div>
               </dl>
 
-              <MarkdownBody markdown={body} />
+              <MarkdownBody
+                currentPath={detail.path}
+                markdown={body}
+                onSelectPath={setSelectedPath}
+                pagePaths={pagePaths}
+              />
             </>
           ) : null}
         </article>
