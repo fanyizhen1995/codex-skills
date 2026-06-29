@@ -143,6 +143,92 @@ def test_schema_migration_adds_run_policy_and_candidates_to_existing_database(tm
     } <= candidate_columns
 
 
+def test_schema_migration_recovers_legacy_dirty_baseline_failures(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        db.execute(
+            """
+            insert into source_profiles (
+              id, name, type, target_domain, url, trust_level, schedule,
+              auto_ingest, auth_required, topic
+            )
+            values ('src', 'Source', 'web', 'ai_infra', 'https://example.com', 'trusted', 'manual', 1, 0, 'topic')
+            """
+        )
+        baseline_task_id = db.execute(
+            """
+            insert into ingest_tasks (source_id, target_domain, status, risk_level, reason)
+            values ('src', 'ai_infra', 'failed', 'low', 'baseline dirty paths include files outside the ingest task')
+            """
+        ).lastrowid
+        real_failure_task_id = db.execute(
+            """
+            insert into ingest_tasks (source_id, target_domain, status, risk_level, reason)
+            values ('src', 'ai_infra', 'failed', 'low', 'validation failed')
+            """
+        ).lastrowid
+        db.commit()
+
+        migrate(db)
+
+        rows = {
+            row["id"]: row
+            for row in db.execute(
+                "select id, status, reason from ingest_tasks where id in (?, ?)",
+                (baseline_task_id, real_failure_task_id),
+            ).fetchall()
+        }
+
+    assert rows[baseline_task_id]["status"] == "approved"
+    assert rows[baseline_task_id]["reason"] == "waiting for clean git baseline before automatic retry"
+    assert rows[real_failure_task_id]["status"] == "failed"
+    assert rows[real_failure_task_id]["reason"] == "validation failed"
+
+
+def test_schema_migration_normalizes_legacy_dirty_baseline_approved_reasons(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        db.execute(
+            """
+            insert into source_profiles (
+              id, name, type, target_domain, url, trust_level, schedule,
+              auto_ingest, auth_required, topic
+            )
+            values ('src', 'Source', 'web', 'ai_infra', 'https://example.com', 'trusted', 'manual', 1, 0, 'topic')
+            """
+        )
+        task_id = db.execute(
+            """
+            insert into ingest_tasks (source_id, target_domain, status, risk_level, reason)
+            values ('src', 'ai_infra', 'approved', 'low', 'baseline dirty paths include files outside the ingest task')
+            """
+        ).lastrowid
+        intermediate_task_id = db.execute(
+            """
+            insert into ingest_tasks (source_id, target_domain, status, risk_level, reason)
+            values ('src', 'ai_infra', 'approved', 'low', 'ready to retry after dirty baseline cleanup')
+            """
+        ).lastrowid
+        db.commit()
+
+        migrate(db)
+
+        rows = {
+            row["id"]: row
+            for row in db.execute(
+                "select id, status, reason from ingest_tasks where id in (?, ?)",
+                (task_id, intermediate_task_id),
+            ).fetchall()
+        }
+
+    assert rows[task_id]["status"] == "approved"
+    assert rows[task_id]["reason"] == "waiting for clean git baseline before automatic retry"
+    assert rows[intermediate_task_id]["status"] == "approved"
+    assert rows[intermediate_task_id]["reason"] == "waiting for clean git baseline before automatic retry"
+
+
 def test_accelerator_candidates_are_unique_by_effective_evidence_url(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:

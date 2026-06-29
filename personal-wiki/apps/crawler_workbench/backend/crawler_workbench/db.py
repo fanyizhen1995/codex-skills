@@ -7,6 +7,9 @@ from typing import Iterator
 
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+LEGACY_DIRTY_BASELINE_REASON = "baseline dirty paths include files outside the ingest task"
+LEGACY_DIRTY_BASELINE_RETRY_REASON = "ready to retry after dirty baseline cleanup"
+DIRTY_BASELINE_RETRY_REASON = "waiting for clean git baseline before automatic retry"
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -31,6 +34,7 @@ def migrate(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "source_profiles", "baseline_on_first_run", "integer not null default 0")
     _ensure_column(connection, "source_profiles", "run_policy", "text not null default 'scheduled'")
     _ensure_column(connection, "source_profiles", "config_json", "text not null default '{}'")
+    _recover_legacy_dirty_baseline_failures(connection)
     connection.commit()
 
 
@@ -38,6 +42,33 @@ def _ensure_column(connection: sqlite3.Connection, table: str, column: str, defi
     columns = {row["name"] for row in connection.execute(f"pragma table_info({table})").fetchall()}
     if column not in columns:
         connection.execute(f"alter table {table} add column {column} {definition}")
+
+
+def _recover_legacy_dirty_baseline_failures(connection: sqlite3.Connection) -> None:
+    tables = {row["name"] for row in connection.execute("select name from sqlite_master where type = 'table'").fetchall()}
+    if "ingest_tasks" not in tables:
+        return
+    connection.execute(
+        """
+        update ingest_tasks
+        set status = 'approved',
+            reason = ?,
+            updated_at = current_timestamp
+        where status = 'failed'
+          and reason = ?
+        """,
+        (DIRTY_BASELINE_RETRY_REASON, LEGACY_DIRTY_BASELINE_REASON),
+    )
+    connection.execute(
+        """
+        update ingest_tasks
+        set reason = ?,
+            updated_at = current_timestamp
+        where status = 'approved'
+          and reason in (?, ?)
+        """,
+        (DIRTY_BASELINE_RETRY_REASON, LEGACY_DIRTY_BASELINE_REASON, LEGACY_DIRTY_BASELINE_RETRY_REASON),
+    )
 
 
 @contextmanager

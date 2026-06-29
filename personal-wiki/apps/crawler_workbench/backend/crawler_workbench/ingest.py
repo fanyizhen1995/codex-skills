@@ -12,7 +12,7 @@ from .wiki_cli import run_backlinks, run_index, run_ingest_plan, run_validate, w
 
 
 EXECUTION_FAILURE_EXIT_CODE = -1
-ALLOWED_BASELINE_REASON = "baseline dirty paths include files outside the ingest task"
+ALLOWED_BASELINE_REASON = "waiting for clean git baseline before automatic retry"
 QUEUE_PREVIEW_CHARS = 1600
 
 CodexRunner = Callable[[Any, str], subprocess.CompletedProcess[str]]
