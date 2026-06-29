@@ -16,6 +16,8 @@ No active ingest.
   - Captured all closed GitHub issue pages and all repository issue-comment pages, then filtered out pull requests and joined comments for the 1,589 closed issues.
 - [x] `raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json` -> `wiki/projects/sglang.md`, `wiki/references/sglang-github-closed-issues-prs.md`
   - Captured closed GitHub issues, closed pull requests, issue/PR timeline comments, PR review comments, updated-order comment segments, and per-item comment supplement pages for the `sgl-project/sglang` repository.
+- [x] `raw/crawler/sglang-github-closed-issues-prs/manifest.json` -> `wiki/references/sglang-github-closed-issues-prs.md`
+  - Organized 51 selective GitHub page-level crawler snapshots captured on 2026-06-29 as a supplement to the SGLang API corpus. The supplement has 7 issue pages, 44 pull request pages, 10 overlaps with the API corpus, and 41 later selected page captures; it is not a full API corpus refresh.
 - [x] `raw/crawler/compute-*` -> `wiki/references/compute-accelerator-crawl-inventory.md`, `wiki/references/compute-accelerator-parameter-comparison.md`
   - Organized compute accelerator discovery and one-shot specification captures covering GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC source profiles. The inventory page records the raw evidence set; the parameter comparison page keeps only source-backed fields that are visible in local raw evidence.
 

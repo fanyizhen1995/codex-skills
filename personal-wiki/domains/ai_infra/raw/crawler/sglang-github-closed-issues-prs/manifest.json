@@ -1,0 +1,707 @@
+{
+  "type": "raw_manifest",
+  "title": "SGLang GitHub closed issues and PRs crawler supplement manifest",
+  "source_id": "sglang-github-closed-issues-prs",
+  "captured_at": "2026-06-29T04:09:41Z",
+  "repository": "sgl-project/sglang",
+  "scope_note": "Selective browser/crawler Markdown page snapshots supplementing the API corpus; not a full corpus refresh.",
+  "counts": {
+    "raw_files": 51,
+    "issues": 7,
+    "pull_requests": 44,
+    "overlap_with_api_corpus": 10,
+    "new_relative_to_api_corpus": 41
+  },
+  "items": [
+    {
+      "number": 21498,
+      "kind": "issue",
+      "title": "[Feature] Upgrade default Cuda version to 13.0",
+      "closed_at": "2026-05-06T09:15:12Z",
+      "merged_at": "",
+      "labels": [
+        "high priority"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/21498",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941022545Z-github-com-sgl-project-sglang-issues-21498-dbee6850ef.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 28893,
+      "kind": "issue",
+      "title": "[Bug] GLM 5.2 crash with deepep moe a2a backend on H20",
+      "closed_at": "2026-06-29T01:46:04Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/28893",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941023457Z-github-com-sgl-project-sglang-issues-28893-896b924b3a.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 23288,
+      "kind": "issue",
+      "title": "[HiSparse][ROCm] page_size + TP-collective deadlock + GPU memory fault on",
+      "closed_at": "2026-06-29T00:51:19Z",
+      "merged_at": "",
+      "labels": [
+        "high priority",
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23288",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941023836Z-github-com-sgl-project-sglang-issues-23288-3c78a276c7.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 24051,
+      "kind": "issue",
+      "title": "[Bug] STANDALONE speculative decoding silently corrupts output when draft/target",
+      "closed_at": "2026-06-29T00:51:17Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24051",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941024172Z-github-com-sgl-project-sglang-issues-24051-a66bb920dd.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 23896,
+      "kind": "issue",
+      "title": "[Performance] DeepSeek-V4-Flash on H20-3e: Balanced (TP4+DP4+DeepEP) throughput",
+      "closed_at": "2026-06-29T00:51:16Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23896",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941024474Z-github-com-sgl-project-sglang-issues-23896-22eb52be29.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29575,
+      "kind": "issue",
+      "title": "[Bug] [2026-06-28 15:16:45] max_total_num_tokens=2086558, chunked_prefill_size=8192,",
+      "closed_at": "2026-06-28T22:31:04Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29575",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941024762Z-github-com-sgl-project-sglang-issues-29575-c0a80508ec.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29299,
+      "kind": "issue",
+      "title": "【求助】zmq send 对应的recv逻辑在哪里呢？",
+      "closed_at": "2026-06-28T06:04:08Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29299",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941025069Z-github-com-sgl-project-sglang-issues-29299-74207aae34.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29492,
+      "kind": "pull_request",
+      "title": "[NPU] update best practicce docs from testcase",
+      "closed_at": "2026-06-29T03:30:28Z",
+      "merged_at": "2026-06-29T03:30:28Z",
+      "labels": [
+        "documentation",
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29492",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941025360Z-github-com-sgl-project-sglang-pull-29492-ce6c243005.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29180,
+      "kind": "pull_request",
+      "title": "fix(deepep): fix DeepEP low-latency buffer capacity",
+      "closed_at": "2026-06-29T02:57:37Z",
+      "merged_at": "",
+      "labels": [
+        "documentation",
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29180",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941025639Z-github-com-sgl-project-sglang-pull-29180-38a6ef03b1.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 20333,
+      "kind": "pull_request",
+      "title": "Support fsdp for Ascend NPU",
+      "closed_at": "2026-06-18T02:24:43Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/20333",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941025889Z-github-com-sgl-project-sglang-pull-20333-92c7de7172.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 23891,
+      "kind": "pull_request",
+      "title": "[NPU] Support radix-cache with mamba-extra-buffer for Qwen3.5",
+      "closed_at": "2026-05-11T01:40:45Z",
+      "merged_at": "2026-05-11T01:40:45Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/23891",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941026122Z-github-com-sgl-project-sglang-pull-23891-f10382c651.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 23423,
+      "kind": "pull_request",
+      "title": "[NPU] Fix mrope_position computation in Eagle Worker v2 with PlanStream",
+      "closed_at": "2026-05-11T01:43:38Z",
+      "merged_at": "2026-05-11T01:43:37Z",
+      "labels": [
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/23423",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941026375Z-github-com-sgl-project-sglang-pull-23423-a9f36b2ec7.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 25594,
+      "kind": "pull_request",
+      "title": "[NPU] Add Qwen3.5-397B-A17B best practice doc",
+      "closed_at": "2026-05-21T02:02:13Z",
+      "merged_at": "2026-05-21T02:02:13Z",
+      "labels": [
+        "documentation",
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25594",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941026620Z-github-com-sgl-project-sglang-pull-25594-95df971323.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 26709,
+      "kind": "pull_request",
+      "title": "[DOC] [NPU] add qwen3.5-397b best practice to doc_new",
+      "closed_at": "2026-05-30T06:20:25Z",
+      "merged_at": "2026-05-30T06:20:24Z",
+      "labels": [
+        "documentation",
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26709",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941026864Z-github-com-sgl-project-sglang-pull-26709-a1cec9d6cd.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 29128,
+      "kind": "pull_request",
+      "title": "[NPU] Support fsdp for rl_on_policy_target",
+      "closed_at": "2026-06-24T06:57:20Z",
+      "merged_at": "2026-06-24T06:57:20Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29128",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941027101Z-github-com-sgl-project-sglang-pull-29128-d508c8ecce.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 29042,
+      "kind": "pull_request",
+      "title": "[NPU] Fix the DeepSeek-V2-Coder model accuracy issue",
+      "closed_at": "2026-06-25T01:14:33Z",
+      "merged_at": "2026-06-25T01:14:33Z",
+      "labels": [
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29042",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941027343Z-github-com-sgl-project-sglang-pull-29042-926ecb7087.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29029,
+      "kind": "pull_request",
+      "title": "[NPU][Bugfix] Fix a ModelSlim loading failure",
+      "closed_at": "2026-06-29T01:53:02Z",
+      "merged_at": "2026-06-29T01:53:02Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29029",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941027590Z-github-com-sgl-project-sglang-pull-29029-7a7af86237.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29541,
+      "kind": "pull_request",
+      "title": "[Spec] Publish DFLASH verify read-done event for fine-grained WAR barrier",
+      "closed_at": "2026-06-29T01:51:39Z",
+      "merged_at": "2026-06-29T01:51:39Z",
+      "labels": [
+        "blackwell",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29541",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941027824Z-github-com-sgl-project-sglang-pull-29541-d3fefc4997.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 28974,
+      "kind": "pull_request",
+      "title": "[weight checker] refactor: add precision branch; allow ULP quant err; used",
+      "closed_at": "2026-06-29T01:44:06Z",
+      "merged_at": "2026-06-29T01:44:06Z",
+      "labels": [
+        "quant",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28974",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941028067Z-github-com-sgl-project-sglang-pull-28974-ad959a3303.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29591,
+      "kind": "pull_request",
+      "title": "[misc] Use --cuda-graph-max-bs-decode in tests, examples, and docs",
+      "closed_at": "2026-06-29T01:38:28Z",
+      "merged_at": "2026-06-29T01:38:28Z",
+      "labels": [
+        "documentation",
+        "quant",
+        "amd",
+        "lora",
+        "Multi-modal",
+        "deepseek",
+        "speculative-decoding",
+        "hicache",
+        "npu",
+        "run-ci",
+        "mthreads"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29591",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941028326Z-github-com-sgl-project-sglang-pull-29591-f5c2367198.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29382,
+      "kind": "pull_request",
+      "title": "[CPU] use faster exp in silu_and_mul",
+      "closed_at": "2026-06-29T01:38:31Z",
+      "merged_at": "2026-06-29T01:38:31Z",
+      "labels": [
+        "sgl-kernel",
+        "cpu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29382",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941028568Z-github-com-sgl-project-sglang-pull-29382-4e098fae0b.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29378,
+      "kind": "pull_request",
+      "title": "[CPU] enable fused_sigmoid_mul on CPU device",
+      "closed_at": "2026-06-29T01:38:04Z",
+      "merged_at": "2026-06-29T01:38:04Z",
+      "labels": [
+        "sgl-kernel",
+        "intel",
+        "cpu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29378",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941028804Z-github-com-sgl-project-sglang-pull-29378-ba0a56bb06.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 26567,
+      "kind": "pull_request",
+      "title": "Speed up DeepGEMM JIT warmup with per-PP-rank parallel compile",
+      "closed_at": "2026-06-02T02:51:27Z",
+      "merged_at": "2026-06-02T02:51:27Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26567",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941029034Z-github-com-sgl-project-sglang-pull-26567-e859faea35.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 2,
+      "kind": "pull_request",
+      "title": "Add SRT json decode example",
+      "closed_at": "2024-01-09T20:35:45Z",
+      "merged_at": "2024-01-09T20:35:44Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/2",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941029269Z-github-com-sgl-project-sglang-pull-2-45960d1602.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 28308,
+      "kind": "pull_request",
+      "title": "[Intel GPU] add pytorch profiling support for XPU in bench offline throughput",
+      "closed_at": "2026-06-29T01:10:16Z",
+      "merged_at": "2026-06-29T01:10:16Z",
+      "labels": [
+        "intel",
+        "benchmark",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28308",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941029495Z-github-com-sgl-project-sglang-pull-28308-aff36674bd.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29343,
+      "kind": "pull_request",
+      "title": "[dflash] fa3/fa4: device-side page table; drop seq_lens_cpu D2H sync",
+      "closed_at": "2026-06-29T01:06:34Z",
+      "merged_at": "2026-06-29T01:06:34Z",
+      "labels": [
+        "high priority",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29343",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941029742Z-github-com-sgl-project-sglang-pull-29343-cde2ccb0eb.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29310,
+      "kind": "pull_request",
+      "title": "[HiCache] Detect for double-free in HostKVCache",
+      "closed_at": "2026-06-29T01:02:22Z",
+      "merged_at": "2026-06-29T01:02:22Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29310",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941029978Z-github-com-sgl-project-sglang-pull-29310-d4edf4dc4c.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29576,
+      "kind": "pull_request",
+      "title": "Fix DSA indexer fusion bug causing excessive memory consumption.",
+      "closed_at": "2026-06-28T21:11:08Z",
+      "merged_at": "2026-06-28T21:11:08Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29576",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941030210Z-github-com-sgl-project-sglang-pull-29576-7eef942d30.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29564,
+      "kind": "pull_request",
+      "title": "Disable DSA indexer fusion by default",
+      "closed_at": "2026-06-28T20:40:19Z",
+      "merged_at": "",
+      "labels": [
+        "lora",
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29564",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941030452Z-github-com-sgl-project-sglang-pull-29564-7ba3b5aedf.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29585,
+      "kind": "pull_request",
+      "title": "[Test] Add unit tests for srt/kv_canary (#20865)",
+      "closed_at": "2026-06-28T23:14:46Z",
+      "merged_at": "",
+      "labels": [
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29585",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941030695Z-github-com-sgl-project-sglang-pull-29585-181d684efb.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 28481,
+      "kind": "pull_request",
+      "title": "chore: bump sgl-deep-gemm build-time apache-tvm-ffi 0.1.9 -> 0.1.11",
+      "closed_at": "2026-06-28T07:26:24Z",
+      "merged_at": "2026-06-28T07:26:24Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28481",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941030976Z-github-com-sgl-project-sglang-pull-28481-69b9564623.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29229,
+      "kind": "pull_request",
+      "title": "Fix dummy weight init for tensor subclasses",
+      "closed_at": "2026-06-28T17:17:01Z",
+      "merged_at": "2026-06-28T17:17:01Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29229",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941031216Z-github-com-sgl-project-sglang-pull-29229-f44fad0415.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29535,
+      "kind": "pull_request",
+      "title": "[scheduler] Add scheduler metrics reporter init hook",
+      "closed_at": "2026-06-28T16:59:34Z",
+      "merged_at": "2026-06-28T16:59:34Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29535",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941031448Z-github-com-sgl-project-sglang-pull-29535-b14136240d.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29072,
+      "kind": "pull_request",
+      "title": "[Cherry-pick to release/v0.5.14] Skip Flashinfer cuDNN FP8 GEMM tactic when",
+      "closed_at": "2026-06-23T20:39:15Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29072",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941031677Z-github-com-sgl-project-sglang-pull-29072-dce30c0360.md",
+      "overlaps_api_corpus": true
+    },
+    {
+      "number": 29436,
+      "kind": "pull_request",
+      "title": "feat: first-class session identity in SGLang",
+      "closed_at": "2026-06-28T14:16:39Z",
+      "merged_at": "2026-06-28T14:16:39Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29436",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941031934Z-github-com-sgl-project-sglang-pull-29436-073f666ec5.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29559,
+      "kind": "pull_request",
+      "title": "[codex] Test spec-v2 seq-lens CPU opt-out",
+      "closed_at": "2026-06-28T12:36:47Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29559",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941032167Z-github-com-sgl-project-sglang-pull-29559-c14b0c3bb6.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29399,
+      "kind": "pull_request",
+      "title": "[Diffusion] Fuse LTX2 qknorm split-RoPE",
+      "closed_at": "2026-06-28T11:22:49Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci",
+        "diffusion",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29399",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941032402Z-github-com-sgl-project-sglang-pull-29399-34ff8d8b72.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29396,
+      "kind": "pull_request",
+      "title": "[Diffusion] Fuse LTX2 RMS AdaLN modulation",
+      "closed_at": "2026-06-28T11:22:46Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci",
+        "diffusion",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29396",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941032636Z-github-com-sgl-project-sglang-pull-29396-505da9e49a.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29392,
+      "kind": "pull_request",
+      "title": "[Diffusion] Fuse LTX2 dual modulation",
+      "closed_at": "2026-06-28T11:22:43Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci",
+        "diffusion",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29392",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941032903Z-github-com-sgl-project-sglang-pull-29392-b10f48f279.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29461,
+      "kind": "pull_request",
+      "title": "Fix FlashInfer A2A dispatcher during CUDA graph capture",
+      "closed_at": "2026-06-28T09:21:27Z",
+      "merged_at": "2026-06-28T09:21:27Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29461",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941033136Z-github-com-sgl-project-sglang-pull-29461-cc1707ff7c.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29545,
+      "kind": "pull_request",
+      "title": "[diffusion] CI: make consistency GT probe robust to transient CDN failures",
+      "closed_at": "2026-06-28T09:13:54Z",
+      "merged_at": "2026-06-28T09:13:54Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29545",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941033373Z-github-com-sgl-project-sglang-pull-29545-c3dca627af.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29556,
+      "kind": "pull_request",
+      "title": "dflash: drop verify_done barrier; rely on scheduler WAR fallback",
+      "closed_at": "2026-06-28T08:47:18Z",
+      "merged_at": "2026-06-28T08:47:18Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29556",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941033617Z-github-com-sgl-project-sglang-pull-29556-308306607e.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29232,
+      "kind": "pull_request",
+      "title": "[Spec] Replace shared-infra dflash special-cases with capabilities (WAR barrier",
+      "closed_at": "2026-06-28T07:02:32Z",
+      "merged_at": "2026-06-28T07:02:32Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29232",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941033855Z-github-com-sgl-project-sglang-pull-29232-09d2437062.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 19187,
+      "kind": "pull_request",
+      "title": "[Feature] Enable EPLB in Draft Models",
+      "closed_at": "2026-06-28T06:44:53Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/19187",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941034101Z-github-com-sgl-project-sglang-pull-19187-2fb543ec7e.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29434,
+      "kind": "pull_request",
+      "title": "[diffusion] nightly: track SGLang-Diffusion only",
+      "closed_at": "2026-06-28T06:23:18Z",
+      "merged_at": "2026-06-28T06:23:18Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29434",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941034336Z-github-com-sgl-project-sglang-pull-29434-05a72bf329.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29520,
+      "kind": "pull_request",
+      "title": "fix: fix prefill-aware SWA floor tracking",
+      "closed_at": "2026-06-28T06:18:29Z",
+      "merged_at": "2026-06-28T06:18:29Z",
+      "labels": [
+        "documentation",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29520",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941034573Z-github-com-sgl-project-sglang-pull-29520-bfd03f2313.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 28714,
+      "kind": "pull_request",
+      "title": "[minimax-m3] Split 3/4: disagg K-only index-K transfer",
+      "closed_at": "2026-06-28T05:54:43Z",
+      "merged_at": "2026-06-28T05:54:43Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28714",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941034801Z-github-com-sgl-project-sglang-pull-28714-7c70056485.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29547,
+      "kind": "pull_request",
+      "title": "shm_broadcast: bind XPUB port atomically to avoid pinned-port race",
+      "closed_at": "2026-06-28T05:25:50Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29547",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941035065Z-github-com-sgl-project-sglang-pull-29547-6cc8fc0aa4.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29536,
+      "kind": "pull_request",
+      "title": "Fix SHM feature finalization under DP attention",
+      "closed_at": "2026-06-28T05:24:51Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29536",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941035309Z-github-com-sgl-project-sglang-pull-29536-2a367a5a11.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29464,
+      "kind": "pull_request",
+      "title": "Fix EAGLE draft hidden dim extraction and centralize spec helpers",
+      "closed_at": "2026-06-28T04:48:26Z",
+      "merged_at": "2026-06-28T04:48:26Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29464",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941035538Z-github-com-sgl-project-sglang-pull-29464-f6a16902f9.md",
+      "overlaps_api_corpus": false
+    },
+    {
+      "number": 29543,
+      "kind": "pull_request",
+      "title": "Fix DP-attention SHM feature finalization race",
+      "closed_at": "2026-06-28T04:36:59Z",
+      "merged_at": "2026-06-28T04:36:59Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29543",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260629T040941035773Z-github-com-sgl-project-sglang-pull-29543-587ffc3344.md",
+      "overlaps_api_corpus": false
+    }
+  ]
+}

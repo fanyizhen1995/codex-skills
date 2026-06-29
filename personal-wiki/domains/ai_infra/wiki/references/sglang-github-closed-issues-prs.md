@@ -19,7 +19,8 @@ source_refs:
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-updated-segment-api-pages.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-by-item-api-pages.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz
-updated: 2026-06-24
+  - ../../raw/crawler/sglang-github-closed-issues-prs/manifest.json
+updated: 2026-06-29
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -29,7 +30,7 @@ related:
 ---
 # Summary
 
-This reference indexes the local raw corpus for closed issues and closed pull requests in `sgl-project/sglang`. The raw layer preserves GitHub API pages, joined issue/PR objects, timeline comments, PR review comments, and supplement pages used to work around repository-level issue-comment pagination boundaries. The curated layer keeps only scope, retrieval guidance, and operational signals.
+This reference indexes the local raw corpus for closed issues and closed pull requests in `sgl-project/sglang`. The raw layer preserves GitHub API pages, joined issue/PR objects, timeline comments, PR review comments, supplement pages used to work around repository-level issue-comment pagination boundaries, and a small crawler supplement captured after the API corpus cutoff. The curated layer keeps only scope, retrieval guidance, and operational signals.
 
 # Corpus Scope
 
@@ -49,6 +50,8 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | Issue closed range | 2024-01-16 to 2026-06-24 |
 | PR created range | 2024-01-08 to 2026-06-24 |
 | PR closed range | 2024-01-08 to 2026-06-24 |
+| Crawler supplement capture | 51 Markdown page snapshots captured 2026-06-29 |
+| Crawler supplement overlap | 10 items overlap the API corpus; 41 are later selected page captures |
 
 Raw files:
 
@@ -61,12 +64,15 @@ Raw files:
 - [Issue comments updated-segment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-updated-segment-api-pages.json.gz)
 - [Issue comments per-item supplement pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-by-item-api-pages.json.gz)
 - [PR review comment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz)
+- [Crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
 
 # Capture Notes
 
 The repository-level issue-comment API hit the page-300 boundary in created order. The raw corpus therefore supplements it with updated-order segment pages and per-item comment pages. After this supplementation, 17 closed items still have a mismatch between GitHub's `comments` count field and the visible comments returned by the item's comments API. These 17 items were re-fetched individually and are recorded as residual GitHub API visibility/count differences, not as an untried capture gap.
 
 Unattached comment counts are expected in repository-level comment streams because some comments belong to open items, deleted/inaccessible items, or items outside this closed corpus filter. The joined corpus attaches only comments whose item number is included in the closed issue or closed PR set.
+
+The crawler supplement under `raw/crawler/sglang-github-closed-issues-prs/` is selective browser/page evidence, not a replacement for the API corpus. Its manifest records 51 Markdown captures: 7 issue pages and 44 pull request pages. Ten captured item numbers already exist in the API corpus; 41 are later selected page captures, mostly closed between 2026-06-25 and 2026-06-29. Do not combine those 41 items into the API corpus counts unless a full API refresh with comments and review comments is performed.
 
 # Operational Signals
 
@@ -109,3 +115,4 @@ High-discussion examples in the captured corpus include:
 - [SGLang issue comment updated-segment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-updated-segment-api-pages.json.gz)
 - [SGLang issue comment per-item supplement pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-by-item-api-pages.json.gz)
 - [SGLang PR review comment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz)
+- [SGLang crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
