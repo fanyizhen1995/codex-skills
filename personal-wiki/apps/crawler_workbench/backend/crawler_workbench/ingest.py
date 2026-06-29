@@ -170,7 +170,9 @@ def _run_approved_task(
     cursor = db.execute(
         """
         update ingest_tasks
-        set status = 'running', updated_at = current_timestamp
+        set status = 'running',
+            reason = 'ingest running',
+            updated_at = current_timestamp
         where id = ? and status = 'approved'
         """,
         (task_id,),

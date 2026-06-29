@@ -441,6 +441,36 @@ def test_run_approved_task_clears_defer_reason_after_successful_retry(tmp_path, 
     assert "baseline" not in task["reason"]
 
 
+def test_run_approved_task_replaces_defer_reason_when_claimed_running(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
+    with connect(settings.database_path) as db:
+        migrate(db)
+        task_id = seed_approved_task(settings, db)
+        db.execute(
+            """
+            update ingest_tasks
+            set reason = 'waiting for clean git baseline before automatic retry'
+            where id = ?
+            """,
+            (task_id,),
+        )
+        db.commit()
+
+        def assert_running_reason(received_settings, domain, raw_path):
+            task = db.execute("select status, reason from ingest_tasks where id = ?", (task_id,)).fetchone()
+            assert task["status"] == "running"
+            assert task["reason"] == "ingest running"
+            return subprocess.CompletedProcess(args=["fake"], returncode=1, stdout="", stderr="stop after claim")
+
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", assert_running_reason)
+
+        result = run_approved_task(settings, db, task_id, auto_commit_enabled=False, codex_runner=lambda *args: ok_process())
+
+    assert result["status"] == "failed"
+    assert result["reason"] == "ingest-plan failed: stop after claim"
+
+
 def test_run_approved_task_allows_other_approved_raw_files_in_same_domain_baseline(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
