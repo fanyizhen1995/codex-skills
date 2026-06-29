@@ -164,7 +164,7 @@ def _run_approved_task(
     allowed_baseline_paths = _approved_raw_repo_paths(settings, db, domain)
     disallowed_baseline_paths = baseline_dirty_paths - allowed_baseline_paths
     if disallowed_baseline_paths:
-        _mark_task_failed(db, task_id, ALLOWED_BASELINE_REASON, allowed_states={"approved"})
+        _defer_approved_task(db, task_id, ALLOWED_BASELINE_REASON)
         return _task_response(db, task_id)
 
     cursor = db.execute(
@@ -237,6 +237,7 @@ def _run_approved_task(
         update ingest_tasks
         set status = 'succeeded',
             commit_id = ?,
+            reason = 'ingest succeeded',
             updated_at = current_timestamp
         where id = ?
         """,
@@ -451,6 +452,21 @@ def _mark_task_failed(db: sqlite3.Connection, task_id: int, reason: str, allowed
     )
     if allowed_states and cursor.rowcount != 1:
         _raise_invalid_current_state(db, task_id, "failed")
+    db.commit()
+
+
+def _defer_approved_task(db: sqlite3.Connection, task_id: int, reason: str) -> None:
+    cursor = db.execute(
+        """
+        update ingest_tasks
+        set reason = ?,
+            updated_at = current_timestamp
+        where id = ? and status = 'approved'
+        """,
+        (reason[-1000:], task_id),
+    )
+    if cursor.rowcount != 1:
+        _raise_invalid_current_state(db, task_id, "approved")
     db.commit()
 
 

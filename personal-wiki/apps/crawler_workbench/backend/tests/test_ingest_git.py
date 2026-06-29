@@ -387,7 +387,7 @@ def test_auto_commit_unstages_requested_paths_when_commit_fails(tmp_path):
     assert staged == []
 
 
-def test_run_approved_task_fails_on_dirty_same_domain_baseline(tmp_path, monkeypatch):
+def test_run_approved_task_defers_on_dirty_same_domain_baseline(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
     unrelated = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "unrelated.md"
@@ -406,11 +406,39 @@ def test_run_approved_task_fails_on_dirty_same_domain_baseline(tmp_path, monkeyp
         task = db.execute("select status, reason, commit_id from ingest_tasks where id = ?", (task_id,)).fetchone()
         commit_count = db.execute("select count(*) as count from commit_records").fetchone()["count"]
 
-    assert result["status"] == "failed"
-    assert task["status"] == "failed"
+    assert result["status"] == "approved"
+    assert task["status"] == "approved"
     assert "baseline" in task["reason"]
     assert task["commit_id"] is None
     assert commit_count == 0
+
+
+def test_run_approved_task_clears_defer_reason_after_successful_retry(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
+    unrelated = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "unrelated.md"
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_text("unrelated", encoding="utf-8")
+
+    with connect(settings.database_path) as db:
+        migrate(db)
+        task_id = seed_approved_task(settings, db)
+
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_index", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_backlinks", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_validate", lambda *args: ok_process())
+
+        deferred = run_approved_task(settings, db, task_id, auto_commit_enabled=False, codex_runner=lambda *args: ok_process())
+        unrelated.unlink()
+        retried = run_approved_task(settings, db, task_id, auto_commit_enabled=False, codex_runner=lambda *args: ok_process())
+
+        task = db.execute("select status, reason from ingest_tasks where id = ?", (task_id,)).fetchone()
+
+    assert deferred["status"] == "approved"
+    assert retried["status"] == "succeeded"
+    assert task["status"] == "succeeded"
+    assert "baseline" not in task["reason"]
 
 
 def test_run_approved_task_allows_other_approved_raw_files_in_same_domain_baseline(tmp_path, monkeypatch):
@@ -484,7 +512,7 @@ def test_run_approved_task_allows_other_approved_raw_files_in_same_domain_baseli
     assert "baseline" not in first_task["reason"]
 
 
-def test_run_approved_task_fails_on_dirty_baseline_without_auto_commit(tmp_path, monkeypatch):
+def test_run_approved_task_defers_on_dirty_baseline_without_auto_commit(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     unrelated = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "unrelated.md"
@@ -500,8 +528,8 @@ def test_run_approved_task_fails_on_dirty_baseline_without_auto_commit(tmp_path,
 
         task = db.execute("select status, reason from ingest_tasks where id = ?", (task_id,)).fetchone()
 
-    assert result["status"] == "failed"
-    assert task["status"] == "failed"
+    assert result["status"] == "approved"
+    assert task["status"] == "approved"
     assert "baseline" in task["reason"]
     assert calls == []
 
