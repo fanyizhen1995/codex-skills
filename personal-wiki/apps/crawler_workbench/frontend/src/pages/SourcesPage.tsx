@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   acceptAcceleratorCandidate,
+  createManualIngest,
   getAcceleratorCandidates,
   getSources,
   rejectAcceleratorCandidate,
@@ -64,6 +65,10 @@ export function SourcesPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [runningSource, setRunningSource] = useState("");
+  const [manualUrl, setManualUrl] = useState("");
+  const [manualDomain, setManualDomain] = useState("ai_infra");
+  const [manualAutoCommit, setManualAutoCommit] = useState(true);
+  const [manualRunning, setManualRunning] = useState(false);
   const [reviewingCandidate, setReviewingCandidate] = useState<number | null>(null);
 
   async function loadSources() {
@@ -110,6 +115,43 @@ export function SourcesPage() {
       setError(error instanceof Error ? error.message : "运行来源失败");
     } finally {
       setRunningSource("");
+    }
+  }
+
+  async function handleManualIngest(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const url = manualUrl.trim();
+    const domain = manualDomain.trim() || "ai_infra";
+    if (!url) {
+      setNotice("");
+      setError("请输入入库 URL");
+      return;
+    }
+    setManualRunning(true);
+    setNotice("");
+    setError("");
+    try {
+      const result = await createManualIngest({
+        url,
+        domain,
+        auto_commit_enabled: manualAutoCommit
+      });
+      await loadSources();
+      if (result.status === "succeeded") {
+        const taskText = result.task_id ? `任务 #${result.task_id}` : "未生成任务";
+        const commitText = result.commit_sha ? `，commit ${result.commit_sha.slice(0, 12)}` : "";
+        setNotice(`已入库并提交：${taskText}${commitText}`);
+        setManualUrl("");
+      } else if (result.status === "skipped") {
+        setNotice(`未发现新内容：${result.url}`);
+      } else {
+        const taskText = result.task_id ? `任务 #${result.task_id}` : "未生成任务";
+        setNotice(`入库未完成：${taskText} · ${result.reason ?? result.status}`);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "URL 入库失败");
+    } finally {
+      setManualRunning(false);
     }
   }
 
@@ -192,6 +234,42 @@ export function SourcesPage() {
       {(error || notice) && <small role="status">{error || notice}</small>}
 
       <div className="source-groups">
+        <div className="work-panel manual-ingest-panel">
+          <h2>零散 URL 入库</h2>
+          <form className="manual-ingest-form" onSubmit={handleManualIngest}>
+            <label className="field-row manual-url-field">
+              <span>入库 URL</span>
+              <input
+                aria-label="入库 URL"
+                placeholder="https://example.com/doc"
+                type="text"
+                value={manualUrl}
+                onChange={(event) => setManualUrl(event.target.value)}
+              />
+            </label>
+            <label className="field-row manual-domain-field">
+              <span>领域</span>
+              <input
+                aria-label="入库领域"
+                value={manualDomain}
+                onChange={(event) => setManualDomain(event.target.value)}
+              />
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={manualAutoCommit}
+                onChange={(event) => setManualAutoCommit(event.target.checked)}
+              />
+              自动提交
+            </label>
+            <button className="icon-button" type="submit" disabled={manualRunning}>
+              <Play aria-hidden="true" size={16} />
+              {manualRunning ? "入库中" : "抓取并入库"}
+            </button>
+          </form>
+        </div>
+
         <div className="work-panel">
           <h2>新硬件候选</h2>
           {candidates.length === 0 ? (

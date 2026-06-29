@@ -10,6 +10,7 @@ import type {
   GraphResponse,
   HealthResponse,
   IngestTask,
+  ManualIngestResponse,
   QueueTask,
   RunSummary,
   SearchResult,
@@ -94,6 +95,14 @@ export async function getSources(): Promise<SourceProfile[]> {
 
 export async function runSource(id: string): Promise<RunSummary> {
   return request<RunSummary>(`/sources/${encodeURIComponent(id)}/run`, { method: "POST" });
+}
+
+export async function createManualIngest(payload: {
+  url: string;
+  domain: string;
+  auto_commit_enabled: boolean;
+}): Promise<ManualIngestResponse> {
+  return request<ManualIngestResponse>("/manual-ingests", { method: "POST", body: payload });
 }
 
 export async function getAcceleratorCandidates(): Promise<AcceleratorCandidate[]> {
@@ -192,6 +201,7 @@ export const api = {
   domains: getDomains,
   sources: getSources,
   runSource,
+  createManualIngest,
   acceleratorCandidates: getAcceleratorCandidates,
   acceptAcceleratorCandidate,
   trustAcceleratorCandidateSource,

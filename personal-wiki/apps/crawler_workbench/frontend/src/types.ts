@@ -142,6 +142,24 @@ export interface RunSummary {
   [key: string]: unknown;
 }
 
+export interface ManualIngestResponse {
+  status: string;
+  reason?: string | null;
+  source_id: string;
+  url: string;
+  domain: string;
+  fetch: {
+    fetch_run_id?: number;
+    fetched_count?: number;
+    changed_count?: number;
+    skipped_count?: number;
+    [key: string]: unknown;
+  };
+  task_id?: number | null;
+  commit_sha?: string | null;
+  task?: IngestTask;
+}
+
 export interface FetchRun {
   id: number;
   source_id?: string;

@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-06-29 Crawler Manual URL Ingest
+
+- Added an ad hoc URL ingest path in Crawler Workbench: `POST /api/manual-ingests` creates/reuses a manual trusted web source, fetches raw evidence, approves the generated ingest task, runs the existing wiki ingest pipeline, validates, and optionally records an auto commit.
+- Added a compact `零散 URL 入库` form to the Sources page with default `ai_infra` domain and auto-commit enabled.
+- Registered `crawler-manual-url-ingest-01` in `tasks.json` with required evaluator coverage.
+- Evidence:
+  - `REPO_ROOT=$(pwd) && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_manual_ingest.py tests/test_api.py tests/test_fetch_service_policy.py tests/test_ingest_git.py && cd ../frontend && npm test -- src/App.test.tsx && npm run build && cd "$REPO_ROOT" && python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-manual-url-ingest-01` -> backend 57 passed, frontend 23 passed, build passed with Vite chunk-size warning, evaluator pass
+  - `cd personal-wiki/apps/crawler_workbench/frontend && npm run test:ui:live` -> 1 passed
+
 ## 2026-06-29 Crawler Workbench Sync And Commit Cleanup
 
 - Confirmed there are no untracked compute accelerator raw/wiki files left to ingest; compute accelerator crawl evidence is already curated in `personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md` and `personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md`.

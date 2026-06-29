@@ -21,6 +21,7 @@ from .ingest import (
     reject_task,
     run_approved_task,
 )
+from .manual_ingest import run_manual_url_ingest
 from .profiles import list_profiles
 from .search import rebuild_search_index, search_wiki, validate_domain
 from .schemas import (
@@ -81,6 +82,20 @@ class ValidateRequest(BaseModel):
 
 class RunQueueRequest(BaseModel):
     auto_commit_enabled: StrictBool = False
+
+
+class ManualIngestRequest(BaseModel):
+    url: StrictStr = Field(min_length=1)
+    domain: StrictStr = "ai_infra"
+    auto_commit_enabled: StrictBool = True
+
+    @field_validator("url", "domain")
+    @classmethod
+    def require_non_empty_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be empty")
+        return stripped
 
 
 class TrustSourceRequest(BaseModel):
@@ -203,6 +218,27 @@ def run_source(source_id: str, request: Request) -> dict[str, object]:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except SourceDisabledError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/manual-ingests")
+def manual_ingest(payload: ManualIngestRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    try:
+        validate_domain(payload.domain)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    settings = request.app.state.settings
+    with open_db(settings.database_path) as db:
+        try:
+            return run_manual_url_ingest(
+                settings,
+                db,
+                payload.url,
+                domain=payload.domain,
+                auto_commit_enabled=payload.auto_commit_enabled,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/runs")

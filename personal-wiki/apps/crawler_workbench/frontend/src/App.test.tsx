@@ -6,6 +6,7 @@ import App from "./App";
 import type { AcceleratorCandidate, AcceleratorSpecRecord } from "./types";
 import {
   acceptAcceleratorCandidate,
+  createManualIngest,
   extractAcceleratorSpecs,
   getAcceleratorCandidates,
   getAcceleratorSpecs,
@@ -169,6 +170,16 @@ vi.mock("./api", () => ({
     created_at: "2026-06-28 01:00:00",
     updated_at: "2026-06-28 01:00:00"
   }),
+  createManualIngest: vi.fn().mockResolvedValue({
+    status: "succeeded",
+    reason: "ingest succeeded",
+    source_id: "manual-url-example-com-doc-9813a80c59",
+    url: "https://example.com/doc",
+    domain: "ai_infra",
+    fetch: { fetch_run_id: 1, fetched_count: 1, changed_count: 1, skipped_count: 0 },
+    task_id: 7,
+    commit_sha: "abc1234"
+  }),
   extractAcceleratorSpecs: vi.fn().mockResolvedValue({ skus: 1, observations: 1, resolved: 1 }),
   getDomains: vi.fn().mockResolvedValue([{ id: "ai_infra", name: "ai_infra" }]),
   getAcceleratorCandidates: vi.fn().mockResolvedValue([]),
@@ -274,6 +285,16 @@ afterEach(() => {
   vi.mocked(getAcceleratorSpecs).mockResolvedValue([]);
   vi.mocked(extractAcceleratorSpecs).mockResolvedValue({ skus: 1, observations: 1, resolved: 1 });
   vi.mocked(acceptAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("accepted"));
+  vi.mocked(createManualIngest).mockResolvedValue({
+    status: "succeeded",
+    reason: "ingest succeeded",
+    source_id: "manual-url-example-com-doc-9813a80c59",
+    url: "https://example.com/doc",
+    domain: "ai_infra",
+    fetch: { fetch_run_id: 1, fetched_count: 1, changed_count: 1, skipped_count: 0 },
+    task_id: 7,
+    commit_sha: "abc1234"
+  });
   vi.mocked(rejectAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("rejected"));
   vi.mocked(getQueue).mockResolvedValue([]);
   vi.mocked(getRuns).mockResolvedValue([]);
@@ -745,6 +766,27 @@ describe("App", () => {
     expect(screen.getByText("succeeded")).toBeInTheDocument();
     expect(screen.queryByText("未运行")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无状态")).not.toBeInTheDocument();
+  });
+
+  it("submits an ad hoc URL for automatic ingest and commit", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    fireEvent.change(await screen.findByLabelText("入库 URL"), {
+      target: { value: "https://example.com/doc?utm_source=x" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "抓取并入库" }));
+
+    await waitFor(() =>
+      expect(createManualIngest).toHaveBeenCalledWith({
+        url: "https://example.com/doc?utm_source=x",
+        domain: "ai_infra",
+        auto_commit_enabled: true
+      })
+    );
+    expect(await screen.findByText(/已入库并提交/)).toBeInTheDocument();
+    expect(screen.getByText(/任务 #7/)).toBeInTheDocument();
+    expect(screen.getByText(/abc1234/)).toBeInTheDocument();
   });
 
   it("shows source run policy and accelerator discovery candidates", async () => {
