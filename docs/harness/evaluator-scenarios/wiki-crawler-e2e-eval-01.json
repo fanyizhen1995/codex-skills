@@ -8,19 +8,28 @@
       "prerequisites": [
         "Harness Step4 runtime is installed.",
         "personal-wiki ai_infra domain exists.",
-        "Local Python dependencies for crawler_workbench are available."
+        "Local Python dependencies for crawler_workbench are available.",
+        "Crawler workbench frontend dependencies and Playwright browser runtime are available."
       ],
       "entrypoint": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01",
       "steps": [
         "Run the evaluator helper entrypoint.",
+        "Run the backend crawler fixture workflow.",
+        "Run the Playwright source subscription browser flow against an isolated crawler backend.",
+        "Click the crawler workbench navigation item named 来源订阅.",
+        "Click 信任同站 for a pending accelerator candidate.",
         "Inspect result.json and summary.md in the output directory.",
-        "Confirm domain and full wiki validation succeeded."
+        "Confirm domain and full wiki validation succeeded.",
+        "Confirm the browser flow reports source-subscriptions-user-flow as pass."
       ],
       "expected_outcomes": [
         "At least one raw crawler evidence file is written.",
         "The ingest task reaches succeeded.",
         "Index and backlinks are rebuilt.",
         "Domain and full wiki validation return zero issues.",
+        "The Playwright flow sends POST /api/accelerator-candidates/{id}/trust-source to a real backend.",
+        "The source subscription UI shows the same-site trust success notice and refreshes accepted source profiles.",
+        "The output evidence includes the Playwright JSON report and HTML report directory.",
         "The output result.json reports status pass with evidence paths."
       ],
       "failure_signals": [
@@ -28,12 +37,16 @@
         "The queue never contains an approvable task.",
         "The ingest task fails or remains pending.",
         "Wiki validation reports issues.",
+        "The 来源订阅 navigation click does not show the source subscription page.",
+        "The 信任同站 click does not call the backend trust-source endpoint.",
+        "The backend accepts the request but the UI does not update the notice, candidates, or source list.",
+        "Playwright browser evidence is missing.",
         "The output directory lacks result.json or summary.md."
       ],
       "cleanup": [
         "Remove .codex/wiki-crawler-e2e/ if a clean rerun is needed."
       ],
-      "automation_hint": "shell"
+      "automation_hint": "playwright+shell"
     }
   ]
 }

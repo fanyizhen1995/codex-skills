@@ -3,6 +3,8 @@ __pycache__/
 .worktrees/
 personal-wiki/apps/crawler_workbench/frontend/node_modules/
 personal-wiki/apps/crawler_workbench/frontend/dist/
+personal-wiki/apps/crawler_workbench/frontend/playwright-report/
+personal-wiki/apps/crawler_workbench/frontend/test-results/
 .personal-wiki-workbench/*.sqlite3
 .mindfs/
 .superpowers/

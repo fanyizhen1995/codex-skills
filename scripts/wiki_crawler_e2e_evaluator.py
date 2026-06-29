@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from typing import Sequence
 
 TASK_ID = "wiki-crawler-e2e-eval-01"
 SCENARIO_ID = "wiki-crawler-e2e-user-flow"
+SOURCE_SUBSCRIPTIONS_SCENARIO_ID = "source-subscriptions-user-flow"
 DOMAIN = "ai_infra"
 SOURCE_ID = "harness-e2e-local-source"
 
@@ -59,6 +61,12 @@ class LocalHarnessFetcher:
         return None
 
 
+class EvaluatorRunError(RuntimeError):
+    def __init__(self, message: str, evidence: dict[str, object]) -> None:
+        super().__init__(message)
+        self.evidence = evidence
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", default=".")
@@ -76,8 +84,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"status": "pass", "output_dir": str(output_dir)}, ensure_ascii=False))
         return 0
     except Exception as exc:
-        evidence = {"error": str(exc), "output_dir": str(output_dir)}
-        result = _blocked_result(str(exc))
+        if isinstance(exc, EvaluatorRunError):
+            evidence = exc.evidence
+            evidence["error"] = str(exc)
+            evidence["output_dir"] = str(output_dir)
+        else:
+            evidence = {"error": str(exc), "output_dir": str(output_dir)}
+        result = _blocked_result(str(exc), evidence)
         _write_outputs(output_dir, result, evidence)
         print(json.dumps({"status": "blocked", "error": str(exc), "output_dir": str(output_dir)}, ensure_ascii=False), file=sys.stderr)
         return 1
@@ -143,13 +156,14 @@ def run_e2e(source_repo: Path, output_dir: Path) -> dict[str, object]:
         ["python", "personal-wiki/tools/wiki_cli/cli.py", "--root", "personal-wiki", "validate"],
         cwd=fixture_repo,
     )
+    source_subscription_ui = _run_source_subscription_ui_flow(source_repo, output_dir)
 
     raw_paths = [
-        str(path.relative_to(fixture_repo).as_posix())
+        _relative_evidence_path(output_dir, path)
         for path in sorted((fixture_repo / "personal-wiki" / "domains" / DOMAIN / "raw" / "crawler" / SOURCE_ID).glob("*.md"))
     ]
     wiki_pages = [
-        str(path.relative_to(fixture_repo).as_posix())
+        _relative_evidence_path(output_dir, path)
         for path in sorted((fixture_repo / "personal-wiki" / "domains" / DOMAIN / "wiki").rglob("*.md"))
         if path.name != "index.md"
     ]
@@ -173,6 +187,27 @@ def run_e2e(source_repo: Path, output_dir: Path) -> dict[str, object]:
         raise RuntimeError(f"domain validate failed: {domain_validate.stderr or domain_validate.stdout}")
     if full_validate.returncode != 0:
         raise RuntimeError(f"full validate failed: {full_validate.stderr or full_validate.stdout}")
+    if source_subscription_ui["playwright"]["returncode"] != 0:
+        failure_evidence = {
+            "task_id": TASK_ID,
+            "scenario_id": SCENARIO_ID,
+            "fixture_repo": str(fixture_repo),
+            "state_dir": str(state_dir),
+            "fetch_result": fetch_result,
+            "queue_before": queue_before,
+            "queue_after": queue_after,
+            "ingest_task": ingest_task,
+            "raw_paths": raw_paths,
+            "wiki_pages": wiki_pages,
+            "domain_validate": domain_validate.as_dict(),
+            "full_validate": full_validate.as_dict(),
+            "source_subscription_ui": source_subscription_ui,
+        }
+        raise EvaluatorRunError(
+            "source subscription UI flow failed: "
+            f"{source_subscription_ui['playwright']['stderr'] or source_subscription_ui['playwright']['stdout']}",
+            failure_evidence,
+        )
 
     return {
         "task_id": TASK_ID,
@@ -187,6 +222,7 @@ def run_e2e(source_repo: Path, output_dir: Path) -> dict[str, object]:
         "wiki_pages": wiki_pages,
         "domain_validate": domain_validate.as_dict(),
         "full_validate": full_validate.as_dict(),
+        "source_subscription_ui": source_subscription_ui,
     }
 
 
@@ -255,6 +291,71 @@ def _write_sources_yaml(path: Path) -> None:
     )
 
 
+def _run_source_subscription_ui_flow(source_repo: Path, output_dir: Path) -> dict[str, object]:
+    frontend_dir = source_repo / "personal-wiki" / "apps" / "crawler_workbench" / "frontend"
+    if not frontend_dir.exists():
+        raise FileNotFoundError(f"missing crawler frontend: {frontend_dir}")
+
+    ui_output_dir = output_dir / "source-subscriptions-ui"
+    report_dir = ui_output_dir / "playwright-report"
+    json_report = ui_output_dir / "source-subscriptions-live.json"
+    ui_output_dir.mkdir(parents=True, exist_ok=True)
+
+    env = _source_subscription_ui_env(
+        output_dir,
+        base_env=os.environ,
+        report_dir=report_dir,
+        json_report=json_report,
+    )
+
+    result = subprocess.run(
+        ["npm", "run", "test:ui:live"],
+        cwd=frontend_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return {
+        "playwright": CommandEvidence(
+            command=["npm", "run", "test:ui:live"],
+            returncode=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        ).as_dict(),
+        "report_dir": _relative_evidence_path(output_dir, report_dir),
+        "json_report": _relative_evidence_path(output_dir, json_report),
+    }
+
+
+def _source_subscription_ui_env(
+    output_dir: Path,
+    base_env: dict[str, str] | os._Environ[str],
+    report_dir: Path | None = None,
+    json_report: Path | None = None,
+) -> dict[str, str]:
+    env = dict(base_env)
+    if "PW_WORKBENCH_E2E_BACKEND_PORT" not in env:
+        env["PW_WORKBENCH_E2E_BACKEND_PORT"] = str(_find_free_port())
+    if "PW_WORKBENCH_E2E_FRONTEND_PORT" not in env:
+        env["PW_WORKBENCH_E2E_FRONTEND_PORT"] = str(_find_free_port(excluding={int(env["PW_WORKBENCH_E2E_BACKEND_PORT"])}))
+    env["PW_WORKBENCH_E2E_BACKEND_URL"] = f"http://127.0.0.1:{env['PW_WORKBENCH_E2E_BACKEND_PORT']}"
+    env["PW_WORKBENCH_E2E_REPORT_DIR"] = str(report_dir or (output_dir / "source-subscriptions-ui" / "playwright-report"))
+    env["PW_WORKBENCH_E2E_JSON_REPORT"] = str(json_report or (output_dir / "source-subscriptions-ui" / "source-subscriptions-live.json"))
+    return env
+
+
+def _find_free_port(excluding: set[int] | None = None) -> int:
+    excluded = excluding or set()
+    for _ in range(20):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = int(sock.getsockname()[1])
+        if port not in excluded:
+            return port
+    raise RuntimeError("could not allocate an unused local port")
+
+
 def _fake_codex_runner(settings: object, prompt: str) -> subprocess.CompletedProcess[str]:
     repo_root = Path(getattr(settings, "repo_root"))
     raw_pages = sorted((repo_root / "personal-wiki" / "domains" / DOMAIN / "raw" / "crawler" / SOURCE_ID).glob("*.md"))
@@ -295,12 +396,25 @@ def _run_command(command: list[str], cwd: Path, check: bool = False) -> CommandE
     return evidence
 
 
+def _ui_evidence_paths(evidence: dict[str, object]) -> list[str]:
+    source_subscription_ui = evidence.get("source_subscription_ui", {})
+    ui_evidence_paths = []
+    if isinstance(source_subscription_ui, dict):
+        for key in ("json_report", "report_dir"):
+            value = source_subscription_ui.get(key)
+            if isinstance(value, str) and value:
+                ui_evidence_paths.append(value)
+    return ui_evidence_paths
+
+
 def _pass_result(evidence: dict[str, object]) -> dict[str, object]:
+    ui_evidence_paths = _ui_evidence_paths(evidence)
     evidence_paths = [
         "evidence.json",
         "summary.md",
         *[str(path) for path in evidence.get("raw_paths", [])],
         *[str(path) for path in evidence.get("wiki_pages", [])],
+        *ui_evidence_paths,
     ]
     return {
         "status": "pass",
@@ -316,6 +430,12 @@ def _pass_result(evidence: dict[str, object]) -> dict[str, object]:
                 "status": "pass",
                 "evidence": evidence_paths,
                 "notes": "fetch, approval, ingest, index, backlinks, and validation completed in an isolated fixture repo",
+            },
+            {
+                "scenario_id": SOURCE_SUBSCRIPTIONS_SCENARIO_ID,
+                "status": "pass",
+                "evidence": ui_evidence_paths,
+                "notes": "Playwright clicked the source subscription UI and verified the same-site accelerator candidate trust flow against a real backend",
             }
         ],
         "rerun_commands": [
@@ -325,13 +445,16 @@ def _pass_result(evidence: dict[str, object]) -> dict[str, object]:
             {"name": "fixture_repo", "status": "pass", "detail": str(evidence.get("fixture_repo", ""))},
             {"name": "domain_validate", "status": "pass", "detail": "returncode=0"},
             {"name": "full_validate", "status": "pass", "detail": "returncode=0"},
+            {"name": "source_subscription_ui", "status": "pass", "detail": "playwright returncode=0"},
         ],
         "verdict_reason": "All required wiki crawler E2E outcomes were observed.",
         "next_action": "proceed_to_user_acceptance",
     }
 
 
-def _blocked_result(reason: str) -> dict[str, object]:
+def _blocked_result(reason: str, evidence: dict[str, object] | None = None) -> dict[str, object]:
+    ui_evidence_paths = _ui_evidence_paths(evidence or {})
+    evidence_paths = ["evidence.json", *ui_evidence_paths]
     return {
         "status": "blocked",
         "gate": "task",
@@ -352,7 +475,13 @@ def _blocked_result(reason: str) -> dict[str, object]:
             {
                 "scenario_id": SCENARIO_ID,
                 "status": "blocked",
-                "evidence": ["evidence.json"],
+                "evidence": evidence_paths,
+                "notes": reason,
+            },
+            {
+                "scenario_id": SOURCE_SUBSCRIPTIONS_SCENARIO_ID,
+                "status": "blocked",
+                "evidence": evidence_paths,
                 "notes": reason,
             }
         ],
@@ -376,9 +505,17 @@ def _write_outputs(output_dir: Path, result: dict[str, object], evidence: dict[s
         f"- task_id: {TASK_ID}\n"
         f"- scenario_id: {SCENARIO_ID}\n"
         f"- scenario_status: {scenario['status']}\n"
+        f"- source_subscriptions_scenario: {result['scenario_results'][1]['status']}\n"
         f"- verdict: {result['verdict_reason']}\n",
         encoding="utf-8",
     )
+
+
+def _relative_evidence_path(output_dir: Path, path: Path) -> str:
+    try:
+        return str(path.relative_to(output_dir).as_posix())
+    except ValueError:
+        return str(path)
 
 
 if __name__ == "__main__":

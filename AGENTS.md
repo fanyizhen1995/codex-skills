@@ -12,6 +12,56 @@
 - **crawler backend 测试**：`cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q`
 - **crawler frontend 测试**：`cd personal-wiki/apps/crawler_workbench/frontend && npm test && npm run build`
 
+## Crawler Workbench 本地开发 / 部署
+这是本仓库当前主要的本地应用。服务无登录能力，能触发本地 `codex exec` 并写入仓库；只在可信网络中绑定 `0.0.0.0`。
+
+### 长驻开发服务
+Backend 默认端口是 `8765`，scheduler 默认启用：
+
+```bash
+tmux new -s personal-wiki-crawler-backend
+cd /home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/backend
+PYTHONPATH=$PWD \
+PW_WORKBENCH_REPO_ROOT=/home/fyz/codex-skills \
+PW_WORKBENCH_SCHEDULER_INTERVAL_SECONDS=60 \
+python3 -m uvicorn crawler_workbench.main:app --host 0.0.0.0 --port 8765
+```
+
+Frontend 默认端口是 `5173`，Vite 会把 `/api` 代理到 `http://localhost:8765`：
+
+```bash
+tmux new -s personal-wiki-crawler-frontend
+cd /home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/frontend
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+前端访问：`http://127.0.0.1:5173`。如果需要指向其他 backend，用 `VITE_API_TARGET=http://127.0.0.1:<port> npm run dev -- --host 0.0.0.0 --port 5173`。
+
+### 启动后检查
+```bash
+curl --noproxy '*' http://127.0.0.1:8765/api/health
+curl --noproxy '*' -X POST http://127.0.0.1:8765/api/accelerator-candidates/999999999/trust-source
+```
+
+第二条应返回业务错误 `candidate not found: 999999999`。如果返回路由级 `{"detail":"Not Found"}`，说明端口上跑的是旧 backend，先重启 `personal-wiki-crawler-backend`。
+
+### 隔离验证
+```bash
+cd /home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/backend
+PYTHONPATH=. pytest -q tests/test_api.py tests/test_discovery.py
+
+cd /home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/frontend
+npm test -- src/App.test.tsx
+npm run build
+npm run test:ui
+npm run test:ui:live
+
+cd /home/fyz/codex-skills
+python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/wiki-crawler-e2e-eval-01
+```
+
+`npm run test:ui:live` 和 `scripts/wiki_crawler_e2e_evaluator.py` 会启动隔离 backend/frontend、设置临时状态目录、禁用 scheduler，并通过 Playwright 模拟用户点击；它们不应复用长驻开发 backend。
+
 ## 知识库地图
 在做任何修改前，先阅读相关文档：
 
