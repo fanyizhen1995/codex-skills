@@ -1,0 +1,289 @@
+{
+  "generated_at": "2026-06-30T17:58:49.683354+00:00",
+  "issues": [
+    {
+      "closed_at": "2026-06-30T17:24:15Z",
+      "comment_count": 1,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12660",
+      "labels": [
+        "kind/feature"
+      ],
+      "number": 12660,
+      "state_reason": "completed",
+      "title": "Add timestamps to show how long individual makefile steps take"
+    },
+    {
+      "closed_at": "2026-06-30T17:10:44Z",
+      "comment_count": 7,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12646",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12646,
+      "state_reason": "completed",
+      "title": "Flaky: AdmissionCheck controller when one clusterQueue references admissionChecks Should delete the admissionCheck when the corresponding clusterQueue is deleted"
+    },
+    {
+      "closed_at": "2026-06-30T16:22:11Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/11756",
+      "labels": [
+        "kind/cleanup"
+      ],
+      "number": 11756,
+      "state_reason": "completed",
+      "title": "Drop MiniJobController in integration tests once we have k8s fix released"
+    },
+    {
+      "closed_at": "2026-03-06T20:28:20Z",
+      "comment_count": 9,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/9694",
+      "labels": [
+        "kind/feature",
+        "priority/important-soon"
+      ],
+      "number": 9694,
+      "state_reason": "completed",
+      "title": "Skip identical workloads in CQ processing [SchedulingEquivalenceHashing]"
+    },
+    {
+      "closed_at": "2026-06-30T07:00:22Z",
+      "comment_count": 2,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12232",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 12232,
+      "state_reason": "completed",
+      "title": "StatefulSet scale-to-zero can leave admitted Workload reserving quota and block scale-up"
+    },
+    {
+      "closed_at": "2026-06-29T22:56:54Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/8808",
+      "labels": [
+        "lifecycle/rotten",
+        "kind/documentation"
+      ],
+      "number": 8808,
+      "state_reason": "not_planned",
+      "title": "Documentation gap: clearly document mutable fields per Kueue integration"
+    },
+    {
+      "closed_at": "2026-06-29T17:34:11Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12637",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12637,
+      "state_reason": "completed",
+      "title": "[Flaky E2E] MultiKueue when Creating a multikueue integration workload Should dispatch all LeaderWorkerSet workloads to the same worker"
+    },
+    {
+      "closed_at": "2026-06-29T13:10:12Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12518",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12518,
+      "state_reason": "completed",
+      "title": "flake: post-kueue-push-images: failed to authorize: DeadlineExceeded: context deadline exceede"
+    },
+    {
+      "closed_at": "2026-06-29T10:34:12Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/11677",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 11677,
+      "state_reason": "completed",
+      "title": "Kueue doesn't clean up ProvisioningRequest after Workload's eviction"
+    },
+    {
+      "closed_at": "2026-06-29T08:34:34Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12565",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 12565,
+      "state_reason": "completed",
+      "title": "kueuectl resume localqueue ignores --dry-run flag leading to unintended state mutation in cmd/kueuectl/app/resume/resume_localqueue.go"
+    },
+    {
+      "closed_at": "2026-06-29T08:34:26Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12557",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 12557,
+      "state_reason": "completed",
+      "title": "Denial of Service via Data Race on MultiKueue Remote Client in pkg/controller/admissionchecks/multikueue/multikueuecluster.go"
+    },
+    {
+      "closed_at": "2026-06-29T08:34:18Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12608",
+      "labels": [
+        "kind/bug",
+        "sig/scheduling"
+      ],
+      "number": 12608,
+      "state_reason": "completed",
+      "title": "Passing Job integration tests log immutable PodTemplate errors"
+    },
+    {
+      "closed_at": "2026-06-29T07:01:14Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/11170",
+      "labels": [],
+      "number": 11170,
+      "state_reason": "completed",
+      "title": "pod integration: scheduling gate removal latency after workload admission + missing metric"
+    },
+    {
+      "closed_at": "2026-06-28T20:43:03Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12610",
+      "labels": [
+        "kind/documentation"
+      ],
+      "number": 12610,
+      "state_reason": "completed",
+      "title": "[Docs] Example job crashes with \"unknown command sleep\" due to missing command override"
+    },
+    {
+      "closed_at": "2026-06-27T20:12:52Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/8828",
+      "labels": [
+        "kind/feature",
+        "lifecycle/rotten"
+      ],
+      "number": 8828,
+      "state_reason": "not_planned",
+      "title": "TAS: evict workloads which are running on nodes which become tainted"
+    },
+    {
+      "closed_at": "2026-06-27T01:56:24Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/8840",
+      "labels": [
+        "kind/feature",
+        "lifecycle/rotten"
+      ],
+      "number": 8840,
+      "state_reason": "not_planned",
+      "title": "Support implicit borrowing of Cohort-defined resource flavors"
+    },
+    {
+      "closed_at": "2026-06-26T19:50:25Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/8807",
+      "labels": [
+        "lifecycle/rotten",
+        "kind/documentation"
+      ],
+      "number": 8807,
+      "state_reason": "not_planned",
+      "title": "LWS inconsistent behavior when mutating `.spec.leaderWorkerTemplate.size`"
+    },
+    {
+      "closed_at": "2026-06-26T18:06:35Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12552",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 12552,
+      "state_reason": "completed",
+      "title": "CEL validation bypass allows mutation of immutable Workload fields in apis/kueue/v1beta2/workload_types.go"
+    },
+    {
+      "closed_at": "2026-06-26T17:26:37Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12593",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12593,
+      "state_reason": "completed",
+      "title": "SparkApplication integration when SparkApplication created with TAS should admit a SparkApplication via TAS"
+    },
+    {
+      "closed_at": "2026-06-26T17:04:38Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12591",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12591,
+      "state_reason": "completed",
+      "title": "Metrics when workload is admitted with eviction and preemption should ensure the eviction and preemption metrics are available [area:singlecluster,"
+    },
+    {
+      "closed_at": "2026-06-26T15:26:04Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12427",
+      "labels": [],
+      "number": 12427,
+      "state_reason": "completed",
+      "title": "Release v0.18.2"
+    },
+    {
+      "closed_at": "2026-06-26T15:24:28Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/11643",
+      "labels": [
+        "kind/cleanup"
+      ],
+      "number": 11643,
+      "state_reason": "completed",
+      "title": "Replace the e2e test for the preemptionExpectations into more reliable repro by integration test"
+    },
+    {
+      "closed_at": "2026-06-26T14:58:29Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12579",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12579,
+      "state_reason": "completed",
+      "title": "Flaky E2E test: Kuberay Should run a RayService if admitted"
+    },
+    {
+      "closed_at": "2026-06-26T13:44:55Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12509",
+      "labels": [
+        "kind/bug",
+        "kind/flake"
+      ],
+      "number": 12509,
+      "state_reason": "completed",
+      "title": "periodic-kueue-push-images failed on ray[default,serve]==2.55.1@sha256"
+    },
+    {
+      "closed_at": "2026-06-26T13:14:39Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes-sigs/kueue/issues/12428",
+      "labels": [],
+      "number": 12428,
+      "state_reason": "completed",
+      "title": "Release v0.17.6"
+    }
+  ],
+  "repo": "kubernetes-sigs/kueue",
+  "source": "kubernetes-sigs-kueue-closed-issues-with-comments.json.gz"
+}

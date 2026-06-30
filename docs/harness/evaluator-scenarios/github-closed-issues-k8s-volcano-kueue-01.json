@@ -1,0 +1,46 @@
+{
+  "task_id": "github-closed-issues-k8s-volcano-kueue-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "github-closed-issues-corpus-ingest-user-flow",
+      "user_goal": "As an ai_infra wiki maintainer, verify that Kubernetes, Volcano, and Kueue closed GitHub issues have been captured as raw evidence, curated into wiki pages, and scheduled for monthly synchronization.",
+      "prerequisites": [
+        "The ai_infra personal-wiki domain exists.",
+        "Python dependencies for the crawler workbench backend tests are available.",
+        "The initial GitHub closed issue seed corpus has been captured under personal-wiki/domains/ai_infra/raw/github/.",
+        "The task manifest exists under .codex/github-closed-issues/github-closed-issues-k8s-volcano-kueue-01/manifest.json."
+      ],
+      "entrypoint": "bash -lc 'pytest -q scripts/tests/test_github_closed_issues_corpus.py && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_api.py tests/test_db_profiles.py tests/test_fetchers.py && cd /home/fyz/codex-skills/.worktrees/github-closed-issues-k8s-volcano-kueue && python3 scripts/github_closed_issues_corpus.py verify-manifest --repo-root . --manifest .codex/github-closed-issues/github-closed-issues-k8s-volcano-kueue-01/manifest.json --min-repos 3 && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra'",
+      "steps": [
+        "Run the corpus CLI tests.",
+        "Run crawler workbench backend tests covering source profile loading, DB profiles, and fetchers.",
+        "Verify the GitHub closed issue corpus manifest.",
+        "Validate the ai_infra wiki domain.",
+        "Inspect the source profiles for monthly closed-issue GitHub URLs with env-token auth.",
+        "Inspect wiki index and curated pages for Kubernetes, Volcano, Kueue, and the shared closed-issues reference.",
+        "Inspect raw summaries to confirm each target repository has captured closed issues and partial reasons."
+      ],
+      "expected_outcomes": [
+        "The three source profiles exist with schedule=monthly, run_policy=scheduled, auth_method=env_token, auth_ref=GITHUB_TOKEN, and URLs containing state=closed.",
+        "The manifest verifies at least three repositories and every raw path exists.",
+        "Each target repository has a raw summary, index, joined issue/comment gzip file, issue API pages gzip file, comments API pages gzip file, and ingest plan.",
+        "The curated wiki index lists Kubernetes, Volcano, Kueue, and the shared GitHub closed issues reference.",
+        "The shared reference records that the initial corpus is partial and does not present the seed capture as a full historical backfill.",
+        "No GitHub token value or Authorization header value is committed."
+      ],
+      "failure_signals": [
+        "A source profile is missing, not monthly, lacks env-token metadata, or omits state=closed.",
+        "Manifest verification fails or any repository has zero captured issues.",
+        "Raw file names do not match the closed-issue corpus contract.",
+        "Wiki validation reports missing source_refs or broken links.",
+        "The curated wiki pages claim full corpus coverage despite partial summaries.",
+        "A token value is present in tracked files."
+      ],
+      "cleanup": [
+        "Remove .codex/evaluations/tasks/github-closed-issues-k8s-volcano-kueue-01/ if a clean evaluator rerun is needed."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

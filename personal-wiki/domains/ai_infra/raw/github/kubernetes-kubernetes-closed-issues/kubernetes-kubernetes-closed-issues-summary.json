@@ -1,0 +1,100 @@
+{
+  "closed_at_max": "2026-06-30T16:28:16Z",
+  "closed_at_min": "2018-01-16T03:10:11Z",
+  "comment_count": 36,
+  "comments_pages": 5,
+  "issue_count": 25,
+  "pages": 1,
+  "partial": true,
+  "partial_reasons": [
+    "max_pages=1",
+    "max_comment_issues=5"
+  ],
+  "repo": "kubernetes/kubernetes",
+  "state_reasons": {
+    "completed": 16,
+    "not_planned": 9
+  },
+  "top_labels": [
+    {
+      "count": 18,
+      "name": "needs-triage"
+    },
+    {
+      "count": 12,
+      "name": "kind/bug"
+    },
+    {
+      "count": 11,
+      "name": "lifecycle/rotten"
+    },
+    {
+      "count": 7,
+      "name": "sig/node"
+    },
+    {
+      "count": 5,
+      "name": "sig/api-machinery"
+    },
+    {
+      "count": 4,
+      "name": "triage/accepted"
+    },
+    {
+      "count": 4,
+      "name": "kind/feature"
+    },
+    {
+      "count": 4,
+      "name": "needs-sig"
+    },
+    {
+      "count": 3,
+      "name": "sig/architecture"
+    },
+    {
+      "count": 3,
+      "name": "priority/backlog"
+    },
+    {
+      "count": 2,
+      "name": "kind/failing-test"
+    },
+    {
+      "count": 2,
+      "name": "wg/device-management"
+    },
+    {
+      "count": 2,
+      "name": "priority/critical-urgent"
+    },
+    {
+      "count": 2,
+      "name": "sig/cli"
+    },
+    {
+      "count": 1,
+      "name": "priority/important-soon"
+    },
+    {
+      "count": 1,
+      "name": "sig/scheduling"
+    },
+    {
+      "count": 1,
+      "name": "priority/important-longterm"
+    },
+    {
+      "count": 1,
+      "name": "sig/autoscaling"
+    },
+    {
+      "count": 1,
+      "name": "kind/flake"
+    },
+    {
+      "count": 1,
+      "name": "help wanted"
+    }
+  ]
+}

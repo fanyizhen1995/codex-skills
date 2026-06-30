@@ -10,6 +10,8 @@ No active ingest.
 
 ## Done
 
+- [x] `raw/github/{kubernetes-kubernetes-closed-issues,volcano-sh-volcano-closed-issues,kubernetes-sigs-kueue-closed-issues}/` -> `wiki/projects/kubernetes.md`, `wiki/projects/volcano.md`, `wiki/projects/kueue.md`, `wiki/references/kubernetes-volcano-kueue-github-closed-issues.md`
+  - Captured a verified partial seed corpus of closed GitHub issues for `kubernetes/kubernetes`, `volcano-sh/volcano`, and `kubernetes-sigs/kueue` using the public GitHub API with `--max-pages 1 --max-comment-issues 5`; monthly source profiles are configured for future synchronization with `GITHUB_TOKEN`.
 - [x] `raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-index-html.md` -> `wiki/projects/nccl.md`, `wiki/references/nccl-release-notes.md`
   - Captured all 63 per-version release-note pages linked from the official NVIDIA index under `raw/links/`.
 - [x] `raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz` -> `wiki/projects/nccl.md`, `wiki/references/nccl-github-closed-issues.md`

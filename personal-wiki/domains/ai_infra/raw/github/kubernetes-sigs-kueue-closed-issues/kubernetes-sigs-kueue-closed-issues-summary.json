@@ -1,0 +1,52 @@
+{
+  "closed_at_max": "2026-06-30T17:24:15Z",
+  "closed_at_min": "2026-03-06T20:28:20Z",
+  "comment_count": 19,
+  "comments_pages": 5,
+  "issue_count": 25,
+  "pages": 1,
+  "partial": true,
+  "partial_reasons": [
+    "max_pages=1",
+    "max_comment_issues=5"
+  ],
+  "repo": "kubernetes-sigs/kueue",
+  "state_reasons": {
+    "completed": 21,
+    "not_planned": 4
+  },
+  "top_labels": [
+    {
+      "count": 13,
+      "name": "kind/bug"
+    },
+    {
+      "count": 7,
+      "name": "kind/flake"
+    },
+    {
+      "count": 4,
+      "name": "kind/feature"
+    },
+    {
+      "count": 4,
+      "name": "lifecycle/rotten"
+    },
+    {
+      "count": 3,
+      "name": "kind/documentation"
+    },
+    {
+      "count": 2,
+      "name": "kind/cleanup"
+    },
+    {
+      "count": 1,
+      "name": "priority/important-soon"
+    },
+    {
+      "count": 1,
+      "name": "sig/scheduling"
+    }
+  ]
+}
