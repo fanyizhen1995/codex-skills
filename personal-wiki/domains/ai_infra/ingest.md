@@ -20,8 +20,9 @@ No active ingest.
   - Organized 51 selective GitHub page-level crawler snapshots captured on 2026-06-29 as a supplement to the SGLang API corpus. The supplement has 7 issue pages, 44 pull request pages, 10 overlaps with the API corpus, and 41 later selected page captures; it is not a full API corpus refresh.
 - [x] `raw/crawler/compute-*` -> `wiki/references/compute-accelerator-crawl-inventory.md`, `wiki/references/compute-accelerator-parameter-comparison.md`
   - Organized compute accelerator discovery and one-shot specification captures covering GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC source profiles. The inventory page records the raw evidence set; the parameter comparison page keeps only source-backed fields that are visible in local raw evidence.
+- [x] `raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md` -> `wiki/papers/hitchhikers-guide-agentic-ai.md`
+  - Organized the arXiv PDF capture as a paper-level reference for LLM systems, agent orchestration, MCP/A2A, and agentic evaluation topics.
 
 ## Rejected
 
 No rejected sources.
-- [ ] raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md -> raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.ingest-plan.md (pending)

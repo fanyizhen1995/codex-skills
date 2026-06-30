@@ -13,7 +13,7 @@ _No pages yet._
 
 ## Papers
 
-_No pages yet._
+- [The Hitchhiker's Guide to Agentic AI](papers/hitchhikers-guide-agentic-ai.md) - Large 2026 guide spanning LLM foundations, AI systems, evaluation, and the agentic AI runtime stack.
 
 ## Projects
 
