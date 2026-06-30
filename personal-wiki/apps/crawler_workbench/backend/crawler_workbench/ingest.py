@@ -160,6 +160,7 @@ def _run_approved_task(
         _mark_task_failed(db, task_id, str(exc), allowed_states={"approved"})
         raise
 
+    current_task_raw_paths = _task_raw_repo_paths(settings, domain, str(raw_item["raw_path"]), raw_item["metadata_json"])
     baseline_dirty_paths = git_dirty_paths(settings.repo_root)
     ignored_baseline_paths = _ignored_baseline_repo_paths(settings)
     allowed_baseline_paths = _approved_raw_repo_paths(settings, db, domain) | ignored_baseline_paths
@@ -216,7 +217,8 @@ def _run_approved_task(
 
     commit_id: int | None = None
     if auto_commit_enabled:
-        dirty_paths = git_dirty_paths(settings.repo_root) - ignored_baseline_paths
+        other_approved_raw_paths = _approved_raw_repo_paths(settings, db, domain) - current_task_raw_paths
+        dirty_paths = git_dirty_paths(settings.repo_root) - ignored_baseline_paths - other_approved_raw_paths
         owned_prefixes = [f"personal-wiki/domains/{domain}/", "personal-wiki/global/"]
         if not paths_owned_by_task(dirty_paths, owned_prefixes):
             _mark_task_failed(db, task_id, "dirty paths include files outside the ingest task")
@@ -317,14 +319,17 @@ def _run_ingest_codex_job(
     except Exception as exc:
         return _finish_failed_codex_job(db, job_id, str(exc))
 
-    status = "succeeded" if result.returncode == 0 else "failed"
+    status = "succeeded" if result.returncode == 0 and not _is_sandbox_startup_failure(result) else "failed"
+    stderr = result.stderr
+    if status == "failed" and result.returncode == 0 and _is_sandbox_startup_failure(result):
+        stderr = _sandbox_failure_stderr(result)
     db.execute(
         """
         update codex_jobs
         set status = ?, stdout = ?, stderr = ?, exit_code = ?, finished_at = current_timestamp
         where id = ?
         """,
-        (status, result.stdout, result.stderr, result.returncode, job_id),
+        (status, result.stdout, stderr, result.returncode, job_id),
     )
     db.commit()
     return job_id
@@ -345,6 +350,15 @@ def _default_codex_runner(settings: Any, prompt: str) -> subprocess.CompletedPro
         text=True,
         timeout=1800,
     )
+
+
+def _is_sandbox_startup_failure(result: subprocess.CompletedProcess[str]) -> bool:
+    output = f"{result.stdout}\n{result.stderr}".lower()
+    return "bwrap:" in output or "bubblewrap" in output or "命令沙箱启动失败" in output
+
+
+def _sandbox_failure_stderr(result: subprocess.CompletedProcess[str]) -> str:
+    return f"Codex sandbox startup failure prevented ingest completion.\n\n{result.stderr}".rstrip() + "\n"
 
 
 def _finish_failed_codex_job(db: sqlite3.Connection, job_id: int, stderr: str) -> int:

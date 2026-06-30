@@ -542,6 +542,97 @@ def test_run_approved_task_allows_other_approved_raw_files_in_same_domain_baseli
     assert "baseline" not in first_task["reason"]
 
 
+def test_run_approved_task_does_not_commit_other_approved_raw_files(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
+    seed = tmp_path / "README.md"
+    seed.write_text("seed", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "README.md"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    first_raw = settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "src" / "first.md"
+    second_raw = settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "src" / "second.md"
+    first_raw.parent.mkdir(parents=True)
+    first_raw.write_text("first", encoding="utf-8")
+    second_raw.write_text("second", encoding="utf-8")
+    wiki_page = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "references" / "first.md"
+
+    with connect(settings.database_path) as db:
+        migrate(db)
+        seed_source(db)
+        first_raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, target_domain, canonical_url, raw_path, title,
+              content_hash, content_bytes, metadata_json
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("src", "ai_infra", "https://example.com/first", str(first_raw), "First", "first-hash", 5, "{}"),
+        ).lastrowid
+        second_raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, target_domain, canonical_url, raw_path, title,
+              content_hash, content_bytes, metadata_json
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("src", "ai_infra", "https://example.com/second", str(second_raw), "Second", "second-hash", 6, "{}"),
+        ).lastrowid
+        first_task_id = db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values (?, ?, ?, ?, ?, ?)
+            """,
+            ("src", first_raw_item_id, "ai_infra", "approved", "low", "approved"),
+        ).lastrowid
+        db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values (?, ?, ?, ?, ?, ?)
+            """,
+            ("src", second_raw_item_id, "ai_infra", "approved", "low", "approved"),
+        )
+        db.commit()
+
+        def write_wiki_page(*args):
+            wiki_page.parent.mkdir(parents=True, exist_ok=True)
+            wiki_page.write_text("curated", encoding="utf-8")
+            return ok_process()
+
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_index", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_backlinks", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_validate", lambda *args: ok_process())
+        result = run_approved_task(
+            settings,
+            db,
+            int(first_task_id),
+            auto_commit_enabled=True,
+            codex_runner=write_wiki_page,
+        )
+        first_task = db.execute("select status from ingest_tasks where id = ?", (first_task_id,)).fetchone()
+
+    assert result["status"] == "succeeded"
+    assert first_task["status"] == "succeeded"
+    committed_paths = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert "personal-wiki/domains/ai_infra/raw/crawler/src/first.md" in committed_paths
+    assert "personal-wiki/domains/ai_infra/wiki/references/first.md" in committed_paths
+    assert "personal-wiki/domains/ai_infra/raw/crawler/src/second.md" not in committed_paths
+    assert "personal-wiki/domains/ai_infra/raw/crawler/src/second.md" in git_dirty_paths(tmp_path)
+
+
 def test_run_approved_task_allows_sources_yaml_and_task_attachment_baseline(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".personal-wiki-workbench")
@@ -779,6 +870,60 @@ def test_run_approved_task_marks_failed_when_codex_runner_raises(tmp_path, monke
     assert "codex exploded" in task["reason"]
     assert job["status"] == "failed"
     assert "codex exploded" in job["stderr"]
+
+
+def test_run_approved_task_marks_failed_when_codex_reports_sandbox_blocker(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path.parent / f"{tmp_path.name}-state")
+    with connect(settings.database_path) as db:
+        migrate(db)
+        task_id = seed_approved_task(settings, db)
+
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_index", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_backlinks", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_validate", lambda *args: ok_process())
+
+        def blocked_codex(settings, prompt):
+            return subprocess.CompletedProcess(
+                args=["fake"],
+                returncode=0,
+                stdout="我现在被执行环境阻塞，没法安全执行这次入库流程。\nbwrap: loopback: Failed RTM_NEWADDR\n",
+                stderr="",
+            )
+
+        result = run_approved_task(settings, db, task_id, auto_commit_enabled=False, codex_runner=blocked_codex)
+
+        task = db.execute("select status, reason from ingest_tasks where id = ?", (task_id,)).fetchone()
+        job = db.execute("select status, stdout, stderr, exit_code from codex_jobs").fetchone()
+
+    assert result["status"] == "failed"
+    assert task["status"] == "failed"
+    assert "sandbox startup failure" in task["reason"]
+    assert job["status"] == "failed"
+    assert job["exit_code"] == 0
+    assert "bwrap" in job["stdout"]
+    assert "sandbox startup failure" in job["stderr"]
+
+
+def test_default_ingest_codex_runner_uses_workspace_write_sandbox(tmp_path, monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="completed\n", stderr="")
+
+    monkeypatch.setattr("crawler_workbench.ingest.subprocess.run", fake_run)
+    from crawler_workbench.ingest import _default_codex_runner
+
+    result = _default_codex_runner(
+        Settings(repo_root=tmp_path, state_dir=tmp_path / ".state", codex_command="codex"),
+        "prompt",
+    )
+
+    assert [call[call.index("--sandbox") + 1] for call in calls] == ["workspace-write"]
+    assert result.returncode == 0
+    assert result.stdout == "completed\n"
 
 
 def test_validate_endpoint_records_validation_run(tmp_path, monkeypatch):
