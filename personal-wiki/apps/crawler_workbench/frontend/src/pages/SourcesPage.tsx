@@ -58,6 +58,13 @@ function acceptPayload(candidate: AcceleratorCandidate) {
   };
 }
 
+function manualIngestReasonLabel(reason?: string | null, status?: string) {
+  if (reason === "waiting for clean git baseline before automatic retry") {
+    return "等待工作区清理后自动重试";
+  }
+  return reason ?? status ?? "未知状态";
+}
+
 export function SourcesPage() {
   const [sources, setSources] = useState<SourceProfile[]>([]);
   const [candidates, setCandidates] = useState<AcceleratorCandidate[]>([]);
@@ -146,7 +153,7 @@ export function SourcesPage() {
         setNotice(`未发现新内容：${result.url}`);
       } else {
         const taskText = result.task_id ? `任务 #${result.task_id}` : "未生成任务";
-        setNotice(`入库未完成：${taskText} · ${result.reason ?? result.status}`);
+        setNotice(`入库未完成：${taskText} · ${manualIngestReasonLabel(result.reason, result.status)}`);
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "URL 入库失败");

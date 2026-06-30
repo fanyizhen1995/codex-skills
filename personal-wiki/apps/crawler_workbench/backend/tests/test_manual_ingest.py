@@ -159,6 +159,86 @@ def test_run_manual_url_ingest_reports_skipped_when_url_is_unchanged(tmp_path):
     assert second["fetch"]["skipped_count"] == 1
 
 
+def test_run_manual_url_ingest_commits_pdf_when_sources_yaml_is_dirty(tmp_path):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".personal-wiki-workbench")
+    seed_wiki(settings)
+    settings.sources_yaml_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.sources_yaml_path.write_text("sources:\n- id: seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    settings.sources_yaml_path.write_text("sources:\n- id: seed\n  schedule: manual\n", encoding="utf-8")
+
+    def codex_runner(_settings: Settings, _prompt: str) -> subprocess.CompletedProcess[str]:
+        page = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "references" / "manual-pdf.md"
+        page.parent.mkdir(parents=True, exist_ok=True)
+        raw_capture = next((settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler").glob("manual-url-example-com-paper-*/*.md"))
+        source_ref = os.path.relpath(raw_capture, page.parent).replace(os.sep, "/")
+        page.write_text(
+            "---\n"
+            "domain: ai_infra\n"
+            "type: Reference\n"
+            "title: Manual PDF\n"
+            "description: Manual PDF ingest test page.\n"
+            "status: reviewed\n"
+            "source_refs:\n"
+            f"  - {source_ref}\n"
+            "---\n"
+            "# Manual PDF\n\n"
+            "Source-backed PDF note.\n",
+            encoding="utf-8",
+        )
+        return ok_process("codex ok\n")
+
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        result = run_manual_url_ingest(
+            settings,
+            db,
+            url="https://example.com/paper.pdf",
+            domain="ai_infra",
+            auto_commit_enabled=True,
+            fetcher=StaticFetcher(
+                [
+                    FetchResult(
+                        canonical_url="https://example.com/paper.pdf",
+                        title="Example Paper",
+                        content="# Example Paper\n\nPDF text.",
+                        content_type="application/pdf",
+                        metadata={"source_url": "https://example.com/paper.pdf"},
+                        attachment_bytes=b"%PDF-1.4\n",
+                        attachment_extension=".pdf",
+                        attachment_content_type="application/pdf",
+                    )
+                ]
+            ),
+            codex_runner=codex_runner,
+        )
+        task = db.execute("select status, commit_id from ingest_tasks where id = ?", (result["task_id"],)).fetchone()
+
+    assert result["status"] == "succeeded"
+    assert task["status"] == "succeeded"
+    assert task["commit_id"] is not None
+    status = subprocess.run(
+        ["git", "status", "--short", "--untracked-files=all"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert " M .personal-wiki-workbench/sources.yaml" in status
+    committed_paths = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert any(path.endswith(".pdf") for path in committed_paths)
+    assert any(path.endswith(".md") and "/raw/crawler/" in path for path in committed_paths)
+    assert "personal-wiki/domains/ai_infra/wiki/references/manual-pdf.md" in committed_paths
+
+
 def test_manual_ingest_api_validates_payload(tmp_path, monkeypatch):
     monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")

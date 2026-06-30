@@ -789,6 +789,31 @@ describe("App", () => {
     expect(screen.getByText(/abc1234/)).toBeInTheDocument();
   });
 
+  it("shows a readable manual ingest baseline wait message", async () => {
+    vi.mocked(createManualIngest).mockResolvedValue({
+      status: "approved",
+      reason: "waiting for clean git baseline before automatic retry",
+      source_id: "manual-url-example-com-doc-9813a80c59",
+      url: "https://example.com/doc",
+      domain: "ai_infra",
+      fetch: { fetch_run_id: 1, fetched_count: 1, changed_count: 1, skipped_count: 0 },
+      task_id: 7,
+      commit_sha: null
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    fireEvent.change(await screen.findByLabelText("入库 URL"), {
+      target: { value: "https://example.com/doc" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "抓取并入库" }));
+
+    expect(await screen.findByText(/等待工作区清理后自动重试/)).toBeInTheDocument();
+    expect(screen.getByText(/任务 #7/)).toBeInTheDocument();
+    expect(screen.queryByText(/waiting for clean git baseline/)).not.toBeInTheDocument();
+  });
+
   it("shows source run policy and accelerator discovery candidates", async () => {
     vi.mocked(getSources).mockResolvedValue([
       {

@@ -161,7 +161,8 @@ def _run_approved_task(
         raise
 
     baseline_dirty_paths = git_dirty_paths(settings.repo_root)
-    allowed_baseline_paths = _approved_raw_repo_paths(settings, db, domain)
+    ignored_baseline_paths = _ignored_baseline_repo_paths(settings)
+    allowed_baseline_paths = _approved_raw_repo_paths(settings, db, domain) | ignored_baseline_paths
     disallowed_baseline_paths = baseline_dirty_paths - allowed_baseline_paths
     if disallowed_baseline_paths:
         _defer_approved_task(db, task_id, ALLOWED_BASELINE_REASON)
@@ -215,7 +216,7 @@ def _run_approved_task(
 
     commit_id: int | None = None
     if auto_commit_enabled:
-        dirty_paths = git_dirty_paths(settings.repo_root)
+        dirty_paths = git_dirty_paths(settings.repo_root) - ignored_baseline_paths
         owned_prefixes = [f"personal-wiki/domains/{domain}/", "personal-wiki/global/"]
         if not paths_owned_by_task(dirty_paths, owned_prefixes):
             _mark_task_failed(db, task_id, "dirty paths include files outside the ingest task")
@@ -500,10 +501,27 @@ def _task_raw_repo_path(settings: Any, domain: str, raw_path: str) -> str:
     raise IngestInputError(f"raw path is not under domain raw directory: {raw_path}")
 
 
+def _task_raw_repo_paths(settings: Any, domain: str, raw_path: str, metadata_json: object = None) -> set[str]:
+    paths = {_task_raw_repo_path(settings, domain, raw_path)}
+    metadata = _parse_metadata(metadata_json)
+    attachment_filename = metadata.get("attachment_filename")
+    if not isinstance(attachment_filename, str) or not attachment_filename.strip():
+        return paths
+    try:
+        attachment_path = Path(raw_path).with_name(attachment_filename)
+    except ValueError:
+        return paths
+    try:
+        paths.add(_task_raw_repo_path(settings, domain, str(attachment_path)))
+    except IngestInputError:
+        return paths
+    return paths
+
+
 def _approved_raw_repo_paths(settings: Any, db: sqlite3.Connection, domain: str) -> set[str]:
     rows = db.execute(
         """
-        select raw_items.raw_path
+        select raw_items.raw_path, raw_items.metadata_json
         from ingest_tasks
         join raw_items on raw_items.id = ingest_tasks.raw_item_id
         where ingest_tasks.target_domain = ?
@@ -513,8 +531,23 @@ def _approved_raw_repo_paths(settings: Any, db: sqlite3.Connection, domain: str)
     ).fetchall()
     paths: set[str] = set()
     for row in rows:
-        paths.add(_task_raw_repo_path(settings, domain, str(row["raw_path"])))
+        paths.update(_task_raw_repo_paths(settings, domain, str(row["raw_path"]), row["metadata_json"]))
     return paths
+
+
+def _ignored_baseline_repo_paths(settings: Any) -> set[str]:
+    paths = {
+        _repo_relative_path(settings.repo_root, settings.sources_yaml_path),
+        _repo_relative_path(settings.repo_root, settings.database_path),
+    }
+    return {path for path in paths if path is not None}
+
+
+def _repo_relative_path(repo_root: Path, path: Path) -> str | None:
+    try:
+        return path.resolve(strict=False).relative_to(repo_root.resolve(strict=False)).as_posix()
+    except ValueError:
+        return None
 
 
 def _ingest_prompt(domain: str, raw_path: str) -> str:

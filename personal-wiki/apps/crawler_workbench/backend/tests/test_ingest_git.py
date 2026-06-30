@@ -542,6 +542,97 @@ def test_run_approved_task_allows_other_approved_raw_files_in_same_domain_baseli
     assert "baseline" not in first_task["reason"]
 
 
+def test_run_approved_task_allows_sources_yaml_and_task_attachment_baseline(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".personal-wiki-workbench")
+    settings.sources_yaml_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.sources_yaml_path.write_text("sources:\n- id: src\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", ".personal-wiki-workbench/sources.yaml"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "seed workbench sources"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    settings.sources_yaml_path.write_text("sources:\n- id: src\n  schedule: manual\n", encoding="utf-8")
+
+    raw = settings.wiki_root / "domains" / "ai_infra" / "raw" / "crawler" / "src" / "item.md"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_text("raw", encoding="utf-8")
+    attachment = raw.with_suffix(".pdf")
+    attachment.write_bytes(b"%PDF-1.4\n")
+    wiki_page = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "references" / "manual-url.md"
+
+    with connect(settings.database_path) as db:
+        migrate(db)
+        seed_source(db)
+        raw_item_id = db.execute(
+            """
+            insert into raw_items (
+              source_id, target_domain, canonical_url, raw_path, title,
+              content_hash, content_bytes, metadata_json
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "src",
+                "ai_infra",
+                "https://example.com/manual.pdf",
+                str(raw),
+                "Manual PDF",
+                "hash",
+                raw.stat().st_size,
+                json.dumps({"attachment_filename": attachment.name}),
+            ),
+        ).lastrowid
+        task_id = db.execute(
+            """
+            insert into ingest_tasks (
+              source_id, raw_item_id, target_domain, status, risk_level, reason
+            )
+            values (?, ?, ?, ?, ?, ?)
+            """,
+            ("src", raw_item_id, "ai_infra", "approved", "low", "approved"),
+        ).lastrowid
+        db.commit()
+
+        def write_wiki_page(*args):
+            wiki_page.parent.mkdir(parents=True, exist_ok=True)
+            wiki_page.write_text("curated", encoding="utf-8")
+            return ok_process()
+
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_index", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_backlinks", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_validate", lambda *args: ok_process())
+        result = run_approved_task(
+            settings,
+            db,
+            int(task_id),
+            auto_commit_enabled=True,
+            codex_runner=write_wiki_page,
+        )
+        task = db.execute("select status, reason, commit_id from ingest_tasks where id = ?", (task_id,)).fetchone()
+
+    assert result["status"] == "succeeded"
+    assert task["status"] == "succeeded"
+    assert task["commit_id"] is not None
+    assert ".personal-wiki-workbench/sources.yaml" in git_dirty_paths(tmp_path)
+    committed_paths = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert "personal-wiki/domains/ai_infra/raw/crawler/src/item.md" in committed_paths
+    assert "personal-wiki/domains/ai_infra/raw/crawler/src/item.pdf" in committed_paths
+    assert "personal-wiki/domains/ai_infra/wiki/references/manual-url.md" in committed_paths
+    committed_sources = subprocess.run(
+        ["git", "show", "HEAD:.personal-wiki-workbench/sources.yaml"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "schedule: manual" not in committed_sources
+
+
 def test_run_approved_task_defers_on_dirty_baseline_without_auto_commit(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
