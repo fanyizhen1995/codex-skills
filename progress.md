@@ -20,7 +20,7 @@
   - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_api.py tests/test_db_profiles.py tests/test_fetchers.py` -> 83 passed
   - `python3 scripts/github_closed_issues_corpus.py verify-manifest --repo-root . --manifest .codex/github-closed-issues/github-closed-issues-k8s-volcano-kueue-01/manifest.json --min-repos 3` -> pass
   - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
-  - `.codex/evaluations/tasks/github-closed-issues-k8s-volcano-kueue-01/20260630T180809Z-attempt-2/result.json` -> pass
+  - `.codex/evaluations/tasks/github-closed-issues-k8s-volcano-kueue-01/20260630T181618Z-attempt-1/result.json` -> pass
 
 ## 2026-06-29 Crawler Manual URL Ingest
 
