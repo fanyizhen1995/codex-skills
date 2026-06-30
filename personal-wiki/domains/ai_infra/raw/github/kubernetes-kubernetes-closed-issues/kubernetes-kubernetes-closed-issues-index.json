@@ -1,0 +1,351 @@
+{
+  "generated_at": "2026-06-30T17:58:41.214023+00:00",
+  "issues": [
+    {
+      "closed_at": "2026-06-30T16:28:16Z",
+      "comment_count": 9,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139711",
+      "labels": [
+        "priority/important-soon",
+        "sig/api-machinery",
+        "kind/failing-test",
+        "needs-triage"
+      ],
+      "number": 139711,
+      "state_reason": "completed",
+      "title": "Failure cluster [85d4a0fe...] \tci-kubernetes-benchmark-list-cbor & \tci-kubernetes-benchmark-list-yaml failures"
+    },
+    {
+      "closed_at": "2026-06-30T16:23:24Z",
+      "comment_count": 5,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140110",
+      "labels": [
+        "sig/node",
+        "kind/failing-test",
+        "needs-triage"
+      ],
+      "number": 140110,
+      "state_reason": "completed",
+      "title": "Failure cluster [046b4ed3...] ci-kubernetes-e2e-kind-rootless failure"
+    },
+    {
+      "closed_at": "2026-06-30T10:24:08Z",
+      "comment_count": 6,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/137899",
+      "labels": [
+        "sig/scheduling",
+        "needs-triage",
+        "wg/device-management"
+      ],
+      "number": 137899,
+      "state_reason": "completed",
+      "title": "KEP-5491: DRA: List Types for Attributes -  fix handling of stored expression evaluation when the gate is disabled"
+    },
+    {
+      "closed_at": "2026-06-29T23:57:52Z",
+      "comment_count": 11,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/128238",
+      "labels": [
+        "sig/api-machinery",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 128238,
+      "state_reason": "not_planned",
+      "title": "Deletion of resources can fail due to etcd size limit"
+    },
+    {
+      "closed_at": "2026-06-29T19:34:11Z",
+      "comment_count": 5,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/137984",
+      "labels": [
+        "kind/bug",
+        "sig/node",
+        "priority/important-longterm",
+        "triage/accepted"
+      ],
+      "number": 137984,
+      "state_reason": "completed",
+      "title": "Eviction signal is not hugepages aware"
+    },
+    {
+      "closed_at": "2026-06-29T17:50:19Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139200",
+      "labels": [
+        "sig/autoscaling",
+        "kind/flake",
+        "help wanted",
+        "needs-triage"
+      ],
+      "number": 139200,
+      "state_reason": "completed",
+      "title": "[Flaking Test] [sig-autoscaling] Horizontal pod autoscaling (scale resource: CPU) ReplicaSet Should scale from 1 pod to 3 pods and then from 3 pods to 5 pods and verify decision stability"
+    },
+    {
+      "closed_at": "2026-06-29T17:37:32Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/56876",
+      "labels": [
+        "kind/bug",
+        "priority/critical-urgent",
+        "area/release-eng",
+        "release-blocker",
+        "sig/release",
+        "sig/architecture",
+        "triage/accepted"
+      ],
+      "number": 56876,
+      "state_reason": "completed",
+      "title": "kubernetes publishing bot is broken"
+    },
+    {
+      "closed_at": "2026-06-29T14:28:05Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140069",
+      "labels": [
+        "priority/critical-urgent",
+        "sig/contributor-experience",
+        "needs-triage"
+      ],
+      "number": 140069,
+      "state_reason": "completed",
+      "title": "EasyCLA blocks website main to dev branch-sync PRs on kubernetes-prow[bot] merge commits"
+    },
+    {
+      "closed_at": "2026-06-29T10:44:53Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/120348",
+      "labels": [
+        "kind/bug",
+        "sig/api-machinery",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 120348,
+      "state_reason": "not_planned",
+      "title": "Inability to receive WatchBookmarks from the etcd storage implementation"
+    },
+    {
+      "closed_at": "2026-06-28T22:36:54Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/135566",
+      "labels": [
+        "kind/bug",
+        "sig/api-machinery",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 135566,
+      "state_reason": "not_planned",
+      "title": "[BUG] Issue with k8s.io/apimachinery v0.34.2 and k8s.io/client-go v0.34.2"
+    },
+    {
+      "closed_at": "2026-06-28T18:09:32Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140018",
+      "labels": [
+        "kind/feature",
+        "needs-sig",
+        "needs-triage"
+      ],
+      "number": 140018,
+      "state_reason": "completed",
+      "title": "Standard connection draining semantics for long-lived HTTP connections"
+    },
+    {
+      "closed_at": "2018-01-16T03:10:11Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/7547",
+      "labels": [
+        "kind/bug",
+        "priority/backlog",
+        "area/usability",
+        "area/kubectl",
+        "sig/cli",
+        "lifecycle/stale"
+      ],
+      "number": 7547,
+      "state_reason": "completed",
+      "title": "kubectl delete|get `all foo` should delete the aliased resources named 'foo'"
+    },
+    {
+      "closed_at": "2025-06-24T21:04:57Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/124538",
+      "labels": [
+        "sig/architecture",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 124538,
+      "state_reason": "not_planned",
+      "title": "Finish removing `kubectl get all`"
+    },
+    {
+      "closed_at": "2019-11-13T15:16:26Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/42885",
+      "labels": [
+        "sig/cli"
+      ],
+      "number": 42885,
+      "state_reason": "completed",
+      "title": "`kubectl get all` does not include ingress resources"
+    },
+    {
+      "closed_at": "2021-06-05T22:17:06Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/80770",
+      "labels": [
+        "kind/feature",
+        "sig/architecture",
+        "area/conformance",
+        "lifecycle/rotten"
+      ],
+      "number": 80770,
+      "state_reason": "completed",
+      "title": "Identifying Features / API Operations as optional"
+    },
+    {
+      "closed_at": "2026-06-28T10:26:52Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/133810",
+      "labels": [
+        "kind/bug",
+        "sig/api-machinery",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 133810,
+      "state_reason": "not_planned",
+      "title": "client can run into infinite loop when watch ends with  too old resource version"
+    },
+    {
+      "closed_at": "2026-06-28T09:25:53Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/136617",
+      "labels": [
+        "kind/feature",
+        "needs-sig",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 136617,
+      "state_reason": "not_planned",
+      "title": "EnvFromSource should allow to set ref namespaces"
+    },
+    {
+      "closed_at": "2026-06-28T02:18:52Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/136275",
+      "labels": [
+        "kind/bug",
+        "sig/windows",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 136275,
+      "state_reason": "not_planned",
+      "title": "Node Log Query: unexpected result when disabled"
+    },
+    {
+      "closed_at": "2026-06-27T19:11:51Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/136431",
+      "labels": [
+        "sig/node",
+        "kind/feature",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 136431,
+      "state_reason": "not_planned",
+      "title": "best-effort topolopgy mgr NUMANodeAffinity hint doesn't consider amount of devices per NUMA node"
+    },
+    {
+      "closed_at": "2026-06-26T19:12:26Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/136723",
+      "labels": [
+        "kind/bug",
+        "needs-sig",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 136723,
+      "state_reason": "completed",
+      "title": "The Binding API does not validate node names, which can cause a pod with a finalizer to be stuck in deletion"
+    },
+    {
+      "closed_at": "2026-06-26T18:20:32Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139283",
+      "labels": [
+        "kind/bug",
+        "priority/backlog",
+        "sig/node",
+        "triage/accepted"
+      ],
+      "number": 139283,
+      "state_reason": "completed",
+      "title": "HTTP/TCP probes with unresolved named port return Unknown and hide root cause (\"port not found\")"
+    },
+    {
+      "closed_at": "2026-06-26T18:20:25Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/128544",
+      "labels": [
+        "kind/bug",
+        "priority/backlog",
+        "sig/node",
+        "triage/accepted"
+      ],
+      "number": 128544,
+      "state_reason": "completed",
+      "title": "Warnings on missing pull secrets can be confusing"
+    },
+    {
+      "closed_at": "2026-06-26T18:05:43Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140031",
+      "labels": [
+        "kind/bug",
+        "sig/node",
+        "needs-triage"
+      ],
+      "number": 140031,
+      "state_reason": "completed",
+      "title": "[FG:InPlacePodVerticalScalingExclusiveCPUs]:When enabling the `InPlacePodVerticalScalingExclusiveCPUs` feature with the CPU Manager policy set to `static`, it is not possible to adjust the CPU size."
+    },
+    {
+      "closed_at": "2026-06-26T12:54:43Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140036",
+      "labels": [
+        "sig/node",
+        "needs-triage",
+        "wg/device-management"
+      ],
+      "number": 140036,
+      "state_reason": "completed",
+      "title": "DRA: pod.status.resourceClaimStatuses not populated for pod.spec.resourceClaims[].resourceClaimName"
+    },
+    {
+      "closed_at": "2026-06-26T09:40:24Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/136556",
+      "labels": [
+        "kind/bug",
+        "needs-sig",
+        "lifecycle/rotten",
+        "needs-triage"
+      ],
+      "number": 136556,
+      "state_reason": "not_planned",
+      "title": "After the node reboots, many pods enter the ContainerStatusUnknown state"
+    }
+  ],
+  "repo": "kubernetes/kubernetes",
+  "source": "kubernetes-kubernetes-closed-issues-with-comments.json.gz"
+}

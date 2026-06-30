@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
-  "last_updated": "2026-06-29",
-  "current_focus": "Crawler Workbench is adding ad hoc URL ingest with automatic wiki curation and commit.",
+  "last_updated": "2026-07-01",
+  "current_focus": "Crawler Workbench is adding Kubernetes, Volcano, and Kueue closed GitHub issue corpus ingestion with monthly synchronization.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -11,6 +11,24 @@
     "max_final_eval_attempts": 2
   },
   "tasks": [
+    {
+      "id": "github-closed-issues-k8s-volcano-kueue-01",
+      "title": "Ingest Kubernetes, Volcano, and Kueue closed GitHub issues",
+      "description": "Capture closed GitHub issues and issue comments for kubernetes/kubernetes, volcano-sh/volcano, and kubernetes-sigs/kueue into ai_infra raw evidence, curate wiki references, and configure monthly synchronization through Crawler Workbench source profiles.",
+      "status": "done",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "pytest -q scripts/tests/test_github_closed_issues_corpus.py && cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_api.py tests/test_db_profiles.py tests/test_fetchers.py && cd /home/fyz/codex-skills/.worktrees/github-closed-issues-k8s-volcano-kueue && python3 scripts/github_closed_issues_corpus.py verify-manifest --repo-root . --manifest .codex/github-closed-issues/github-closed-issues-k8s-volcano-kueue-01/manifest.json --min-repos 3 && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
     {
       "id": "crawler-manual-url-ingest-01",
       "title": "Add ad hoc URL ingest and commit flow",

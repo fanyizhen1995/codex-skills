@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-07-01 Kubernetes Volcano Kueue Closed Issues
+
+- Added `github-closed-issues-k8s-volcano-kueue-01` to the project task list and configured monthly Crawler Workbench GitHub source profiles for `kubernetes/kubernetes`, `volcano-sh/volcano`, and `kubernetes-sigs/kueue`.
+- Added a reproducible GitHub closed-issue corpus CLI that filters pull requests, fetches selected issue comments, writes compressed raw evidence plus summary/index files, and verifies the run manifest.
+- Ran the initial public-API seed capture with `--max-pages 1 --max-comment-issues 5` because no valid `GITHUB_TOKEN` was available in the shell. The local proxy path failed during TLS handshake, so the successful run explicitly unset proxy environment variables.
+- Seed corpus results:
+  - `kubernetes/kubernetes`: 25 closed issues and 36 attached comments.
+  - `volcano-sh/volcano`: 23 closed issues and 5 attached comments.
+  - `kubernetes-sigs/kueue`: 25 closed issues and 19 attached comments.
+- Curated draft wiki pages for Kubernetes, Volcano, Kueue, and the shared closed-issue corpus reference. The reference records raw paths, partial reasons, `state_reason` interpretation, retrieval notes, and monthly source IDs.
+- Evidence:
+  - `pytest -q scripts/tests/test_github_closed_issues_corpus.py` -> 15 passed
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_api.py tests/test_db_profiles.py tests/test_fetchers.py` -> 83 passed
+  - `python3 scripts/github_closed_issues_corpus.py verify-manifest --repo-root . --manifest .codex/github-closed-issues/github-closed-issues-k8s-volcano-kueue-01/manifest.json --min-repos 3` -> pass
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> pass
+  - `.codex/evaluations/tasks/github-closed-issues-k8s-volcano-kueue-01/20260630T180809Z-attempt-2/result.json` -> pass
+
 ## 2026-06-29 Crawler Manual URL Ingest
 
 - Added an ad hoc URL ingest path in Crawler Workbench: `POST /api/manual-ingests` creates/reuses a manual trusted web source, fetches raw evidence, approves the generated ingest task, runs the existing wiki ingest pipeline, validates, and optionally records an auto commit.

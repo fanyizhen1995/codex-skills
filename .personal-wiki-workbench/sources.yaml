@@ -2838,3 +2838,48 @@ sources:
   extract_mode: specs_candidate
   vendor_hint: kunlunxin
   auto_resolve: false
+- id: kubernetes-github-closed-issues
+  name: Kubernetes closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/kubernetes/kubernetes/issues?state=closed&sort=updated&direction=desc
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: true
+  auth_method: env_token
+  auth_ref: GITHUB_TOKEN
+  auth_state: ready
+  baseline_on_first_run: true
+  topic: Kubernetes closed GitHub issues monthly sync
+- id: volcano-github-closed-issues
+  name: Volcano closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/volcano-sh/volcano/issues?state=closed&sort=updated&direction=desc
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: true
+  auth_method: env_token
+  auth_ref: GITHUB_TOKEN
+  auth_state: ready
+  baseline_on_first_run: true
+  topic: Volcano closed GitHub issues monthly sync
+- id: kueue-github-closed-issues
+  name: Kueue closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/kubernetes-sigs/kueue/issues?state=closed&sort=updated&direction=desc
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: true
+  auth_method: env_token
+  auth_ref: GITHUB_TOKEN
+  auth_state: ready
+  baseline_on_first_run: true
+  topic: Kueue closed GitHub issues monthly sync

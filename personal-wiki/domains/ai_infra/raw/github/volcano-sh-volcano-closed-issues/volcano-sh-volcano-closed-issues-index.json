@@ -1,0 +1,240 @@
+{
+  "generated_at": "2026-06-30T17:58:45.095782+00:00",
+  "issues": [
+    {
+      "closed_at": "2026-06-30T12:43:05Z",
+      "comment_count": 1,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5483",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 5483,
+      "state_reason": "completed",
+      "title": "[DOC] The NetworkTopologyAware documentation should contain the guide for using tiername"
+    },
+    {
+      "closed_at": "2026-06-30T07:20:05Z",
+      "comment_count": 2,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5424",
+      "labels": [],
+      "number": 5424,
+      "state_reason": "completed",
+      "title": "dependsOn: task with PodSucceeded dependency never starts because isDependsOnPodsReady fails the containerStatus.Ready check on completed pods"
+    },
+    {
+      "closed_at": "2026-06-30T01:28:04Z",
+      "comment_count": 1,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5536",
+      "labels": [
+        "help wanted",
+        "good first issue",
+        "kind/bug"
+      ],
+      "number": 5536,
+      "state_reason": "completed",
+      "title": "Add skip check in `predicateByStablefilter`"
+    },
+    {
+      "closed_at": "2026-06-29T03:39:03Z",
+      "comment_count": 1,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5524",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 5524,
+      "state_reason": "completed",
+      "title": "Node status stuck in Binding state when SetPodResourceDecision() fails"
+    },
+    {
+      "closed_at": "2026-06-26T01:12:23Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5449",
+      "labels": [],
+      "number": 5449,
+      "state_reason": "completed",
+      "title": "[release-1.13] Fix unbounded job.Status.Conditions growth"
+    },
+    {
+      "closed_at": "2026-06-26T01:12:15Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5432",
+      "labels": [],
+      "number": 5432,
+      "state_reason": "completed",
+      "title": "[release-1.14] feat: check ascend vnpu health with Allocatable"
+    },
+    {
+      "closed_at": "2026-06-25T01:32:57Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5485",
+      "labels": [],
+      "number": 5485,
+      "state_reason": "completed",
+      "title": "[release-1.14] Clear device-related annotations during pod release"
+    },
+    {
+      "closed_at": "2026-06-24T07:12:38Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5493",
+      "labels": [
+        "kind/question"
+      ],
+      "number": 5493,
+      "state_reason": "completed",
+      "title": "Will there be cross-parent-queue preemption in a multi-level Queue scenario?"
+    },
+    {
+      "closed_at": "2026-06-24T06:56:23Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/4398",
+      "labels": [],
+      "number": 4398,
+      "state_reason": "completed",
+      "title": "Release v1.13.0 RoadMap"
+    },
+    {
+      "closed_at": "2026-06-23T03:17:00Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5280",
+      "labels": [
+        "kind/feature"
+      ],
+      "number": 5280,
+      "state_reason": "completed",
+      "title": "[Feature] Support plugin for spawning jupyter notebook"
+    },
+    {
+      "closed_at": "2026-06-18T14:57:37Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5463",
+      "labels": [],
+      "number": 5463,
+      "state_reason": "completed",
+      "title": "bug: Validating webhook mutates container Privileged security context, breaking bidirectional volume mounts"
+    },
+    {
+      "closed_at": "2026-06-22T06:20:59Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5466",
+      "labels": [
+        "kind/feature"
+      ],
+      "number": 5466,
+      "state_reason": "completed",
+      "title": "`numatopo` CRD should include pod-level and container-level resource allocation information"
+    },
+    {
+      "closed_at": "2026-06-22T06:12:58Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5387",
+      "labels": [],
+      "number": 5387,
+      "state_reason": "completed",
+      "title": "fix(enqueue): phantom inqueue reservation when co-tier plugin rejects job"
+    },
+    {
+      "closed_at": "2026-06-20T16:28:56Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5148",
+      "labels": [
+        "help wanted",
+        "good first issue",
+        "kind/bug"
+      ],
+      "number": 5148,
+      "state_reason": "completed",
+      "title": "Noisy log outputs on realCapability and capability due to maxFloat and maxInt"
+    },
+    {
+      "closed_at": "2026-06-19T06:12:06Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/4827",
+      "labels": [
+        "lifecycle/stale"
+      ],
+      "number": 4827,
+      "state_reason": "completed",
+      "title": "[release-1.12] fix: replicaset KubeGroupNameAnnotation handling"
+    },
+    {
+      "closed_at": "2026-06-18T08:15:54Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5465",
+      "labels": [
+        "kind/feature"
+      ],
+      "number": 5465,
+      "state_reason": "completed",
+      "title": "Harden volcano CI supply chain security: pin all action references to commit SHAs"
+    },
+    {
+      "closed_at": "2026-06-18T06:32:10Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5458",
+      "labels": [],
+      "number": 5458,
+      "state_reason": "completed",
+      "title": "[release-1.14] fix: fall back minAvailable to replicas when partition minPartitions is omitted"
+    },
+    {
+      "closed_at": "2026-06-16T09:19:53Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5401",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 5401,
+      "state_reason": "completed",
+      "title": "`minPartitions` default value 0 causes unintended behavior when `partitionPolicy` is set but `minAvailable` and `minPartitions` are omitted"
+    },
+    {
+      "closed_at": "2026-06-15T12:32:42Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5446",
+      "labels": [],
+      "number": 5446,
+      "state_reason": "completed",
+      "title": "TestAdmitHierarchicalQueues flake"
+    },
+    {
+      "closed_at": "2026-06-15T09:13:52Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5421",
+      "labels": [],
+      "number": 5421,
+      "state_reason": "completed",
+      "title": "job.Status.Conditions grows unbounded, eventually causing UpdateStatus to fail with etcd object-size exceeded"
+    },
+    {
+      "closed_at": "2026-06-15T03:05:51Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5397",
+      "labels": [
+        "kind/bug"
+      ],
+      "number": 5397,
+      "state_reason": "completed",
+      "title": "Flaky e2e test queue-jobs-status-transition"
+    },
+    {
+      "closed_at": "2026-06-14T11:01:10Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5386",
+      "labels": [],
+      "number": 5386,
+      "state_reason": "completed",
+      "title": "docs: Rename contribute.md to contributing.md and add link in README for CLOMonitor compliance"
+    },
+    {
+      "closed_at": "2026-06-12T07:51:50Z",
+      "comment_count": 0,
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5372",
+      "labels": [],
+      "number": 5372,
+      "state_reason": "completed",
+      "title": "Support `vnpus.configs` in HAMi vNPU device config ConfigMap"
+    }
+  ],
+  "repo": "volcano-sh/volcano",
+  "source": "volcano-sh-volcano-closed-issues-with-comments.json.gz"
+}

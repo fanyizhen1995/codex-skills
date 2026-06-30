@@ -302,7 +302,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: AMD Instinct MI325X accelerator specifications (disabled until fetch stability is verified)
+  topic: AMD Instinct MI325X accelerator specifications (disabled until fetch stability
+    is verified)
   source_rank: S1
   accelerator_scope:
   - gpu
@@ -412,7 +413,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: AMD Alveo V80 FPGA accelerator specifications (disabled until fetch path is verified)
+  topic: AMD Alveo V80 FPGA accelerator specifications (disabled until fetch path
+    is verified)
   source_rank: S1
   accelerator_scope:
   - fpga
@@ -468,7 +470,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: MLPerf training benchmark accelerator results (disabled until fetchable endpoint is selected)
+  topic: MLPerf training benchmark accelerator results (disabled until fetchable endpoint
+    is selected)
   source_rank: S3
   accelerator_scope:
   - gpu
@@ -489,7 +492,8 @@ sources:
   auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
-  topic: Third-party GPU database candidate monitor (disabled until fetch method is verified)
+  topic: Third-party GPU database candidate monitor (disabled until fetch method is
+    verified)
   source_rank: S5
   accelerator_scope:
   - gpu
@@ -1721,3 +1725,48 @@ sources:
   include_patterns:
   - Alveo [A-Z]?[0-9]+[A-Z0-9-]*
   - V[0-9]{2}
+- id: kubernetes-github-closed-issues
+  name: Kubernetes closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/kubernetes/kubernetes/issues?state=closed&sort=updated&direction=desc
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: true
+  auth_method: env_token
+  auth_ref: GITHUB_TOKEN
+  auth_state: ready
+  baseline_on_first_run: true
+  topic: Kubernetes closed GitHub issues monthly sync
+- id: volcano-github-closed-issues
+  name: Volcano closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/volcano-sh/volcano/issues?state=closed&sort=updated&direction=desc
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: true
+  auth_method: env_token
+  auth_ref: GITHUB_TOKEN
+  auth_state: ready
+  baseline_on_first_run: true
+  topic: Volcano closed GitHub issues monthly sync
+- id: kueue-github-closed-issues
+  name: Kueue closed GitHub issues
+  type: github
+  target_domain: ai_infra
+  url: https://api.github.com/repos/kubernetes-sigs/kueue/issues?state=closed&sort=updated&direction=desc
+  trust_level: trusted
+  schedule: monthly
+  run_policy: scheduled
+  auto_ingest: false
+  auth_required: true
+  auth_method: env_token
+  auth_ref: GITHUB_TOKEN
+  auth_state: ready
+  baseline_on_first_run: true
+  topic: Kueue closed GitHub issues monthly sync

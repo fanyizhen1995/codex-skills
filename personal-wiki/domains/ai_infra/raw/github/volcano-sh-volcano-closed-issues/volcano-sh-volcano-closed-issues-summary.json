@@ -1,0 +1,43 @@
+{
+  "closed_at_max": "2026-06-30T12:43:05Z",
+  "closed_at_min": "2026-06-12T07:51:50Z",
+  "comment_count": 5,
+  "comments_pages": 5,
+  "issue_count": 23,
+  "pages": 1,
+  "partial": true,
+  "partial_reasons": [
+    "max_pages=1",
+    "max_comment_issues=5"
+  ],
+  "repo": "volcano-sh/volcano",
+  "state_reasons": {
+    "completed": 23
+  },
+  "top_labels": [
+    {
+      "count": 6,
+      "name": "kind/bug"
+    },
+    {
+      "count": 3,
+      "name": "kind/feature"
+    },
+    {
+      "count": 2,
+      "name": "help wanted"
+    },
+    {
+      "count": 2,
+      "name": "good first issue"
+    },
+    {
+      "count": 1,
+      "name": "kind/question"
+    },
+    {
+      "count": 1,
+      "name": "lifecycle/stale"
+    }
+  ]
+}

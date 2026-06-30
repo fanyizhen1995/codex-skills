@@ -381,6 +381,21 @@ def test_example_sources_include_daily_ai_infra_tracking_sources():
     assert sources["sglang-github-closed-issues-prs"]["schedule"] == "daily"
     assert sources["sglang-github-closed-issues-prs"]["auto_ingest"] is True
     assert sources["sglang-github-closed-issues-prs"]["baseline_on_first_run"] is True
+    for source_id, expected_url in {
+        "kubernetes-github-closed-issues": "https://api.github.com/repos/kubernetes/kubernetes/issues?state=closed&sort=updated&direction=desc",
+        "volcano-github-closed-issues": "https://api.github.com/repos/volcano-sh/volcano/issues?state=closed&sort=updated&direction=desc",
+        "kueue-github-closed-issues": "https://api.github.com/repos/kubernetes-sigs/kueue/issues?state=closed&sort=updated&direction=desc",
+    }.items():
+        assert sources[source_id]["url"] == expected_url
+        assert sources[source_id]["type"] == "github"
+        assert sources[source_id]["schedule"] == "monthly"
+        assert sources[source_id]["run_policy"] == "scheduled"
+        assert sources[source_id]["auto_ingest"] is False
+        assert sources[source_id]["auth_required"] is True
+        assert sources[source_id]["auth_method"] == "env_token"
+        assert sources[source_id]["auth_ref"] == "GITHUB_TOKEN"
+        assert sources[source_id]["auth_state"] == "ready"
+        assert sources[source_id]["baseline_on_first_run"] is True
     assert sources["nccl-technical-blog"]["url"] == "https://developer.nvidia.com/blog/tag/nccl/feed/"
     assert sources["nccl-technical-blog"]["type"] == "rss"
     assert sources["nccl-technical-blog"]["schedule"] == "weekly"
