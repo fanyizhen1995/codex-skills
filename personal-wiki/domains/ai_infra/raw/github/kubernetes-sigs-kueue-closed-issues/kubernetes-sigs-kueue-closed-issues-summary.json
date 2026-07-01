@@ -2,13 +2,19 @@
   "closed_at_max": "2026-06-30T20:44:12Z",
   "closed_at_min": "2022-02-18T13:10:24Z",
   "closed_since": null,
+  "comment_capture_complete": false,
+  "comment_capture_scope": "repository-level issue comments join; not exact against issue comment counters",
   "comment_count": 6650,
+  "comment_mismatch_issue_count": 1536,
   "comments_pages": 300,
   "issue_count": 2488,
   "pages": 122,
-  "partial": false,
-  "partial_reasons": [],
+  "partial": true,
+  "partial_reasons": [
+    "comments_incomplete_repository_join"
+  ],
   "repo": "kubernetes-sigs/kueue",
+  "reported_comment_count": 16125,
   "state_reasons": {
     "completed": 2294,
     "duplicate": 2,

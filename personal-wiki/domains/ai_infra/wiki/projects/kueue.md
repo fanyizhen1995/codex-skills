@@ -25,7 +25,7 @@ Kueue is a Kubernetes-native job queueing project. In this domain it belongs wit
 
 # Operational Evidence
 
-The local raw corpus contains an all-time GitHub closed-issue capture for `kubernetes-sigs/kueue`. It includes 2,488 closed issues and 6,650 joined issue comments, with a closed range from 2022-02-18 to 2026-06-30.
+The local raw corpus contains an all-time GitHub closed-issue capture for `kubernetes-sigs/kueue`. It includes 2,488 closed issues with a closed range from 2022-02-18 to 2026-06-30. The local join contains 6,650 comments, while the GitHub issue objects report 16,125 comments, so the comment corpus is incomplete and should be treated as sampled evidence rather than full discussion history.
 
 Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, raw paths, capture notes, and monthly sync source IDs.
 

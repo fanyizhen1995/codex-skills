@@ -166,6 +166,9 @@ def test_summarize_repo_counts_state_reasons_labels_and_comments() -> None:
     assert summary["repo"] == "kubernetes/kubernetes"
     assert summary["issue_count"] == 2
     assert summary["comment_count"] == 2
+    assert summary["reported_comment_count"] == 2
+    assert summary["comment_mismatch_issue_count"] == 0
+    assert summary["comment_capture_complete"] is True
     assert summary["state_reasons"] == {"completed": 1, "not_planned": 1}
     assert summary["top_labels"][0] == {"name": "kind/bug", "count": 1}
     assert summary["closed_at_min"] == "2026-01-02T00:00:00Z"
@@ -203,6 +206,42 @@ def test_summarize_repo_records_partial_reasons() -> None:
     assert summary["partial_reasons"] == ["max_pages=1", "max_comment_issues=0"]
 
 
+def test_summarize_repo_marks_incomplete_comment_capture() -> None:
+    issues = [
+        {
+            "number": 1,
+            "state_reason": "completed",
+            "comments": 2,
+            "closed_at": "2026-01-02T00:00:00Z",
+        },
+        {
+            "number": 2,
+            "state_reason": "completed",
+            "comments": 1,
+            "closed_at": "2026-01-03T00:00:00Z",
+        },
+    ]
+    comments = {1: [{"id": 10}], 2: []}
+
+    summary = corpus.summarize_repo(
+        "kubernetes/kubernetes",
+        issues,
+        comments,
+        pages=1,
+        comments_pages=1,
+        partial=False,
+        partial_reasons=[],
+        comment_fetch_mode="repository",
+    )
+
+    assert summary["comment_count"] == 1
+    assert summary["reported_comment_count"] == 3
+    assert summary["comment_mismatch_issue_count"] == 2
+    assert summary["comment_capture_complete"] is False
+    assert summary["partial"] is True
+    assert summary["partial_reasons"] == ["comments_incomplete_repository_join"]
+
+
 def test_run_capture_applies_repo_specific_closed_since(tmp_path: Path, monkeypatch) -> None:
     calls = []
 
@@ -228,6 +267,9 @@ def test_run_capture_applies_repo_specific_closed_since(tmp_path: Path, monkeypa
             "summary_path": "placeholder-summary.json",
             "issue_count": 1,
             "comment_count": 0,
+            "reported_comment_count": 0,
+            "comment_mismatch_issue_count": 0,
+            "comment_capture_complete": True,
             "partial": False,
             "partial_reasons": [],
             "rate_limits": [],
@@ -345,6 +387,9 @@ def test_capture_repo_writes_closed_issue_contract_files(tmp_path: Path, monkeyp
     assert index["source"] == "kubernetes-kubernetes-closed-issues-with-comments.json.gz"
     assert manifest_entry["issue_count"] == 1
     assert manifest_entry["comment_count"] == 1
+    assert manifest_entry["reported_comment_count"] == 1
+    assert manifest_entry["comment_mismatch_issue_count"] == 0
+    assert manifest_entry["comment_capture_complete"] is True
     assert manifest_entry["partial_reasons"] == []
     assert manifest_entry["closed_since"] == "2023-07-01T00:00:00+00:00"
 
@@ -498,6 +543,9 @@ def test_capture_repo_joins_repository_comment_pages_by_issue_number(tmp_path: P
         joined = json.load(handle)
 
     assert manifest_entry["comment_count"] == 2
+    assert manifest_entry["reported_comment_count"] == 2
+    assert manifest_entry["comment_mismatch_issue_count"] == 0
+    assert manifest_entry["comment_capture_complete"] is True
     assert [len(item["comments"]) for item in joined] == [1, 1]
     assert requested_urls == [
         "https://api.github.com/repos/kubernetes/kubernetes/issues",
@@ -828,6 +876,114 @@ def test_verify_manifest_rejects_summary_index_joined_count_mismatch(tmp_path: P
     assert "index issue count mismatch" in message
 
 
+def test_verify_manifest_rejects_comment_capture_marked_complete_with_mismatches(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues"
+    raw_dir.mkdir(parents=True)
+    joined_path = raw_dir / "kubernetes-kubernetes-closed-issues-with-comments.json.gz"
+    index_path = raw_dir / "kubernetes-kubernetes-closed-issues-index.json"
+    summary_path = raw_dir / "kubernetes-kubernetes-closed-issues-summary.json"
+    with gzip.open(joined_path, "wt", encoding="utf-8") as handle:
+        json.dump(
+            [
+                {
+                    "issue": {
+                        "number": 1,
+                        "state": "closed",
+                        "comments": 2,
+                        "html_url": "https://github.com/kubernetes/kubernetes/issues/1",
+                    },
+                    "comments": [{"id": 10}],
+                }
+            ],
+            handle,
+        )
+    index_path.write_text(json.dumps({"issues": [{"number": 1}]}), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(
+            {
+                "issue_count": 1,
+                "comment_count": 1,
+                "reported_comment_count": 2,
+                "comment_mismatch_issue_count": 1,
+                "comment_capture_complete": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_path = _write_manifest(
+        tmp_path,
+        joined_path,
+        index_path,
+        summary_path,
+        issue_count=1,
+        comment_count=1,
+        manifest_extra={
+            "reported_comment_count": 2,
+            "comment_mismatch_issue_count": 1,
+            "comment_capture_complete": True,
+        },
+    )
+
+    ok, message = corpus.verify_manifest(tmp_path, manifest_path, min_repos=1)
+
+    assert ok is False
+    assert "comment capture marked complete" in message
+
+
+def test_verify_manifest_accepts_explicitly_incomplete_comment_capture(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues"
+    raw_dir.mkdir(parents=True)
+    joined_path = raw_dir / "kubernetes-kubernetes-closed-issues-with-comments.json.gz"
+    index_path = raw_dir / "kubernetes-kubernetes-closed-issues-index.json"
+    summary_path = raw_dir / "kubernetes-kubernetes-closed-issues-summary.json"
+    with gzip.open(joined_path, "wt", encoding="utf-8") as handle:
+        json.dump(
+            [
+                {
+                    "issue": {
+                        "number": 1,
+                        "state": "closed",
+                        "comments": 2,
+                        "html_url": "https://github.com/kubernetes/kubernetes/issues/1",
+                    },
+                    "comments": [{"id": 10}],
+                }
+            ],
+            handle,
+        )
+    index_path.write_text(json.dumps({"issues": [{"number": 1}]}), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(
+            {
+                "issue_count": 1,
+                "comment_count": 1,
+                "reported_comment_count": 2,
+                "comment_mismatch_issue_count": 1,
+                "comment_capture_complete": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_path = _write_manifest(
+        tmp_path,
+        joined_path,
+        index_path,
+        summary_path,
+        issue_count=1,
+        comment_count=1,
+        manifest_extra={
+            "reported_comment_count": 2,
+            "comment_mismatch_issue_count": 1,
+            "comment_capture_complete": False,
+        },
+    )
+
+    ok, message = corpus.verify_manifest(tmp_path, manifest_path, min_repos=1)
+
+    assert ok is True
+    assert message == "manifest verified"
+
+
 def _write_manifest(
     repo_root: Path,
     joined_path: Path,
@@ -836,7 +992,22 @@ def _write_manifest(
     *,
     issue_count: int,
     comment_count: int,
+    manifest_extra: dict[str, object] | None = None,
 ) -> Path:
+    repo_entry = {
+        "repo": "kubernetes/kubernetes",
+        "raw_paths": [
+            str(joined_path.relative_to(repo_root)),
+            str(index_path.relative_to(repo_root)),
+            str(summary_path.relative_to(repo_root)),
+        ],
+        "summary_path": str(summary_path.relative_to(repo_root)),
+        "issue_count": issue_count,
+        "comment_count": comment_count,
+        "partial": False,
+    }
+    if manifest_extra:
+        repo_entry.update(manifest_extra)
     manifest_path = repo_root / "manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -844,20 +1015,7 @@ def _write_manifest(
                 "task_id": corpus.TASK_ID,
                 "generated_at": "2026-07-01T00:00:00+00:00",
                 "domain": "ai_infra",
-                "repos": [
-                    {
-                        "repo": "kubernetes/kubernetes",
-                        "raw_paths": [
-                            str(joined_path.relative_to(repo_root)),
-                            str(index_path.relative_to(repo_root)),
-                            str(summary_path.relative_to(repo_root)),
-                        ],
-                        "summary_path": str(summary_path.relative_to(repo_root)),
-                        "issue_count": issue_count,
-                        "comment_count": comment_count,
-                        "partial": False,
-                    }
-                ],
+                "repos": [repo_entry],
             }
         ),
         encoding="utf-8",

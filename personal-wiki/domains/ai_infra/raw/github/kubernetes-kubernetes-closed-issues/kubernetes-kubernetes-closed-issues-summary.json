@@ -2,13 +2,19 @@
   "closed_at_max": "2026-06-30T22:22:18Z",
   "closed_at_min": "2023-07-01T07:32:35Z",
   "closed_since": "2023-07-01T00:00:00+00:00",
+  "comment_capture_complete": false,
+  "comment_capture_scope": "repository-level issue comments join; not exact against issue comment counters",
   "comment_count": 6386,
+  "comment_mismatch_issue_count": 5493,
   "comments_pages": 300,
   "issue_count": 5897,
   "pages": 79,
-  "partial": false,
-  "partial_reasons": [],
+  "partial": true,
+  "partial_reasons": [
+    "comments_incomplete_repository_join"
+  ],
   "repo": "kubernetes/kubernetes",
+  "reported_comment_count": 65276,
   "state_reasons": {
     "completed": 4506,
     "duplicate": 13,

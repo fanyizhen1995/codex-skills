@@ -2,13 +2,19 @@
   "closed_at_max": "2026-06-30T12:43:05Z",
   "closed_at_min": "2019-03-20T10:15:45Z",
   "closed_since": null,
+  "comment_capture_complete": false,
+  "comment_capture_scope": "repository-level issue comments join; not exact against issue comment counters",
   "comment_count": 8369,
+  "comment_mismatch_issue_count": 1,
   "comments_pages": 267,
   "issue_count": 1772,
   "pages": 49,
-  "partial": false,
-  "partial_reasons": [],
+  "partial": true,
+  "partial_reasons": [
+    "comments_incomplete_repository_join"
+  ],
   "repo": "volcano-sh/volcano",
+  "reported_comment_count": 8368,
   "state_reasons": {
     "completed": 1760,
     "duplicate": 1,

@@ -8,14 +8,15 @@
 ## 2026-07-01 Kubernetes Volcano Kueue Closed Issues Backfill
 
 - Replaced the initial public GitHub seed corpus with authenticated raw evidence for the requested scope:
-  - `volcano-sh/volcano`: all-time closed issues, 1,772 issues and 8,369 joined issue comments.
-  - `kubernetes-sigs/kueue`: all-time closed issues, 2,488 issues and 6,650 joined issue comments.
-  - `kubernetes/kubernetes`: issues closed on or after 2023-07-01, 5,897 issues and 6,386 joined issue comments.
+  - `volcano-sh/volcano`: all-time closed issues, 1,772 issues and 8,369 locally joined comments.
+  - `kubernetes-sigs/kueue`: all-time closed issues, 2,488 issues and 6,650 locally joined comments.
+  - `kubernetes/kubernetes`: issues closed on or after 2023-07-01, 5,897 issues and 6,386 locally joined comments.
 - Added closed-date windows, per-repository closed windows, repository-level issue-comment joins, monthly Search API issue discovery, progress logging, and transient GitHub read retries to the corpus CLI.
 - Updated Kubernetes, Volcano, Kueue, and the shared corpus reference wiki pages from partial seed wording to the verified backfill scope.
+- Fixed the reviewer finding that repository-level comment joins were being reported as complete: summaries and manifests now record GitHub-reported comment totals, mismatched issue counts, `comment_capture_complete: false`, and a `comments_incomplete_repository_join` partial reason.
 - Evidence:
   - `python3 scripts/github_closed_issues_corpus.py verify-manifest --repo-root . --manifest .codex/github-closed-issues/github-closed-issues-volcano-kueue-full-k8s-3y-01/manifest.json --min-repos 3` -> pass
-  - `python3 -m pytest -q scripts/tests/test_github_closed_issues_corpus.py` -> 31 passed
+  - `python3 -m pytest -q scripts/tests/test_github_closed_issues_corpus.py` -> 34 passed
 
 ## 2026-07-01 Kubernetes Volcano Kueue Closed Issues
 

@@ -4,10 +4,15 @@
   "repos": [
     {
       "closed_since": "2023-07-01T00:00:00+00:00",
+      "comment_capture_complete": false,
+      "comment_capture_scope": "repository-level issue comments join; not exact against issue comment counters",
       "comment_count": 6386,
+      "comment_mismatch_issue_count": 5493,
       "issue_count": 5897,
-      "partial": false,
-      "partial_reasons": [],
+      "partial": true,
+      "partial_reasons": [
+        "comments_incomplete_repository_join"
+      ],
       "rate_limits": [
         {
           "limit": "5000",
@@ -69,6 +74,7 @@
         "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues.ingest-plan.md"
       ],
       "repo": "kubernetes/kubernetes",
+      "reported_comment_count": 65276,
       "slug": "kubernetes-kubernetes-closed-issues",
       "summary_path": "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-summary.json"
     }

@@ -238,10 +238,13 @@ def summarize_repo(
     partial: bool,
     partial_reasons: Sequence[str],
     closed_since: str | None = None,
+    comment_fetch_mode: str | None = None,
 ) -> dict[str, Any]:
     label_counts: Counter[str] = Counter()
     state_reasons: Counter[str] = Counter()
     closed_at_values: list[str] = []
+    normalized_partial = partial
+    normalized_partial_reasons = list(partial_reasons)
     for issue in issues:
         state_reason = str(issue.get("state_reason") or "unknown")
         state_reasons[state_reason] += 1
@@ -256,20 +259,67 @@ def summarize_repo(
                 elif label:
                     label_counts[str(label)] += 1
     comment_count = sum(len(comments) for comments in comments_by_issue.values())
+    reported_comment_count = sum(issue_reported_comment_count(issue) for issue in issues)
+    comment_mismatch_issue_count = count_comment_mismatch_issues(issues, comments_by_issue)
+    comment_capture_complete = comment_mismatch_issue_count == 0
+    if not comment_capture_complete:
+        normalized_partial = True
+        normalized_partial_reasons.append(
+            "comments_incomplete_repository_join"
+            if comment_fetch_mode == "repository"
+            else "comments_incomplete"
+        )
     return {
         "repo": repo,
         "issue_count": len(issues),
         "comment_count": comment_count,
+        "reported_comment_count": reported_comment_count,
+        "comment_mismatch_issue_count": comment_mismatch_issue_count,
+        "comment_capture_complete": comment_capture_complete,
+        "comment_capture_scope": comment_capture_scope(comment_fetch_mode, comment_capture_complete),
         "pages": pages,
         "comments_pages": comments_pages,
-        "partial": partial,
-        "partial_reasons": list(partial_reasons),
+        "partial": normalized_partial,
+        "partial_reasons": dedupe(normalized_partial_reasons),
         "closed_since": parse_github_datetime(closed_since).isoformat() if closed_since else None,
         "state_reasons": dict(sorted(state_reasons.items())),
         "top_labels": [{"name": name, "count": count} for name, count in label_counts.most_common(20)],
         "closed_at_min": min(closed_at_values) if closed_at_values else None,
         "closed_at_max": max(closed_at_values) if closed_at_values else None,
     }
+
+
+def issue_reported_comment_count(issue: dict[str, Any]) -> int:
+    try:
+        return int(issue.get("comments") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def count_comment_mismatch_issues(
+    issues: Sequence[dict[str, Any]],
+    comments_by_issue: dict[int, list[dict[str, Any]]],
+) -> int:
+    mismatch_count = 0
+    for issue in issues:
+        number = int(issue.get("number") or 0)
+        if number <= 0:
+            continue
+        reported = issue_reported_comment_count(issue)
+        joined = len(comments_by_issue.get(number, []))
+        if reported != joined:
+            mismatch_count += 1
+    return mismatch_count
+
+
+def comment_capture_scope(comment_fetch_mode: str | None, comment_capture_complete: bool) -> str:
+    if comment_fetch_mode == "per-issue":
+        return "per-issue comments"
+    if comment_fetch_mode == "repository":
+        if comment_capture_complete:
+            return "repository-level issue comments join; exact against issue comment counters"
+        return "repository-level issue comments join; not exact against issue comment counters"
+    return "comments not fetched" if not comment_capture_complete else "comments"
 
 
 def run_capture(
@@ -433,6 +483,7 @@ def capture_repo(
         partial=partial,
         partial_reasons=dedupe(partial_reasons),
         closed_since=closed_since,
+        comment_fetch_mode=comment_fetch_mode if include_comments else None,
     )
     paths = corpus_paths(raw_dir, slug)
     issue_pages_path = paths["issue_pages"]
@@ -483,8 +534,12 @@ def capture_repo(
         "summary_path": relative(repo_root, summary_path),
         "issue_count": summary["issue_count"],
         "comment_count": summary["comment_count"],
+        "reported_comment_count": summary["reported_comment_count"],
+        "comment_mismatch_issue_count": summary["comment_mismatch_issue_count"],
+        "comment_capture_complete": summary["comment_capture_complete"],
+        "comment_capture_scope": summary["comment_capture_scope"],
         "closed_since": summary["closed_since"],
-        "partial": partial,
+        "partial": summary["partial"],
         "partial_reasons": summary["partial_reasons"],
         "rate_limits": rate_limits[-10:],
     }
@@ -792,6 +847,15 @@ def verify_repo_corpus(
         return False, f"repo {repo_name} manifest issue count mismatch with summary"
     if int(repo.get("comment_count") or 0) != summary_comment_count:
         return False, f"repo {repo_name} manifest comment count mismatch with summary"
+    for key in ("reported_comment_count", "comment_mismatch_issue_count"):
+        if key in repo and key in summary_payload and int(repo.get(key) or 0) != int(summary_payload.get(key) or 0):
+            return False, f"repo {repo_name} manifest {key} mismatch with summary"
+    if (
+        "comment_capture_complete" in repo
+        and "comment_capture_complete" in summary_payload
+        and bool(repo.get("comment_capture_complete")) != bool(summary_payload.get("comment_capture_complete"))
+    ):
+        return False, f"repo {repo_name} manifest comment_capture_complete mismatch with summary"
 
     joined_path = find_raw_path(raw_paths, "-closed-issues-with-comments.json.gz")
     index_path = find_raw_path(raw_paths, "-closed-issues-index.json")
@@ -822,6 +886,39 @@ def verify_repo_corpus(
         return False, f"repo {repo_name} joined issue count mismatch with summary"
     if joined_comment_count != summary_comment_count:
         return False, f"repo {repo_name} joined comment count mismatch with summary"
+    reported_comment_count = 0
+    comment_mismatch_issue_count = 0
+    for item in joined_payload:
+        if not isinstance(item, dict):
+            continue
+        issue = item.get("issue")
+        if not isinstance(issue, dict):
+            continue
+        comments = item.get("comments") or []
+        if not isinstance(comments, list):
+            return False, f"repo {repo_name} joined corpus item comments must be a list"
+        reported = issue_reported_comment_count(issue)
+        reported_comment_count += reported
+        if reported != len(comments):
+            comment_mismatch_issue_count += 1
+    if "reported_comment_count" in summary_payload and int(summary_payload.get("reported_comment_count") or 0) != reported_comment_count:
+        return False, f"repo {repo_name} reported comment count mismatch with summary"
+    if "reported_comment_count" in repo and int(repo.get("reported_comment_count") or 0) != reported_comment_count:
+        return False, f"repo {repo_name} manifest reported comment count mismatch with joined corpus"
+    if (
+        "comment_mismatch_issue_count" in summary_payload
+        and int(summary_payload.get("comment_mismatch_issue_count") or 0) != comment_mismatch_issue_count
+    ):
+        return False, f"repo {repo_name} comment mismatch issue count mismatch with summary"
+    if (
+        "comment_mismatch_issue_count" in repo
+        and int(repo.get("comment_mismatch_issue_count") or 0) != comment_mismatch_issue_count
+    ):
+        return False, f"repo {repo_name} manifest comment mismatch issue count mismatch with joined corpus"
+    if bool(summary_payload.get("comment_capture_complete")) and comment_mismatch_issue_count:
+        return False, f"repo {repo_name} comment capture marked complete but joined comments mismatch issue counters"
+    if bool(repo.get("comment_capture_complete")) and comment_mismatch_issue_count:
+        return False, f"repo {repo_name} manifest comment capture marked complete but joined comments mismatch issue counters"
 
     try:
         index_payload = json.loads((repo_root / index_path).read_text(encoding="utf-8"))

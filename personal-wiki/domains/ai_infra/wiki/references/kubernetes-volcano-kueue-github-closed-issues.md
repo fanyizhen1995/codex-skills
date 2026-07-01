@@ -44,13 +44,15 @@ The current backfill captures `volcano-sh/volcano` and `kubernetes-sigs/kueue` a
 
 # Corpus Scope
 
-| Repository | Issue pages | Closed issues | Comment pages | Comments | State reasons | Closed range | Partial reasons |
-| --- | ---: | ---: | ---: | ---: | --- | --- | --- |
-| `kubernetes/kubernetes` | 79 | 5,897 | 300 | 6,386 | `completed`: 4,506; `duplicate`: 13; `not_planned`: 1,378 | 2023-07-01 to 2026-06-30 | none; closed_at window starts 2023-07-01 |
-| `volcano-sh/volcano` | 49 | 1,772 | 267 | 8,369 | `completed`: 1,760; `duplicate`: 1; `not_planned`: 11 | 2019-03-20 to 2026-06-30 | none |
-| `kubernetes-sigs/kueue` | 122 | 2,488 | 300 | 6,650 | `completed`: 2,294; `duplicate`: 2; `not_planned`: 192 | 2022-02-18 to 2026-06-30 | none |
+| Repository | Issue pages | Closed issues | Comment pages | Joined comments | Reported GitHub comments | Comment mismatches | State reasons | Closed range |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `kubernetes/kubernetes` | 79 | 5,897 | 300 | 6,386 | 65,276 | 5,493 issues | `completed`: 4,506; `duplicate`: 13; `not_planned`: 1,378 | 2023-07-01 to 2026-06-30 |
+| `volcano-sh/volcano` | 49 | 1,772 | 267 | 8,369 | 8,368 | 1 issue | `completed`: 1,760; `duplicate`: 1; `not_planned`: 11 | 2019-03-20 to 2026-06-30 |
+| `kubernetes-sigs/kueue` | 122 | 2,488 | 300 | 6,650 | 16,125 | 1,536 issues | `completed`: 2,294; `duplicate`: 2; `not_planned`: 192 | 2022-02-18 to 2026-06-30 |
 
 For Volcano and Kueue, the issue endpoint was queried with `state=closed`, `sort=updated`, and `direction=desc`, then pull requests were filtered out of the joined corpus and index. For Kubernetes, monthly Search API windows queried `repo:kubernetes/kubernetes is:issue is:closed closed:<month-range>` and the joined corpus keeps only issues whose `closed_at` is on or after 2023-07-01.
+
+The closed-issue sets are the intended corpus scope. The joined comment files are not full comment corpora: they were built from repository-level issue-comment pages and are marked with `comment_capture_complete: false` in the summaries and manifests. Use `reported_comment_count` when sizing the total GitHub discussion volume, and use `comment_count` only as the number of comments actually joined into the local raw corpus.
 
 # Raw Files
 
@@ -82,9 +84,9 @@ Kueue:
 
 GitHub `state_reason` is workflow metadata. `completed`, `duplicate`, and `not_planned` all represent closed issues, but only the linked issue details and comments can show whether a closure corresponds to an implemented fix, duplicate handling, stale cleanup, design decision, or unsupported request.
 
-The corpus script stores tokens only through the `GITHUB_TOKEN` environment variable. The combined run manifest is under `.codex/github-closed-issues/github-closed-issues-volcano-kueue-full-k8s-3y-01/manifest.json` and records rate-limit metadata, raw paths, and partial reasons for the run.
+The corpus script stores tokens only through the `GITHUB_TOKEN` environment variable. The combined run manifest is under `.codex/github-closed-issues/github-closed-issues-volcano-kueue-full-k8s-3y-01/manifest.json` and records rate-limit metadata, raw paths, comment completeness fields, and partial reasons for the run.
 
-The successful backfill ran with proxy environment variables unset. The script retries transient GitHub read failures and uses repository-level issue-comment pages for comment joining instead of one request per issue.
+The successful backfill ran with proxy environment variables unset. The script retries transient GitHub read failures and uses repository-level issue-comment pages for comment joining instead of one request per issue. That join strategy is efficient for evidence sampling and basic issue lookup, but it is not sufficient for complete per-issue comment capture on large repositories.
 
 # Monthly Synchronization
 
@@ -100,7 +102,7 @@ The profile URLs include `state=closed` so monthly checks stay aligned with the 
 
 # Retrieval Notes
 
-Use the summary JSON files for counts, `state_reason` splits, top labels, and capture limits. Use the index JSON files for quick issue lookup by number, title, URL, labels, state reason, close time, and attached comment count. Use the joined `.json.gz` files when comment text or full GitHub issue objects are needed.
+Use the summary JSON files for counts, `state_reason` splits, top labels, capture limits, and comment completeness fields. Use the index JSON files for quick issue lookup by number, title, URL, labels, state reason, close time, and joined comment count. Use the joined `.json.gz` files when locally captured comment text, reported per-issue GitHub comment counters, or full GitHub issue objects are needed.
 
 # Relationships
 

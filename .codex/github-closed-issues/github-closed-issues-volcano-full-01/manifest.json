@@ -4,10 +4,15 @@
   "repos": [
     {
       "closed_since": null,
+      "comment_capture_complete": false,
+      "comment_capture_scope": "repository-level issue comments join; not exact against issue comment counters",
       "comment_count": 8369,
+      "comment_mismatch_issue_count": 1,
       "issue_count": 1772,
-      "partial": false,
-      "partial_reasons": [],
+      "partial": true,
+      "partial_reasons": [
+        "comments_incomplete_repository_join"
+      ],
       "rate_limits": [
         {
           "limit": "5000",
@@ -69,6 +74,7 @@
         "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues.ingest-plan.md"
       ],
       "repo": "volcano-sh/volcano",
+      "reported_comment_count": 8368,
       "slug": "volcano-sh-volcano-closed-issues",
       "summary_path": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-summary.json"
     }
