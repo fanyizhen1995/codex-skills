@@ -45,6 +45,14 @@ curl --noproxy '*' -X POST http://127.0.0.1:8765/api/accelerator-candidates/9999
 
 第二条应返回业务错误 `candidate not found: 999999999`。如果返回路由级 `{"detail":"Not Found"}`，说明端口上跑的是旧 backend，先重启 `personal-wiki-crawler-backend`。
 
+### 新知识入库后的刷新验证
+每次新增或整理知识入库后，都必须同步确认后端和前端已经反映新数据：
+
+1. 后端：确认 `/api/wiki/pages`、`/api/wiki/page` 或相关业务 API 能读到新 wiki/raw 内容；涉及全文检索时，通过普通 `/api/search` 查询验证搜索索引已自动刷新，不要只依赖手动 `/api/search/rebuild`。
+2. 服务：如果改了 backend 代码、schema、搜索索引逻辑或运行配置，重启长驻 `personal-wiki-crawler-backend`；如果改了 frontend 代码或 Vite 配置，重启 `personal-wiki-crawler-frontend`。
+3. 前端：通过 Vite 代理或 Playwright 模拟用户操作，验证页面能看到新入库内容。知识工作台至少搜索一个新资料关键词；Wiki 浏览至少确认新页面标题或正文可见。
+4. 证据：最终汇报必须包含验证命令或页面级验证结果，以及是否重启了 backend/frontend。
+
 ### 隔离验证
 ```bash
 cd /home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/backend

@@ -161,3 +161,17 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domai
 python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate
 git diff --check
 ```
+
+After every knowledge ingest or curation update, verify the long-running app
+reflects the new data on both sides:
+
+- Backend: query `/api/wiki/pages`, `/api/wiki/page`, or the relevant API for
+  the new item. If search is involved, use normal `/api/search` to confirm the
+  FTS index refreshes automatically; do not rely only on manual
+  `/api/search/rebuild`.
+- Services: restart `personal-wiki-crawler-backend` after backend code, schema,
+  index, or runtime config changes; restart `personal-wiki-crawler-frontend`
+  after frontend or Vite config changes.
+- Frontend: verify through the Vite `/api` proxy or Playwright user actions.
+  For Knowledge Workbench, search a keyword from the new material. For Wiki
+  Browser, confirm the new page title or body is visible.
