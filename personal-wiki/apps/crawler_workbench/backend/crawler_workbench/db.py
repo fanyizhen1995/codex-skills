@@ -34,6 +34,7 @@ def migrate(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "source_profiles", "baseline_on_first_run", "integer not null default 0")
     _ensure_column(connection, "source_profiles", "run_policy", "text not null default 'scheduled'")
     _ensure_column(connection, "source_profiles", "config_json", "text not null default '{}'")
+    _ensure_column(connection, "wiki_search_index_state", "source_count", "integer not null default 0")
     _recover_legacy_dirty_baseline_failures(connection)
     connection.commit()
 

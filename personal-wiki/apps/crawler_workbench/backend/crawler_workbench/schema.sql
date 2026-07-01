@@ -198,3 +198,10 @@ create virtual table if not exists wiki_search_fts using fts5(
   source_refs,
   raw_metadata
 );
+
+create table if not exists wiki_search_index_state (
+  domain text primary key,
+  source_mtime real not null,
+  source_count integer not null default 0,
+  indexed_at text not null default current_timestamp
+);

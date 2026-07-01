@@ -23,15 +23,27 @@ def rebuild_search_index(settings: Settings, db: sqlite3.Connection, domain: str
 
     if domain is None:
         db.execute("delete from wiki_search_fts")
+        db.execute("delete from wiki_search_index_state")
     else:
         db.execute("delete from wiki_search_fts where domain = ?", (domain,))
+        db.execute("delete from wiki_search_index_state where domain = ?", (domain,))
 
     count = 0
     for page in _wiki_pages(settings, domain):
         count += _insert_wiki_page(settings, db, page)
     count += _insert_raw_items(db, domain)
+    _record_search_index_state(settings, db, domain)
     db.commit()
     return count
+
+
+def refresh_search_index_if_stale(settings: Settings, db: sqlite3.Connection, domain: str | None = None) -> int | None:
+    if domain is not None:
+        _validate_domain(domain)
+
+    if _search_index_stale(settings, db, domain):
+        return rebuild_search_index(settings, db, domain=domain)
+    return None
 
 
 def search_wiki(
@@ -106,6 +118,109 @@ def search_wiki(
         }
         for row in rows
     ]
+
+
+def _search_index_state(db: sqlite3.Connection, domain: str | None) -> tuple[float, int] | None:
+    if domain is None:
+        raise ValueError("domain is required for search index state lookup")
+    row = db.execute(
+        "select source_mtime, source_count from wiki_search_index_state where domain = ?",
+        (domain,),
+    ).fetchone()
+    if row is None:
+        return None
+    return (float(row["source_mtime"] or 0.0), int(row["source_count"] or 0))
+
+
+def _search_index_stale(settings: Settings, db: sqlite3.Connection, domain: str | None) -> bool:
+    if domain is None:
+        latest_domains = set(_search_source_domains(settings, db))
+        indexed_domains = {
+            str(row["domain"])
+            for row in db.execute("select domain from wiki_search_index_state").fetchall()
+        }
+        if latest_domains != indexed_domains:
+            return True
+        return any(_domain_search_index_stale(settings, db, item) for item in latest_domains)
+    return _domain_search_index_stale(settings, db, domain)
+
+
+def _domain_search_index_stale(settings: Settings, db: sqlite3.Connection, domain: str) -> bool:
+    indexed_state = _search_index_state(db, domain)
+    latest_source_state = _latest_search_source_state(settings, db, domain)
+    return (
+        indexed_state is None
+        or latest_source_state[0] != indexed_state[0]
+        or latest_source_state[1] != indexed_state[1]
+    )
+
+
+def _latest_search_source_state(settings: Settings, db: sqlite3.Connection, domain: str | None) -> tuple[float, int]:
+    mtimes: list[float] = []
+    pages = _wiki_pages(settings, domain)
+    for page in pages:
+        mtimes.append(page.stat().st_mtime)
+
+    raw_mtime, raw_count = _raw_item_source_state(db, domain)
+    mtimes.append(raw_mtime)
+    return (max(mtimes, default=0.0), len(pages) + raw_count)
+
+
+def _raw_item_source_state(db: sqlite3.Connection, domain: str | None) -> tuple[float, int]:
+    if domain is None:
+        row = db.execute(
+            """
+            select
+              max(cast(strftime('%s', created_at) as real)) as source_mtime,
+              count(*) as source_count
+            from raw_items
+            """
+        ).fetchone()
+    else:
+        row = db.execute(
+            """
+            select
+              max(cast(strftime('%s', created_at) as real)) as source_mtime,
+              count(*) as source_count
+            from raw_items
+            where target_domain = ?
+            """,
+            (domain,),
+        ).fetchone()
+    return (float(row["source_mtime"] or 0.0), int(row["source_count"] or 0))
+
+
+def _record_search_index_state(settings: Settings, db: sqlite3.Connection, domain: str | None) -> None:
+    if domain is None:
+        domains = _search_source_domains(settings, db)
+    else:
+        domains = [domain]
+    for item in domains:
+        source_mtime, source_count = _latest_search_source_state(settings, db, item)
+        db.execute(
+            """
+            insert into wiki_search_index_state (domain, source_mtime, source_count, indexed_at)
+            values (?, ?, ?, current_timestamp)
+            on conflict(domain) do update set
+              source_mtime = excluded.source_mtime,
+              source_count = excluded.source_count,
+              indexed_at = current_timestamp
+            """,
+            (item, source_mtime, source_count),
+        )
+
+
+def _search_source_domains(settings: Settings, db: sqlite3.Connection) -> list[str]:
+    domains = {_domain_from_path(settings, page) for page in _wiki_pages(settings, None)}
+    rows = db.execute("select distinct target_domain from raw_items").fetchall()
+    for row in rows:
+        raw_domain = str(row["target_domain"] or "")
+        try:
+            _validate_domain(raw_domain)
+        except ValueError:
+            continue
+        domains.add(raw_domain)
+    return sorted(domains)
 
 
 def _wiki_pages(settings: Settings, domain: str | None) -> list[Path]:

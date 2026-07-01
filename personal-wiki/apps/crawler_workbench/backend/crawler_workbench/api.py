@@ -23,7 +23,7 @@ from .ingest import (
 )
 from .manual_ingest import run_manual_url_ingest
 from .profiles import list_profiles
-from .search import rebuild_search_index, search_wiki, validate_domain
+from .search import refresh_search_index_if_stale, rebuild_search_index, search_wiki, validate_domain
 from .schemas import (
     AcceptAcceleratorCandidateRequest,
     AcceleratorCandidateResponse,
@@ -450,8 +450,10 @@ def commit(payload: CommitRequest, request: Request) -> dict[str, object]:
 @router.get("/search")
 def search(q: str, request: Request, domain: str | None = None) -> list[dict[str, object]]:
     request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
     with open_db(request.app.state.settings.database_path) as db:
         try:
+            refresh_search_index_if_stale(settings, db, domain=domain)
             return search_wiki(db, q, domain=domain)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

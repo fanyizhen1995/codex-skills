@@ -51,6 +51,27 @@ def test_schema_migration_creates_profile_tables(tmp_path):
     assert "source_auth_refs" in tables
     assert "fetch_runs" in tables
     assert "wiki_search_fts" in tables
+    assert "wiki_search_index_state" in tables
+
+
+def test_schema_migration_adds_search_index_source_count_to_existing_database(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    with open_db(settings.database_path) as db:
+        db.execute(
+            """
+            create table wiki_search_index_state (
+              domain text primary key,
+              source_mtime real not null,
+              indexed_at text not null default current_timestamp
+            )
+            """
+        )
+        db.commit()
+
+        migrate(db)
+        columns = {row["name"] for row in db.execute("pragma table_info(wiki_search_index_state)").fetchall()}
+
+    assert "source_count" in columns
 
 
 def test_schema_migration_adds_baseline_column_to_existing_profile_table(tmp_path):
