@@ -4,22 +4,30 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import calendar
 from datetime import datetime, timezone
 import gzip
+from http.client import IncompleteRead, RemoteDisconnected
 import json
 import os
 from pathlib import Path
 import re
+import socket
 import sys
 import time
 from typing import Any, Sequence
 from urllib.parse import urlencode
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
 TASK_ID = "github-closed-issues-k8s-volcano-kueue-01"
 API_ROOT = "https://api.github.com"
 RAW_ROOT = Path("personal-wiki/domains/ai_infra/raw/github")
+RATE_LIMIT_POLICIES = {"partial", "wait"}
+COMMENT_FETCH_MODES = {"repository", "per-issue"}
+ISSUE_DISCOVERY_MODES = {"issues", "search-monthly"}
+GITHUB_GET_RETRIES = 6
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -33,8 +41,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--domain", default="ai_infra")
     run_parser.add_argument("--max-pages", type=int, default=0)
     run_parser.add_argument("--max-comment-issues", type=int, default=0)
+    run_parser.add_argument("--max-comment-pages", type=int, default=0)
     run_parser.add_argument("--include-comments", action="store_true", default=True)
     run_parser.add_argument("--no-comments", action="store_true")
+    run_parser.add_argument("--closed-since", default=None, help="Only include issues with closed_at on or after this date.")
+    run_parser.add_argument(
+        "--repo-closed-since",
+        action="append",
+        default=[],
+        metavar="OWNER/REPO=YYYY-MM-DD",
+        help="Apply a closed_at lower bound to one repository only.",
+    )
+    run_parser.add_argument(
+        "--rate-limit-policy",
+        default="partial",
+        choices=sorted(RATE_LIMIT_POLICIES),
+        help="Use 'wait' to sleep until GitHub resets instead of producing a partial corpus near rate-limit exhaustion.",
+    )
+    run_parser.add_argument(
+        "--comment-fetch-mode",
+        default="repository",
+        choices=sorted(COMMENT_FETCH_MODES),
+        help="Fetch comments through repository-level issue comments pages or per issue.",
+    )
+    run_parser.add_argument(
+        "--issue-discovery-mode",
+        default="issues",
+        choices=sorted(ISSUE_DISCOVERY_MODES),
+        help="Discover issues through the repository issues endpoint or monthly GitHub Search windows.",
+    )
+    run_parser.add_argument("--verbose", action="store_true", help="Write fetch progress to stderr.")
 
     verify_parser = subparsers.add_parser("verify-manifest")
     verify_parser.add_argument("--repo-root", required=True)
@@ -50,7 +86,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             domain=args.domain,
             max_pages=args.max_pages or None,
             max_comment_issues=args.max_comment_issues or None,
+            max_comment_pages=args.max_comment_pages or None,
             include_comments=not args.no_comments,
+            closed_since=args.closed_since,
+            repo_closed_since=parse_repo_closed_since(args.repo_closed_since),
+            rate_limit_policy=parse_rate_limit_policy(args.rate_limit_policy),
+            comment_fetch_mode=parse_comment_fetch_mode(args.comment_fetch_mode),
+            issue_discovery_mode=parse_issue_discovery_mode(args.issue_discovery_mode),
+            verbose=args.verbose,
         )
         print(json.dumps({"manifest": str(Path(args.output_dir) / "manifest.json"), "repos": len(manifest["repos"])}))
         return 0
@@ -70,6 +113,75 @@ def slug_for_repo(repo: str) -> str:
     return normalized.replace("/", "-") + "-closed-issues"
 
 
+def normalize_repo(repo: str) -> str:
+    normalized = repo.strip().lower()
+    if not re.fullmatch(r"[a-z0-9_.-]+/[a-z0-9_.-]+", normalized):
+        raise ValueError(f"invalid GitHub repository slug: {repo}")
+    return normalized
+
+
+def parse_repo_closed_since(values: Sequence[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise ValueError(f"invalid --repo-closed-since value: {value}")
+        repo, closed_since = value.split("=", 1)
+        parsed = parse_github_datetime(closed_since)
+        if parsed is None:
+            raise ValueError(f"invalid closed_at lower bound: {closed_since}")
+        result[normalize_repo(repo)] = parsed.isoformat()
+    return result
+
+
+def parse_rate_limit_policy(value: str) -> str:
+    if value not in RATE_LIMIT_POLICIES:
+        raise ValueError(f"invalid rate-limit policy: {value}")
+    return value
+
+
+def parse_comment_fetch_mode(value: str) -> str:
+    if value not in COMMENT_FETCH_MODES:
+        raise ValueError(f"invalid comment fetch mode: {value}")
+    return value
+
+
+def parse_issue_discovery_mode(value: str) -> str:
+    if value not in ISSUE_DISCOVERY_MODES:
+        raise ValueError(f"invalid issue discovery mode: {value}")
+    return value
+
+
+def extract_comment_issue_number(comment: dict[str, Any]) -> int | None:
+    issue_url = comment.get("issue_url")
+    if not isinstance(issue_url, str):
+        return None
+    match = re.search(r"/issues/(\d+)$", issue_url)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def month_ranges(closed_since: str) -> list[tuple[str, str]]:
+    parsed = parse_github_datetime(closed_since)
+    if parsed is None:
+        raise ValueError(f"invalid closed_at lower bound: {closed_since}")
+    current = parsed.date().replace(day=1)
+    start_date = parsed.date()
+    today = datetime.now(timezone.utc).date()
+    ranges: list[tuple[str, str]] = []
+    while current <= today:
+        last_day = calendar.monthrange(current.year, current.month)[1]
+        month_end = current.replace(day=last_day)
+        range_start = max(current, start_date)
+        range_end = min(month_end, today)
+        ranges.append((range_start.isoformat(), range_end.isoformat()))
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+    return ranges
+
+
 def parse_next_link(link_header: str | None) -> str | None:
     if not link_header:
         return None
@@ -83,8 +195,38 @@ def parse_next_link(link_header: str | None) -> str | None:
     return None
 
 
-def filter_issue_items(items: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [item for item in items if not item.get("pull_request") and "/pull/" not in str(item.get("html_url", ""))]
+def filter_issue_items(items: Sequence[dict[str, Any]], closed_since: str | None = None) -> list[dict[str, Any]]:
+    since_dt = parse_github_datetime(closed_since) if closed_since else None
+    result: list[dict[str, Any]] = []
+    for item in items:
+        if item.get("pull_request") or "/pull/" in str(item.get("html_url", "")):
+            continue
+        if since_dt is not None:
+            closed_at = item.get("closed_at")
+            if not isinstance(closed_at, str):
+                continue
+            closed_dt = parse_github_datetime(closed_at)
+            if closed_dt is None or closed_dt < since_dt:
+                continue
+        result.append(item)
+    return result
+
+
+def parse_github_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    normalized = value.strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", normalized):
+        normalized = f"{normalized}T00:00:00+00:00"
+    elif normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def summarize_repo(
@@ -95,6 +237,7 @@ def summarize_repo(
     comments_pages: int,
     partial: bool,
     partial_reasons: Sequence[str],
+    closed_since: str | None = None,
 ) -> dict[str, Any]:
     label_counts: Counter[str] = Counter()
     state_reasons: Counter[str] = Counter()
@@ -121,6 +264,7 @@ def summarize_repo(
         "comments_pages": comments_pages,
         "partial": partial,
         "partial_reasons": list(partial_reasons),
+        "closed_since": parse_github_datetime(closed_since).isoformat() if closed_since else None,
         "state_reasons": dict(sorted(state_reasons.items())),
         "top_labels": [{"name": name, "count": count} for name, count in label_counts.most_common(20)],
         "closed_at_min": min(closed_at_values) if closed_at_values else None,
@@ -135,7 +279,14 @@ def run_capture(
     domain: str,
     max_pages: int | None = None,
     max_comment_issues: int | None = None,
+    max_comment_pages: int | None = None,
     include_comments: bool = True,
+    closed_since: str | None = None,
+    repo_closed_since: dict[str, str] | None = None,
+    rate_limit_policy: str = "partial",
+    comment_fetch_mode: str = "repository",
+    issue_discovery_mode: str = "issues",
+    verbose: bool = False,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {
@@ -145,6 +296,7 @@ def run_capture(
         "repos": [],
     }
     for repo in repos:
+        repo_since = (repo_closed_since or {}).get(normalize_repo(repo), closed_since)
         manifest["repos"].append(
             capture_repo(
                 repo_root=repo_root,
@@ -152,7 +304,13 @@ def run_capture(
                 domain=domain,
                 max_pages=max_pages,
                 max_comment_issues=max_comment_issues,
+                max_comment_pages=max_comment_pages,
                 include_comments=include_comments,
+                closed_since=repo_since,
+                rate_limit_policy=rate_limit_policy,
+                comment_fetch_mode=comment_fetch_mode,
+                issue_discovery_mode=issue_discovery_mode,
+                verbose=verbose,
             )
         )
 
@@ -170,17 +328,36 @@ def capture_repo(
     domain: str,
     max_pages: int | None,
     max_comment_issues: int | None,
+    max_comment_pages: int | None,
     include_comments: bool,
+    closed_since: str | None = None,
+    rate_limit_policy: str = "partial",
+    comment_fetch_mode: str = "repository",
+    issue_discovery_mode: str = "issues",
+    verbose: bool = False,
 ) -> dict[str, Any]:
     slug = slug_for_repo(repo)
     raw_dir = repo_root / RAW_ROOT / slug
     raw_dir.mkdir(parents=True, exist_ok=True)
-    issue_pages, rate_limits, partial = fetch_paginated(
-        f"{API_ROOT}/repos/{repo}/issues",
-        {"state": "closed", "sort": "updated", "direction": "desc", "per_page": "100"},
-        max_pages=max_pages,
-    )
-    issues = filter_issue_items([item for page in issue_pages for item in page])
+    if issue_discovery_mode == "search-monthly":
+        issue_pages, rate_limits, partial = fetch_monthly_search_issue_pages(
+            repo,
+            closed_since=closed_since,
+            max_pages=max_pages,
+            rate_limit_policy=rate_limit_policy,
+            verbose=verbose,
+        )
+    elif issue_discovery_mode == "issues":
+        issue_pages, rate_limits, partial = fetch_list_pages(
+            f"{API_ROOT}/repos/{repo}/issues",
+            {"state": "closed", "sort": "updated", "direction": "desc", "per_page": "100"},
+            max_pages=max_pages,
+            rate_limit_policy=rate_limit_policy,
+            progress_label=f"{repo} issues" if verbose else None,
+        )
+    else:
+        raise ValueError(f"invalid issue discovery mode: {issue_discovery_mode}")
+    issues = filter_issue_items([item for page in issue_pages for item in page], closed_since=closed_since)
     partial_reasons: list[str] = []
     if partial:
         partial_reasons.append(f"max_pages={max_pages}" if max_pages is not None else "rate_limit_near_empty")
@@ -193,23 +370,51 @@ def capture_repo(
             comment_issues = comment_issues[:max_comment_issues]
             partial = True
             partial_reasons.append(f"max_comment_issues={max_comment_issues}")
-        for issue in comment_issues:
-            number = int(issue.get("number") or 0)
-            if number <= 0:
-                continue
-            pages, comment_rate_limits, comment_partial = fetch_paginated(
-                f"{API_ROOT}/repos/{repo}/issues/{number}/comments",
-                {"per_page": "100"},
-                max_pages=None,
+        issue_numbers = {int(issue.get("number") or 0) for issue in comment_issues if int(issue.get("number") or 0) > 0}
+        if comment_fetch_mode == "repository":
+            comment_params = repository_comment_params(closed_since)
+            pages, comment_rate_limits, comment_partial = fetch_list_pages(
+                f"{API_ROOT}/repos/{repo}/issues/comments",
+                comment_params,
+                max_pages=max_comment_pages,
+                rate_limit_policy=rate_limit_policy,
+                progress_label=f"{repo} repository comments" if verbose else None,
             )
             rate_limits.extend(comment_rate_limits)
             partial = partial or comment_partial
             if comment_partial:
-                partial_reasons.append(f"comments_partial_issue={number}")
-            comments = [comment for page in pages for comment in page]
-            comments_by_issue[number] = comments
+                partial_reasons.append(f"max_comment_pages={max_comment_pages}" if max_comment_pages is not None else "comments_partial_repository")
+            for page in pages:
+                for comment in page:
+                    issue_number = extract_comment_issue_number(comment)
+                    if issue_number in issue_numbers:
+                        comments_by_issue.setdefault(issue_number, []).append(comment)
             if pages:
-                comment_pages.append({"issue_number": number, "pages": pages})
+                comment_pages.append({"mode": "repository", "pages": pages})
+        elif comment_fetch_mode == "per-issue":
+            for issue in comment_issues:
+                if int(issue.get("comments") or 0) <= 0:
+                    continue
+                number = int(issue.get("number") or 0)
+                if number <= 0:
+                    continue
+                pages, comment_rate_limits, comment_partial = fetch_list_pages(
+                    f"{API_ROOT}/repos/{repo}/issues/{number}/comments",
+                    {"per_page": "100"},
+                    max_pages=max_comment_pages,
+                    rate_limit_policy=rate_limit_policy,
+                    progress_label=f"{repo} issue {number} comments" if verbose else None,
+                )
+                rate_limits.extend(comment_rate_limits)
+                partial = partial or comment_partial
+                if comment_partial:
+                    partial_reasons.append(f"comments_partial_issue={number}")
+                comments = [comment for page in pages for comment in page]
+                comments_by_issue[number] = comments
+                if pages:
+                    comment_pages.append({"issue_number": number, "pages": pages})
+        else:
+            raise ValueError(f"invalid comment fetch mode: {comment_fetch_mode}")
     else:
         partial = True
         partial_reasons.append("comments_disabled")
@@ -227,6 +432,7 @@ def capture_repo(
         comments_pages=sum(len(item["pages"]) for item in comment_pages),
         partial=partial,
         partial_reasons=dedupe(partial_reasons),
+        closed_since=closed_since,
     )
     paths = corpus_paths(raw_dir, slug)
     issue_pages_path = paths["issue_pages"]
@@ -240,6 +446,7 @@ def capture_repo(
         "repo": repo,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": joined_path.name,
+        "closed_since": summary["closed_since"],
         "issues": [
             {
                 "number": issue.get("number"),
@@ -276,6 +483,7 @@ def capture_repo(
         "summary_path": relative(repo_root, summary_path),
         "issue_count": summary["issue_count"],
         "comment_count": summary["comment_count"],
+        "closed_since": summary["closed_since"],
         "partial": partial,
         "partial_reasons": summary["partial_reasons"],
         "rate_limits": rate_limits[-10:],
@@ -309,8 +517,10 @@ def fetch_paginated(
     url: str,
     params: dict[str, str],
     max_pages: int | None,
-) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]], bool]:
-    pages: list[list[dict[str, Any]]] = []
+    rate_limit_policy: str = "partial",
+    progress_label: str | None = None,
+) -> tuple[list[Any], list[dict[str, Any]], bool]:
+    pages: list[Any] = []
     rate_limits: list[dict[str, Any]] = []
     next_url: str | None = f"{url}?{urlencode(params)}"
     page_count = 0
@@ -320,17 +530,109 @@ def fetch_paginated(
             partial = True
             break
         payload, headers = github_get_json(next_url)
-        if not isinstance(payload, list):
-            raise ValueError(f"GitHub API returned non-list payload for {next_url}")
         pages.append(payload)
         page_count += 1
+        if progress_label and (page_count == 1 or page_count % 25 == 0):
+            print(f"{progress_label}: fetched page {page_count}", file=sys.stderr, flush=True)
         rate_limits.append(rate_limit_metadata(headers))
         next_url = parse_next_link(headers.get("link"))
         remaining = int(headers.get("x-ratelimit-remaining", "1"))
         if remaining <= 1 and next_url:
+            if rate_limit_policy == "wait":
+                wait_for_rate_limit_reset(headers)
+                continue
             partial = True
             break
     return pages, rate_limits, partial
+
+
+def fetch_list_pages(
+    url: str,
+    params: dict[str, str],
+    max_pages: int | None,
+    rate_limit_policy: str = "partial",
+    progress_label: str | None = None,
+) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]], bool]:
+    raw_pages, rate_limits, partial = fetch_paginated(
+        url,
+        params,
+        max_pages=max_pages,
+        rate_limit_policy=rate_limit_policy,
+        progress_label=progress_label,
+    )
+    pages: list[list[dict[str, Any]]] = []
+    for payload in raw_pages:
+        if not isinstance(payload, list):
+            raise ValueError(f"GitHub API returned non-list payload for {url}")
+        pages.append(payload)
+    return pages, rate_limits, partial
+
+
+def fetch_monthly_search_issue_pages(
+    repo: str,
+    closed_since: str | None,
+    max_pages: int | None,
+    rate_limit_policy: str,
+    verbose: bool,
+) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]], bool]:
+    if not closed_since:
+        raise ValueError("search-monthly issue discovery requires --closed-since or --repo-closed-since")
+    all_pages: list[list[dict[str, Any]]] = []
+    all_rate_limits: list[dict[str, Any]] = []
+    partial = False
+    for start, end in month_ranges(closed_since):
+        params = {
+            "q": f"repo:{repo} is:issue is:closed closed:{start}..{end}",
+            "sort": "updated",
+            "order": "desc",
+            "per_page": "100",
+        }
+        pages, rate_limits, window_partial = fetch_search_issue_pages(
+            f"{API_ROOT}/search/issues",
+            params,
+            max_pages=max_pages,
+            rate_limit_policy=rate_limit_policy,
+            progress_label=f"{repo} search closed:{start}..{end}" if verbose else None,
+        )
+        all_pages.extend(pages)
+        all_rate_limits.extend(rate_limits)
+        partial = partial or window_partial
+    return all_pages, all_rate_limits, partial
+
+
+def fetch_search_issue_pages(
+    url: str,
+    params: dict[str, str],
+    max_pages: int | None,
+    rate_limit_policy: str = "partial",
+    progress_label: str | None = None,
+) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]], bool]:
+    raw_pages, rate_limits, partial = fetch_paginated(
+        url,
+        params,
+        max_pages=max_pages,
+        rate_limit_policy=rate_limit_policy,
+        progress_label=progress_label,
+    )
+    pages: list[list[dict[str, Any]]] = []
+    for payload in raw_pages:
+        if not isinstance(payload, dict):
+            raise ValueError(f"GitHub Search API returned non-object payload for {url}")
+        items = payload.get("items")
+        if not isinstance(items, list):
+            raise ValueError(f"GitHub Search API payload missing items for {url}")
+        pages.append(items)
+    return pages, rate_limits, partial
+
+
+def wait_for_rate_limit_reset(headers: dict[str, str]) -> None:
+    reset_value = headers.get("x-ratelimit-reset")
+    try:
+        reset_at = int(reset_value or "0")
+    except ValueError:
+        reset_at = 0
+    wait_seconds = max(1, reset_at - int(time.time()) + 2)
+    time.sleep(wait_seconds)
 
 
 def github_get_json(url: str) -> tuple[Any, dict[str, str]]:
@@ -343,9 +645,27 @@ def github_get_json(url: str) -> tuple[Any, dict[str, str]]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     request = Request(url, headers=headers)
-    with urlopen(request, timeout=60) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-        return payload, {key.lower(): value for key, value in response.headers.items()}
+    last_error: BaseException | None = None
+    for attempt in range(GITHUB_GET_RETRIES):
+        try:
+            with urlopen(request, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                return payload, {key.lower(): value for key, value in response.headers.items()}
+        except BaseException as exc:
+            if not is_retryable_github_error(exc) or attempt == GITHUB_GET_RETRIES - 1:
+                raise
+            last_error = exc
+            print(f"retrying GitHub API request after transient error ({type(exc).__name__}), attempt {attempt + 2}/{GITHUB_GET_RETRIES}", file=sys.stderr, flush=True)
+            sleep_before_retry(attempt)
+    raise RuntimeError(f"GitHub API request failed after retries: {last_error}")
+
+
+def is_retryable_github_error(exc: BaseException) -> bool:
+    return isinstance(exc, (IncompleteRead, RemoteDisconnected, TimeoutError, socket.timeout, URLError))
+
+
+def sleep_before_retry(attempt: int) -> None:
+    time.sleep(min(30, 2**attempt))
 
 
 def rate_limit_metadata(headers: dict[str, str]) -> dict[str, Any]:
@@ -354,6 +674,14 @@ def rate_limit_metadata(headers: dict[str, str]) -> dict[str, Any]:
         "remaining": headers.get("x-ratelimit-remaining"),
         "reset": headers.get("x-ratelimit-reset"),
     }
+
+
+def repository_comment_params(closed_since: str | None) -> dict[str, str]:
+    if not closed_since:
+        return {"sort": "created", "direction": "asc", "per_page": "100"}
+    parsed = parse_github_datetime(closed_since)
+    since = parsed.strftime("%Y-%m-%dT%H:%M:%SZ") if parsed else closed_since
+    return {"sort": "updated", "direction": "asc", "since": since, "per_page": "100"}
 
 
 def label_names(labels: object) -> list[str]:

@@ -3,7 +3,7 @@ type: Reference
 title: Kubernetes, Volcano, And Kueue GitHub Closed Issues
 description: Local raw corpus and monthly sync setup for closed GitHub issues from Kubernetes, Volcano, and Kueue.
 domain: ai_infra
-status: draft
+status: reviewed
 tags:
   - kubernetes
   - volcano
@@ -38,19 +38,19 @@ related:
 ---
 # Summary
 
-This reference indexes the local raw corpus for closed GitHub issues from `kubernetes/kubernetes`, `volcano-sh/volcano`, and `kubernetes-sigs/kueue`. The raw layer preserves GitHub API issue pages, selected issue-comment API pages, joined issue/comment records, summaries, indexes, and ingest plans.
+This reference indexes the local raw corpus for closed GitHub issues from `kubernetes/kubernetes`, `volcano-sh/volcano`, and `kubernetes-sigs/kueue`. The raw layer preserves GitHub API issue/search pages, issue-comment API pages, joined issue/comment records, summaries, indexes, and ingest plans.
 
-The first capture is a partial backfill, not a historical full corpus. It was run through the public GitHub API without a usable token, with `--max-pages 1 --max-comment-issues 5` for each repository. Treat it as a verified seed corpus and monthly synchronization setup.
+The current backfill captures `volcano-sh/volcano` and `kubernetes-sigs/kueue` across their full closed-issue history, and captures `kubernetes/kubernetes` for issues closed on or after 2023-07-01. The Kubernetes window uses monthly GitHub Search ranges for issue discovery, while the all-time Volcano and Kueue backfills use the closed issues endpoint.
 
 # Corpus Scope
 
 | Repository | Issue pages | Closed issues | Comment pages | Comments | State reasons | Closed range | Partial reasons |
 | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
-| `kubernetes/kubernetes` | 1 | 25 | 5 | 36 | `completed`: 16; `not_planned`: 9 | 2018-01-16 to 2026-06-30 | `max_pages=1`; `max_comment_issues=5` |
-| `volcano-sh/volcano` | 1 | 23 | 5 | 5 | `completed`: 23 | 2026-06-12 to 2026-06-30 | `max_pages=1`; `max_comment_issues=5` |
-| `kubernetes-sigs/kueue` | 1 | 25 | 5 | 19 | `completed`: 21; `not_planned`: 4 | 2026-03-06 to 2026-06-30 | `max_pages=1`; `max_comment_issues=5` |
+| `kubernetes/kubernetes` | 79 | 5,897 | 300 | 6,386 | `completed`: 4,506; `duplicate`: 13; `not_planned`: 1,378 | 2023-07-01 to 2026-06-30 | none; closed_at window starts 2023-07-01 |
+| `volcano-sh/volcano` | 49 | 1,772 | 267 | 8,369 | `completed`: 1,760; `duplicate`: 1; `not_planned`: 11 | 2019-03-20 to 2026-06-30 | none |
+| `kubernetes-sigs/kueue` | 122 | 2,488 | 300 | 6,650 | `completed`: 2,294; `duplicate`: 2; `not_planned`: 192 | 2022-02-18 to 2026-06-30 | none |
 
-The issue endpoint was queried with `state=closed`, `sort=updated`, and `direction=desc`. Because this is updated-order capture, an older closed issue can appear in the seed corpus if it was updated recently.
+For Volcano and Kueue, the issue endpoint was queried with `state=closed`, `sort=updated`, and `direction=desc`, then pull requests were filtered out of the joined corpus and index. For Kubernetes, monthly Search API windows queried `repo:kubernetes/kubernetes is:issue is:closed closed:<month-range>` and the joined corpus keeps only issues whose `closed_at` is on or after 2023-07-01.
 
 # Raw Files
 
@@ -80,11 +80,11 @@ Kueue:
 
 # Capture Notes
 
-GitHub `state_reason` is workflow metadata. `completed` and `not_planned` both represent closed issues, but only the linked issue details and comments can show whether a closure corresponds to an implemented fix, duplicate handling, stale cleanup, design decision, or unsupported request.
+GitHub `state_reason` is workflow metadata. `completed`, `duplicate`, and `not_planned` all represent closed issues, but only the linked issue details and comments can show whether a closure corresponds to an implemented fix, duplicate handling, stale cleanup, design decision, or unsupported request.
 
-The corpus script stores tokens only through the `GITHUB_TOKEN` environment variable. The run manifest is under `.codex/github-closed-issues/github-closed-issues-k8s-volcano-kueue-01/manifest.json` and records rate-limit metadata and partial reasons for the run.
+The corpus script stores tokens only through the `GITHUB_TOKEN` environment variable. The combined run manifest is under `.codex/github-closed-issues/github-closed-issues-volcano-kueue-full-k8s-3y-01/manifest.json` and records rate-limit metadata, raw paths, and partial reasons for the run.
 
-The first network attempt through the local proxy failed during TLS handshake. The successful seed capture ran with proxy environment variables unset.
+The successful backfill ran with proxy environment variables unset. The script retries transient GitHub read failures and uses repository-level issue-comment pages for comment joining instead of one request per issue.
 
 # Monthly Synchronization
 

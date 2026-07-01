@@ -1,0 +1,77 @@
+{
+  "domain": "ai_infra",
+  "generated_at": "2026-07-01T03:01:25.739258+00:00",
+  "repos": [
+    {
+      "closed_since": null,
+      "comment_count": 6650,
+      "issue_count": 2488,
+      "partial": false,
+      "partial_reasons": [],
+      "rate_limits": [
+        {
+          "limit": "5000",
+          "remaining": "4285",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4284",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4283",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4282",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4281",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4280",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4279",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4278",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4277",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4276",
+          "reset": "1782877968"
+        }
+      ],
+      "raw_paths": [
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-issue-comments-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues.ingest-plan.md"
+      ],
+      "repo": "kubernetes-sigs/kueue",
+      "slug": "kubernetes-sigs-kueue-closed-issues",
+      "summary_path": "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json"
+    }
+  ],
+  "task_id": "github-closed-issues-k8s-volcano-kueue-01"
+}

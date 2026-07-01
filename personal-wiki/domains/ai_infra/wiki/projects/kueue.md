@@ -3,7 +3,7 @@ type: Project
 title: Kueue
 description: Kubernetes-native job queueing project for quota-aware batch and AI workloads.
 domain: ai_infra
-status: draft
+status: reviewed
 tags:
   - kueue
   - kubernetes
@@ -25,9 +25,9 @@ Kueue is a Kubernetes-native job queueing project. In this domain it belongs wit
 
 # Operational Evidence
 
-The local raw corpus currently contains a partial GitHub closed-issue capture for `kubernetes-sigs/kueue`. It includes 25 closed issues from one updated-order API page and comments for the first 5 captured issues. The capture is intentionally partial because it was run without a usable GitHub token and stayed within public API rate limits.
+The local raw corpus contains an all-time GitHub closed-issue capture for `kubernetes-sigs/kueue`. It includes 2,488 closed issues and 6,650 joined issue comments, with a closed range from 2022-02-18 to 2026-06-30.
 
-Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, partial-capture caveats, raw paths, and monthly sync source IDs.
+Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, raw paths, capture notes, and monthly sync source IDs.
 
 # Citations
 

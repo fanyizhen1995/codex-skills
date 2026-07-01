@@ -3,7 +3,7 @@ type: Project
 title: Volcano
 description: Kubernetes-native batch scheduling project for high-performance and AI workloads.
 domain: ai_infra
-status: draft
+status: reviewed
 tags:
   - volcano
   - kubernetes
@@ -25,9 +25,9 @@ Volcano is a Kubernetes-native batch scheduling project. In this domain it belon
 
 # Operational Evidence
 
-The local raw corpus currently contains a partial GitHub closed-issue capture for `volcano-sh/volcano`. It includes 23 closed issues from one updated-order API page and comments for the first 5 captured issues. The capture is intentionally partial because it was run without a usable GitHub token and stayed within public API rate limits.
+The local raw corpus contains an all-time GitHub closed-issue capture for `volcano-sh/volcano`. It includes 1,772 closed issues and 8,369 joined issue comments, with a closed range from 2019-03-20 to 2026-06-30.
 
-Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, partial-capture caveats, raw paths, and monthly sync source IDs.
+Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, raw paths, capture notes, and monthly sync source IDs.
 
 # Citations
 

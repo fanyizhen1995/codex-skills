@@ -13,6 +13,6 @@ Summary: `kubernetes-sigs-kueue-closed-issues-summary.json`
 
 ## Capture Summary
 
-- Issues: 25
-- Comments: 19
-- Partial: True
+- Issues: 2488
+- Comments: 6650
+- Partial: False

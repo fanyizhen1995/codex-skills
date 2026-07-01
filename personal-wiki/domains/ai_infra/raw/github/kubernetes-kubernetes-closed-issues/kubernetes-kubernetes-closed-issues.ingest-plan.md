@@ -13,6 +13,6 @@ Summary: `kubernetes-kubernetes-closed-issues-summary.json`
 
 ## Capture Summary
 
-- Issues: 25
-- Comments: 36
-- Partial: True
+- Issues: 5897
+- Comments: 6386
+- Partial: False

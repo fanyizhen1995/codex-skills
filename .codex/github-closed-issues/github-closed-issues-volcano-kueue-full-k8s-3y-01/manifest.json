@@ -1,0 +1,218 @@
+{
+  "domain": "ai_infra",
+  "generated_at": "2026-07-01T05:07:58.038934+00:00",
+  "repos": [
+    {
+      "closed_since": "2023-07-01T00:00:00+00:00",
+      "comment_count": 6386,
+      "issue_count": 5897,
+      "partial": false,
+      "partial_reasons": [],
+      "rate_limits": [
+        {
+          "limit": "5000",
+          "remaining": "4704",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4703",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4702",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4701",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4700",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4699",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4698",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4697",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4696",
+          "reset": "1782887200"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4695",
+          "reset": "1782887200"
+        }
+      ],
+      "raw_paths": [
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-issue-comments-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues.ingest-plan.md"
+      ],
+      "repo": "kubernetes/kubernetes",
+      "slug": "kubernetes-kubernetes-closed-issues",
+      "summary_path": "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-summary.json"
+    },
+    {
+      "closed_since": null,
+      "comment_count": 8369,
+      "issue_count": 1772,
+      "partial": false,
+      "partial_reasons": [],
+      "rate_limits": [
+        {
+          "limit": "5000",
+          "remaining": "4707",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4706",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4705",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4704",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4703",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4702",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4701",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4700",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4699",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4698",
+          "reset": "1782877968"
+        }
+      ],
+      "raw_paths": [
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-issue-comments-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues.ingest-plan.md"
+      ],
+      "repo": "volcano-sh/volcano",
+      "slug": "volcano-sh-volcano-closed-issues",
+      "summary_path": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-summary.json"
+    },
+    {
+      "closed_since": null,
+      "comment_count": 6650,
+      "issue_count": 2488,
+      "partial": false,
+      "partial_reasons": [],
+      "rate_limits": [
+        {
+          "limit": "5000",
+          "remaining": "4285",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4284",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4283",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4282",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4281",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4280",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4279",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4278",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4277",
+          "reset": "1782877968"
+        },
+        {
+          "limit": "5000",
+          "remaining": "4276",
+          "reset": "1782877968"
+        }
+      ],
+      "raw_paths": [
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-issue-comments-api-pages.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues.ingest-plan.md"
+      ],
+      "repo": "kubernetes-sigs/kueue",
+      "slug": "kubernetes-sigs-kueue-closed-issues",
+      "summary_path": "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json"
+    }
+  ],
+  "scope": "volcano-sh/volcano all-time closed issues; kubernetes-sigs/kueue all-time closed issues; kubernetes/kubernetes closed issues with closed_at >= 2023-07-01",
+  "task_id": "github-closed-issues-volcano-kueue-full-k8s-3y-01"
+}

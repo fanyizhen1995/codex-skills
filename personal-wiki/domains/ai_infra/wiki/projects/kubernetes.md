@@ -3,7 +3,7 @@ type: Project
 title: Kubernetes
 description: Container orchestration project whose scheduler, node, API machinery, and device-management issue history is relevant to AI infrastructure operations.
 domain: ai_infra
-status: draft
+status: reviewed
 tags:
   - kubernetes
   - orchestration
@@ -26,9 +26,9 @@ Kubernetes is the upstream container orchestration project. In this domain it is
 
 # Operational Evidence
 
-The local raw corpus currently contains a partial GitHub closed-issue capture for `kubernetes/kubernetes`. It includes 25 closed issues from one updated-order API page and comments for the first 5 captured issues. The capture is intentionally partial because it was run without a usable GitHub token and stayed within public API rate limits.
+The local raw corpus contains a GitHub closed-issue capture for `kubernetes/kubernetes` issues whose `closed_at` value is on or after 2023-07-01. It includes 5,897 closed issues and 6,386 joined issue comments, with a closed range from 2023-07-01 to 2026-06-30.
 
-Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, partial-capture caveats, raw paths, and monthly sync source IDs.
+Use [Kubernetes, Volcano, And Kueue GitHub Closed Issues](../references/kubernetes-volcano-kueue-github-closed-issues.md) for the shared corpus scope, raw paths, capture notes, and monthly sync source IDs.
 
 # Citations
 

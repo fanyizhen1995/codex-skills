@@ -13,6 +13,6 @@ Summary: `volcano-sh-volcano-closed-issues-summary.json`
 
 ## Capture Summary
 
-- Issues: 23
-- Comments: 5
-- Partial: True
+- Issues: 1772
+- Comments: 8369
+- Partial: False

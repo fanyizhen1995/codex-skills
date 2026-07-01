@@ -1,43 +1,99 @@
 {
   "closed_at_max": "2026-06-30T12:43:05Z",
-  "closed_at_min": "2026-06-12T07:51:50Z",
-  "comment_count": 5,
-  "comments_pages": 5,
-  "issue_count": 23,
-  "pages": 1,
-  "partial": true,
-  "partial_reasons": [
-    "max_pages=1",
-    "max_comment_issues=5"
-  ],
+  "closed_at_min": "2019-03-20T10:15:45Z",
+  "closed_since": null,
+  "comment_count": 8369,
+  "comments_pages": 267,
+  "issue_count": 1772,
+  "pages": 49,
+  "partial": false,
+  "partial_reasons": [],
   "repo": "volcano-sh/volcano",
   "state_reasons": {
-    "completed": 23
+    "completed": 1760,
+    "duplicate": 1,
+    "not_planned": 11
   },
   "top_labels": [
     {
-      "count": 6,
+      "count": 773,
       "name": "kind/bug"
     },
     {
-      "count": 3,
+      "count": 616,
       "name": "kind/feature"
     },
     {
-      "count": 2,
+      "count": 568,
+      "name": "lifecycle/stale"
+    },
+    {
+      "count": 154,
       "name": "help wanted"
     },
     {
-      "count": 2,
+      "count": 100,
+      "name": "priority/important-soon"
+    },
+    {
+      "count": 86,
       "name": "good first issue"
     },
     {
-      "count": 1,
+      "count": 74,
       "name": "kind/question"
     },
     {
-      "count": 1,
-      "name": "lifecycle/stale"
+      "count": 71,
+      "name": "area/scheduling"
+    },
+    {
+      "count": 69,
+      "name": "priority/high"
+    },
+    {
+      "count": 35,
+      "name": "area/controllers"
+    },
+    {
+      "count": 12,
+      "name": "kind/docs"
+    },
+    {
+      "count": 11,
+      "name": "kind/RFE"
+    },
+    {
+      "count": 10,
+      "name": "area/cli"
+    },
+    {
+      "count": 9,
+      "name": "kind/cleanup"
+    },
+    {
+      "count": 9,
+      "name": "area/test"
+    },
+    {
+      "count": 9,
+      "name": "priority/critical-urgent"
+    },
+    {
+      "count": 9,
+      "name": "area/webhooks"
+    },
+    {
+      "count": 9,
+      "name": "v1.1.1"
+    },
+    {
+      "count": 8,
+      "name": "v1.2.0"
+    },
+    {
+      "count": 6,
+      "name": "kind/flake"
     }
   ]
 }

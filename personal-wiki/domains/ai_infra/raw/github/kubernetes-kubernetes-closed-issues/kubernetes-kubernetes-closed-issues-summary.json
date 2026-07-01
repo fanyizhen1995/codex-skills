@@ -1,100 +1,99 @@
 {
-  "closed_at_max": "2026-06-30T16:28:16Z",
-  "closed_at_min": "2018-01-16T03:10:11Z",
-  "comment_count": 36,
-  "comments_pages": 5,
-  "issue_count": 25,
-  "pages": 1,
-  "partial": true,
-  "partial_reasons": [
-    "max_pages=1",
-    "max_comment_issues=5"
-  ],
+  "closed_at_max": "2026-06-30T22:22:18Z",
+  "closed_at_min": "2023-07-01T07:32:35Z",
+  "closed_since": "2023-07-01T00:00:00+00:00",
+  "comment_count": 6386,
+  "comments_pages": 300,
+  "issue_count": 5897,
+  "pages": 79,
+  "partial": false,
+  "partial_reasons": [],
   "repo": "kubernetes/kubernetes",
   "state_reasons": {
-    "completed": 16,
-    "not_planned": 9
+    "completed": 4506,
+    "duplicate": 13,
+    "not_planned": 1378
   },
   "top_labels": [
     {
-      "count": 18,
+      "count": 4032,
       "name": "needs-triage"
     },
     {
-      "count": 12,
+      "count": 2411,
       "name": "kind/bug"
     },
     {
-      "count": 11,
-      "name": "lifecycle/rotten"
-    },
-    {
-      "count": 7,
-      "name": "sig/node"
-    },
-    {
-      "count": 5,
-      "name": "sig/api-machinery"
-    },
-    {
-      "count": 4,
+      "count": 1684,
       "name": "triage/accepted"
     },
     {
-      "count": 4,
+      "count": 1627,
+      "name": "sig/node"
+    },
+    {
+      "count": 1387,
+      "name": "lifecycle/rotten"
+    },
+    {
+      "count": 1159,
       "name": "kind/feature"
     },
     {
-      "count": 4,
-      "name": "needs-sig"
+      "count": 930,
+      "name": "sig/api-machinery"
     },
     {
-      "count": 3,
-      "name": "sig/architecture"
-    },
-    {
-      "count": 3,
-      "name": "priority/backlog"
-    },
-    {
-      "count": 2,
+      "count": 661,
       "name": "kind/failing-test"
     },
     {
-      "count": 2,
-      "name": "wg/device-management"
+      "count": 621,
+      "name": "needs-sig"
     },
     {
-      "count": 2,
-      "name": "priority/critical-urgent"
-    },
-    {
-      "count": 2,
-      "name": "sig/cli"
-    },
-    {
-      "count": 1,
-      "name": "priority/important-soon"
-    },
-    {
-      "count": 1,
-      "name": "sig/scheduling"
-    },
-    {
-      "count": 1,
-      "name": "priority/important-longterm"
-    },
-    {
-      "count": 1,
-      "name": "sig/autoscaling"
-    },
-    {
-      "count": 1,
+      "count": 527,
       "name": "kind/flake"
     },
     {
-      "count": 1,
-      "name": "help wanted"
+      "count": 509,
+      "name": "sig/scheduling"
+    },
+    {
+      "count": 499,
+      "name": "sig/network"
+    },
+    {
+      "count": 454,
+      "name": "kind/support"
+    },
+    {
+      "count": 440,
+      "name": "sig/storage"
+    },
+    {
+      "count": 343,
+      "name": "sig/apps"
+    },
+    {
+      "count": 281,
+      "name": "priority/important-soon"
+    },
+    {
+      "count": 252,
+      "name": "triage/needs-information"
+    },
+    {
+      "count": 248,
+      "name": "sig/auth"
+    },
+    {
+      "count": 241,
+      "name": "sig/testing"
+    },
+    {
+      "count": 226,
+      "name": "priority/important-longterm"
     }
   ]
 }
