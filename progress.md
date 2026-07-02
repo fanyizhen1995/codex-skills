@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-07-02 Planner Generator Evaluator Loop Phase 2 And Phase 3 Registered
+
+- Registered `planner-generator-evaluator-loop-phase-2-01` for the next harness loop hardening step: task-contract evaluator input, scenario command artifacts, attempt evidence, cleanup/recovery, and artifact hygiene.
+- Registered `planner-generator-evaluator-loop-phase-3-01` for the later autonomous knowledge loop: domain `loop-state.json`, no-action gap detection, allowlisted automatic wiki/crawler changes, supply-chain checks, auto-commit, cleanup, and continued planning.
+- Phase 2 is the active next implementation target; Phase 3 remains blocked by Phase 2.
+
 ## 2026-07-02 Planner Generator Evaluator Loop Phase 1
 
 - Implemented the demand-development Planner -> Generator -> Evaluator loop skeleton with preflight state, JSON contract validators, fake/codex Planner and Generator drivers, evaluator handoff, failure evidence capture, and a human merge gate.

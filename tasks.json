@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-02",
-  "current_focus": "Planner Generator Evaluator loop Phase 1 is implemented for demand-development preflight, fake/codex Planner and Generator drivers, evaluator handoff, and human merge gate.",
+  "current_focus": "Planner Generator Evaluator loop Phase 2 is next: task-contract evaluator input, scenario commands, attempt evidence, cleanup/recovery, and artifact hygiene.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -24,6 +24,42 @@
         "task_level_required": true,
         "final_level_required": false,
         "task_scope": "local_repo_and_harness",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "planner-generator-evaluator-loop-phase-2-01",
+      "title": "Implement Planner Generator Evaluator loop Phase 2",
+      "description": "Extend the Phase 1 demand-development loop with temporary task-contract evaluator input, scenario command artifact collection, required service metadata, retry evidence, cleanup and recovery support, and artifact hygiene with redaction manifests.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "planner-generator-evaluator-loop-phase-1-01",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_scenarios -v && python3 -m json.tool tasks.json >/dev/null",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_harness",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "planner-generator-evaluator-loop-phase-3-01",
+      "title": "Implement Planner Generator Evaluator loop Phase 3",
+      "description": "Implement the autonomous-knowledge loop with domain loop-state.json, no-action gap detection, allowlisted automatic wiki/crawler changes, supply-chain checks for dependency changes, artifact hygiene gates, auto-commit, cleanup, and continued planning.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "planner-generator-evaluator-loop-phase-2-01",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v && python3 -m json.tool tasks.json >/dev/null",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
         "final_scope": "report_and_artifacts",
         "max_task_eval_attempts": 3,
         "max_final_eval_attempts": 2
