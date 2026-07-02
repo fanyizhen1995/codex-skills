@@ -12,6 +12,24 @@
   },
   "tasks": [
     {
+      "id": "planner-generator-evaluator-loop-phase-1-01",
+      "title": "Implement Planner Generator Evaluator loop Phase 1",
+      "description": "Add the demand-development loop skeleton with preflight gate, JSON contracts, Codex Planner/Generator wrappers, evaluator repair handoff, and human merge gate.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v && python3 scripts/harness_loop_orchestrator.py preflight --repo-root . --mode demand-development --requirement \"Phase 1 smoke demand loop\" --run-id smoke-phase-1 --confirm && python3 scripts/harness_loop_orchestrator.py run --repo-root . --run-id smoke-phase-1 --planner-driver fake --generator-driver fake --evaluator-driver fake --max-eval-attempts 2",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_harness",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
       "id": "github-closed-issues-k8s-volcano-kueue-01",
       "title": "Ingest Kubernetes, Volcano, and Kueue closed GitHub issues",
       "description": "Capture closed GitHub issues and issue comments for kubernetes/kubernetes, volcano-sh/volcano, and kubernetes-sigs/kueue into ai_infra raw evidence, curate wiki references, and configure monthly synchronization through Crawler Workbench source profiles.",
