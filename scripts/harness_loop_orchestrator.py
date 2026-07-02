@@ -161,6 +161,7 @@ def create_preflight_run(
         raise ValueError("Phase 1 preflight only supports demand_development policy")
     phase = "planned" if confirm else "preflight"
     next_action = "run_planner" if confirm else "await_preflight_confirmation"
+    baseline_dirty_paths = _baseline_dirty_paths(root)
     run_dir = run_dir_for(root, run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "preflight.md").write_text(
@@ -175,7 +176,7 @@ def create_preflight_run(
         "domain": "",
         "branch": _current_branch(root),
         "worktree": str(root.resolve()),
-        "baseline_dirty_paths": _baseline_dirty_paths(root),
+        "baseline_dirty_paths": baseline_dirty_paths,
         "allowed_paths": [],
         "denylist_paths": [],
         "attempts": {

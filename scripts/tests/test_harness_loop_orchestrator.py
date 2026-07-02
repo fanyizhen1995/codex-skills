@@ -79,6 +79,23 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn("Build the thing", preflight)
             self.assertIn("Fallback Questionnaire", preflight)
 
+    def test_create_preflight_run_captures_baseline_before_loop_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True)
+            unrelated_path = repo_root / "unrelated.txt"
+            unrelated_path.write_text("pre-existing user change\n", encoding="utf-8")
+
+            payload = create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build the thing",
+                run_id="demo-run",
+                confirm=True,
+            )
+
+            self.assertEqual(payload["baseline_dirty_paths"], ["?? unrelated.txt"])
+
     def test_confirm_preflight_changes_phase_to_planned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
