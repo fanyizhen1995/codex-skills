@@ -37,8 +37,8 @@
         "Cleanup runs before artifact hygiene or leaves the run in an active phase."
       ],
       "cleanup": [
-        "The helper removes the previous .codex/loop-runs/evaluator-scenario-phase-2 directory and .codex/tmp/phase-2-smoke-artifact.txt before each run.",
-        "A successful run may leave .codex/loop-runs/evaluator-scenario-phase-2 and .codex/tmp/phase-2-smoke-artifact.txt as evidence."
+        "The helper removes the previous .codex/loop-runs/evaluator-scenario-phase-2 directory, .codex/tmp/phase-2-smoke-artifact.txt, and prior fake evaluator attempts for this task before each run.",
+        "A successful run may leave .codex/loop-runs/evaluator-scenario-phase-2, .codex/tmp/phase-2-smoke-artifact.txt, and fresh fake evaluator attempt evidence."
       ],
       "automation_hint": "shell"
     }

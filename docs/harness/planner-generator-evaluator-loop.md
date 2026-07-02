@@ -112,12 +112,15 @@ python3 scripts/harness_loop_phase2_smoke.py \
   --task-id planner-generator-evaluator-loop-phase-2-01
 ```
 
-The helper clears the previous smoke run and `.codex/tmp/phase-2-smoke-artifact.txt`,
-runs fake planner/generator drivers, writes a non-empty generator artifact and
-`task-contract.json` with a passing `scenario_commands` entry, then continues
-`run_loop` from `evaluating`. A successful smoke reaches
-`passed_waiting_human_merge` and leaves `scenario-command-results.json`,
-`artifact-manifest.json`, and `cleanup-result.json` under the run directory.
+The helper clears the previous smoke run,
+`.codex/tmp/phase-2-smoke-artifact.txt`, and prior fake evaluator attempts for
+the Phase 2 task id, then runs fake planner/generator drivers, writes a
+non-empty generator artifact and `task-contract.json` with a passing
+`scenario_commands` entry, then continues `run_loop` from `evaluating`. A
+successful smoke reaches `passed_waiting_human_merge` and leaves
+`scenario-command-results.json`, `artifact-manifest.json`, and
+`cleanup-result.json` under the run directory; the fresh fake evaluator attempt
+remains under `.codex/evaluations/tasks/<task-id>/`.
 
 ## Human Merge Gate
 
