@@ -32,7 +32,7 @@
 - 不默认自动合入 `main`。
 - 不允许自动修改 secrets、凭据、生产基础设施、认证、支付、账单等高风险路径。
 - 不在需求未讨论清楚时直接生成任务和进入自动开发。
-- 不把 autonomous knowledge loop 扩展成自动代码修改；如果资料拓展需要改 crawler、schema、前端或 harness 代码，必须自动切换为 demand development 工作流并停在人工合入门。
+- 不把 autonomous knowledge loop 扩展成全仓库无人值守开发；它可以为了资料拓展自动修改 crawler、crawler workbench 后端/前端和相关测试，但仍必须受 allowlist、denylist、重试上限、artifact hygiene 和 evaluator gate 约束。
 
 ## 角色模型
 
@@ -77,7 +77,8 @@ Planner 决策：
 - 任务 scope、allowlist、denylist、验证命令。
 - evaluator 必须模拟哪些用户行为。
 - autonomous loop 是否继续规划下一项。
-- 如果下一项需要代码、schema、前端或 harness 改动，Planner 必须把当前 autonomous run 标记为 `handoff_to_demand_development`，生成 demand task 候选，并停止 autonomous 自动执行。
+- 如果下一项需要修改 crawler、crawler workbench 后端/前端或相关测试，Planner 可以在 `autonomous_knowledge` 内生成 `autonomous_implementation_task`，并继续自动执行。
+- 如果下一项触碰 denylist、生产基础设施、凭据、认证、支付、账单，或超出 autonomous allowlist，Planner 必须停止并升级给用户。
 
 ### generator_agent
 
@@ -174,7 +175,7 @@ Fallback questionnaire 的最小问题集：
 4. 是否允许联网、抓取外部内容、调用 GitHub/API、重启本地服务？
 5. 是否允许自动 commit？是否允许合入 `main`？
 6. 最多允许多少任务、多少修复轮次、多少 evaluator 轮次、多少运行时间？
-7. 遇到鉴权、网络失败、脏工作区、非 allowlist 路径、代码改动需求时如何停止或切换？
+7. 遇到鉴权、网络失败、脏工作区、非 allowlist 路径、代码改动需求时如何继续、停止或升级？
 8. 用户是否明确说“讨论清楚 / 确认进入 loop”？
 
 ## 状态与产物
@@ -232,7 +233,7 @@ personal-wiki/domains/<domain>/loop-state.json
 {
   "run_id": "string",
   "policy": "demand_development | autonomous_knowledge",
-  "phase": "preflight | planned | generating | verifying | evaluating | repair_needed | passed_waiting_human_merge | planning | committed | stopped_no_action | stopped_budget | stopped_blocked",
+  "phase": "preflight | planned | generating | verifying | evaluating | repair_needed | artifact_hygiene | cleanup | passed_waiting_human_merge | planning | committed | stopped_no_action | stopped_budget | stopped_blocked",
   "task_id": "string",
   "domain": "string",
   "branch": "string",
@@ -243,16 +244,26 @@ personal-wiki/domains/<domain>/loop-state.json
   "attempts": {
     "planner": 0,
     "generator": 0,
-    "evaluator": 0
+    "evaluator": 0,
+    "artifact_hygiene": 0,
+    "cleanup": 0
   },
   "limits": {
     "max_tasks_per_run": 3,
     "max_generator_attempts_per_task": 2,
     "max_eval_attempts_per_task": 3,
-    "max_wall_time_minutes": 60
+    "max_wall_time_minutes": 60,
+    "agent_timeout_minutes": 30,
+    "cleanup_retention_days": 7
   },
   "last_result": "pass | fail | blocked | none",
-  "next_action": "string"
+  "next_action": "string",
+  "attempt_history": [],
+  "cleanup": {
+    "worktrees_removed": [],
+    "processes_stopped": [],
+    "retained_artifacts": []
+  }
 }
 ```
 
@@ -262,7 +273,7 @@ personal-wiki/domains/<domain>/loop-state.json
 {
   "task_id": "string",
   "policy": "demand_development | autonomous_knowledge",
-  "task_kind": "registered_task | candidate_task | handoff_to_demand_development",
+  "task_kind": "registered_task | candidate_task | task_contract_only | autonomous_implementation_task",
   "title": "string",
   "goal": "string",
   "non_goals": [],
@@ -286,9 +297,74 @@ personal-wiki/domains/<domain>/loop-state.json
   "verify_commands": [],
   "verify_results": [],
   "artifacts": [],
+  "cleanup_required": true,
   "notes": "string"
 }
 ```
+
+`agent-attempt.json` 必填字段：
+
+```json
+{
+  "run_id": "string",
+  "role": "planner | generator | evaluator",
+  "attempt": 1,
+  "started_at": "ISO-8601 timestamp",
+  "finished_at": "ISO-8601 timestamp",
+  "exit_code": 0,
+  "status": "pass | fail | blocked | timeout | invalid_json",
+  "prompt_path": "string",
+  "stdout_path": "string",
+  "stderr_path": "string",
+  "output_json_path": "string",
+  "diff_patch_path": "string",
+  "verify_log_paths": []
+}
+```
+
+`artifact-hygiene-result.json` 必填字段：
+
+```json
+{
+  "status": "pass | redacted | blocked",
+  "scanned_paths": [],
+  "redacted_paths": [],
+  "omitted_paths": [],
+  "manifest_path": "string",
+  "findings": []
+}
+```
+
+`loop-state.json` 必填字段：
+
+```json
+{
+  "domain": "string",
+  "domain_goal": "string",
+  "last_scan_at": "ISO-8601 timestamp",
+  "next_scan_after": "ISO-8601 timestamp",
+  "scan_ttl_days": 30,
+  "known_sources": [],
+  "coverage_gaps": [],
+  "candidate_backlog": [],
+  "processed_items": [],
+  "blocked_items": [],
+  "no_action_evidence": [],
+  "last_planner_decision": "planned | no_action | blocked | failed",
+  "stop_reason": "string"
+}
+```
+
+`coverage_gaps`、`candidate_backlog`、`processed_items` 和 `blocked_items` 条目必须至少包含 `id`、`title`、`source`、`status`、`updated_at` 和 `evidence`。`blocked_items` 还必须包含 `blocked_reason` 和 `required_human_input`。
+
+“无可行动缺口”的最低判定标准：
+
+- `candidate_backlog` 为空。
+- `coverage_gaps` 为空，或剩余 gap 全部有明确 `blocked_reason`。
+- `last_scan_at` 未超过 `scan_ttl_days`。
+- `known_sources` 中本轮 scope 内的来源都已扫描或记录了不可连接原因。
+- `no_action_evidence` 至少包含本轮 Planner 扫描摘要、来源列表、查询条件和验证命令结果。
+- 如果存在 `blocked_auth`、凭据缺失、denylist 命中或需要用户授权的来源，状态应为 `stopped_blocked`，不能归类为“无可行动缺口”。
 
 Policy JSON 必填字段：
 
@@ -310,10 +386,67 @@ Policy JSON 必填字段：
 Planner 在 preflight 后可以先生成 `candidate_task`，写入 `.codex/loop-runs/<run-id>/planner-output.json`。只有满足以下条件时才写入 `tasks.json` 成为 `registered_task`：
 
 - demand development 已经通过 preflight，且用户确认进入 loop。
-- autonomous knowledge 的本轮任务不需要修改 `tasks.json`、`docs/harness/**`、代码或 schema。
-- evaluator 需要正式 task id 时，orchestrator 可以为 autonomous knowledge 生成临时 task metadata，放在 `.codex/loop-runs/<run-id>/task-contract.json`；不自动修改 `tasks.json`。
+- autonomous knowledge 的本轮任务确实需要长期进入项目任务列表，而不是一次性资料拓展或自动修复。
+- evaluator 需要任务契约时，orchestrator 优先为 autonomous knowledge 生成临时 task metadata，放在 `.codex/loop-runs/<run-id>/task-contract.json`，不自动修改 `tasks.json`。
 
-如果 autonomous knowledge 规划出的下一步需要修改 crawler、schema、前端、harness 或 `tasks.json`，Planner 输出 `task_kind=handoff_to_demand_development`，停止 autonomous loop，并等待需求驱动 loop 接管。
+如果 autonomous knowledge 规划出的下一步需要修改 crawler、crawler workbench 后端/前端或相关测试，Planner 输出 `task_kind=autonomous_implementation_task`，仍停留在 autonomous mode 内执行。只有当改动超出 allowlist、触碰 denylist、需要用户凭据或需要生产基础设施动作时，才停止并升级给用户。
+
+### Task Contract 与 Evaluator CLI
+
+现有 evaluator CLI 需要支持临时 `task-contract.json`：
+
+```bash
+python3 scripts/harness_evaluator_cli.py prepare-task \
+  --repo-root "$PWD" \
+  --task-contract .codex/loop-runs/<run-id>/task-contract.json \
+  --attempt <n>
+```
+
+`task-contract.json` 必填字段：
+
+```json
+{
+  "task_id": "string",
+  "title": "string",
+  "description": "string",
+  "verify_commands": [],
+  "eval_policy": {},
+  "allowed_scope": "string",
+  "must_simulate": true,
+  "user_scenarios": []
+}
+```
+
+当 `--task-contract` 存在时，`prepare-task` 从该文件读取 task definition、verify commands、eval policy 和 user scenarios，不再要求任务已经存在于 `tasks.json` 或 `docs/harness/evaluator-scenarios/<task-id>.json`。这让 autonomous loop 可以完成一次性资料拓展、自动修复和验证，而不污染长期任务注册表。
+
+## Agent 调用、重试与清理
+
+首期 Planner 和 Generator 均由 orchestrator 通过 `codex exec` 启动。Evaluator 继续复用现有 `harness_evaluator_orchestrator.py run-task-auto-gate --driver codex-exec`。
+
+Planner 调用约定：
+
+```bash
+codex exec --json --output-last-message .codex/loop-runs/<run-id>/planner-message.json \
+  "$(cat .codex/loop-runs/<run-id>/planner-prompt.md)"
+```
+
+Generator 调用约定：
+
+```bash
+codex exec --json --output-last-message .codex/loop-runs/<run-id>/generator-message.json \
+  "$(cat .codex/loop-runs/<run-id>/generator-prompt.md)"
+```
+
+约束：
+
+- Planner 必须写出 `planner-output.json`，Generator 必须写出 `generator-result.json`。
+- stdout 只作为诊断信息，不作为状态事实来源。
+- 非 0 退出码、超时、缺少 JSON、JSON schema 校验失败，都视为 `blocked` 或 `failed_attempt`。
+- 每次失败尝试必须保留 prompt、stdout/stderr、diff summary、verify logs 和退出码。
+- Generator 每次尝试使用隔离 worktree，例如 `.worktrees/<run-id>-attempt-<n>`。
+- repair 重试前，orchestrator 必须先保存失败尝试的 diff patch 和日志，再清理或重建 worktree。
+- 成功 commit 后，orchestrator 清理临时 worktree、停止临时 backend/frontend/evaluator 进程，并在 `run.json` 记录 cleanup 结果。
+- 如果进程中断，下一次 `run --run-id` 必须能根据 `run.json` 执行 cleanup 或恢复到最近可重试阶段。
 
 ## 状态机
 
@@ -344,7 +477,9 @@ preflight
   -> planning
   -> generating
   -> evaluating
+  -> artifact_hygiene
   -> committed
+  -> cleanup
   -> planning
   -> stopped_no_action | stopped_budget | stopped_blocked
 ```
@@ -356,7 +491,7 @@ preflight
 - `blocked_network`：记录 URL、错误、重试次数，不无限重试。
 - `blocked_auth`：记录所需 token/scope，停止等待用户。
 - `blocked_scope`：Planner 可拆小任务；仍触碰非 allowlist 则停止。
-- `handoff_to_demand_development`：Planner 发现必须改代码、schema、前端、harness 或正式任务策略时，停止 autonomous loop，生成 demand task 候选。
+- `artifact_hygiene_failed`：尝试 redaction；redaction 成功则继续提交，redaction 失败则停止。
 - `dirty_baseline`：如果不是本轮创建的路径，停止并让用户确认。
 
 ## 安全策略
@@ -377,6 +512,16 @@ personal-wiki/domains/**/raw/**
 personal-wiki/domains/**/wiki/**
 personal-wiki/domains/**/sources/**
 personal-wiki/domains/**/data/**
+personal-wiki/apps/crawler_workbench/**
+scripts/*crawl*.py
+scripts/*crawler*.py
+scripts/compute_*.py
+scripts/github_*.py
+scripts/wiki_*.py
+scripts/tests/test_*crawl*.py
+scripts/tests/test_*crawler*.py
+scripts/tests/test_compute_*.py
+scripts/tests/test_github_*.py
 .codex/loop-runs/**
 .codex/evaluations/**
 loop-run-log.md
@@ -384,11 +529,9 @@ progress.md
 personal-wiki/domains/**/loop-state.json
 ```
 
-需要人工确认的路径：
+仍需停止并升级给用户的路径：
 
 ```text
-scripts/**
-personal-wiki/apps/**
 docs/harness/**
 tasks.json
 AGENTS.md
@@ -398,15 +541,17 @@ pyproject.toml
 requirements*.txt
 ```
 
-说明：`tasks.json` 对 autonomous loop 是关键元数据。Planner 可以生成候选 patch，但不应无确认自动提交任务 schema 或策略变更。
+说明：`tasks.json` 对 autonomous loop 是关键元数据。Autonomous loop 默认用 `task-contract.json`，不自动修改 `tasks.json`。如果确实要把某个自动任务升级为长期任务注册表条目，必须由 Planner 显式生成 candidate patch，并通过 evaluator 验证后才允许提交。
 
 `.codex/loop-runs/**` 和 `.codex/evaluations/**` 需要保留在 git 中作为审计证据，但提交前必须做 artifact hygiene：
 
-- 单文件大小超过阈值时停止并要求人工确认，默认阈值 5 MiB。
-- 总 artifact 大小超过阈值时停止并要求人工确认，默认阈值 50 MiB。
+- 单文件大小超过阈值时，用 manifest 记录文件路径、大小、hash 和本地保留位置，默认不直接提交原文件；默认阈值 5 MiB。
+- 总 artifact 大小超过阈值时，只提交 summary/manifest/result/scenario evidence；默认阈值 50 MiB。
 - 扫描 token、secret、cookie、authorization header、private key 关键词。
+- 文本文件命中敏感模式时先 redaction，再提交 redacted 文件；原始文件只保留本地并在 manifest 中记录 hash，不入 git。
+- 二进制文件命中敏感模式或无法扫描时，不提交原文件，只提交 manifest。
 - 默认提交 summary、manifest、result、scenario evidence；大型截图、trace、HTML report 可记录路径和 hash，是否入 git 由 policy 决定。
-- 如果 artifact hygiene 失败，即使 evaluator pass 也不能自动 commit。
+- 如果 redaction 或 manifest 生成失败，即使 evaluator pass 也不能自动 commit。
 
 ### denylist
 
@@ -463,7 +608,7 @@ Autonomous Loop 每轮 Planner 必须检查：
 - `max_wall_time_minutes` 达到。
 - 连续 no-action 次数达到。
 - 连续 fail/blocked 次数达到。
-- 遇到鉴权、网络、schema、代码改动需求。
+- 遇到鉴权、无法 redaction 的敏感 artifact、非 allowlist 代码路径或 denylist 路径。
 - 涉及非 allowlist 路径。
 - 领域 `loop-state.json` 判定当前目标已达到“无可行动缺口”。
 
@@ -475,7 +620,9 @@ Autonomous Loop 每轮 Planner 必须检查：
   "max_generator_attempts_per_task": 2,
   "max_eval_attempts_per_task": 3,
   "max_wall_time_minutes": 60,
-  "max_no_action_rounds": 1
+  "max_no_action_rounds": 1,
+  "agent_timeout_minutes": 30,
+  "cleanup_retention_days": 7
 }
 ```
 
@@ -506,14 +653,14 @@ preflight
   - 等用户确认进入 loop
 
 plan
-  - 启动 planner_agent
+  - 通过 codex exec 启动 planner_agent
   - 写 planner-output.json
   - 写 candidate task 或 registered task
   - 写 scenario、verify contract 或临时 task-contract.json
 
 generate
   - 创建隔离 worktree
-  - 启动 generator_agent
+  - 通过 codex exec 启动 generator_agent
   - 运行 verify
   - 写 generator-result.json
 
@@ -525,8 +672,7 @@ decide
   - fail: 生成 repair-prompt.md 回到 generate
   - blocked: 记录 human inbox
   - pass + demand: 停在 waiting_human_merge
-  - pass + autonomous: 自动 commit allowlist 内容，然后回到 plan
-  - handoff_to_demand_development: 停止 autonomous，等待 demand loop
+  - pass + autonomous: artifact hygiene 后自动 commit allowlist 内容，然后 cleanup，再回到 plan
 ```
 
 ## 与现有 Harness 的关系
@@ -585,11 +731,12 @@ docs/harness/planner-generator-evaluator-loop.md
 ## 首期实现范围
 
 1. 实现 `demand-development` 单任务闭环骨架。
-2. 接入现有 evaluator gate，并能把 fail findings 回灌给 Generator。
-3. 实现 `autonomous-knowledge` policy，但只允许 wiki/raw/sources/data 自动提交。
-4. 接入 preflight 讨论门和 `grill-me` fallback。
-5. 增加 JSON 契约校验、artifact hygiene 和领域 `loop-state.json`。
-6. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
+2. 接入 `codex exec` Planner/Generator agent wrapper、JSON 契约校验、失败重试和 cleanup。
+3. 接入现有 evaluator gate，并扩展 evaluator CLI 支持 `task-contract.json`。
+4. 实现 `autonomous-knowledge` policy，允许 wiki/raw/sources/data、crawler workbench 和 crawler 脚本相关改动自动提交。
+5. 接入 preflight 讨论门和 `grill-me` fallback。
+6. 增加 artifact hygiene、redaction 和领域 `loop-state.json`。
+7. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
 
 ## 验收标准
 
@@ -600,8 +747,9 @@ docs/harness/planner-generator-evaluator-loop.md
 - evaluator pass 后，Demand Loop 停在 human merge gate。
 - Autonomous Knowledge Loop 能在 pass 后自动 commit 并继续规划下一项。
 - Autonomous Knowledge Loop 能在领域 `loop-state.json` 中记录资料缺口，并在“无可行动缺口”时停止。
-- Autonomous Knowledge Loop 发现需要代码改动时能自动切换为 demand task 候选并停止自动执行。
-- `.codex` artifacts 通过大小和敏感信息扫描后才会自动提交。
+- Autonomous Knowledge Loop 发现需要 crawler、crawler workbench 后端/前端或相关测试改动时，能在 auto mode 内自动实现、验证、redaction、提交。
+- `.codex` artifacts 通过大小和敏感信息扫描；敏感文本 redaction 后继续提交，无法 redaction 的原始 artifact 不入 git。
+- Planner/Generator `codex exec` 失败、超时、JSON 无效时能按 attempt 规则重试并清理临时 worktree/进程。
 - dirty baseline、denylist、max attempts 能正确停止。
 - `loop-run-log.md` 和 `.codex/loop-runs/<run-id>/` 有完整证据。
 
@@ -611,7 +759,9 @@ docs/harness/planner-generator-evaluator-loop.md
 - **Generator 修改无关文件**：baseline + allowlist + evaluator scope check 双重限制。
 - **Evaluator 只看自述不做验证**：继续使用 scenario-first evaluator contract，必须有 evidence。
 - **Autonomous loop 无限跑**：max tasks、max attempts、max wall time、no-action stop 必须硬编码。
-- **知识入库自动提交错误内容**：只允许 wiki/raw/sources/data，且必须通过 wiki validate、search/API/UI 可见性检查。
-- **`.codex` artifacts 泄露敏感信息或过大**：提交前执行 artifact hygiene；失败时阻断自动提交。
-- **`tasks.json` 成为 autonomous loop 阻塞点**：区分 candidate task、registered task 和临时 task contract；需要正式策略变更时切换到 demand loop。
+- **知识入库自动提交错误内容**：只允许 allowlist 内改动，且必须通过 wiki validate、search/API/UI 可见性检查。
+- **Autonomous code 改动扩大范围**：crawler workbench 和 crawler 脚本相关路径可自动改；denylist、生产基础设施、凭据、认证、支付、账单仍阻断。
+- **`.codex` artifacts 泄露敏感信息或过大**：提交前执行 artifact hygiene；敏感文本 redaction 后继续提交，无法处理的原始 artifact 不入 git。
+- **`tasks.json` 成为 autonomous loop 阻塞点**：区分 candidate task、registered task 和临时 task contract；autonomous 默认使用 `task-contract.json`。
+- **失败尝试堆积 worktree 或进程**：每次 retry 前保存证据并重建 worktree；pass、blocked 或中断恢复时执行 cleanup。
 - **grill-me 不可用**：使用 fallback questionnaire，并在 run artifact 中记录。
