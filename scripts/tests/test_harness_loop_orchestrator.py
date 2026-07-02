@@ -845,6 +845,58 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             stdout_path = Path(manifest["results"][0]["stdout_path"])
             self.assertIn("scenario artifact", stdout_path.read_text(encoding="utf-8"))
 
+    def test_run_evaluator_uses_task_contract_as_only_scenario_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Run contract-only scenario",
+                run_id="demo-run",
+                task_id="contract-only-task",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "task-contract.json",
+                {
+                    "task_id": "contract-only-task",
+                    "title": "Contract-only task",
+                    "description": "Temporary contract task with no registered scenario file.",
+                    "verify_commands": [],
+                    "scenario_commands": ["python3 -c \"print('contract only')\""],
+                    "artifact_paths": [],
+                    "required_services": [],
+                    "evaluator_driver": "harness_auto_gate",
+                    "eval_policy": {"task_level_required": True},
+                    "allowed_scope": "local_repo_and_harness",
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "CONTRACT-ONLY-01",
+                            "user_goal": "Use task contract scenarios.",
+                            "prerequisites": [],
+                            "steps": ["Run command."],
+                            "expected_outcomes": ["Contract scenario passes."],
+                            "failure_signals": ["Evaluator ignores task contract."],
+                        }
+                    ],
+                },
+            )
+
+            output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            evaluator_result = read_json_file(output_path)
+            self.assertEqual(evaluator_result["status"], "pass")
+            task_root = repo_root / ".codex" / "evaluations" / "tasks" / "contract-only-task"
+            input_payload = read_json_file(task_root / "fake-attempt-2" / "input.json")
+            self.assertEqual(input_payload["scenario_source"], str(run_dir / "task-contract.json"))
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "CONTRACT-ONLY-01")
+
     def test_run_evaluator_fails_when_task_contract_scenario_command_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1180,6 +1232,27 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(str(temp_worktree), run["cleanup"]["worktrees_removed"])
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
 
+    def test_run_cleanup_records_removed_relative_worktree_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            temp_worktree = repo_root / ".worktrees" / "demo-run-attempt-1"
+            temp_worktree.mkdir(parents=True)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [".worktrees/demo-run-attempt-1"]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            result_path = run_cleanup(repo_root, "demo-run")
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertFalse(temp_worktree.exists())
+            self.assertIn(".worktrees/demo-run-attempt-1", result["worktrees_removed"])
+
     def test_run_cleanup_accepts_absolute_retained_path_with_relative_repo_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1333,6 +1406,17 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertIn("scripts/harness_loop_phase2_smoke.py", entrypoint)
         self.assertIn("--run-id evaluator-scenario-phase-2", entrypoint)
         self.assertIn("--task-id planner-generator-evaluator-loop-phase-2-01", entrypoint)
+
+    def test_phase_2_smoke_helper_rejects_path_traversal_ids_before_cleanup(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+
+        from scripts.harness_loop_phase2_smoke import run_phase2_smoke
+
+        with self.assertRaisesRegex(ValueError, "run_id"):
+            run_phase2_smoke(repo_root, "../../docs", "planner-generator-evaluator-loop-phase-2-01")
+
+        with self.assertRaisesRegex(ValueError, "task_id"):
+            run_phase2_smoke(repo_root, "safe-run-id", "../planner-generator-evaluator-loop-phase-2-01")
 
 
 if __name__ == "__main__":

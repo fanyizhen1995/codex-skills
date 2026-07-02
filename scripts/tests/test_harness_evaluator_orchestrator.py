@@ -123,6 +123,112 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             self.assertIn("## Scenario Results", pass_summary.read_text(encoding="utf-8"))
             self.assertIn("### EUS-01", pass_summary.read_text(encoding="utf-8"))
 
+    def test_run_fake_task_loop_accepts_task_contract_without_registered_scenario(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            contract_path = root / "task-contract.json"
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "task_id": "contract-task",
+                        "title": "Contract task",
+                        "description": "Temporary contract task.",
+                        "verify_commands": [],
+                        "scenario_commands": ["python3 -c \"print('contract')\""],
+                        "artifact_paths": [],
+                        "required_services": [],
+                        "evaluator_driver": "fake",
+                        "eval_policy": {"task_level_required": True},
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "CONTRACT-01",
+                                "user_goal": "Use task contract scenarios.",
+                                "prerequisites": [],
+                                "steps": ["Run command."],
+                                "expected_outcomes": ["Scenario passes."],
+                                "failure_signals": ["Scenario is missing."],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            exit_code = run_fake_task_loop(
+                task_id="contract-task",
+                max_attempts=2,
+                repo_root=root,
+                task_contract_path=contract_path,
+            )
+
+            self.assertEqual(exit_code, 0)
+            bundle = root / ".codex" / "evaluations" / "tasks" / "contract-task" / "fake-attempt-2"
+            input_payload = json.loads((bundle / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(input_payload["scenario_source"], str(contract_path))
+            self.assertEqual(input_payload["scenario_commands"], ["python3 -c \"print('contract')\""])
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "CONTRACT-01")
+
+    def test_run_task_loop_cli_accepts_task_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            contract_path = root / "task-contract.json"
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "task_id": "contract-task",
+                        "title": "Contract task",
+                        "description": "Temporary contract task.",
+                        "verify_commands": [],
+                        "scenario_commands": ["python3 -c \"print('contract')\""],
+                        "artifact_paths": [],
+                        "required_services": [],
+                        "evaluator_driver": "fake",
+                        "eval_policy": {"task_level_required": True},
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "CONTRACT-01",
+                                "user_goal": "Use task contract scenarios.",
+                                "prerequisites": [],
+                                "steps": ["Run command."],
+                                "expected_outcomes": ["Scenario passes."],
+                                "failure_signals": ["Scenario is missing."],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    "scripts/harness_evaluator_orchestrator.py",
+                    "run-task-loop",
+                    "--driver",
+                    "fake",
+                    "--task-id",
+                    "contract-task",
+                    "--max-attempts",
+                    "2",
+                    "--repo-root",
+                    str(root),
+                    "--task-contract",
+                    str(contract_path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            bundle = root / ".codex" / "evaluations" / "tasks" / "contract-task" / "fake-attempt-2"
+            input_payload = json.loads((bundle / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(input_payload["scenario_source"], str(contract_path))
+
     def test_run_fake_task_loop_writes_result_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -36,7 +36,7 @@
       "status": "done",
       "priority": "high",
       "blocked_by": "planner-generator-evaluator-loop-phase-1-01",
-      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_artifacts scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_cli scripts.tests.test_harness_evaluator_scenarios -v && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-2-01.json >/dev/null",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_artifacts scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_cli scripts.tests.test_harness_evaluator_orchestrator scripts.tests.test_harness_evaluator_scenarios -v && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-2-01.json >/dev/null",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,

@@ -26,11 +26,13 @@ try:
     from scripts.harness_evaluator_cli import record_result_payload, update_session_state_evaluator
     from scripts.harness_evaluator_scenarios import load_task_scenarios
     from scripts.harness_evaluator_state import repo_roots_for_harness
+    from scripts.harness_loop_contracts import read_json_file, validate_task_contract_payload
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     import harness_evaluator_hooks
     from harness_evaluator_cli import record_result_payload, update_session_state_evaluator
     from harness_evaluator_scenarios import load_task_scenarios
     from harness_evaluator_state import repo_roots_for_harness
+    from harness_loop_contracts import read_json_file, validate_task_contract_payload
 
 
 def next_loop_action(status: str, attempt: int, max_attempts: int, gate: str) -> str:
@@ -271,6 +273,66 @@ def _write_bundle_artifacts(bundle_dir: Path, payload: dict) -> None:
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _normalize_task_contract_scenarios(contract: dict) -> list[dict]:
+    scenario_commands = list(contract["scenario_commands"])
+    default_entrypoint = str(scenario_commands[0]) if scenario_commands else ""
+    default_automation_hint = "shell" if scenario_commands else "manual"
+    normalized = []
+    for scenario in contract["user_scenarios"]:
+        scenario_payload = dict(scenario)
+        scenario_payload.setdefault("entrypoint", default_entrypoint)
+        scenario_payload.setdefault("cleanup", [])
+        scenario_payload.setdefault("automation_hint", default_automation_hint)
+        normalized.append(scenario_payload)
+    return normalized
+
+
+def _fake_task_input_payload(
+    base_root: Path,
+    task_id: str,
+    attempt: int,
+    task_contract_path: Path | None,
+) -> dict:
+    if task_contract_path is not None:
+        contract = read_json_file(task_contract_path)
+        validate_task_contract_payload(contract)
+        contract_task_id = str(contract["task_id"])
+        if contract_task_id != task_id:
+            raise ValueError(
+                f"task contract task_id {contract_task_id!r} does not match requested task_id {task_id!r}"
+            )
+        return {
+            "gate": "task",
+            "task_id": task_id,
+            "final_bundle_id": "",
+            "attempt": attempt,
+            "verify_commands": list(contract["verify_commands"]),
+            "scenario_commands": list(contract["scenario_commands"]),
+            "artifact_paths": list(contract["artifact_paths"]),
+            "required_services": list(contract["required_services"]),
+            "allowed_scope": str(contract["allowed_scope"]),
+            "evaluator_driver": str(contract["evaluator_driver"]),
+            "eval_policy": dict(contract["eval_policy"]),
+            "must_simulate": bool(contract["must_simulate"]),
+            "scenario_source": str(task_contract_path),
+            "user_scenarios": _normalize_task_contract_scenarios(contract),
+        }
+
+    scenario_contract = load_task_scenarios(base_root, task_id)
+    return {
+        "gate": "task",
+        "task_id": task_id,
+        "final_bundle_id": "",
+        "attempt": attempt,
+        "verify_commands": [],
+        "artifact_paths": [],
+        "allowed_scope": "code_and_local_k3s",
+        "must_simulate": scenario_contract["must_simulate"],
+        "scenario_source": scenario_contract["source"],
+        "user_scenarios": scenario_contract["user_scenarios"],
+    }
 
 
 def _append_unique_strings(values: list[str], candidates: list[str]) -> list[str]:
@@ -643,24 +705,16 @@ def run_codex_exec_auto_task_gate(task_id: str, repo_root: Path, max_attempts: i
     return 0 if final_decision is None else 1
 
 
-def run_fake_task_loop(task_id: str, max_attempts: int, repo_root: Path | None = None) -> int:
+def run_fake_task_loop(
+    task_id: str,
+    max_attempts: int,
+    repo_root: Path | None = None,
+    task_contract_path: Path | None = None,
+) -> int:
     base_root = repo_root or Path(".")
     bundle_root = base_root / ".codex" / "evaluations" / "tasks" / task_id
     bundle_root.mkdir(parents=True, exist_ok=True)
-    scenario_contract = load_task_scenarios(base_root, task_id)
-
-    input_payload = {
-        "gate": "task",
-        "task_id": task_id,
-        "final_bundle_id": "",
-        "attempt": 1,
-        "verify_commands": [],
-        "artifact_paths": [],
-        "allowed_scope": "code_and_local_k3s",
-        "must_simulate": scenario_contract["must_simulate"],
-        "scenario_source": scenario_contract["source"],
-        "user_scenarios": scenario_contract["user_scenarios"],
-    }
+    input_payload = _fake_task_input_payload(base_root, task_id, 1, task_contract_path)
 
     if input_payload["must_simulate"] and not input_payload["user_scenarios"]:
         bundle = bundle_root / "fake-attempt-1"
@@ -681,7 +735,7 @@ def run_fake_task_loop(task_id: str, max_attempts: int, repo_root: Path | None =
                     "id": "F-001",
                     "severity": "major",
                     "category": "missing_user_scenarios",
-                    "evidence": [scenario_contract["source"]],
+                    "evidence": [input_payload["scenario_source"]],
                     "recommended_action": "add evaluator scenario metadata",
                 }
             ],
@@ -707,8 +761,7 @@ def run_fake_task_loop(task_id: str, max_attempts: int, repo_root: Path | None =
     for attempt, status in enumerate(statuses, start=1):
         bundle = bundle_root / f"fake-attempt-{attempt}"
         bundle.mkdir(exist_ok=True)
-        current_input = dict(input_payload)
-        current_input["attempt"] = attempt
+        current_input = _fake_task_input_payload(base_root, task_id, attempt, task_contract_path)
         (bundle / "input.json").write_text(
             json.dumps(current_input, indent=2) + "\n",
             encoding="utf-8",
@@ -775,6 +828,7 @@ def build_parser() -> argparse.ArgumentParser:
     task.add_argument("--task-id", required=True)
     task.add_argument("--max-attempts", type=int, default=2)
     task.add_argument("--repo-root", default=".")
+    task.add_argument("--task-contract", default="")
 
     auto_task = subparsers.add_parser("run-task-auto-gate")
     auto_task.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
@@ -788,7 +842,12 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     if args.command == "run-task-loop" and args.driver == "fake":
-        return run_fake_task_loop(args.task_id, args.max_attempts, Path(args.repo_root))
+        return run_fake_task_loop(
+            args.task_id,
+            args.max_attempts,
+            Path(args.repo_root),
+            Path(args.task_contract) if args.task_contract else None,
+        )
     if args.command == "run-task-loop" and args.driver == "codex-sdk":
         return run_codex_sdk_task_loop(args.task_id, args.max_attempts)
     if args.command == "run-task-auto-gate" and args.driver == "fake":

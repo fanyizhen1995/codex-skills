@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,22 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
 
 
 SMOKE_ARTIFACT = Path(".codex/tmp/phase-2-smoke-artifact.txt")
+SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _validate_safe_id(value: str, label: str) -> None:
+    if not SAFE_ID_RE.fullmatch(value):
+        raise ValueError(f"{label} must be a safe slug")
+
+
+def _safe_child(root: Path, child: Path, label: str) -> Path:
+    resolved_root = root.resolve()
+    resolved_child = child.resolve()
+    try:
+        resolved_child.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(f"{label} escapes {resolved_root}") from exc
+    return resolved_child
 
 
 def _scenario_path(repo_root: Path, task_id: str) -> Path:
@@ -56,9 +73,12 @@ def _assert_fake_evaluator_metadata(repo_root: Path, task_id: str) -> None:
 
 
 def _clean_previous_smoke(repo_root: Path, run_id: str, task_id: str) -> None:
-    shutil.rmtree(run_dir_for(repo_root, run_id), ignore_errors=True)
+    loop_runs_root = repo_root / ".codex" / "loop-runs"
+    run_dir = _safe_child(loop_runs_root, run_dir_for(repo_root, run_id), "run_id")
+    shutil.rmtree(run_dir, ignore_errors=True)
     (repo_root / SMOKE_ARTIFACT).unlink(missing_ok=True)
-    eval_task_dir = repo_root / ".codex" / "evaluations" / "tasks" / task_id
+    eval_tasks_root = repo_root / ".codex" / "evaluations" / "tasks"
+    eval_task_dir = _safe_child(eval_tasks_root, eval_tasks_root / task_id, "task_id")
     for attempt_dir in eval_task_dir.glob("fake-attempt-*"):
         if attempt_dir.is_dir():
             shutil.rmtree(attempt_dir)
@@ -118,6 +138,8 @@ def _write_task_contract(run_dir: Path, task_id: str, artifact_relative_path: st
 
 
 def run_phase2_smoke(repo_root: Path | str, run_id: str, task_id: str) -> dict[str, Any]:
+    _validate_safe_id(run_id, "run_id")
+    _validate_safe_id(task_id, "task_id")
     root = Path(repo_root).resolve()
     _assert_fake_evaluator_metadata(root, task_id)
     _clean_previous_smoke(root, run_id, task_id)

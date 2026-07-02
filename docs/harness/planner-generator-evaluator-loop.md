@@ -16,10 +16,14 @@ explicit human merge gate after all automated checks finish.
 - `plan` writes `planner-output.json` and advances to `generating`.
 - `generate` writes `generator-result.json` and advances to `evaluating`.
 - `evaluate` calls `scripts/harness_evaluator_orchestrator.py`, copies the
-  evaluator result into `evaluator-result.json`, and advances either to
-  `passed_waiting_human_merge` or `repair_needed`.
-- `run` executes the confirmed run from its current phase through evaluator
-  completion.
+  evaluator result into `evaluator-result.json`, and advances to
+  `artifact_hygiene`, `passed_waiting_human_merge`, or `repair_needed`.
+- `artifact-hygiene` scans declared generator artifacts and advances to
+  `cleanup` or `stopped_blocked`.
+- `cleanup` removes retained temporary worktrees and advances to the human
+  merge gate.
+- `run` executes the confirmed run from its current phase through evaluator,
+  artifact hygiene, cleanup, and the human merge gate when applicable.
 
 ## Commands
 

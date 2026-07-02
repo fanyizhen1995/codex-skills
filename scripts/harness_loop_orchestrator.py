@@ -453,6 +453,8 @@ def run_evaluator(
             "--repo-root",
             str(root),
         ]
+        if task_contract_path.exists():
+            command.extend(["--task-contract", str(task_contract_path)])
     elif driver == "codex-exec":
         command = [
             "python3",
@@ -567,7 +569,10 @@ def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
 
     allowed_worktrees_root = allowed_worktrees_root_path.resolve()
     for path_value in list(run["cleanup"].get("retained_artifacts", [])):
+        original_path_value = str(path_value)
         path = Path(path_value)
+        if not path.is_absolute():
+            path = root / path
         if not path.exists():
             continue
         try:
@@ -582,7 +587,7 @@ def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
             shutil.rmtree(resolved_path)
         else:
             resolved_path.unlink()
-        removed.append(str(path))
+        removed.append(original_path_value)
 
     run["cleanup"]["worktrees_removed"].extend(removed)
     run["attempts"]["cleanup"] = int(run["attempts"]["cleanup"]) + 1
