@@ -2,7 +2,7 @@
 
 ## Pending
 
-No pending ingest.
+- [ ] `raw/crawler/compute-accelerators-intel-dsa/20260629T055534032914Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md` -> `raw/crawler/compute-accelerators-intel-dsa/20260629T055534032914Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.ingest-plan.md` (pending)
 
 ## In Progress
 
