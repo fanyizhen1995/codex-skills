@@ -48,9 +48,21 @@ def run_scenario_commands(
             stdout, stderr = process.communicate(timeout=timeout_seconds)
             exit_code = process.returncode
             status = "pass" if exit_code == 0 else "fail"
-        except subprocess.TimeoutExpired:
+            second_communicate_timeout = False
+        except subprocess.TimeoutExpired as exc:
             _kill_process_group(process)
-            stdout, stderr = process.communicate()
+            second_communicate_timeout = False
+            try:
+                stdout, stderr = process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                second_communicate_timeout = True
+                _close_process_pipes(process)
+                try:
+                    process.kill()
+                except OSError:
+                    pass
+                stdout = exc.output
+                stderr = exc.stderr
             exit_code = 124
             status = "timeout"
 
@@ -66,6 +78,7 @@ def run_scenario_commands(
             "stderr_path": str(stderr_path),
             "duration_seconds": int(time.monotonic() - started),
             "status": status,
+            "second_communicate_timeout": second_communicate_timeout,
         }
         validate_scenario_command_result_payload(payload)
         results.append(payload)
@@ -85,6 +98,17 @@ def _kill_process_group(process: subprocess.Popen) -> None:
     except OSError:
         try:
             process.kill()
+        except OSError:
+            pass
+
+
+def _close_process_pipes(process: subprocess.Popen) -> None:
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(process, stream_name, None)
+        if stream is None:
+            continue
+        try:
+            stream.close()
         except OSError:
             pass
 

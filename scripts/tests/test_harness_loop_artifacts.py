@@ -1,7 +1,9 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
 
@@ -66,6 +68,50 @@ class HarnessLoopArtifactsTests(unittest.TestCase):
             self.assertEqual(manifest["status"], "fail")
             self.assertEqual(manifest["results"][0]["status"], "timeout")
             self.assertEqual(manifest["results"][0]["exit_code"], 124)
+
+    def test_run_scenario_commands_records_partial_evidence_when_second_communicate_times_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+
+            class TimeoutProcess:
+                pid = 123456
+                returncode = None
+
+                def __init__(self) -> None:
+                    self.calls = 0
+
+                def communicate(self, timeout: int | None = None) -> tuple[str, str]:
+                    self.calls += 1
+                    if self.calls == 1:
+                        raise subprocess.TimeoutExpired(
+                            cmd="timeout",
+                            timeout=timeout or 1,
+                            output="partial stdout",
+                            stderr="partial stderr",
+                        )
+                    raise subprocess.TimeoutExpired(cmd="timeout", timeout=timeout or 1)
+
+                def kill(self) -> None:
+                    self.returncode = -9
+
+            with patch("scripts.harness_loop_artifacts.subprocess.Popen", return_value=TimeoutProcess()), patch(
+                "scripts.harness_loop_artifacts.os.killpg"
+            ):
+                manifest_path = run_scenario_commands(
+                    repo_root=repo_root,
+                    run_dir=run_dir,
+                    commands=["python3 -c \"import time; time.sleep(60)\""],
+                    timeout_seconds=1,
+                )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            result = manifest["results"][0]
+            self.assertEqual(result["status"], "timeout")
+            self.assertEqual(result["exit_code"], 124)
+            self.assertTrue(result["second_communicate_timeout"])
+            self.assertEqual(Path(result["stdout_path"]).read_text(encoding="utf-8"), "partial stdout")
+            self.assertEqual(Path(result["stderr_path"]).read_text(encoding="utf-8"), "partial stderr")
 
 
 class HarnessLoopArtifactHygieneTests(unittest.TestCase):
