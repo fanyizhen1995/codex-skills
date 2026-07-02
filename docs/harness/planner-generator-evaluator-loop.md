@@ -4,6 +4,9 @@ Phase 1 wires the local loop orchestrator through the existing planner,
 generator, and evaluator harnesses. It is intentionally narrow: fake drivers
 exercise the durable state machine without calling Codex, while `codex-exec`
 remains available for planner/generator prompts and evaluator auto-gate runs.
+Phase 2 keeps the same demand-development policy and adds task-contract
+evaluator input, scenario command evidence, artifact hygiene, cleanup, and an
+explicit human merge gate after all automated checks finish.
 
 ## Scope
 
@@ -49,10 +52,62 @@ Fake evaluator runs require scenario metadata at
 run-level `allowed_paths`, `denylist_paths`, and `stop_conditions` into
 `planner-output.json`.
 
+## Phase 2 Commands
+
+Task contracts can drive evaluator bundle input without requiring a registered
+task lookup. Use `prepare-task --task-contract` when the loop has written or
+received a temporary `task-contract.json`:
+
+```bash
+python3 scripts/harness_evaluator_cli.py prepare-task \
+  --repo-root . \
+  --task-id ignored-when-contract-has-task-id \
+  --attempt 1 \
+  --task-contract .codex/loop-runs/<run-id>/task-contract.json
+```
+
+When `task-contract.json` includes `scenario_commands`, `evaluate` runs those
+commands from `repo_root` before invoking the evaluator. Their stdout, stderr,
+exit code, and manifest are written under the loop run directory:
+
+```text
+.codex/loop-runs/<run-id>/scenario-commands/
+.codex/loop-runs/<run-id>/scenario-command-results.json
+```
+
+Generator artifacts are listed in `generator-result.json` under `artifacts`.
+After an evaluator pass, a non-empty artifact list moves the run to
+`artifact_hygiene` with `next_action=run_artifact_hygiene`; an empty list still
+moves directly to `passed_waiting_human_merge`.
+
+Run hygiene and cleanup directly when operating the loop one step at a time:
+
+```bash
+python3 scripts/harness_loop_orchestrator.py artifact-hygiene \
+  --repo-root . \
+  --run-id <run-id>
+
+python3 scripts/harness_loop_orchestrator.py cleanup \
+  --repo-root . \
+  --run-id <run-id>
+```
+
+`artifact-hygiene` scans only repo-relative artifact paths, rejects path
+traversal and binary or oversized artifacts, writes
+`artifact-manifest.json`, and writes `redaction-manifest.json` when sensitive
+text is redacted. A blocked hygiene result stops the run at `stopped_blocked`
+for inspection; otherwise the run advances to `cleanup`.
+
+`cleanup` removes only retained paths recorded under the repository
+`.worktrees/` directory and records `cleanup-result.json`. It does not remove
+loop evidence under `.codex/loop-runs/<run-id>`.
+
 ## Human Merge Gate
 
 Evaluator pass does not mean the loop is merged. A passing evaluator result
-sets `phase` to `passed_waiting_human_merge`, `last_result` to `pass`, and
-`next_action` to `await_human_merge_confirmation`. A human operator must inspect
-the run artifacts, decide whether to merge or continue repairs, and perform any
-repository integration outside Phase 1.
+with no generator artifacts sets `phase` to `passed_waiting_human_merge`,
+`last_result` to `pass`, and `next_action` to
+`await_human_merge_confirmation`. A passing evaluator result with artifacts
+must pass artifact hygiene and cleanup before reaching the same gate. A human
+operator must inspect the run artifacts, decide whether to merge or continue
+repairs, and perform any repository integration outside the loop.

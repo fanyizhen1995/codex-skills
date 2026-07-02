@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-02 Planner Generator Evaluator Loop Phase 2
+
+- Completed `planner-generator-evaluator-loop-phase-2-01`: CLI now exposes `artifact-hygiene` and `cleanup`, evaluator pass routes generated artifacts through hygiene before cleanup, and `run` continues through those phases to the human merge gate.
+- Added the Phase 2 evaluator scenario at `docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-2-01.json`.
+- Updated the loop runbook with task-contract evaluator input, scenario command evidence, artifact redaction manifests, cleanup behavior, and the human merge gate rules.
+- Marked Phase 2 done in `tasks.json`; Phase 3 is the next active focus.
+- Evidence:
+  - `python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v` -> 41 passed
+  - `python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_artifacts scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_cli scripts.tests.test_harness_evaluator_scenarios -v` -> 118 passed
+  - `python3 -m json.tool tasks.json >/dev/null` -> pass
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-2-01.json >/dev/null` -> pass
+
 ## 2026-07-02 Planner Generator Evaluator Loop Phase 2 And Phase 3 Registered
 
 - Registered `planner-generator-evaluator-loop-phase-2-01` for the next harness loop hardening step: task-contract evaluator input, scenario command artifacts, attempt evidence, cleanup/recovery, and artifact hygiene.

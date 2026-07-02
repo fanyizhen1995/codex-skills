@@ -1001,6 +1001,81 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["next_action"], "await_human_merge_confirmation")
             self.assertEqual(status["task_id"], "demo-run-task")
 
+    def test_cli_accepts_artifact_hygiene_and_cleanup_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "CLI hygiene", "demo-run", confirm=True)
+            artifact_path = repo_root / "artifact.txt"
+            artifact_path.write_text("public artifact\n", encoding="utf-8")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": "demo-run-task",
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": ["artifact.txt"],
+                    "cleanup_required": False,
+                    "notes": "needs hygiene",
+                },
+            )
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "artifact_hygiene"
+            run["task_id"] = "demo-run-task"
+            run["next_action"] = "run_artifact_hygiene"
+            write_json_file(run_dir / "run.json", run)
+
+            self.assertEqual(
+                call_cli(["artifact-hygiene", "--repo-root", str(repo_root), "--run-id", "demo-run"]),
+                0,
+            )
+            self.assertEqual(
+                call_cli(["cleanup", "--repo-root", str(repo_root), "--run-id", "demo-run"]),
+                0,
+            )
+
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["phase"], "passed_waiting_human_merge")
+            self.assertEqual(run["next_action"], "await_human_merge_confirmation")
+
+    def test_run_loop_runs_hygiene_and_cleanup_after_evaluator_when_generator_has_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through hygiene loop",
+                run_id="demo-run",
+                confirm=True,
+            )
+            write_fake_evaluator_scenario(repo_root, "demo-run-task")
+            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            generator_path = run_generator(repo_root, "demo-run", driver="fake")
+            generator_result = read_json_file(generator_path)
+            generator_result["artifacts"] = ["artifact.txt"]
+            write_json_file(generator_path, generator_result)
+            (repo_root / "artifact.txt").write_text("public artifact\n", encoding="utf-8")
+
+            status = run_loop(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+            )
+
+            run_dir = run_dir_for(repo_root, "demo-run")
+            self.assertEqual(status["phase"], "passed_waiting_human_merge")
+            self.assertEqual(status["next_action"], "await_human_merge_confirmation")
+            self.assertTrue((run_dir / "artifact-manifest.json").exists())
+            self.assertTrue((run_dir / "cleanup-result.json").exists())
+
     def test_run_loop_rejects_unsupported_active_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

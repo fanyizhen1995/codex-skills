@@ -354,9 +354,25 @@ def _latest_fake_evaluator_result(repo_root: Path | str, task_id: str) -> Path |
     return max(result_paths, key=lambda path: (attempt_number(path), path.stat().st_mtime_ns))
 
 
-def _apply_evaluator_result_to_run(run: dict[str, Any], evaluator_payload: dict[str, Any]) -> None:
+def _generator_result_has_artifacts(run_dir: Path) -> bool:
+    generator_result = read_json_file(run_dir / "generator-result.json")
+    validate_generator_result_payload(generator_result)
+    return bool(generator_result["artifacts"])
+
+
+def _apply_evaluator_result_to_run(
+    run: dict[str, Any],
+    evaluator_payload: dict[str, Any],
+    *,
+    has_artifacts: bool = False,
+) -> None:
     passed = evaluator_payload["returncode"] == 0 and evaluator_payload["status"] == "pass"
-    run["phase"] = "passed_waiting_human_merge" if passed else "repair_needed"
+    if passed and has_artifacts:
+        run["phase"] = "artifact_hygiene"
+    elif passed:
+        run["phase"] = "passed_waiting_human_merge"
+    else:
+        run["phase"] = "repair_needed"
     run["last_result"] = (
         "pass"
         if passed
@@ -364,11 +380,12 @@ def _apply_evaluator_result_to_run(run: dict[str, Any], evaluator_payload: dict[
         if evaluator_payload.get("status") == "blocked"
         else "fail"
     )
-    run["next_action"] = (
-        "await_human_merge_confirmation"
-        if passed
-        else "repair_from_evaluator_findings"
-    )
+    if passed and has_artifacts:
+        run["next_action"] = "run_artifact_hygiene"
+    elif passed:
+        run["next_action"] = "await_human_merge_confirmation"
+    else:
+        run["next_action"] = "repair_from_evaluator_findings"
 
 
 def run_evaluator(
@@ -479,7 +496,15 @@ def run_evaluator(
     validate_evaluator_result_payload(evaluator_payload)
     write_json_file(output_path, evaluator_payload)
 
-    _apply_evaluator_result_to_run(run, evaluator_payload)
+    _apply_evaluator_result_to_run(
+        run,
+        evaluator_payload,
+        has_artifacts=(
+            evaluator_status == "pass"
+            and result.returncode == 0
+            and _generator_result_has_artifacts(run_dir)
+        ),
+    )
     run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
     save_run(root, run)
     return output_path
@@ -594,6 +619,12 @@ def run_loop(
             max_attempts=max_eval_attempts,
         )
         run = load_run(root, run_id)
+    if run["phase"] == "artifact_hygiene":
+        run_artifact_hygiene_step(root, run_id)
+        run = load_run(root, run_id)
+    if run["phase"] == "cleanup":
+        run_cleanup(root, run_id)
+        run = load_run(root, run_id)
     terminal_phases = {
         "passed_waiting_human_merge",
         "repair_needed",
@@ -603,7 +634,7 @@ def run_loop(
         "stopped_blocked",
     }
     if run["phase"] not in terminal_phases:
-        raise RuntimeError(f"run_loop unsupported phase {run['phase']} in Phase 1")
+        raise RuntimeError(f"run_loop unsupported phase {run['phase']}")
     return status_for_run(root, run_id)
 
 
@@ -656,6 +687,14 @@ def _build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
     evaluate.add_argument("--max-attempts", type=int, default=2)
 
+    artifact_hygiene = subparsers.add_parser("artifact-hygiene", help="Run artifact hygiene for generated artifacts.")
+    artifact_hygiene.add_argument("--repo-root", default=".")
+    artifact_hygiene.add_argument("--run-id", required=True)
+
+    cleanup = subparsers.add_parser("cleanup", help="Run cleanup for retained loop artifacts.")
+    cleanup.add_argument("--repo-root", default=".")
+    cleanup.add_argument("--run-id", required=True)
+
     run = subparsers.add_parser("run", help="Run the planner/generator/evaluator loop.")
     run.add_argument("--repo-root", default=".")
     run.add_argument("--run-id", required=True)
@@ -700,6 +739,12 @@ def main(argv: list[str] | None = None) -> int:
             driver=args.driver,
             max_attempts=args.max_attempts,
         )
+        payload = load_run(args.repo_root, args.run_id)
+    elif args.command == "artifact-hygiene":
+        run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
+        payload = load_run(args.repo_root, args.run_id)
+    elif args.command == "cleanup":
+        run_cleanup(repo_root=args.repo_root, run_id=args.run_id)
         payload = load_run(args.repo_root, args.run_id)
     elif args.command == "run":
         payload = run_loop(
