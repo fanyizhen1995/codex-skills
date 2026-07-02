@@ -18,4 +18,8 @@ describe("resolveApiBase", () => {
   it("preserves an explicit /api base path", () => {
     expect(resolveApiBase("/api")).toBe("/api");
   });
+
+  it("uses the dev-server proxy when a remote browser would otherwise fetch loopback", () => {
+    expect(resolveApiBase("http://127.0.0.1:8765/api", "100.116.118.128:5173")).toBe("/api");
+  });
 });

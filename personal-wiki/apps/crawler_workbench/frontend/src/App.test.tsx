@@ -365,9 +365,11 @@ describe("App", () => {
 
     expect(screen.getAllByText("全文搜索").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Codex 查询").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("引用路径").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("检索命中").length).toBeGreaterThan(0);
     expect(screen.getAllByText("知识关系图").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("主题时间线").length).toBeGreaterThan(0);
+    expect(screen.queryByText("引用路径")).not.toBeInTheDocument();
+    expect(screen.queryByText("相关 wiki 页面")).not.toBeInTheDocument();
+    expect(screen.queryByText("主题时间线")).not.toBeInTheDocument();
   });
 
   it("loads knowledge domains from the API instead of hard-coded defaults", async () => {

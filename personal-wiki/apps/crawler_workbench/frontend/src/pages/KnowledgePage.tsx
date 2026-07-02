@@ -18,14 +18,6 @@ function jobAnswer(job: CodexJob | null) {
   return firstNonEmpty(job.answer, job.stdout, job.error, job.stderr) ?? `任务状态：${job.status}`;
 }
 
-function jobCitations(job: CodexJob | null, results: SearchResult[]) {
-  const citations = job?.cited_paths ?? job?.citations;
-  if (citations && citations.length > 0) {
-    return citations;
-  }
-  return results.slice(0, 3).map((result) => result.path);
-}
-
 function firstNonEmpty(...values: Array<unknown>) {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
@@ -287,8 +279,6 @@ export function KnowledgePage() {
   const [searching, setSearching] = useState(false);
   const [asking, setAsking] = useState(false);
 
-  const citations = useMemo(() => jobCitations(job, results), [job, results]);
-  const relatedPages = job?.related_pages ?? results.slice(0, 4);
   const hasDomains = domains.length > 0 && domain !== "";
   const actionsDisabled = !hasDomains || domainsLoading;
 
@@ -555,7 +545,7 @@ export function KnowledgePage() {
 
       <div className="panel-grid knowledge-grid">
         <div className="work-panel">
-          <h2>搜索结果</h2>
+          <h2>检索命中</h2>
           <div className="compact-list">
             {results.length === 0 ? (
               <small>暂无结果</small>
@@ -580,34 +570,9 @@ export function KnowledgePage() {
           {job?.status && <small>{`状态：${job.status}${jobNumericId(job) !== null ? ` · 任务 #${jobNumericId(job)}` : ""}`}</small>}
         </div>
 
-        <div className="work-panel">
-          <h2>引用路径</h2>
-          <ul className="plain-list">
-            {citations.length === 0 ? <li>暂无引用</li> : citations.map((path) => <li key={path}>{path}</li>)}
-          </ul>
-        </div>
-
-        <div className="work-panel">
-          <h2>相关 wiki 页面</h2>
-          <ul className="plain-list">
-            {relatedPages.length === 0 ? (
-              <li>暂无相关页面</li>
-            ) : (
-              relatedPages.map((page) => <li key={page.path}>{page.title ?? page.path}</li>)
-            )}
-          </ul>
-        </div>
-
         <div className="work-panel chart-panel">
           <h2>知识关系图</h2>
           <WikiGraph nodes={graph.nodes} edges={graph.edges} />
-        </div>
-
-        <div className="work-panel chart-panel">
-          <h2>主题时间线</h2>
-          <div className="chart-frame">
-            <div className="empty-state">暂无主题时间线数据</div>
-          </div>
         </div>
       </div>
     </section>

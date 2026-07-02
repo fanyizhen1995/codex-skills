@@ -24,7 +24,10 @@ import type {
   WikiGraphResponse
 } from "./types";
 
-const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL);
+const API_BASE = resolveApiBase(
+  import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL,
+  typeof window === "undefined" ? undefined : window.location.host
+);
 
 type RequestBody = object | undefined;
 
@@ -39,14 +42,35 @@ class ApiError extends Error {
   }
 }
 
-function resolveApiBase(configured?: string): string {
+function resolveApiBase(configured?: string, browserHost?: string): string {
   const trimmed = configured?.trim();
   if (!trimmed) {
     return "/api";
   }
 
   const withoutTrailingSlash = trimmed.replace(/\/+$/, "");
+  if (shouldUseProxyForRemoteLoopback(withoutTrailingSlash, browserHost)) {
+    return "/api";
+  }
   return withoutTrailingSlash.endsWith("/api") ? withoutTrailingSlash : `${withoutTrailingSlash}/api`;
+}
+
+function shouldUseProxyForRemoteLoopback(configuredBase: string, browserHost?: string) {
+  if (!browserHost) {
+    return false;
+  }
+
+  const pageHostname = browserHost.split(":")[0]?.toLowerCase();
+  if (pageHostname === "localhost" || pageHostname === "127.0.0.1" || pageHostname === "::1") {
+    return false;
+  }
+
+  try {
+    const apiUrl = new URL(configuredBase);
+    return apiUrl.hostname === "localhost" || apiUrl.hostname === "127.0.0.1" || apiUrl.hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 function withQuery(path: string, params: Record<string, string | number | boolean | null | undefined> = {}) {
