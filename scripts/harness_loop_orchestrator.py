@@ -153,9 +153,12 @@ def create_preflight_run(
     requirement: str,
     run_id: str,
     confirm: bool = False,
+    task_id: str = "",
 ) -> dict[str, Any]:
     root = Path(repo_root)
     policy = normalize_policy_id(mode)
+    if policy != "demand_development":
+        raise ValueError("Phase 1 preflight only supports demand_development policy")
     phase = "planned" if confirm else "preflight"
     next_action = "run_planner" if confirm else "await_preflight_confirmation"
     run_dir = run_dir_for(root, run_id)
@@ -168,7 +171,7 @@ def create_preflight_run(
         "run_id": run_id,
         "policy": policy,
         "phase": phase,
-        "task_id": "",
+        "task_id": task_id,
         "domain": "",
         "branch": _current_branch(root),
         "worktree": str(root.resolve()),
@@ -245,6 +248,8 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             attempt=attempt,
             timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
         )
+        run["attempts"]["planner"] = attempt
+        save_run(root, run)
     else:
         raise ValueError(f"unsupported planner driver: {driver}")
 
@@ -296,6 +301,8 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             attempt=attempt,
             timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
         )
+        run["attempts"]["generator"] = attempt
+        save_run(root, run)
         validate_generator_result_payload(read_json_file(output_path))
     else:
         raise ValueError(f"unsupported generator driver: {driver}")
@@ -475,6 +482,7 @@ def _build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--mode", required=True)
     preflight.add_argument("--requirement", required=True)
     preflight.add_argument("--run-id", required=True)
+    preflight.add_argument("--task-id", default="")
     preflight.add_argument("--confirm", action="store_true")
 
     confirm = subparsers.add_parser("confirm-preflight", help="Confirm a preflight run.")
@@ -521,6 +529,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=args.mode,
             requirement=args.requirement,
             run_id=args.run_id,
+            task_id=args.task_id,
             confirm=args.confirm,
         )
     elif args.command == "confirm-preflight":

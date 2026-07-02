@@ -116,6 +116,71 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(saved_payload["phase"], "planned")
             self.assertEqual(saved_payload["next_action"], "run_planner")
 
+    def test_create_preflight_run_rejects_autonomous_knowledge_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+
+            with self.assertRaisesRegex(ValueError, "demand_development"):
+                create_preflight_run(
+                    repo_root=repo_root,
+                    mode="autonomous-knowledge",
+                    requirement="Crawl knowledge",
+                    run_id="demo-run",
+                    confirm=True,
+                )
+
+    def test_create_preflight_run_accepts_explicit_task_id_for_fake_planner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+
+            payload = create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build the thing",
+                run_id="demo-run",
+                task_id="explicit-task",
+                confirm=True,
+            )
+
+            self.assertEqual(payload["task_id"], "explicit-task")
+            saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(saved_payload["task_id"], "explicit-task")
+
+            from scripts.harness_loop_orchestrator import run_planner
+
+            output_path = run_planner(repo_root, "demo-run", driver="fake")
+            planner_output = read_json_file(output_path)
+            self.assertEqual(planner_output["task_id"], "explicit-task")
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["task_id"], "explicit-task")
+
+    def test_cli_preflight_accepts_explicit_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "preflight",
+                        "--repo-root",
+                        str(repo_root),
+                        "--mode",
+                        "demand-development",
+                        "--requirement",
+                        "Build through CLI",
+                        "--run-id",
+                        "demo-run",
+                        "--task-id",
+                        "explicit-task",
+                        "--confirm",
+                    ]
+                ),
+                0,
+            )
+
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["task_id"], "explicit-task")
+
     def test_status_for_run_returns_run_id_policy_phase_next_action_and_task_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -257,6 +322,38 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(run["task_id"], "codex-task-id")
 
+    def test_codex_exec_planner_persists_attempt_before_missing_contract_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build with codex planner",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_planner
+
+            attempts: list[int] = []
+
+            def do_not_write_planner_output(**kwargs: object) -> None:
+                attempts.append(int(kwargs["attempt"]))
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=do_not_write_planner_output):
+                with self.assertRaises(FileNotFoundError):
+                    run_planner(repo_root, "demo-run", driver="codex-exec")
+
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["attempts"]["planner"], 1)
+            self.assertEqual(run["phase"], "planned")
+            self.assertEqual(run["next_action"], "run_planner")
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=do_not_write_planner_output):
+                with self.assertRaises(FileNotFoundError):
+                    run_planner(repo_root, "demo-run", driver="codex-exec")
+
+            self.assertEqual(attempts, [1, 2])
+
     def test_run_generator_rejects_confirmed_preflight_before_planning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -316,6 +413,39 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "evaluating"):
                 run_generator(repo_root, "demo-run", driver="fake")
+
+    def test_codex_exec_generator_persists_attempt_before_missing_contract_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build the generator demo",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            attempts: list[int] = []
+
+            def do_not_write_generator_result(**kwargs: object) -> None:
+                attempts.append(int(kwargs["attempt"]))
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=do_not_write_generator_result):
+                with self.assertRaises(FileNotFoundError):
+                    run_generator(repo_root, "demo-run", driver="codex-exec")
+
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["attempts"]["generator"], 1)
+            self.assertEqual(run["phase"], "generating")
+            self.assertEqual(run["next_action"], "run_generator")
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=do_not_write_generator_result):
+                with self.assertRaises(FileNotFoundError):
+                    run_generator(repo_root, "demo-run", driver="codex-exec")
+
+            self.assertEqual(attempts, [1, 2])
 
     def test_cli_plan_and_generate_accept_fake_driver(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -507,6 +637,19 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     evaluator_driver="fake",
                     max_eval_attempts=2,
                 )
+
+    def test_phase_1_scenario_entrypoint_passes_self_contained_task_id(self) -> None:
+        scenario_path = (
+            Path(__file__).resolve().parents[2]
+            / "docs"
+            / "harness"
+            / "evaluator-scenarios"
+            / "planner-generator-evaluator-loop-phase-1-01.json"
+        )
+
+        scenario = read_json_file(scenario_path)
+        entrypoint = scenario["user_scenarios"][0]["entrypoint"]
+        self.assertIn("--task-id planner-generator-evaluator-loop-phase-1-01", entrypoint)
 
 
 if __name__ == "__main__":

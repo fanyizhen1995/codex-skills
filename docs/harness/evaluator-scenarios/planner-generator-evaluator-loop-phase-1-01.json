@@ -10,7 +10,7 @@
         "Existing evaluator harness scripts are available.",
         "No real Codex model call is required for the fake-driver scenario."
       ],
-      "entrypoint": "python3 scripts/harness_loop_orchestrator.py preflight --repo-root . --mode demand-development --requirement \"Evaluator scenario demand loop\" --run-id evaluator-scenario-phase-1 --confirm && python3 scripts/harness_loop_orchestrator.py run --repo-root . --run-id evaluator-scenario-phase-1 --planner-driver fake --generator-driver fake --evaluator-driver fake --max-eval-attempts 2",
+      "entrypoint": "python3 scripts/harness_loop_orchestrator.py preflight --repo-root . --mode demand-development --requirement \"Evaluator scenario demand loop\" --run-id evaluator-scenario-phase-1 --task-id planner-generator-evaluator-loop-phase-1-01 --confirm && python3 scripts/harness_loop_orchestrator.py run --repo-root . --run-id evaluator-scenario-phase-1 --planner-driver fake --generator-driver fake --evaluator-driver fake --max-eval-attempts 2",
       "steps": [
         "Create or reuse a loop run with confirmed preflight.",
         "Run the fake Planner driver to write planner-output.json.",
