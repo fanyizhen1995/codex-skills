@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -34,6 +35,7 @@ ALLOWED_TASK_KINDS = frozenset(
         "registered_task",
         "candidate_task",
         "task_contract_only",
+        "autonomous_implementation_task",
     }
 )
 ALLOWED_GENERATOR_STATUSES = frozenset({"implemented", "repaired", "blocked", "failed"})
@@ -48,6 +50,7 @@ ALLOWED_AGENT_STATUSES = frozenset(
 ALLOWED_LAST_RESULTS = frozenset({"pass", "fail", "blocked", "none"})
 ALLOWED_SCENARIO_COMMAND_STATUSES = frozenset({"pass", "fail", "timeout"})
 ALLOWED_ARTIFACT_HYGIENE_STATUSES = frozenset({"pass", "redacted", "blocked"})
+ALLOWED_PLANNER_DECISIONS = frozenset({"planned", "no_action", "blocked", "failed"})
 REQUIRED_USER_SCENARIO_KEYS = frozenset(
     {
         "scenario_id",
@@ -58,6 +61,28 @@ REQUIRED_USER_SCENARIO_KEYS = frozenset(
         "failure_signals",
     }
 )
+REQUIRED_LOOP_STATE_ITEM_KEYS = frozenset(
+    {
+        "id",
+        "title",
+        "source",
+        "status",
+        "updated_at",
+        "evidence",
+    }
+)
+REQUIRED_BLOCKED_GAP_KEYS = REQUIRED_LOOP_STATE_ITEM_KEYS | frozenset({"blocked_reason"})
+REQUIRED_BLOCKED_ITEM_KEYS = REQUIRED_LOOP_STATE_ITEM_KEYS | frozenset(
+    {
+        "blocked_reason",
+        "required_human_input",
+        "retry_after",
+        "retry_count",
+        "last_error",
+        "requires_user_input",
+    }
+)
+SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def normalize_policy_id(policy: str) -> str:
@@ -81,7 +106,14 @@ def default_limits() -> dict[str, int]:
     }
 
 
+def validate_run_id(run_id: str) -> str:
+    if not isinstance(run_id, str) or not SAFE_RUN_ID_RE.fullmatch(run_id):
+        raise ValueError("run_id must be a safe slug")
+    return run_id
+
+
 def run_dir_for(repo_root: Path, run_id: str) -> Path:
+    validate_run_id(run_id)
     return Path(repo_root) / ".codex" / "loop-runs" / run_id
 
 
@@ -131,9 +163,8 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
         "run payload",
     )
     _require_string(payload, "run_id")
-    policy = normalize_policy_id(payload["policy"])
-    if policy != "demand_development":
-        raise ValueError("Phase 1 run payload only supports demand_development policy")
+    validate_run_id(payload["run_id"])
+    normalize_policy_id(payload["policy"])
     _require_enum(payload, "phase", ALLOWED_PHASES)
     for key in ("task_id", "domain", "branch", "worktree", "requirement", "last_result", "next_action"):
         _require_string(payload, key)
@@ -177,11 +208,9 @@ def validate_planner_output_payload(payload: dict[str, Any]) -> None:
         "planner output payload",
     )
     policy = normalize_policy_id(payload["policy"])
-    if policy != "demand_development":
-        raise ValueError("Phase 1 planner output only supports demand_development policy")
-    if payload["task_kind"] == "autonomous_implementation_task":
-        raise ValueError("Phase 1 planner output rejects autonomous_implementation_task")
     _require_enum(payload, "task_kind", ALLOWED_TASK_KINDS)
+    if policy == "demand_development" and payload["task_kind"] == "autonomous_implementation_task":
+        raise ValueError("autonomous_implementation_task requires autonomous_knowledge policy")
     for key in ("task_id", "title", "goal", "evaluator_scenarios_path", "next_planning_hint"):
         _require_string(payload, key)
     for key in ("non_goals", "allowed_paths", "denylist_paths", "verify_commands", "stop_conditions"):
@@ -261,6 +290,73 @@ def validate_task_contract_payload(payload: dict[str, Any]) -> None:
     _require_scenario_list(payload, "user_scenarios")
     _require_object(payload["eval_policy"], "eval_policy")
     _require_bool(payload, "must_simulate")
+
+
+def validate_loop_state_payload(payload: dict[str, Any]) -> None:
+    _require_object(payload, "loop state payload")
+    _require_keys(
+        payload,
+        {
+            "policy",
+            "domain",
+            "domain_goal",
+            "last_planner_decision",
+            "last_scan_at",
+            "scan_ttl_days",
+            "candidate_backlog",
+            "coverage_gaps",
+            "known_sources",
+            "blocked_items",
+            "no_action_evidence",
+        },
+        "loop state payload",
+    )
+    policy = normalize_policy_id(payload["policy"])
+    if policy != "autonomous_knowledge":
+        raise ValueError("loop state payload only supports autonomous_knowledge policy")
+    for key in ("domain", "domain_goal", "last_planner_decision", "last_scan_at"):
+        _require_string(payload, key)
+    _require_enum(payload, "last_planner_decision", ALLOWED_PLANNER_DECISIONS)
+    _require_int(payload, "scan_ttl_days")
+    if payload["scan_ttl_days"] < 1:
+        raise ValueError("scan_ttl_days must be >= 1")
+    for key in ("candidate_backlog", "known_sources", "no_action_evidence"):
+        _require_loop_state_item_list(payload, key, REQUIRED_LOOP_STATE_ITEM_KEYS)
+    _require_loop_state_item_list(payload, "coverage_gaps", REQUIRED_BLOCKED_GAP_KEYS)
+    if payload["last_planner_decision"] == "no_action" and not payload["no_action_evidence"]:
+        raise ValueError("no_action_evidence must not be empty for no_action decisions")
+    for index, gap in enumerate(payload["coverage_gaps"]):
+        if gap["status"] != "blocked":
+            raise ValueError(f"coverage_gaps[{index}].status must be blocked")
+        if not isinstance(gap["blocked_reason"], str):
+            raise ValueError(f"coverage_gaps[{index}].blocked_reason must be a string")
+    _require_loop_state_item_list(payload, "blocked_items", REQUIRED_BLOCKED_ITEM_KEYS)
+
+
+def validate_loop_policy_payload(payload: dict[str, Any]) -> None:
+    _require_object(payload, "loop policy payload")
+    _require_keys(
+        payload,
+        {
+            "policy",
+            "auto_commit",
+            "auto_merge_main",
+            "allowed_paths",
+            "manual_confirm_paths",
+            "denylist_paths",
+            "limits",
+            "required_evidence",
+        },
+        "loop policy payload",
+    )
+    normalize_policy_id(payload["policy"])
+    _require_bool(payload, "auto_commit")
+    _require_bool(payload, "auto_merge_main")
+    for key in ("allowed_paths", "manual_confirm_paths", "denylist_paths", "required_evidence"):
+        _require_string_list(payload, key)
+    limits = _require_object(payload["limits"], "limits")
+    for key in default_limits():
+        _require_int(limits, key)
 
 
 def validate_scenario_command_result_payload(payload: dict[str, Any]) -> None:
@@ -399,6 +495,38 @@ def _require_scenario_list(payload: dict[str, Any], key: str) -> None:
             for item_index, item in enumerate(scenario[scenario_key]):
                 if not isinstance(item, str):
                     raise ValueError(f"{key}[{index}].{scenario_key}[{item_index}] must be a string")
+
+
+def _require_loop_state_item_list(
+    payload: dict[str, Any],
+    key: str,
+    required_keys: frozenset[str],
+) -> None:
+    _require_list(payload, key)
+    for index, item in enumerate(payload[key]):
+        if not isinstance(item, dict):
+            raise ValueError(f"{key}[{index}] must be an object")
+        missing = sorted(required_keys - item.keys())
+        if missing:
+            raise ValueError(f"{key}[{index}] missing required keys: {', '.join(missing)}")
+        for item_key in ("id", "title", "source", "status", "updated_at"):
+            if not isinstance(item[item_key], str):
+                raise ValueError(f"{key}[{index}].{item_key} must be a string")
+        if not isinstance(item["evidence"], list):
+            raise ValueError(f"{key}[{index}].evidence must be a list")
+        if key != "blocked_items" and not item["evidence"]:
+            raise ValueError(f"{key}[{index}].evidence must not be empty")
+        for evidence_index, evidence in enumerate(item["evidence"]):
+            if not isinstance(evidence, str):
+                raise ValueError(f"{key}[{index}].evidence[{evidence_index}] must be a string")
+        if required_keys == REQUIRED_BLOCKED_ITEM_KEYS:
+            for item_key in ("blocked_reason", "required_human_input", "retry_after", "last_error"):
+                if not isinstance(item[item_key], str):
+                    raise ValueError(f"{key}[{index}].{item_key} must be a string")
+            if not isinstance(item["requires_user_input"], bool):
+                raise ValueError(f"{key}[{index}].requires_user_input must be a bool")
+            if not isinstance(item["retry_count"], int) or isinstance(item["retry_count"], bool):
+                raise ValueError(f"{key}[{index}].retry_count must be an int")
 
 
 def _require_bool(payload: dict[str, Any], key: str) -> None:

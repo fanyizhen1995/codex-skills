@@ -12,6 +12,8 @@ from scripts.harness_loop_contracts import (
     validate_artifact_hygiene_result_payload,
     validate_evaluator_result_payload,
     validate_generator_result_payload,
+    validate_loop_policy_payload,
+    validate_loop_state_payload,
     validate_planner_output_payload,
     validate_run_payload,
     validate_scenario_command_result_payload,
@@ -71,6 +73,39 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "artifacts": [],
             "cleanup_required": True,
             "notes": "ok",
+        }
+
+    def _loop_state_payload(self) -> dict:
+        return {
+            "policy": "autonomous_knowledge",
+            "domain": "ai_infra",
+            "domain_goal": "Expand wiki coverage",
+            "last_planner_decision": "no_action",
+            "last_scan_at": "2026-07-02T00:00:00Z",
+            "scan_ttl_days": 30,
+            "candidate_backlog": [],
+            "coverage_gaps": [],
+            "known_sources": [
+                {
+                    "id": "source-1",
+                    "title": "Known source",
+                    "source": "manual",
+                    "status": "scanned",
+                    "updated_at": "2026-07-02T00:00:00Z",
+                    "evidence": ["checked source index"],
+                }
+            ],
+            "blocked_items": [],
+            "no_action_evidence": [
+                {
+                    "id": "scan-1",
+                    "title": "Fresh scan",
+                    "source": "planner",
+                    "status": "complete",
+                    "updated_at": "2026-07-02T00:00:00Z",
+                    "evidence": ["no candidates found"],
+                }
+            ],
         }
 
     def _agent_attempt_payload(self) -> dict:
@@ -149,10 +184,10 @@ class HarnessLoopContractsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_run_payload(payload)
 
-    def test_validate_run_payload_rejects_phase_1_autonomous_policy(self) -> None:
+    def test_validate_run_payload_rejects_unknown_policy(self) -> None:
         payload = self._run_payload()
-        payload["policy"] = "autonomous_knowledge"
-        with self.assertRaisesRegex(ValueError, "demand_development"):
+        payload["policy"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "unknown policy"):
             validate_run_payload(payload)
 
     def test_validate_planner_output_payload_requires_task_kind(self) -> None:
@@ -227,6 +262,19 @@ class HarnessLoopContractsTests(unittest.TestCase):
         root = Path("/tmp/repo")
         self.assertEqual(run_dir_for(root, "demo"), root / ".codex" / "loop-runs" / "demo")
 
+    def test_run_dir_for_rejects_path_escape_run_id(self) -> None:
+        root = Path("/tmp/repo")
+
+        with self.assertRaisesRegex(ValueError, "run_id"):
+            run_dir_for(root, "../escape")
+
+    def test_validate_run_payload_rejects_path_escape_run_id(self) -> None:
+        payload = self._run_payload()
+        payload["run_id"] = "../escape"
+
+        with self.assertRaisesRegex(ValueError, "run_id"):
+            validate_run_payload(payload)
+
     def test_validate_run_payload_accepts_phase_1_run_phases(self) -> None:
         for phase in ("planned", "passed_waiting_human_merge"):
             payload = self._run_payload()
@@ -260,16 +308,10 @@ class HarnessLoopContractsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_planner_output_payload(payload)
 
-    def test_validate_planner_output_payload_rejects_phase_1_autonomous_policy(self) -> None:
+    def test_validate_planner_output_payload_rejects_unknown_policy(self) -> None:
         payload = self._planner_payload()
-        payload["policy"] = "autonomous_knowledge"
-        with self.assertRaisesRegex(ValueError, "demand_development"):
-            validate_planner_output_payload(payload)
-
-    def test_validate_planner_output_payload_rejects_phase_1_autonomous_task_kind(self) -> None:
-        payload = self._planner_payload()
-        payload["task_kind"] = "autonomous_implementation_task"
-        with self.assertRaisesRegex(ValueError, "autonomous_implementation_task"):
+        payload["policy"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "unknown policy"):
             validate_planner_output_payload(payload)
 
     def test_validate_generator_result_payload_accepts_repaired_status(self) -> None:
@@ -442,6 +484,133 @@ class HarnessLoopContractsTests(unittest.TestCase):
                 "original_hashes": {"artifact.txt": "abc123"},
                 "redaction_map": [{"path": "artifact.txt", "rule_id": "token", "replacement": "[REDACTED]"}],
                 "findings": [{"path": "artifact.txt", "severity": "warning", "message": "token redacted"}],
+            }
+        )
+
+    def test_validate_run_payload_accepts_autonomous_policy(self) -> None:
+        payload = self._run_payload()
+        payload["policy"] = "autonomous_knowledge"
+        payload["phase"] = "planning"
+        payload["domain"] = "ai_infra"
+        payload["next_action"] = "run_autonomous_planner"
+        validate_run_payload(payload)
+
+    def test_validate_planner_output_payload_accepts_autonomous_implementation_task(self) -> None:
+        payload = self._planner_payload()
+        payload["policy"] = "autonomous_knowledge"
+        payload["task_kind"] = "autonomous_implementation_task"
+        payload["next_planning_hint"] = "Continue with source backlog."
+        validate_planner_output_payload(payload)
+
+    def test_validate_planner_output_payload_rejects_autonomous_task_kind_for_demand_policy(self) -> None:
+        payload = self._planner_payload()
+        payload["policy"] = "demand_development"
+        payload["task_kind"] = "autonomous_implementation_task"
+        with self.assertRaisesRegex(ValueError, "autonomous_implementation_task"):
+            validate_planner_output_payload(payload)
+
+    def test_validate_loop_state_payload_accepts_no_action_shape(self) -> None:
+        validate_loop_state_payload(self._loop_state_payload())
+
+    def test_validate_loop_state_payload_requires_no_action_evidence_for_no_action_decision(self) -> None:
+        payload = self._loop_state_payload()
+        payload["last_planner_decision"] = "no_action"
+        payload["no_action_evidence"] = []
+        with self.assertRaisesRegex(ValueError, "no_action_evidence"):
+            validate_loop_state_payload(payload)
+
+    def test_validate_loop_state_payload_rejects_unknown_planner_decision(self) -> None:
+        payload = self._loop_state_payload()
+        payload["last_planner_decision"] = "noop"
+        with self.assertRaisesRegex(ValueError, "last_planner_decision"):
+            validate_loop_state_payload(payload)
+
+    def test_validate_loop_state_payload_rejects_unblocked_gap_without_evidence(self) -> None:
+        payload = self._loop_state_payload()
+        payload["coverage_gaps"] = [
+            {
+                "id": "gap-1",
+                "title": "Missing source",
+                "source": "manual",
+                "status": "pending",
+                "updated_at": "2026-07-02T00:00:00Z",
+                "evidence": [],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "coverage_gaps"):
+            validate_loop_state_payload(payload)
+
+    def test_validate_loop_state_payload_rejects_actionable_gap_with_evidence(self) -> None:
+        payload = self._loop_state_payload()
+        payload["coverage_gaps"] = [
+            {
+                "id": "gap-1",
+                "title": "Missing source",
+                "source": "manual",
+                "status": "pending",
+                "updated_at": "2026-07-02T00:00:00Z",
+                "evidence": ["planner found the gap"],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "coverage_gaps"):
+            validate_loop_state_payload(payload)
+
+    def test_validate_loop_state_payload_rejects_blocked_gap_without_blocked_reason(self) -> None:
+        payload = self._loop_state_payload()
+        payload["coverage_gaps"] = [
+            {
+                "id": "gap-1",
+                "title": "Missing source",
+                "source": "manual",
+                "status": "blocked",
+                "updated_at": "2026-07-02T00:00:00Z",
+                "evidence": ["source requires auth"],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "blocked_reason"):
+            validate_loop_state_payload(payload)
+
+    def test_validate_loop_state_payload_rejects_blocked_gap_with_non_string_blocked_reason(self) -> None:
+        payload = self._loop_state_payload()
+        payload["coverage_gaps"] = [
+            {
+                "id": "gap-1",
+                "title": "Missing source",
+                "source": "manual",
+                "status": "blocked",
+                "updated_at": "2026-07-02T00:00:00Z",
+                "evidence": ["source requires auth"],
+                "blocked_reason": [],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "blocked_reason"):
+            validate_loop_state_payload(payload)
+
+    def test_validate_loop_policy_payload_accepts_autonomous_policy_file(self) -> None:
+        validate_loop_policy_payload(
+            {
+                "policy": "autonomous_knowledge",
+                "auto_commit": True,
+                "auto_merge_main": False,
+                "allowed_paths": ["personal-wiki/domains/**/wiki/**"],
+                "manual_confirm_paths": ["tasks.json"],
+                "denylist_paths": [".env", "**/secrets/**"],
+                "limits": default_limits(),
+                "required_evidence": ["wiki_validate"],
+            }
+        )
+
+    def test_validate_loop_policy_payload_accepts_demand_policy_file(self) -> None:
+        validate_loop_policy_payload(
+            {
+                "policy": "demand_development",
+                "auto_commit": False,
+                "auto_merge_main": False,
+                "allowed_paths": ["scripts/**", "docs/harness/**"],
+                "manual_confirm_paths": ["main"],
+                "denylist_paths": [".env", "**/secrets/**"],
+                "limits": default_limits(),
+                "required_evidence": ["task_evaluator"],
             }
         )
 
