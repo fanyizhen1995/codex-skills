@@ -81,6 +81,7 @@ aliases:
 related:
   - ../projects/nccl.md
   - nccl-github-closed-issues.md
+  - ../concepts/nvidia-green-context.md
 ---
 # Summary
 
@@ -175,21 +176,20 @@ For field reports and issue discussions that are not necessarily represented in 
 - Known-issue sections are not present in every release page. When present, treat them as version-specific operational constraints and check the raw source before applying them to a later version.
 - Repository key update sections appear across many releases because NVIDIA rotated RPM and Debian package signing keys beginning April 27, 2022.
 
-## Terminology Note: Green Context Query
-
-The local `ai_infra` wiki and checked NCCL release-note raw evidence do not establish a feature or product named "NVIDIA Green Context". The closest local NVIDIA evidence is NCCL Device API and GIN terminology:
+## Terminology Note: Green Context Versus GIN Context
 
 - NCCL 2.29.7 added multi-context support for GIN, including the option to request exclusive GIN contexts.
 - NCCL 2.30.3 changed GIN context behavior so GIN contexts were no longer shared between device communicators backed by the same host communicator. It also added per-context GIN resource-sharing modes and moved `ginProgress` CQ polling to per-context operation.
 - NCCL 2.30.4 added elastic buffer support with GIN and records runtime compatibility notes for applications using GIN APIs.
 - NCCL 2.30.7 added GIN enhancements and fixed a GIN init context leak.
 
-Treat "NVIDIA Green Context" as unverified in this wiki unless a future raw source uses that exact term. For the currently captured evidence, the reusable term is NCCL GIN contexts.
+The local NCCL release-note evidence uses GIN context terminology, not CUDA Green Context terminology. For CUDA Green Context evidence in this domain, use [NVIDIA Green Context](../concepts/nvidia-green-context.md), which currently points to the SGLang GitHub corpus.
 
 # Relationships
 
 - [NCCL](../projects/nccl.md) is the curated project page for the library described by these release notes.
 - [NCCL GitHub Closed Issues](nccl-github-closed-issues.md) is the operational issue corpus for user-reported troubleshooting, integration, and failure patterns.
+- [NVIDIA Green Context](../concepts/nvidia-green-context.md) separates the CUDA Green Context evidence from NCCL GIN context release-note terminology.
 
 # Citations
 

@@ -9,7 +9,7 @@ domain: ai_infra
 
 ## Concepts
 
-_No pages yet._
+- [NVIDIA Green Context](concepts/nvidia-green-context.md) - CUDA Green Context evidence in local AI infrastructure sources, centered on SGLang spatial multiplexing and CUDA compatibility issues.
 
 ## Papers
 
