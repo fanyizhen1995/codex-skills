@@ -12,18 +12,24 @@ try:
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_generator_result_payload,
+        validate_planner_output_payload,
         validate_run_payload,
         write_json_file,
     )
+    from scripts.harness_loop_agents import run_codex_prompt
 except ModuleNotFoundError:
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_generator_result_payload,
+        validate_planner_output_payload,
         validate_run_payload,
         write_json_file,
     )
+    from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
 
 
 def _timestamp() -> str:
@@ -85,6 +91,48 @@ def _preflight_markdown(run_id: str, mode: str, requirement: str) -> str:
 7. 是否存在安全、凭据、网络或权限限制？
 8. 完成后是否需要 commit、保留产物，或等待人工合并？
 """
+
+
+def _task_id_for_run(run_id: str) -> str:
+    return f"{run_id}-task"
+
+
+def _read_requirement(run_dir: Path) -> str:
+    text = (run_dir / "preflight.md").read_text(encoding="utf-8")
+    marker = "## Requirement"
+    if marker not in text:
+        return ""
+    return text.split(marker, 1)[1].split("##", 1)[0].strip()
+
+
+def _planner_prompt(requirement: str, run_id: str) -> str:
+    output_path = f".codex/loop-runs/{run_id}/planner-output.json"
+    return "\n".join(
+        [
+            "Planner agent task.",
+            f"Write {output_path} only.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
+            "Use policy demand_development and task_kind registered_task unless the requirement explicitly says otherwise.",
+            f"Run ID: {run_id}",
+            f"Requirement: {requirement}",
+            "",
+        ]
+    )
+
+
+def _generator_prompt(run_id: str) -> str:
+    planner_output_path = f".codex/loop-runs/{run_id}/planner-output.json"
+    output_path = f".codex/loop-runs/{run_id}/generator-result.json"
+    return "\n".join(
+        [
+            "Generator agent task.",
+            f"Read {planner_output_path}.",
+            f"Write {output_path}.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
+            "Do not mark final completion; evaluator decides.",
+            "",
+        ]
+    )
 
 
 def load_run(repo_root: Path | str, run_id: str) -> dict[str, Any]:
@@ -154,6 +202,111 @@ def confirm_preflight(repo_root: Path | str, run_id: str) -> dict[str, Any]:
     return save_run(repo_root, payload)
 
 
+def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+    root = Path(repo_root)
+    run = load_run(root, run_id)
+    if run["phase"] != "planned":
+        raise RuntimeError(f"run_planner requires phase planned; current phase is {run['phase']}")
+    run_dir = run_dir_for(root, run_id)
+    output_path = run_dir / "planner-output.json"
+    task_id = run["task_id"] or _task_id_for_run(run_id)
+    attempt = int(run["attempts"]["planner"]) + 1
+
+    if driver == "fake":
+        payload = {
+            "task_id": task_id,
+            "policy": "demand_development",
+            "task_kind": "registered_task",
+            "title": f"Loop task {run_id}",
+            "goal": _read_requirement(run_dir),
+            "non_goals": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "verify_commands": [],
+            "evaluator_scenarios_path": "",
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "next_planning_hint": "",
+        }
+        validate_planner_output_payload(payload)
+        write_json_file(output_path, payload)
+    elif driver == "codex-exec":
+        prompt_path = run_dir / "planner-prompt.md"
+        prompt_path.write_text(
+            _planner_prompt(requirement=_read_requirement(run_dir), run_id=run_id),
+            encoding="utf-8",
+        )
+        run_codex_prompt(
+            role="planner",
+            run_id=run_id,
+            repo_root=root,
+            run_dir=run_dir,
+            prompt_path=prompt_path,
+            output_json_path=output_path,
+            attempt=attempt,
+            timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+        )
+    else:
+        raise ValueError(f"unsupported planner driver: {driver}")
+
+    planner_payload = read_json_file(output_path)
+    validate_planner_output_payload(planner_payload)
+    run["task_id"] = planner_payload["task_id"]
+    run["phase"] = "generating"
+    run["next_action"] = "run_generator"
+    run["attempts"]["planner"] = attempt
+    save_run(root, run)
+    return output_path
+
+
+def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+    root = Path(repo_root)
+    run = load_run(root, run_id)
+    if run["phase"] != "generating":
+        raise RuntimeError(f"run_generator requires phase generating; current phase is {run['phase']}")
+    run_dir = run_dir_for(root, run_id)
+    planner_output = read_json_file(run_dir / "planner-output.json")
+    validate_planner_output_payload(planner_output)
+    output_path = run_dir / "generator-result.json"
+    attempt = int(run["attempts"]["generator"]) + 1
+
+    if driver == "fake":
+        payload = {
+            "task_id": planner_output["task_id"],
+            "status": "implemented",
+            "changed_paths": [],
+            "commit": "",
+            "verify_commands": planner_output["verify_commands"],
+            "verify_results": [],
+            "artifacts": [],
+            "cleanup_required": False,
+            "notes": "fake generator completed",
+        }
+        validate_generator_result_payload(payload)
+        write_json_file(output_path, payload)
+    elif driver == "codex-exec":
+        prompt_path = run_dir / "generator-prompt.md"
+        prompt_path.write_text(_generator_prompt(run_id), encoding="utf-8")
+        run_codex_prompt(
+            role="generator",
+            run_id=run_id,
+            repo_root=root,
+            run_dir=run_dir,
+            prompt_path=prompt_path,
+            output_json_path=output_path,
+            attempt=attempt,
+            timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+        )
+        validate_generator_result_payload(read_json_file(output_path))
+    else:
+        raise ValueError(f"unsupported generator driver: {driver}")
+
+    run["phase"] = "evaluating"
+    run["next_action"] = "run_evaluator"
+    run["attempts"]["generator"] = attempt
+    save_run(root, run)
+    return output_path
+
+
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
     payload = load_run(repo_root, run_id)
     return {
@@ -184,6 +337,16 @@ def _build_parser() -> argparse.ArgumentParser:
     confirm.add_argument("--repo-root", default=".")
     confirm.add_argument("--run-id", required=True)
 
+    plan = subparsers.add_parser("plan", help="Run the Planner step.")
+    plan.add_argument("--repo-root", default=".")
+    plan.add_argument("--run-id", required=True)
+    plan.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
+
+    generate = subparsers.add_parser("generate", help="Run the Generator step.")
+    generate.add_argument("--repo-root", default=".")
+    generate.add_argument("--run-id", required=True)
+    generate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
+
     status = subparsers.add_parser("status", help="Print run status.")
     status.add_argument("--repo-root", default=".")
     status.add_argument("--run-id", required=True)
@@ -204,6 +367,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "confirm-preflight":
         payload = confirm_preflight(repo_root=args.repo_root, run_id=args.run_id)
+    elif args.command == "plan":
+        run_planner(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
+        payload = load_run(args.repo_root, args.run_id)
+    elif args.command == "generate":
+        run_generator(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
+        payload = load_run(args.repo_root, args.run_id)
     elif args.command == "status":
         payload = status_for_run(repo_root=args.repo_root, run_id=args.run_id)
     else:
