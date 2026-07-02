@@ -1363,10 +1363,10 @@ sources:
   type: web
   target_domain: ai_infra
   url: https://static.sse.com.cn/stock/disclosure/announcement/c/202604/002175_20260416_WQ4O.pdf
-  trust_level: untrusted
-  schedule: monthly
+  trust_level: trusted
+  schedule: manual
   run_policy: once
-  auto_ingest: false
+  auto_ingest: true
   auth_required: false
   baseline_on_first_run: false
   topic: Enflame exchange disclosure PDF for product-system supplementary evidence
@@ -1383,9 +1383,9 @@ sources:
   target_domain: ai_infra
   url: https://www.nvidia.com/en-us/data-center/products/
   trust_level: trusted
-  schedule: manual
+  schedule: monthly
   run_policy: scheduled
-  auto_ingest: true
+  auto_ingest: false
   auth_required: false
   baseline_on_first_run: false
   topic: NVIDIA accelerator product index discovery
