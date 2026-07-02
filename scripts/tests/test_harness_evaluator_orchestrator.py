@@ -229,6 +229,74 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             input_payload = json.loads((bundle / "input.json").read_text(encoding="utf-8"))
             self.assertEqual(input_payload["scenario_source"], str(contract_path))
 
+    def test_shell_scenario_timeout_records_failed_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / ".codex" / "evaluations" / "tasks" / "timeout-task" / "attempt-1"
+            bundle.mkdir(parents=True)
+            (bundle / "input.json").write_text(
+                json.dumps(
+                    {
+                        "gate": "task",
+                        "task_id": "timeout-task",
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "verify_commands": [],
+                        "artifact_paths": [],
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "scenario_source": "task-contract.json",
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "TIMEOUT-01",
+                                "user_goal": "Timeout.",
+                                "prerequisites": [],
+                                "entrypoint": "python3 -c \"import time; time.sleep(60)\"",
+                                "steps": ["Run command."],
+                                "expected_outcomes": ["Command times out."],
+                                "failure_signals": ["Command hangs indefinitely."],
+                                "cleanup": [],
+                                "automation_hint": "shell",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (bundle / "artifacts.json").write_text("{}", encoding="utf-8")
+
+            class TimeoutProcess:
+                pid = 123456
+                returncode = None
+
+                def __init__(self) -> None:
+                    self.calls = 0
+
+                def communicate(self, timeout: int | None = None) -> tuple[str, str]:
+                    self.calls += 1
+                    if self.calls == 1:
+                        raise subprocess.TimeoutExpired(cmd="timeout", timeout=timeout or 1, output="partial", stderr="late")
+                    self.returncode = -9
+                    return "partial", "late"
+
+                def kill(self) -> None:
+                    self.returncode = -9
+
+            from scripts.harness_evaluator_orchestrator import _run_shell_scenarios
+
+            with patch("scripts.harness_evaluator_orchestrator.subprocess.Popen", return_value=TimeoutProcess()), patch(
+                "scripts.harness_evaluator_orchestrator.os.killpg"
+            ):
+                _run_shell_scenarios(bundle, root, timeout_seconds=1)
+
+            artifacts = json.loads((bundle / "artifacts.json").read_text(encoding="utf-8"))
+            output = artifacts["scenario_outputs"][0]
+            self.assertEqual(output["scenario_id"], "TIMEOUT-01")
+            self.assertEqual(output["exit_code"], 124)
+            self.assertEqual(output["status"], "timeout")
+            self.assertTrue((bundle / "TIMEOUT-01.stdout.log").exists())
+            self.assertTrue((bundle / "TIMEOUT-01.stderr.log").exists())
+
     def test_run_fake_task_loop_writes_result_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -959,6 +959,62 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "fail")
             self.assertEqual(run["next_action"], "repair_from_evaluator_findings")
 
+    def test_codex_exec_evaluator_passes_task_contract_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Run codex evaluator with task contract",
+                run_id="demo-run",
+                task_id="contract-task",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "task-contract.json",
+                {
+                    "task_id": "contract-task",
+                    "title": "Contract task",
+                    "description": "Temporary contract task.",
+                    "verify_commands": [],
+                    "scenario_commands": [],
+                    "artifact_paths": [],
+                    "required_services": [],
+                    "evaluator_driver": "harness_auto_gate",
+                    "eval_policy": {"task_level_required": True},
+                    "allowed_scope": "local_repo_and_harness",
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "CONTRACT-01",
+                            "user_goal": "Use task contract scenarios.",
+                            "prerequisites": [],
+                            "steps": ["Run command."],
+                            "expected_outcomes": ["Contract scenario passes."],
+                            "failure_signals": ["Evaluator ignores task contract."],
+                        }
+                    ],
+                },
+            )
+            completed = subprocess.CompletedProcess(
+                args=["codex-evaluator"],
+                returncode=0,
+                stdout="codex evaluator stdout",
+                stderr="",
+            )
+
+            with patch("scripts.harness_loop_orchestrator.subprocess.run", return_value=completed) as run_mock:
+                run_evaluator(repo_root, "demo-run", driver="codex-exec", max_attempts=2)
+
+            command = run_mock.call_args.args[0]
+            self.assertIn("--task-contract", command)
+            self.assertIn(str(run_dir / "task-contract.json"), command)
+
     def test_fake_evaluator_preserves_blocked_result_when_scenarios_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1145,6 +1201,74 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["next_action"], "await_human_merge_confirmation")
             self.assertTrue((run_dir / "artifact-manifest.json").exists())
             self.assertTrue((run_dir / "cleanup-result.json").exists())
+
+    def test_run_loop_hygiene_redacts_scenario_command_logs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through hygiene loop",
+                run_id="demo-run",
+                task_id="contract-task",
+                confirm=True,
+            )
+            write_fake_evaluator_scenario(repo_root, "contract-task")
+            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            generator_path = run_generator(repo_root, "demo-run", driver="fake")
+            generator_result = read_json_file(generator_path)
+            generator_result["artifacts"] = ["artifact.txt"]
+            write_json_file(generator_path, generator_result)
+            (repo_root / "artifact.txt").write_text("public artifact\n", encoding="utf-8")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "task-contract.json",
+                {
+                    "task_id": "contract-task",
+                    "title": "Contract task",
+                    "description": "Temporary contract task.",
+                    "verify_commands": [],
+                    "scenario_commands": ["python3 -c \"print('Authorization: Bearer secret-token')\""],
+                    "artifact_paths": [],
+                    "required_services": [],
+                    "evaluator_driver": "harness_auto_gate",
+                    "eval_policy": {"task_level_required": True},
+                    "allowed_scope": "local_repo_and_harness",
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "CONTRACT-01",
+                            "user_goal": "Run command.",
+                            "prerequisites": [],
+                            "steps": ["Run command."],
+                            "expected_outcomes": ["Scenario command output is redacted."],
+                            "failure_signals": ["Scenario command logs leak secrets."],
+                        }
+                    ],
+                },
+            )
+
+            status = run_loop(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+            )
+
+            self.assertEqual(status["phase"], "passed_waiting_human_merge")
+            artifact_manifest = read_json_file(run_dir / "artifact-manifest.json")
+            self.assertIn(
+                ".codex/loop-runs/demo-run/scenario-commands/command-1.stdout.log",
+                artifact_manifest["scanned_paths"],
+            )
+            self.assertIn(
+                ".codex/loop-runs/demo-run/scenario-commands/command-1.stdout.log.redacted",
+                artifact_manifest["redacted_paths"],
+            )
 
     def test_run_loop_rejects_unsupported_active_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

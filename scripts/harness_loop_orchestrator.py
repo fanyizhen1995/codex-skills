@@ -469,6 +469,8 @@ def run_evaluator(
             "--repo-root",
             str(root),
         ]
+        if task_contract_path.exists():
+            command.extend(["--task-contract", str(task_contract_path)])
     else:
         raise ValueError(f"unsupported evaluator driver: {driver}")
 
@@ -527,10 +529,25 @@ def run_artifact_hygiene_step(
     run_dir = run_dir_for(root, run_id)
     generator_result = read_json_file(run_dir / "generator-result.json")
     validate_generator_result_payload(generator_result)
+    artifact_paths = list(generator_result["artifacts"])
+    scenario_results_path = run_dir / "scenario-command-results.json"
+    if scenario_results_path.exists():
+        scenario_results = read_json_file(scenario_results_path)
+        for result in scenario_results.get("results", []):
+            if not isinstance(result, dict):
+                continue
+            for key in ("stdout_path", "stderr_path"):
+                path_value = result.get(key)
+                if not isinstance(path_value, str):
+                    continue
+                try:
+                    artifact_paths.append(Path(path_value).resolve().relative_to(root.resolve()).as_posix())
+                except (OSError, RuntimeError, ValueError):
+                    artifact_paths.append(path_value)
     result_path = run_artifact_hygiene(
         repo_root=root,
         run_dir=run_dir,
-        artifact_paths=list(generator_result["artifacts"]),
+        artifact_paths=artifact_paths,
         max_file_bytes=max_file_bytes,
         max_total_bytes=max_total_bytes,
     )

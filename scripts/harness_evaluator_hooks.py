@@ -40,6 +40,7 @@ try:
         repo_roots_for_harness,
         validate_task_eval_result_against_input,
     )
+    from scripts.harness_loop_contracts import read_json_file, validate_task_contract_payload
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     from harness_evaluator_cli import (
         create_final_bundle,
@@ -60,6 +61,7 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
         repo_roots_for_harness,
         validate_task_eval_result_against_input,
     )
+    from harness_loop_contracts import read_json_file, validate_task_contract_payload
 
 
 def _current_branch(root: Path) -> str:
@@ -190,13 +192,36 @@ def _session_roots(root: Path, session: dict[str, str]) -> tuple[Path, Path]:
     return state_root, worktree_root
 
 
+def _latest_task_contract(worktree_root: Path, task_id: str) -> Path | None:
+    candidates: list[Path] = []
+    loop_root = worktree_root / ".codex" / "loop-runs"
+    if not loop_root.exists():
+        return None
+    for candidate in loop_root.glob("*/task-contract.json"):
+        try:
+            payload = read_json_file(candidate)
+            validate_task_contract_payload(payload)
+        except (OSError, ValueError):
+            continue
+        if payload.get("task_id") == task_id:
+            candidates.append(candidate)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime_ns)
+
+
 def _auto_prepare_task_bundle(root: Path, session: dict[str, str]) -> Path | None:
     state_root, worktree_root = _session_roots(root, session)
     task_id = session.get("task", "")
     branch = session.get("branch", "")
     if not task_id or not branch:
         return None
-    bundle = create_task_bundle(worktree_root, task_id, 1)
+    bundle = create_task_bundle(
+        worktree_root,
+        task_id,
+        1,
+        task_contract_path=_latest_task_contract(worktree_root, task_id),
+    )
     update_session_state_evaluator(
         state_root,
         worktree_root,
@@ -226,7 +251,16 @@ def _auto_prepare_next_attempt(
     max_attempts = max_task_eval_attempts(worktree_root, task_id)
     if max_attempts and next_attempt > max_attempts:
         return None
-    bundle = create_next_attempt_bundle(worktree_root, task_id, next_attempt)
+    task_contract_path = _latest_task_contract(worktree_root, task_id)
+    if task_contract_path is not None:
+        bundle = create_task_bundle(
+            worktree_root,
+            task_id,
+            next_attempt,
+            task_contract_path=task_contract_path,
+        )
+    else:
+        bundle = create_next_attempt_bundle(worktree_root, task_id, next_attempt)
     phase = (
         "repair_after_task_eval_blocked"
         if result_payload.get("status") == "blocked"

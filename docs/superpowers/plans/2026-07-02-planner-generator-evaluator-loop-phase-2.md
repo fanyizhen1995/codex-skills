@@ -30,7 +30,7 @@
 - Modify: `scripts/harness_loop_contracts.py`
 - Modify: `scripts/tests/test_harness_loop_contracts.py`
 
-- [ ] **Step 1: Write failing tests for task-contract validation**
+- [x] **Step 1: Write failing tests for task-contract validation**
 
 Add these imports in `scripts/tests/test_harness_loop_contracts.py`:
 
@@ -96,7 +96,7 @@ Add helper and tests near the existing payload helpers:
             validate_task_contract_payload(payload)
 ```
 
-- [ ] **Step 2: Write failing tests for scenario command result and hygiene contracts**
+- [x] **Step 2: Write failing tests for scenario command result and hygiene contracts**
 
 Add:
 
@@ -143,7 +143,7 @@ Add:
         )
 ```
 
-- [ ] **Step 3: Run contract tests to verify they fail**
+- [x] **Step 3: Run contract tests to verify they fail**
 
 Run:
 
@@ -153,7 +153,7 @@ python3 -m unittest scripts.tests.test_harness_loop_contracts -v
 
 Expected: fail with imports or missing validator functions.
 
-- [ ] **Step 4: Implement Phase 2 validators**
+- [x] **Step 4: Implement Phase 2 validators**
 
 In `scripts/harness_loop_contracts.py`, add constants after `ALLOWED_LAST_RESULTS`:
 
@@ -240,7 +240,7 @@ def validate_artifact_hygiene_result_payload(payload: dict[str, Any]) -> None:
     _require_object(payload["original_hashes"], "original_hashes")
 ```
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 Run:
 
@@ -263,7 +263,7 @@ git commit -m "feat(harness): add loop phase 2 contracts"
 - Modify: `scripts/harness_evaluator_cli.py`
 - Create or modify: `scripts/tests/test_harness_evaluator_cli.py`
 
-- [ ] **Step 1: Write failing evaluator CLI tests**
+- [x] **Step 1: Write failing evaluator CLI tests**
 
 If `scripts/tests/test_harness_evaluator_cli.py` does not exist, create it:
 
@@ -345,7 +345,7 @@ class HarnessEvaluatorCliTests(unittest.TestCase):
             self.assertEqual(len(bundles), 1)
 ```
 
-- [ ] **Step 2: Run evaluator CLI tests to verify they fail**
+- [x] **Step 2: Run evaluator CLI tests to verify they fail**
 
 Run:
 
@@ -355,7 +355,7 @@ python3 -m unittest scripts.tests.test_harness_evaluator_cli -v
 
 Expected: fail because `create_task_bundle` and CLI do not accept `task_contract_path`.
 
-- [ ] **Step 3: Implement task contract input**
+- [x] **Step 3: Implement task contract input**
 
 In `scripts/harness_evaluator_cli.py`, import validators:
 
@@ -434,7 +434,7 @@ Add parser arg:
     prepare_task_parser.add_argument("--task-contract", default="")
 ```
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 Run:
 
@@ -460,7 +460,7 @@ git commit -m "feat(harness): support evaluator task contracts"
 - Modify: `scripts/harness_loop_orchestrator.py`
 - Modify: `scripts/tests/test_harness_loop_orchestrator.py`
 
-- [ ] **Step 1: Write failing artifact helper tests**
+- [x] **Step 1: Write failing artifact helper tests**
 
 Create `scripts/tests/test_harness_loop_artifacts.py`:
 
@@ -514,7 +514,7 @@ class HarnessLoopArtifactsTests(unittest.TestCase):
             self.assertEqual(manifest["results"][0]["exit_code"], 2)
 ```
 
-- [ ] **Step 2: Run artifact helper tests to verify they fail**
+- [x] **Step 2: Run artifact helper tests to verify they fail**
 
 Run:
 
@@ -524,7 +524,7 @@ python3 -m unittest scripts.tests.test_harness_loop_artifacts -v
 
 Expected: fail because module does not exist.
 
-- [ ] **Step 3: Implement `run_scenario_commands`**
+- [x] **Step 3: Implement `run_scenario_commands`**
 
 Create `scripts/harness_loop_artifacts.py`:
 
@@ -603,7 +603,7 @@ def _decode_timeout_stream(value: str | bytes | None) -> str:
     return value
 ```
 
-- [ ] **Step 4: Add orchestrator scenario command integration test**
+- [x] **Step 4: Add orchestrator scenario command integration test**
 
 In `scripts/tests/test_harness_loop_orchestrator.py`, add:
 
@@ -661,7 +661,7 @@ In `scripts/tests/test_harness_loop_orchestrator.py`, add:
             self.assertIn("scenario artifact", stdout_path.read_text(encoding="utf-8"))
 ```
 
-- [ ] **Step 5: Run orchestrator test to verify it fails**
+- [x] **Step 5: Run orchestrator test to verify it fails**
 
 Run:
 
@@ -671,7 +671,7 @@ python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrch
 
 Expected: fail because orchestrator does not read `task-contract.json` or run scenario commands.
 
-- [ ] **Step 6: Implement orchestrator integration**
+- [x] **Step 6: Implement orchestrator integration**
 
 In `scripts/harness_loop_orchestrator.py`, import:
 
@@ -712,7 +712,7 @@ Include `scenario_command_results_path` in `evaluator_payload`:
 
 Update `validate_evaluator_result_payload` in Task 1 implementation to allow this extra required field if you choose to make it required; otherwise leave it optional by not validating extra keys. The existing validator permits extra keys.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 Run:
 
@@ -737,7 +737,7 @@ git commit -m "feat(harness): collect loop scenario command artifacts"
 - Modify: `scripts/harness_loop_orchestrator.py`
 - Modify: `scripts/tests/test_harness_loop_orchestrator.py`
 
-- [ ] **Step 1: Write failing artifact hygiene tests**
+- [x] **Step 1: Write failing artifact hygiene tests**
 
 Append to `scripts/tests/test_harness_loop_artifacts.py`:
 
@@ -790,7 +790,7 @@ class HarnessLoopArtifactHygieneTests(unittest.TestCase):
             self.assertEqual(result["omitted_paths"], ["large.bin"])
 ```
 
-- [ ] **Step 2: Run hygiene tests to verify they fail**
+- [x] **Step 2: Run hygiene tests to verify they fail**
 
 Run:
 
@@ -800,7 +800,7 @@ python3 -m unittest scripts.tests.test_harness_loop_artifacts.HarnessLoopArtifac
 
 Expected: fail because `run_artifact_hygiene` does not exist.
 
-- [ ] **Step 3: Implement `run_artifact_hygiene`**
+- [x] **Step 3: Implement `run_artifact_hygiene`**
 
 Append to `scripts/harness_loop_artifacts.py`:
 
@@ -912,7 +912,7 @@ def _redact_text(text: str) -> tuple[str, list[str]]:
     return "\n".join(output_lines) + ("\n" if text.endswith("\n") else ""), sorted(set(rules))
 ```
 
-- [ ] **Step 4: Write failing orchestrator hygiene/cleanup tests**
+- [x] **Step 4: Write failing orchestrator hygiene/cleanup tests**
 
 Add to `scripts/tests/test_harness_loop_orchestrator.py`:
 
@@ -974,7 +974,7 @@ Add to `scripts/tests/test_harness_loop_orchestrator.py`:
             self.assertIn(str(temp_worktree), run["cleanup"]["worktrees_removed"])
 ```
 
-- [ ] **Step 5: Implement orchestrator hygiene and cleanup**
+- [x] **Step 5: Implement orchestrator hygiene and cleanup**
 
 In `scripts/harness_loop_orchestrator.py`, import `run_artifact_hygiene` from `harness_loop_artifacts`.
 
@@ -1040,7 +1040,7 @@ def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
 
 Import `shutil` and `validate_artifact_hygiene_result_payload`.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 Run:
 
@@ -1067,7 +1067,7 @@ git commit -m "feat(harness): add loop artifact hygiene cleanup"
 - Modify: `tasks.json`
 - Modify: `progress.md`
 
-- [ ] **Step 1: Add failing CLI tests for hygiene and cleanup commands**
+- [x] **Step 1: Add failing CLI tests for hygiene and cleanup commands**
 
 In `scripts/tests/test_harness_loop_orchestrator.py`, add:
 
@@ -1104,7 +1104,7 @@ In `scripts/tests/test_harness_loop_orchestrator.py`, add:
             self.assertEqual(final_run["phase"], "passed_waiting_human_merge")
 ```
 
-- [ ] **Step 2: Implement parser commands**
+- [x] **Step 2: Implement parser commands**
 
 In `_build_parser`, add:
 
@@ -1129,7 +1129,7 @@ In `main`, add:
         payload = load_run(args.repo_root, args.run_id)
 ```
 
-- [ ] **Step 3: Update run loop to include hygiene/cleanup after evaluator pass**
+- [x] **Step 3: Update run loop to include hygiene/cleanup after evaluator pass**
 
 Modify `run_evaluator` pass branch to set:
 
@@ -1155,7 +1155,7 @@ Modify `run_loop`:
         run = load_run(root, run_id)
 ```
 
-- [ ] **Step 4: Add Phase 2 evaluator scenario contract**
+- [x] **Step 4: Add Phase 2 evaluator scenario contract**
 
 Create `docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-2-01.json`:
 
@@ -1198,7 +1198,7 @@ Create `docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-
 }
 ```
 
-- [ ] **Step 5: Update docs and tasks/progress completion**
+- [x] **Step 5: Update docs and tasks/progress completion**
 
 In `docs/harness/planner-generator-evaluator-loop.md`, add a Phase 2 section:
 
@@ -1218,7 +1218,7 @@ In `tasks.json`, set `planner-generator-evaluator-loop-phase-2-01` status to `do
 
 In `progress.md`, add top entry with actual evidence commands after they pass.
 
-- [ ] **Step 6: Final verification and commit**
+- [x] **Step 6: Final verification and commit**
 
 Run:
 
@@ -1239,8 +1239,8 @@ git commit -m "feat(harness): wire planner loop phase 2 workflow"
 
 ## Final Review
 
-- [ ] Run the full verification command from Task 5.
-- [ ] Run a fake smoke loop:
+- [x] Run the full verification command from Task 5.
+- [x] Run a fake smoke loop:
 
 ```bash
 rm -rf .codex/loop-runs/phase-2-smoke

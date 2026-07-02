@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import shlex
+import signal
 import subprocess
 from pathlib import Path
 
@@ -364,7 +365,27 @@ def _collect_existing_files(root: Path | None) -> list[str]:
     return sorted(str(path.resolve()) for path in root.rglob("*") if path.is_file())
 
 
-def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path) -> None:
+def _decode_timeout_stream(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _kill_process_group(process: subprocess.Popen) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    except OSError:
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds: int = 60) -> None:
     input_payload = _load_bundle_input(bundle_dir)
     if input_payload.get("gate") != "task":
         return
@@ -383,22 +404,34 @@ def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path) -> None:
             continue
 
         output_dir = _scenario_output_dir(entrypoint, worktree_root)
-        result = subprocess.run(
+        process = subprocess.Popen(
             entrypoint,
             cwd=worktree_root,
             shell=True,
             text=True,
-            capture_output=True,
-            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
             env={
                 **os.environ,
                 "HARNESS_EVALUATOR_SKIP_HOOKS": "1",
             },
         )
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+            exit_code = int(process.returncode)
+            status = "pass" if exit_code == 0 else "fail"
+        except subprocess.TimeoutExpired as exc:
+            _kill_process_group(process)
+            stdout, stderr = process.communicate()
+            exit_code = 124
+            stdout = _decode_timeout_stream(stdout or exc.output)
+            stderr = _decode_timeout_stream(stderr or exc.stderr)
+            status = "timeout"
         stdout_path = bundle_dir / f"{scenario_id}.stdout.log"
         stderr_path = bundle_dir / f"{scenario_id}.stderr.log"
-        stdout_path.write_text(result.stdout, encoding="utf-8")
-        stderr_path.write_text(result.stderr, encoding="utf-8")
+        stdout_path.write_text(stdout, encoding="utf-8")
+        stderr_path.write_text(stderr, encoding="utf-8")
 
         discovered_artifacts = _collect_existing_files(output_dir)
         _append_unique_strings(
@@ -413,9 +446,10 @@ def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path) -> None:
             {
                 "scenario_id": scenario_id,
                 "command": entrypoint,
-                "exit_code": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
+                "exit_code": exit_code,
+                "status": status,
+                "stdout": stdout,
+                "stderr": stderr,
                 "stdout_path": str(stdout_path),
                 "stderr_path": str(stderr_path),
                 "artifacts": [{"path": path} for path in discovered_artifacts],

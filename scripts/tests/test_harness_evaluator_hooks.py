@@ -14,6 +14,7 @@
 
 import json
 import io
+import os
 import subprocess
 import tempfile
 import unittest
@@ -196,6 +197,146 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
             bundle_dir = Path(decision["bundle_dir"])
             self.assertTrue((bundle_dir / "input.json").exists())
             self.assertIn(".codex/evaluations/tasks/demo-task", decision["bundle_dir"])
+
+    def test_stop_hook_auto_prepares_bundle_from_latest_task_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".codex" / "session-state"
+            state_dir.mkdir(parents=True)
+            (state_dir / "demo-session.json").write_text(
+                json.dumps(
+                    {
+                        "task": "demo-task",
+                        "branch": "task/demo-task",
+                        "worktree": str(root),
+                        "status": "implementation",
+                        "evaluator": {
+                            "phase": "implementation",
+                            "task_eval_attempt": 0,
+                            "last_task_eval_result": "",
+                            "final_eval_attempt": 0,
+                            "last_final_eval_result": "",
+                            "repair_from_eval": False,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            templates_dir = root / ".codex" / "evaluations" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+            (templates_dir / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+            (root / "tasks.json").write_text(
+                json.dumps(
+                    {
+                        "eval_defaults": {
+                            "task_level_required": True,
+                            "final_level_required": False,
+                            "task_scope": "code_and_local_k3s",
+                            "final_scope": "report_and_artifacts",
+                            "max_task_eval_attempts": 3,
+                            "max_final_eval_attempts": 2,
+                        },
+                        "tasks": [
+                            {
+                                "id": "demo-task",
+                                "title": "Demo task",
+                                "description": "demo",
+                                "verify": "python3 -m unittest demo -v",
+                                "requires_eval": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            scenario_dir = root / "docs" / "harness" / "evaluator-scenarios"
+            scenario_dir.mkdir(parents=True)
+            (scenario_dir / "demo-task.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "demo-task",
+                        "must_simulate": True,
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "DOCS-01",
+                                "user_goal": "Run the docs scenario.",
+                                "prerequisites": [],
+                                "entrypoint": "python3 scripts/docs_scenario.py",
+                                "steps": ["Run the docs scenario."],
+                                "expected_outcomes": ["Docs scenario runs."],
+                                "failure_signals": ["Docs scenario fails."],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            loop_root = root / ".codex" / "loop-runs"
+            old_contract_dir = loop_root / "old-run"
+            latest_contract_dir = loop_root / "latest-run"
+            old_contract_dir.mkdir(parents=True)
+            latest_contract_dir.mkdir(parents=True)
+            contract_payload = {
+                "task_id": "demo-task",
+                "title": "Demo task",
+                "description": "Contract task.",
+                "verify_commands": ["python3 -m unittest contract -v"],
+                "scenario_commands": ["python3 -c \"print('contract-latest')\""],
+                "artifact_paths": ["docs/contract.md"],
+                "required_services": ["demo-backend"],
+                "evaluator_driver": "harness_auto_gate",
+                "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
+                "allowed_scope": "local_repo_and_harness",
+                "must_simulate": True,
+                "user_scenarios": [
+                    {
+                        "scenario_id": "CONTRACT-LATEST-01",
+                        "user_goal": "Run the contract scenario.",
+                        "prerequisites": [],
+                        "steps": ["Run the contract command."],
+                        "expected_outcomes": ["Contract output is present."],
+                        "failure_signals": ["Contract command is missing."],
+                    }
+                ],
+            }
+            old_payload = dict(contract_payload)
+            old_payload["scenario_commands"] = ["python3 -c \"print('contract-old')\""]
+            old_payload["user_scenarios"] = [
+                {
+                    "scenario_id": "CONTRACT-OLD-01",
+                    "user_goal": "Run the old contract scenario.",
+                    "prerequisites": [],
+                    "steps": ["Run the old contract command."],
+                    "expected_outcomes": ["Old contract output is present."],
+                    "failure_signals": ["Old contract command is missing."],
+                }
+            ]
+            old_contract = old_contract_dir / "task-contract.json"
+            latest_contract = latest_contract_dir / "task-contract.json"
+            old_contract.write_text(json.dumps(old_payload), encoding="utf-8")
+            latest_contract.write_text(json.dumps(contract_payload), encoding="utf-8")
+            old_mtime = 1_800_000_000
+            latest_mtime = old_mtime + 10
+            os.utime(old_contract, (old_mtime, old_mtime))
+            os.utime(latest_contract, (latest_mtime, latest_mtime))
+
+            decision = harness_evaluator_hooks.stop_hook(root)
+
+            self.assertIsNotNone(decision)
+            assert decision is not None
+            bundle_dir = Path(decision["bundle_dir"])
+            input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(input_payload["scenario_source"], str(latest_contract))
+            self.assertEqual(input_payload["scenario_commands"], ["python3 -c \"print('contract-latest')\""])
+            self.assertEqual(input_payload["artifact_paths"], ["docs/contract.md"])
+            self.assertEqual(input_payload["required_services"], ["demo-backend"])
+            self.assertEqual(input_payload["allowed_scope"], "local_repo_and_harness")
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "CONTRACT-LATEST-01")
+            self.assertEqual(
+                input_payload["user_scenarios"][0]["entrypoint"],
+                "python3 -c \"print('contract-latest')\"",
+            )
 
     def test_stop_hook_auto_prepares_next_attempt_after_fail_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
