@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-07-02 Planner Generator Evaluator Loop Phase 1
+
+- Implemented the demand-development Planner -> Generator -> Evaluator loop skeleton with preflight state, JSON contract validators, fake/codex Planner and Generator drivers, evaluator handoff, failure evidence capture, and a human merge gate.
+- Registered `planner-generator-evaluator-loop-phase-1-01`, added the evaluator scenario contract, and documented Phase 1 commands in `docs/harness/planner-generator-evaluator-loop.md`.
+- Evidence:
+  - `python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v` -> 45 passed
+  - `python3 scripts/harness_loop_orchestrator.py run --repo-root . --run-id smoke-phase-1-final --planner-driver fake --generator-driver fake --evaluator-driver fake --max-eval-attempts 2` -> `passed_waiting_human_merge`
+  - `python3 scripts/harness_evaluator_orchestrator.py run-task-loop --driver fake --task-id planner-generator-evaluator-loop-phase-1-01 --repo-root . --max-attempts 2` -> pass at `.codex/evaluations/tasks/planner-generator-evaluator-loop-phase-1-01/fake-attempt-2/result.json`
+
 ## 2026-07-01 Kubernetes Volcano Kueue Closed Issues Backfill
 
 - Replaced the initial public GitHub seed corpus with authenticated raw evidence for the requested scope:
