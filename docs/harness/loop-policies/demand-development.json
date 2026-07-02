@@ -1,0 +1,35 @@
+{
+  "policy": "demand-development",
+  "auto_commit": false,
+  "auto_merge_main": false,
+  "allowed_paths": [],
+  "manual_confirm_paths": [
+    "**"
+  ],
+  "denylist_paths": [
+    ".env",
+    ".env.*",
+    "**/.env",
+    "**/.env.*",
+    "**/secrets/**",
+    "**/*secret*",
+    "**/*token*",
+    "**/*credential*"
+  ],
+  "limits": {
+    "max_tasks_per_run": 3,
+    "max_generator_attempts_per_task": 2,
+    "max_eval_attempts_per_task": 3,
+    "max_wall_time_minutes": 60,
+    "max_no_action_rounds": 1,
+    "agent_timeout_minutes": 30,
+    "cleanup_retention_days": 7
+  },
+  "required_evidence": [
+    "confirmed preflight",
+    "planner-output.json",
+    "generator-result.json",
+    "evaluator-result.json",
+    "human merge confirmation"
+  ]
+}

@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-02 Planner Generator Evaluator Loop Phase 3
+
+- Completed `planner-generator-evaluator-loop-phase-3-01`: added the Phase 3 autonomous smoke helper, evaluator scenario, and loop policy fixtures for demand-development and autonomous-knowledge.
+- Documented Phase 3 operator commands, no-action requirements, allowlist/manual-confirm/denylist limits, supply-chain evidence, auto-commit behavior, and smoke output in `docs/harness/planner-generator-evaluator-loop.md`.
+- Marked Phase 3 done in `tasks.json` with verification covering scenario tests, the isolated-clone smoke helper, JSON parsing, policy validation, and diff hygiene.
+- Evidence:
+  - `python3 -m unittest scripts.tests.test_harness_evaluator_scenarios -v`
+  - `python3 scripts/harness_loop_phase3_smoke.py --repo-root . --run-id evaluator-scenario-phase-3 --domain ai_infra --task-id planner-generator-evaluator-loop-phase-3-01 --isolate-clone`
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-3-01.json >/dev/null`
+  - `python3 -m json.tool docs/harness/loop-policies/autonomous-knowledge.json >/dev/null`
+  - `python3 -m json.tool docs/harness/loop-policies/demand-development.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-02 Planner Generator Evaluator Loop Phase 2
 
 - Completed `planner-generator-evaluator-loop-phase-2-01`: CLI now exposes `artifact-hygiene` and `cleanup`, evaluator pass routes generated artifacts through hygiene before cleanup, and `run` continues through those phases to the human merge gate.

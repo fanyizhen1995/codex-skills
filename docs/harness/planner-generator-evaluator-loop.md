@@ -6,7 +6,10 @@ exercise the durable state machine without calling Codex, while `codex-exec`
 remains available for planner/generator prompts and evaluator auto-gate runs.
 Phase 2 keeps the same demand-development policy and adds task-contract
 evaluator input, scenario command evidence, artifact hygiene, cleanup, and an
-explicit human merge gate after all automated checks finish.
+explicit human merge gate after all automated checks finish. Phase 3 adds the
+`autonomous-knowledge` policy for bounded personal-wiki work: it plans from a
+domain `loop-state.json`, auto-commits only allowlisted domain evidence, and
+keeps planning until no-action, budget, or blocked stop conditions apply.
 
 ## Scope
 
@@ -26,6 +29,12 @@ explicit human merge gate after all automated checks finish.
   merge gate.
 - `run` executes the confirmed run from its current phase through evaluator,
   artifact hygiene, cleanup, and the human merge gate when applicable.
+- `run-autonomous` executes the confirmed autonomous run from its current phase
+  through planning, generation, evaluator pass, artifact hygiene, cleanup,
+  auto-commit, and the next planning pass until it reaches `stopped_no_action`,
+  `stopped_budget`, or `stopped_blocked`.
+  It accepts fake drivers for smoke tests and `codex-exec` drivers for real
+  planner, generator, and evaluator agent calls.
 
 ## Commands
 
@@ -132,6 +141,94 @@ successful smoke reaches `passed_waiting_human_merge` and leaves
 `scenario-command-results.json`, `artifact-manifest.json`, and
 `cleanup-result.json` under the run directory; the fresh fake evaluator attempt
 remains under `.codex/evaluations/tasks/<task-id>/`.
+
+## Phase 3 Commands
+
+Policy fixtures live under `docs/harness/loop-policies/` and validate with
+`scripts.harness_loop_contracts.validate_loop_policy_payload`:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+from scripts.harness_loop_contracts import read_json_file, validate_loop_policy_payload
+for path in Path("docs/harness/loop-policies").glob("*.json"):
+    validate_loop_policy_payload(read_json_file(path))
+PY
+```
+
+Start an autonomous run with an explicit domain and confirmed preflight:
+
+```bash
+python3 scripts/harness_loop_orchestrator.py preflight \
+  --repo-root . \
+  --mode autonomous-knowledge \
+  --requirement "Expand ai_infra wiki coverage" \
+  --run-id autonomous-ai-infra-smoke \
+  --domain ai_infra \
+  --constraint "Only auto-commit allowlisted personal-wiki domain artifacts" \
+  --stop-condition stopped_no_action \
+  --stop-condition stopped_budget \
+  --stop-condition stopped_blocked \
+  --confirm
+
+python3 scripts/harness_loop_orchestrator.py run-autonomous \
+  --repo-root . \
+  --run-id autonomous-ai-infra-smoke \
+  --planner-driver fake \
+  --generator-driver fake \
+  --evaluator-driver fake \
+  --max-eval-attempts 2 \
+  --max-tasks 2
+```
+
+Use `--planner-driver codex-exec --generator-driver codex-exec
+--evaluator-driver codex-exec` for real autonomous agent execution. The
+orchestrator still applies deterministic no-action checks from
+`loop-state.json`, attempt limits, artifact hygiene, scope checks, supply-chain
+checks, wiki validation, and commit safety gates around those agent calls.
+
+The domain state file is
+`personal-wiki/domains/<domain>/loop-state.json`. No-action requires an empty
+`candidate_backlog`, empty `coverage_gaps`, at least one `known_sources` item,
+fresh `last_scan_at` within `scan_ttl_days`, and non-empty
+`no_action_evidence`.
+
+Autonomous commits are restricted to personal-wiki domain wiki/raw/source and
+manifest paths plus that domain's `loop-state.json`. Changes under
+`tasks.json`, `progress.md`, `docs/**`, or `scripts/**` require manual
+confirmation and stop the run. Denylist paths such as `.env`, secrets, tokens,
+or credential paths always stop the run. Dependency files require supply-chain
+necessity and verification evidence before commit. The loop never auto-merges
+main. If any path the generator wants to commit was already dirty during
+preflight, the loop stops at `stopped_blocked` instead of committing pre-existing
+user work. Generator agent failures are retried up to
+`max_generator_attempts_per_task`; exhausting the limit stops the run for
+inspection.
+
+The Phase 3 evaluator scenario uses a self-contained smoke helper:
+
+```bash
+python3 scripts/harness_loop_phase3_smoke.py \
+  --repo-root . \
+  --run-id evaluator-scenario-phase-3 \
+  --domain ai_infra \
+  --task-id planner-generator-evaluator-loop-phase-3-01 \
+  --isolate-clone
+```
+
+With `--isolate-clone`, the helper clones the current checkout into a temporary
+directory, configures git identity only inside that clone, and discards the
+clone after the smoke finishes. Inside the smoke repo it clears the previous
+smoke run and prior generated autonomous raw notes for the same run id, creates
+confirmed autonomous preflight against a clean smoke baseline, seeds
+`loop-state.json` with one candidate backlog item and one known source, and runs
+fake autonomous drivers with
+`max_tasks=2`. A successful smoke proves the first pass created a git commit for
+allowlisted wiki evidence and loop state, then the second planner pass stopped
+at `stopped_no_action`. It prints JSON containing `phase`, `next_action`,
+`commit`, `loop_state_path`, and run artifact paths. Running without
+`--isolate-clone` is intended only for disposable clones; the helper refuses to
+overwrite dirty smoke loop-state or generated raw paths.
 
 ## Human Merge Gate
 

@@ -13,12 +13,21 @@
 # limitations under the License.
 
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from scripts.harness_evaluator_scenarios import load_task_scenarios
+
+
+def copy_worktree_files(repo_root: Path, fixture: Path, paths: list[str]) -> None:
+    for relative in paths:
+        source = repo_root / relative
+        target = fixture / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
 
 
 class HarnessEvaluatorScenarioTests(unittest.TestCase):
@@ -259,3 +268,228 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         self.assertEqual(contract["task_id"], "compute-accelerator-spec-extraction-01")
         self.assertIn("tests/test_accelerator_specs.py", entrypoint)
         self.assertIn("validate-accelerators", entrypoint)
+
+    def test_phase_3_scenario_entrypoint_uses_smoke_helper(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        contract = load_task_scenarios(repo_root, "planner-generator-evaluator-loop-phase-3-01")
+        entrypoint = contract["user_scenarios"][0]["entrypoint"]
+
+        self.assertEqual(contract["task_id"], "planner-generator-evaluator-loop-phase-3-01")
+        self.assertIn("scripts/harness_loop_phase3_smoke.py", entrypoint)
+        self.assertIn("--domain ai_infra", entrypoint)
+        self.assertIn("--isolate-clone", entrypoint)
+
+    def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp) / "fixture"
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--quiet",
+                    "--no-hardlinks",
+                    str(repo_root),
+                    str(fixture),
+                ],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            copy_worktree_files(
+                repo_root,
+                fixture,
+                [
+                    "scripts/harness_loop_phase3_smoke.py",
+                    "scripts/harness_loop_orchestrator.py",
+                    "scripts/harness_loop_contracts.py",
+                    "scripts/tests/test_harness_evaluator_scenarios.py",
+                    "docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-3-01.json",
+                    "docs/harness/planner-generator-evaluator-loop.md",
+                ],
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    "scripts/harness_loop_phase3_smoke.py",
+                    "--repo-root",
+                    ".",
+                    "--run-id",
+                    "evaluator-scenario-phase-3",
+                    "--domain",
+                    "ai_infra",
+                    "--task-id",
+                    "planner-generator-evaluator-loop-phase-3-01",
+                ],
+                cwd=fixture,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["phase"], "stopped_no_action")
+            self.assertTrue(payload["commit"])
+            loop_state_path = fixture / payload["loop_state_path"]
+            self.assertTrue(loop_state_path.exists())
+            for key in (
+                "planner_output_path",
+                "generator_result_path",
+                "evaluator_result_path",
+                "artifact_manifest_path",
+                "commit_result_path",
+            ):
+                self.assertTrue((fixture / payload[key]).exists(), key)
+
+    def test_phase_3_smoke_helper_rejects_dirty_loop_state_before_seeding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp)
+            subprocess.run(["git", "init"], cwd=fixture, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            (fixture / "README.md").write_text("fixture\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=fixture, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "commit", "-m", "test: initial"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            dirty_loop_state = fixture / "personal-wiki" / "domains" / "ai_infra" / "loop-state.json"
+            dirty_loop_state.parent.mkdir(parents=True, exist_ok=True)
+            dirty_loop_state.write_text("{\"dirty\": true}\n", encoding="utf-8")
+
+            from scripts.harness_loop_phase3_smoke import run_phase3_smoke
+
+            with self.assertRaisesRegex(RuntimeError, "dirty smoke paths"):
+                run_phase3_smoke(
+                    fixture,
+                    "evaluator-scenario-phase-3",
+                    "ai_infra",
+                    "planner-generator-evaluator-loop-phase-3-01",
+                )
+
+    def test_phase_3_smoke_helper_does_not_delete_other_domain_raw_notes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp)
+            subprocess.run(["git", "init"], cwd=fixture, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            (fixture / "README.md").write_text("fixture\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=fixture, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "commit", "-m", "test: initial"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            other_raw_note = (
+                fixture
+                / "personal-wiki"
+                / "domains"
+                / "other_domain"
+                / "raw"
+                / "loop-autonomous"
+                / "evaluator-scenario-phase-3-task-existing.md"
+            )
+            other_raw_note.parent.mkdir(parents=True, exist_ok=True)
+            other_raw_note.write_text("must stay\n", encoding="utf-8")
+
+            from scripts.harness_loop_phase3_smoke import _clean_previous_smoke
+
+            _clean_previous_smoke(fixture, "evaluator-scenario-phase-3", "ai_infra")
+
+            self.assertTrue(other_raw_note.exists())
+
+    def test_phase_3_smoke_helper_rejects_dirty_current_domain_raw_note_before_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp)
+            subprocess.run(["git", "init"], cwd=fixture, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            (fixture / "README.md").write_text("fixture\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=fixture, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "commit", "-m", "test: initial"],
+                cwd=fixture,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            dirty_raw_note = (
+                fixture
+                / "personal-wiki"
+                / "domains"
+                / "ai_infra"
+                / "raw"
+                / "loop-autonomous"
+                / "evaluator-scenario-phase-3-task-existing.md"
+            )
+            dirty_raw_note.parent.mkdir(parents=True, exist_ok=True)
+            dirty_raw_note.write_text("dirty\n", encoding="utf-8")
+
+            from scripts.harness_loop_phase3_smoke import run_phase3_smoke
+
+            with self.assertRaisesRegex(RuntimeError, "dirty smoke paths"):
+                run_phase3_smoke(
+                    fixture,
+                    "evaluator-scenario-phase-3",
+                    "ai_infra",
+                    "planner-generator-evaluator-loop-phase-3-01",
+                )

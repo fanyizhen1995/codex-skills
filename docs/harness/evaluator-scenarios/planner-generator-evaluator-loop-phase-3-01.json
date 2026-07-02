@@ -1,0 +1,44 @@
+{
+  "task_id": "planner-generator-evaluator-loop-phase-3-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "PGE-PHASE3-AUTONOMOUS-SMOKE",
+      "user_goal": "As an operator, run the autonomous-knowledge loop with a seeded domain backlog item, allowlisted wiki evidence generation, auto-commit, cleanup, continued planning, and a final no-action stop.",
+      "prerequisites": [
+        "Repository root is readable and can be cloned locally.",
+        "No real Codex model call is required for the fake-driver scenario.",
+        "The smoke helper runs in an isolated temporary clone and configures local git identity there."
+      ],
+      "entrypoint": "python3 scripts/harness_loop_phase3_smoke.py --repo-root . --run-id evaluator-scenario-phase-3 --domain ai_infra --task-id planner-generator-evaluator-loop-phase-3-01 --isolate-clone",
+      "steps": [
+        "Clear any previous evaluator-scenario-phase-3 run directory and generated autonomous raw notes for that run id.",
+        "Create a confirmed autonomous-knowledge preflight run for the ai_infra domain with a clean smoke baseline.",
+        "Seed personal-wiki/domains/ai_infra/loop-state.json with one candidate backlog item and one known source after preflight.",
+        "Run fake autonomous planner, generator, and evaluator drivers with max_tasks=2.",
+        "Verify the first pass writes allowlisted raw evidence and commits the raw note plus loop-state.json.",
+        "Verify the second planner pass sees fresh no-action evidence and stops at stopped_no_action."
+      ],
+      "expected_outcomes": [
+        "The helper exits with status 0.",
+        "The helper runs the scenario inside an isolated temporary clone and reports isolated_clone true.",
+        "The helper verifies run.json, planner-output.json, generator-result.json, evaluator-result.json, artifact-manifest.json, commit-result.json, and loop-state.json inside the temporary clone.",
+        "The helper prints relative evidence paths for the verified temporary-clone artifacts.",
+        "generator-result.json records a non-empty commit SHA.",
+        "run.json phase is stopped_no_action and next_action is none."
+      ],
+      "failure_signals": [
+        "The loop executes without confirmed autonomous preflight.",
+        "The generator changes paths outside the autonomous allowlist.",
+        "The autonomous commit is missing.",
+        "The second planner pass creates another task instead of stopping at no-action.",
+        "The loop stops at stopped_budget or stopped_blocked."
+      ],
+      "cleanup": [
+        "The helper runs in a temporary clone; smoke-generated loop evidence, raw notes, loop-state.json, and the autonomous commit are discarded with that clone.",
+        "A successful run should not mutate the source checkout."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

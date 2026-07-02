@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-02",
-  "current_focus": "Planner Generator Evaluator loop Phase 2 is complete. Phase 3 is next: autonomous-knowledge loop state, no-action gap detection, allowlisted wiki/crawler changes, supply-chain checks, auto-commit, cleanup, and continued planning.",
+  "current_focus": "Planner Generator Evaluator loop Phase 3 is complete: autonomous-knowledge loop state, no-action detection, allowlisted wiki changes, supply-chain checks, auto-commit, cleanup, policy fixtures, and evaluator smoke are documented.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -51,10 +51,10 @@
       "id": "planner-generator-evaluator-loop-phase-3-01",
       "title": "Implement Planner Generator Evaluator loop Phase 3",
       "description": "Implement the autonomous-knowledge loop with domain loop-state.json, no-action gap detection, allowlisted automatic wiki/crawler changes, supply-chain checks for dependency changes, artifact hygiene gates, auto-commit, cleanup, and continued planning.",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
       "blocked_by": "planner-generator-evaluator-loop-phase-2-01",
-      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v && python3 -m json.tool tasks.json >/dev/null",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_loop_artifacts scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_scenarios -v && python3 scripts/harness_loop_phase3_smoke.py --repo-root . --run-id evaluator-scenario-phase-3 --domain ai_infra --task-id planner-generator-evaluator-loop-phase-3-01 --isolate-clone && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-3-01.json >/dev/null && python3 -m json.tool docs/harness/loop-policies/autonomous-knowledge.json >/dev/null && python3 -m json.tool docs/harness/loop-policies/demand-development.json >/dev/null && python3 - <<'PY'\nfrom pathlib import Path\nfrom scripts.harness_loop_contracts import read_json_file, validate_loop_policy_payload\nfor path in Path('docs/harness/loop-policies').glob('*.json'):\n    validate_loop_policy_payload(read_json_file(path))\nPY && git diff --check",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,

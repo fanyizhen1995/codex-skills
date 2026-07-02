@@ -1,0 +1,46 @@
+{
+  "policy": "autonomous-knowledge",
+  "auto_commit": true,
+  "auto_merge_main": false,
+  "allowed_paths": [
+    "personal-wiki/domains/**/wiki/**",
+    "personal-wiki/domains/**/raw/**",
+    "personal-wiki/domains/**/sources*.yaml",
+    "personal-wiki/domains/**/manifest*.json",
+    "personal-wiki/domains/**/loop-state.json"
+  ],
+  "manual_confirm_paths": [
+    "tasks.json",
+    "progress.md",
+    "docs/**",
+    "scripts/**"
+  ],
+  "denylist_paths": [
+    ".env",
+    ".env.*",
+    "**/.env",
+    "**/.env.*",
+    "**/secrets/**",
+    "**/*secret*",
+    "**/*token*",
+    "**/*credential*"
+  ],
+  "limits": {
+    "max_tasks_per_run": 3,
+    "max_generator_attempts_per_task": 2,
+    "max_eval_attempts_per_task": 3,
+    "max_wall_time_minutes": 60,
+    "max_no_action_rounds": 1,
+    "agent_timeout_minutes": 30,
+    "cleanup_retention_days": 7
+  },
+  "required_evidence": [
+    "confirmed autonomous preflight",
+    "domain loop-state.json",
+    "autonomous-scope-result.json",
+    "supply-chain-result.json",
+    "wiki-validate-result.json",
+    "commit-result.json",
+    "fresh no-action evidence before stopped_no_action"
+  ]
+}
