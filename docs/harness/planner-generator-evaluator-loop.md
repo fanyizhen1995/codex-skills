@@ -102,6 +102,23 @@ for inspection; otherwise the run advances to `cleanup`.
 `.worktrees/` directory and records `cleanup-result.json`. It does not remove
 loop evidence under `.codex/loop-runs/<run-id>`.
 
+The Phase 2 evaluator scenario uses a self-contained smoke helper instead of
+the bare `preflight && run` flow:
+
+```bash
+python3 scripts/harness_loop_phase2_smoke.py \
+  --repo-root . \
+  --run-id evaluator-scenario-phase-2 \
+  --task-id planner-generator-evaluator-loop-phase-2-01
+```
+
+The helper clears the previous smoke run and `.codex/tmp/phase-2-smoke-artifact.txt`,
+runs fake planner/generator drivers, writes a non-empty generator artifact and
+`task-contract.json` with a passing `scenario_commands` entry, then continues
+`run_loop` from `evaluating`. A successful smoke reaches
+`passed_waiting_human_merge` and leaves `scenario-command-results.json`,
+`artifact-manifest.json`, and `cleanup-result.json` under the run directory.
+
 ## Human Merge Gate
 
 Evaluator pass does not mean the loop is merged. A passing evaluator result

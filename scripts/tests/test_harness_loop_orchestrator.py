@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import tempfile
 import unittest
 import json
@@ -59,6 +60,23 @@ def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
 def call_cli(argv: list[str]) -> int:
     with redirect_stdout(io.StringIO()):
         return main(argv)
+
+
+def remove_fake_evaluator_attempts(eval_dir: Path) -> None:
+    for attempt_dir in eval_dir.glob("fake-attempt-*"):
+        if attempt_dir.is_dir():
+            shutil.rmtree(attempt_dir, ignore_errors=True)
+    try:
+        eval_dir.rmdir()
+    except OSError:
+        pass
+
+
+def remove_empty_directory(path: Path) -> None:
+    try:
+        path.rmdir()
+    except OSError:
+        pass
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
@@ -1254,6 +1272,67 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         scenario = read_json_file(scenario_path)
         entrypoint = scenario["user_scenarios"][0]["entrypoint"]
         self.assertIn("--task-id planner-generator-evaluator-loop-phase-1-01", entrypoint)
+
+    def test_phase_2_smoke_helper_exercises_contract_hygiene_cleanup(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        run_id = "evaluator-scenario-phase-2-test"
+        task_id = "planner-generator-evaluator-loop-phase-2-01"
+        run_dir = run_dir_for(repo_root, run_id)
+        smoke_artifact = repo_root / ".codex" / "tmp" / "phase-2-smoke-artifact.txt"
+        eval_dir = repo_root / ".codex" / "evaluations" / "tasks" / task_id
+        shutil.rmtree(run_dir, ignore_errors=True)
+        remove_fake_evaluator_attempts(eval_dir)
+        smoke_artifact.unlink(missing_ok=True)
+        try:
+            result = subprocess.run(
+                [
+                    "python3",
+                    "scripts/harness_loop_phase2_smoke.py",
+                    "--repo-root",
+                    str(repo_root),
+                    "--run-id",
+                    run_id,
+                    "--task-id",
+                    task_id,
+                ],
+                cwd=repo_root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(
+                result.returncode,
+                0,
+                msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["phase"], "passed_waiting_human_merge")
+            self.assertEqual(run["next_action"], "await_human_merge_confirmation")
+            self.assertTrue((run_dir / "scenario-command-results.json").exists())
+            self.assertTrue((run_dir / "artifact-manifest.json").exists())
+            self.assertTrue((run_dir / "cleanup-result.json").exists())
+        finally:
+            shutil.rmtree(run_dir, ignore_errors=True)
+            remove_fake_evaluator_attempts(eval_dir)
+            smoke_artifact.unlink(missing_ok=True)
+            remove_empty_directory(repo_root / ".codex" / "loop-runs")
+            remove_empty_directory(repo_root / ".codex" / "tmp")
+
+    def test_phase_2_scenario_entrypoint_uses_smoke_helper(self) -> None:
+        scenario_path = (
+            Path(__file__).resolve().parents[2]
+            / "docs"
+            / "harness"
+            / "evaluator-scenarios"
+            / "planner-generator-evaluator-loop-phase-2-01.json"
+        )
+
+        scenario = read_json_file(scenario_path)
+        entrypoint = scenario["user_scenarios"][0]["entrypoint"]
+        self.assertIn("scripts/harness_loop_phase2_smoke.py", entrypoint)
+        self.assertIn("--run-id evaluator-scenario-phase-2", entrypoint)
+        self.assertIn("--task-id planner-generator-evaluator-loop-phase-2-01", entrypoint)
 
 
 if __name__ == "__main__":

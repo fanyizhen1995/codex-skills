@@ -10,19 +10,23 @@
         "Existing evaluator harness scripts are available.",
         "No real Codex model call is required for the fake-driver scenario."
       ],
-      "entrypoint": "python3 scripts/harness_loop_orchestrator.py preflight --repo-root . --mode demand-development --requirement \"Evaluator scenario Phase 2 demand loop\" --run-id evaluator-scenario-phase-2 --task-id planner-generator-evaluator-loop-phase-2-01 --confirm && python3 scripts/harness_loop_orchestrator.py run --repo-root . --run-id evaluator-scenario-phase-2 --planner-driver fake --generator-driver fake --evaluator-driver fake --max-eval-attempts 2",
+      "entrypoint": "python3 scripts/harness_loop_phase2_smoke.py --repo-root . --run-id evaluator-scenario-phase-2 --task-id planner-generator-evaluator-loop-phase-2-01",
       "steps": [
+        "Clear any previous evaluator-scenario-phase-2 run directory and smoke artifact.",
         "Create a confirmed preflight run for the registered Phase 2 task id.",
         "Run the fake Planner and Generator drivers to write planner-output.json and generator-result.json.",
-        "Run the fake evaluator driver through the loop entrypoint.",
-        "If generator-result.json lists artifacts, run artifact hygiene before cleanup.",
-        "Verify the run stops at the human merge gate after evaluator pass and any required hygiene/cleanup."
+        "Write a non-empty .codex/tmp/phase-2-smoke-artifact.txt artifact and add it to generator-result.json.",
+        "Write task-contract.json with a passing scenario command.",
+        "Continue run_loop from evaluating so evaluator pass triggers artifact_hygiene, cleanup, and the human merge gate.",
+        "Verify run.json stops at passed_waiting_human_merge with scenario-command-results.json, artifact-manifest.json, and cleanup-result.json present."
       ],
       "expected_outcomes": [
         ".codex/loop-runs/evaluator-scenario-phase-2/run.json exists.",
         "planner-output.json, generator-result.json, and evaluator-result.json exist and validate.",
-        "Scenario command output is recorded when task-contract.json includes scenario_commands.",
-        "Artifacts listed by generator-result.json are scanned before cleanup.",
+        "task-contract.json includes at least one passing scenario command.",
+        "scenario-command-results.json records the scenario command output.",
+        "artifact-manifest.json records the generated smoke artifact scan before cleanup.",
+        "cleanup-result.json records cleanup before the human merge gate.",
         "run.json phase is passed_waiting_human_merge.",
         "run.json next_action is await_human_merge_confirmation."
       ],
@@ -33,7 +37,8 @@
         "Cleanup runs before artifact hygiene or leaves the run in an active phase."
       ],
       "cleanup": [
-        "The evaluator may leave .codex/loop-runs/evaluator-scenario-phase-2 as evidence."
+        "The helper removes the previous .codex/loop-runs/evaluator-scenario-phase-2 directory and .codex/tmp/phase-2-smoke-artifact.txt before each run.",
+        "A successful run may leave .codex/loop-runs/evaluator-scenario-phase-2 and .codex/tmp/phase-2-smoke-artifact.txt as evidence."
       ],
       "automation_hint": "shell"
     }
