@@ -248,6 +248,7 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             _planner_prompt(requirement=_read_requirement(run_dir), run_id=run_id),
             encoding="utf-8",
         )
+        output_path.unlink(missing_ok=True)
         attempt_payload = run_codex_prompt(
             role="planner",
             run_id=run_id,
@@ -304,6 +305,7 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     elif driver == "codex-exec":
         prompt_path = run_dir / "generator-prompt.md"
         prompt_path.write_text(_generator_prompt(run_id), encoding="utf-8")
+        output_path.unlink(missing_ok=True)
         attempt_payload = run_codex_prompt(
             role="generator",
             run_id=run_id,
