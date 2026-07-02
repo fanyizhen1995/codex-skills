@@ -13,6 +13,7 @@ try:
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_run_id,
         validate_artifact_hygiene_result_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
@@ -23,12 +24,24 @@ try:
     )
     from scripts.harness_loop_agents import run_codex_prompt
     from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
+    from scripts.harness_loop_autonomous import (
+        autonomous_allowed_paths,
+        autonomous_denylist_paths,
+        autonomous_manual_confirm_paths,
+        check_autonomous_scope,
+        check_supply_chain,
+        decide_no_action,
+        load_or_create_loop_state,
+        run_git_commit,
+        write_loop_state,
+    )
 except ModuleNotFoundError:
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_run_id,
         validate_artifact_hygiene_result_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
@@ -39,6 +52,17 @@ except ModuleNotFoundError:
     )
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
     from harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands  # type: ignore[no-redef]
+    from harness_loop_autonomous import (  # type: ignore[no-redef]
+        autonomous_allowed_paths,
+        autonomous_denylist_paths,
+        autonomous_manual_confirm_paths,
+        check_autonomous_scope,
+        check_supply_chain,
+        decide_no_action,
+        load_or_create_loop_state,
+        run_git_commit,
+        write_loop_state,
+    )
 
 
 def _timestamp() -> str:
@@ -65,7 +89,7 @@ def _current_branch(repo_root: Path) -> str:
 def _baseline_dirty_paths(repo_root: Path) -> list[str]:
     try:
         result = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "status", "--porcelain", "--untracked-files=all"],
             cwd=repo_root,
             check=False,
             capture_output=True,
@@ -144,6 +168,62 @@ def _generator_prompt(run_id: str) -> str:
     )
 
 
+def _autonomous_planner_prompt(run: dict[str, Any], run_dir: Path) -> str:
+    output_path = run_dir / "planner-output.json"
+    state_path = f"personal-wiki/domains/{run['domain']}/loop-state.json"
+    return "\n".join(
+        [
+            "Autonomous knowledge planner agent task.",
+            f"Read {state_path} and the current repository state.",
+            f"Write {output_path} only.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
+            "Use policy autonomous_knowledge and task_kind autonomous_implementation_task when work is actionable.",
+            "If there is no actionable work, update loop-state.json no-action evidence and do not write unrelated files.",
+            f"Run ID: {run['run_id']}",
+            f"Domain: {run['domain']}",
+            f"Requirement: {run['requirement']}",
+            "",
+        ]
+    )
+
+
+def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
+    planner_output_path = run_dir / "planner-output.json"
+    output_path = run_dir / "generator-result.json"
+    return "\n".join(
+        [
+            "Autonomous knowledge generator agent task.",
+            f"Read {planner_output_path}.",
+            f"Write {output_path}.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
+            "Only modify paths allowed by planner-output.json and the autonomous policy.",
+            "Run verification commands and include non-empty verify_results when dependency files change.",
+            f"Run ID: {run['run_id']}",
+            f"Domain: {run['domain']}",
+            "",
+        ]
+    )
+
+
+def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
+    generator_result_path = run_dir / "generator-result.json"
+    output_path = run_dir / "evaluator-result.json"
+    return "\n".join(
+        [
+            "Autonomous knowledge evaluator agent task.",
+            f"Read {generator_result_path}.",
+            f"Write {output_path}.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_evaluator_result_payload.",
+            "Verify changed wiki/raw/source artifacts from a user or operator perspective where applicable.",
+            "Do not modify repository files other than the evaluator result.",
+            f"Run ID: {run['run_id']}",
+            f"Task ID: {run['task_id']}",
+            f"Domain: {run['domain']}",
+            "",
+        ]
+    )
+
+
 def load_run(repo_root: Path | str, run_id: str) -> dict[str, Any]:
     payload = read_json_file(run_dir_for(Path(repo_root), run_id) / "run.json")
     validate_run_payload(payload)
@@ -163,17 +243,26 @@ def create_preflight_run(
     run_id: str,
     confirm: bool = False,
     task_id: str = "",
+    domain: str = "",
     constraints: list[str] | None = None,
     stop_conditions: list[str] | None = None,
 ) -> dict[str, Any]:
     root = Path(repo_root)
+    validate_run_id(run_id)
     policy = normalize_policy_id(mode)
-    if policy != "demand_development":
-        raise ValueError("Phase 1 preflight only supports demand_development policy")
+    if policy not in {"demand_development", "autonomous_knowledge"}:
+        raise ValueError(f"unsupported preflight policy: {policy}")
     constraints = list(constraints or [])
-    stop_conditions = list(stop_conditions or ["passed_waiting_human_merge"])
-    phase = "planned" if confirm else "preflight"
-    next_action = "run_planner" if confirm else "await_preflight_confirmation"
+    if policy == "autonomous_knowledge":
+        if not domain:
+            raise ValueError("autonomous_knowledge preflight requires domain")
+        stop_conditions = list(stop_conditions or ["stopped_no_action", "stopped_budget", "stopped_blocked"])
+        phase = "planning" if confirm else "preflight"
+        next_action = "run_autonomous_planner" if confirm else "await_preflight_confirmation"
+    else:
+        stop_conditions = list(stop_conditions or ["passed_waiting_human_merge"])
+        phase = "planned" if confirm else "preflight"
+        next_action = "run_planner" if confirm else "await_preflight_confirmation"
     baseline_dirty_paths = _baseline_dirty_paths(root)
     run_dir = run_dir_for(root, run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -186,7 +275,7 @@ def create_preflight_run(
         "policy": policy,
         "phase": phase,
         "task_id": task_id,
-        "domain": "",
+        "domain": domain,
         "branch": _current_branch(root),
         "worktree": str(root.resolve()),
         "requirement": requirement,
@@ -217,8 +306,12 @@ def create_preflight_run(
 
 def confirm_preflight(repo_root: Path | str, run_id: str) -> dict[str, Any]:
     payload = load_run(repo_root, run_id)
-    payload["phase"] = "planned"
-    payload["next_action"] = "run_planner"
+    if payload["policy"] == "autonomous_knowledge":
+        payload["phase"] = "planning"
+        payload["next_action"] = "run_autonomous_planner"
+    else:
+        payload["phase"] = "planned"
+        payload["next_action"] = "run_planner"
     return save_run(repo_root, payload)
 
 
@@ -690,6 +783,659 @@ def run_loop(
     return status_for_run(root, run_id)
 
 
+def _stop_run(
+    repo_root: Path,
+    run: dict[str, Any],
+    *,
+    phase: str,
+    next_action: str,
+    last_result: str,
+) -> dict[str, Any]:
+    run["phase"] = phase
+    run["next_action"] = next_action
+    run["last_result"] = last_result
+    save_run(repo_root, run)
+    return status_for_run(repo_root, run["run_id"])
+
+
+def _autonomous_task_id(run_id: str, task_number: int) -> str:
+    return f"{run_id}-task-{task_number}"
+
+
+def _run_fake_autonomous_planner(
+    repo_root: Path,
+    run: dict[str, Any],
+    *,
+    task_number: int,
+) -> bool:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    domain = run["domain"]
+    state = load_or_create_loop_state(repo_root, domain, run["requirement"])
+    decision = decide_no_action(state)
+    run["attempts"]["planner"] = int(run["attempts"]["planner"]) + 1
+
+    if decision.no_action:
+        state["last_planner_decision"] = "no_action"
+        write_loop_state(repo_root, domain, state)
+        run["phase"] = "stopped_no_action"
+        run["next_action"] = "none"
+        run["last_result"] = "pass"
+        save_run(repo_root, run)
+        return False
+
+    task_id = _autonomous_task_id(run["run_id"], task_number)
+    planner_payload = {
+        "task_id": task_id,
+        "policy": "autonomous_knowledge",
+        "task_kind": "autonomous_implementation_task",
+        "title": f"Autonomous knowledge task {task_number}",
+        "goal": run["requirement"],
+        "non_goals": [],
+        "allowed_paths": autonomous_allowed_paths() + [f"personal-wiki/domains/{domain}/loop-state.json"],
+        "denylist_paths": autonomous_denylist_paths(),
+        "verify_commands": [],
+        "evaluator_scenarios_path": "",
+        "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
+        "next_planning_hint": "return to planning after commit",
+    }
+    validate_planner_output_payload(planner_payload)
+    write_json_file(run_dir / "planner-output.json", planner_payload)
+    state["last_planner_decision"] = "planned"
+    write_loop_state(repo_root, domain, state)
+    run["task_id"] = task_id
+    run["phase"] = "generating"
+    run["next_action"] = "run_autonomous_generator"
+    save_run(repo_root, run)
+    return True
+
+
+def _stop_if_autonomous_no_action(repo_root: Path, run: dict[str, Any]) -> bool:
+    domain = run["domain"]
+    state = load_or_create_loop_state(repo_root, domain, run["requirement"])
+    decision = decide_no_action(state)
+    if not decision.no_action:
+        return False
+    state["last_planner_decision"] = "no_action"
+    write_loop_state(repo_root, domain, state)
+    run["attempts"]["planner"] = int(run["attempts"]["planner"]) + 1
+    run["phase"] = "stopped_no_action"
+    run["next_action"] = "none"
+    run["last_result"] = "pass"
+    save_run(repo_root, run)
+    return True
+
+
+def _run_codex_autonomous_planner(
+    repo_root: Path,
+    run: dict[str, Any],
+) -> bool:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    output_path = run_dir / "planner-output.json"
+    prompt_path = run_dir / "planner-prompt.md"
+    prompt_path.write_text(_autonomous_planner_prompt(run, run_dir), encoding="utf-8")
+    attempt = int(run["attempts"]["planner"]) + 1
+    output_path.unlink(missing_ok=True)
+    attempt_payload = run_codex_prompt(
+        role="planner",
+        run_id=run["run_id"],
+        repo_root=repo_root,
+        run_dir=run_dir,
+        prompt_path=prompt_path,
+        output_json_path=output_path,
+        attempt=attempt,
+        timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+    )
+    run["attempts"]["planner"] = attempt
+    save_run(repo_root, run)
+    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+        return False
+
+    planner_payload = read_json_file(output_path)
+    validate_planner_output_payload(planner_payload)
+    run = load_run(repo_root, run["run_id"])
+    run["task_id"] = planner_payload["task_id"]
+    run["phase"] = "generating"
+    run["next_action"] = "run_autonomous_generator"
+    save_run(repo_root, run)
+    return True
+
+
+def _write_fake_autonomous_generator_result(
+    repo_root: Path,
+    run: dict[str, Any],
+    *,
+    driver: str,
+    task_number: int,
+) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    domain = run["domain"]
+    state = load_or_create_loop_state(repo_root, domain, run["requirement"])
+    changed_paths: list[str] = []
+    artifacts: list[str] = []
+    verify_results: list[str] = []
+    notes = "fake autonomous generator completed"
+
+    if driver == "fake":
+        raw_relative = f"personal-wiki/domains/{domain}/raw/loop-autonomous/{run['run_id']}-task-{task_number}.md"
+        raw_path = repo_root / raw_relative
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(
+            "\n".join(
+                [
+                    f"# Autonomous Raw Note {task_number}",
+                    "",
+                    f"- Run ID: {run['run_id']}",
+                    f"- Domain: {domain}",
+                    "- Source: fake autonomous generator",
+                    "",
+                    "Synthetic allowlisted evidence for the autonomous knowledge loop.",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        state["candidate_backlog"] = []
+        state["coverage_gaps"] = []
+        state["known_sources"] = [
+            *list(state.get("known_sources", [])),
+            {
+                "id": f"{run['run_id']}-task-{task_number}",
+                "title": f"Autonomous raw note {task_number}",
+                "source": "fake-generator",
+                "status": "captured",
+                "updated_at": _timestamp(),
+                "evidence": [raw_relative],
+            },
+        ]
+        state["no_action_evidence"] = [
+            {
+                "id": f"{run['run_id']}-scan-{task_number}",
+                "title": "Autonomous scan completed",
+                "source": "fake-generator",
+                "status": "complete",
+                "updated_at": _timestamp(),
+                "evidence": ["candidate backlog exhausted"],
+            }
+        ]
+        state["last_scan_at"] = _timestamp()
+        state["last_planner_decision"] = "planned"
+        write_loop_state(repo_root, domain, state)
+        changed_paths = [raw_relative, f"personal-wiki/domains/{domain}/loop-state.json"]
+        artifacts = [raw_relative]
+    elif driver == "fake-denylist":
+        denied_relative = ".env"
+        (repo_root / denied_relative).write_text("FAKE_SECRET=redacted\n", encoding="utf-8")
+        changed_paths = [denied_relative]
+        notes = "fake autonomous generator wrote denylist path"
+    elif driver == "fake-dependency":
+        dependency_relative = "requirements.txt"
+        (repo_root / dependency_relative).write_text("example-package==0.0.1\n", encoding="utf-8")
+        changed_paths = [dependency_relative]
+        notes = ""
+    else:
+        raise ValueError(f"unsupported autonomous generator driver: {driver}")
+
+    payload = {
+        "task_id": run["task_id"],
+        "status": "implemented",
+        "changed_paths": changed_paths,
+        "commit": "",
+        "verify_commands": [],
+        "verify_results": verify_results,
+        "artifacts": artifacts,
+        "cleanup_required": False,
+        "notes": notes,
+    }
+    validate_generator_result_payload(payload)
+    write_json_file(run_dir / "generator-result.json", payload)
+    run["attempts"]["generator"] = int(run["attempts"]["generator"]) + 1
+    run["phase"] = "evaluating"
+    run["next_action"] = "run_autonomous_evaluator"
+    save_run(repo_root, run)
+    return payload
+
+
+def _run_codex_autonomous_generator(
+    repo_root: Path,
+    run: dict[str, Any],
+) -> dict[str, Any] | None:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    output_path = run_dir / "generator-result.json"
+    prompt_path = run_dir / "generator-prompt.md"
+    prompt_path.write_text(_autonomous_generator_prompt(run, run_dir), encoding="utf-8")
+    attempt = int(run["attempts"]["generator"]) + 1
+    output_path.unlink(missing_ok=True)
+    attempt_payload = run_codex_prompt(
+        role="generator",
+        run_id=run["run_id"],
+        repo_root=repo_root,
+        run_dir=run_dir,
+        prompt_path=prompt_path,
+        output_json_path=output_path,
+        attempt=attempt,
+        timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+    )
+    run["attempts"]["generator"] = attempt
+    _record_generator_attempt_for_task(run)
+    save_run(repo_root, run)
+    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+        return None
+
+    generator_payload = read_json_file(output_path)
+    validate_generator_result_payload(generator_payload)
+    run = load_run(repo_root, run["run_id"])
+    run["phase"] = "evaluating"
+    run["next_action"] = "run_autonomous_evaluator"
+    save_run(repo_root, run)
+    return generator_payload
+
+
+def _generator_attempts_for_task(repo_root: Path, run: dict[str, Any]) -> int:
+    del repo_root
+    task_id = str(run.get("task_id", ""))
+    attempts_by_task = run.get("_autonomous_generator_attempts_by_task", {})
+    if not isinstance(attempts_by_task, dict):
+        return 0
+    value = attempts_by_task.get(task_id, 0)
+    return int(value) if isinstance(value, int) else 0
+
+
+def _record_generator_attempt_for_task(run: dict[str, Any]) -> None:
+    task_id = str(run.get("task_id", ""))
+    attempts_by_task = run.get("_autonomous_generator_attempts_by_task")
+    if not isinstance(attempts_by_task, dict):
+        attempts_by_task = {}
+    attempts_by_task[task_id] = int(attempts_by_task.get(task_id, 0)) + 1
+    run["_autonomous_generator_attempts_by_task"] = attempts_by_task
+
+
+def _run_fake_autonomous_evaluator(
+    repo_root: Path,
+    run: dict[str, Any],
+    *,
+    max_attempts: int,
+) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    output_path = run_dir / "evaluator-result.json"
+    task_contract_path = run_dir / "task-contract.json"
+    scenario_path = repo_root / "docs" / "harness" / "evaluator-scenarios" / f"{run['task_id']}.json"
+    if task_contract_path.exists() or scenario_path.exists():
+        run_evaluator(repo_root, run["run_id"], driver="fake", max_attempts=max_attempts)
+        return read_json_file(output_path)
+
+    payload = {
+        "status": "pass",
+        "task_id": run["task_id"],
+        "driver": "fake",
+        "returncode": 0,
+        "stdout": "fake autonomous smoke pass\n",
+        "stderr": "",
+    }
+    validate_evaluator_result_payload(payload)
+    write_json_file(output_path, payload)
+    run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
+    run["phase"] = "artifact_hygiene"
+    run["next_action"] = "run_artifact_hygiene"
+    run["last_result"] = "pass"
+    save_run(repo_root, run)
+    return payload
+
+
+def _run_codex_autonomous_evaluator(
+    repo_root: Path,
+    run: dict[str, Any],
+) -> dict[str, Any] | None:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    output_path = run_dir / "evaluator-result.json"
+    prompt_path = run_dir / "evaluator-prompt.md"
+    prompt_path.write_text(_autonomous_evaluator_prompt(run, run_dir), encoding="utf-8")
+    attempt = int(run["attempts"]["evaluator"]) + 1
+    output_path.unlink(missing_ok=True)
+    attempt_payload = run_codex_prompt(
+        role="evaluator",
+        run_id=run["run_id"],
+        repo_root=repo_root,
+        run_dir=run_dir,
+        prompt_path=prompt_path,
+        output_json_path=output_path,
+        attempt=attempt,
+        timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+    )
+    run["attempts"]["evaluator"] = attempt
+    save_run(repo_root, run)
+    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+        return None
+
+    evaluator_payload = read_json_file(output_path)
+    validate_evaluator_result_payload(evaluator_payload)
+    run = load_run(repo_root, run["run_id"])
+    run["phase"] = "artifact_hygiene"
+    run["next_action"] = "run_artifact_hygiene"
+    run["last_result"] = (
+        "pass"
+        if evaluator_payload["status"] == "pass" and evaluator_payload["returncode"] == 0
+        else "blocked"
+        if evaluator_payload["status"] == "blocked"
+        else "fail"
+    )
+    save_run(repo_root, run)
+    return evaluator_payload
+
+
+def _run_wiki_validate(repo_root: Path, domain: str, run_dir: Path) -> bool:
+    cli_path = repo_root / "personal-wiki" / "tools" / "wiki_cli" / "cli.py"
+    result_path = run_dir / "wiki-validate-result.json"
+    if not cli_path.exists():
+        write_json_file(
+            result_path,
+            {
+                "status": "skipped",
+                "reason": "personal-wiki CLI not present",
+                "returncode": 0,
+                "stdout": "",
+                "stderr": "",
+            },
+        )
+        return True
+    result = subprocess.run(
+        ["python3", "personal-wiki/tools/wiki_cli/cli.py", "--root", "personal-wiki", "validate", "--domain", domain],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    write_json_file(
+        result_path,
+        {
+            "status": "pass" if result.returncode == 0 else "fail",
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        },
+    )
+    return result.returncode == 0
+
+
+def _commit_autonomous_changes(
+    repo_root: Path,
+    run: dict[str, Any],
+    generator_result: dict[str, Any],
+) -> bool:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    changed_paths = list(generator_result["changed_paths"])
+    dirty_result = _check_autonomous_dirty_paths(repo_root, run, changed_paths)
+    write_json_file(run_dir / "dirty-paths-result.json", dirty_result)
+    if not dirty_result["allowed"]:
+        _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_dirty_paths", last_result="blocked")
+        return False
+
+    dependency_allowed_paths = [
+        "requirements.txt",
+        "requirements-*.txt",
+        "package.json",
+        "package-lock.json",
+        "package*.json",
+    ]
+    scope = check_autonomous_scope(
+        changed_paths,
+        autonomous_allowed_paths() + dependency_allowed_paths + [f"personal-wiki/domains/{run['domain']}/loop-state.json"],
+        autonomous_denylist_paths(),
+        autonomous_manual_confirm_paths(),
+    )
+    write_json_file(
+        run_dir / "autonomous-scope-result.json",
+        {
+            "allowed": scope.allowed,
+            "allowed_paths": scope.allowed_paths,
+            "denied_paths": scope.denied_paths,
+            "manual_confirm_paths": scope.manual_confirm_paths,
+            "findings": scope.findings,
+        },
+    )
+    if not scope.allowed:
+        _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_scope", last_result="blocked")
+        return False
+
+    supply_chain = check_supply_chain(changed_paths, generator_result["notes"], generator_result["verify_results"])
+    write_json_file(
+        run_dir / "supply-chain-result.json",
+        {
+            "allowed": supply_chain.allowed,
+            "dependency_paths": supply_chain.dependency_paths,
+            "findings": supply_chain.findings,
+        },
+    )
+    if not supply_chain.allowed:
+        _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_supply_chain", last_result="blocked")
+        return False
+
+    if not _run_wiki_validate(repo_root, run["domain"], run_dir):
+        _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_wiki_validate", last_result="blocked")
+        return False
+
+    if changed_paths and not generator_result["commit"]:
+        try:
+            commit_sha = run_git_commit(
+                repo_root,
+                changed_paths,
+                f"chore(wiki): autonomous knowledge update {run['run_id']}",
+            )
+        except Exception as exc:
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "blocked",
+                    "commit": "",
+                    "error": str(exc),
+                },
+            )
+            _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
+            return False
+        write_json_file(
+            run_dir / "commit-result.json",
+            {
+                "status": "pass",
+                "commit": commit_sha,
+                "error": "",
+            },
+        )
+        generator_result["commit"] = commit_sha
+        write_json_file(run_dir / "generator-result.json", generator_result)
+
+    return _finish_autonomous_cleanup(repo_root, run["run_id"])
+
+
+def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
+    run = load_run(repo_root, run_id)
+    run["phase"] = "cleanup"
+    run["next_action"] = "run_cleanup"
+    save_run(repo_root, run)
+    run_cleanup(repo_root, run_id)
+    run = load_run(repo_root, run_id)
+    run["phase"] = "planning"
+    run["next_action"] = "run_autonomous_planner"
+    run["last_result"] = "pass"
+    save_run(repo_root, run)
+    return True
+
+
+def _check_autonomous_dirty_paths(
+    repo_root: Path,
+    run: dict[str, Any],
+    declared_changed_paths: list[str],
+) -> dict[str, Any]:
+    actual_paths = _git_dirty_paths(repo_root)
+    baseline_paths = _baseline_dirty_relative_paths(run)
+    declared = set(declared_changed_paths)
+    declared.add(f"personal-wiki/domains/{run['domain']}/loop-state.json")
+    baseline_changed_paths = sorted(path for path in declared if path in baseline_paths)
+    ignored_paths = [
+        path
+        for path in actual_paths
+        if _is_autonomous_internal_dirty_path(path, str(run["run_id"]), str(run["task_id"]))
+    ]
+    unexpected_paths = sorted(
+        path
+        for path in actual_paths
+        if path not in declared
+        and path not in baseline_paths
+        and path not in ignored_paths
+    )
+    return {
+        "allowed": not unexpected_paths and not baseline_changed_paths,
+        "actual_paths": actual_paths,
+        "declared_paths": sorted(declared),
+        "baseline_paths": sorted(baseline_paths),
+        "baseline_changed_paths": baseline_changed_paths,
+        "ignored_paths": sorted(ignored_paths),
+        "unexpected_paths": unexpected_paths,
+    }
+
+
+def _git_dirty_paths(repo_root: Path) -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+    if result.returncode != 0:
+        return []
+    paths: list[str] = []
+    for line in result.stdout.splitlines():
+        parsed_paths = _parse_porcelain_paths(line)
+        paths.extend(parsed_paths)
+    return sorted(set(paths))
+
+
+def _baseline_dirty_relative_paths(run: dict[str, Any]) -> set[str]:
+    paths: set[str] = set()
+    for line in run.get("baseline_dirty_paths", []):
+        if not isinstance(line, str):
+            continue
+        paths.update(_parse_porcelain_paths(line))
+    return paths
+
+
+def _parse_porcelain_paths(line: str) -> list[str]:
+    if not line.strip() or len(line) < 4:
+        return []
+    path_value = line[3:].strip()
+    if " -> " in path_value:
+        old_path, new_path = path_value.split(" -> ", 1)
+        return [old_path.strip(), new_path.strip()]
+    return [path_value]
+
+
+def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> bool:
+    return (
+        path.startswith(f".codex/loop-runs/{run_id}/")
+        or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
+    )
+
+
+def run_autonomous(
+    repo_root: Path | str,
+    run_id: str,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+    max_tasks: int,
+) -> dict[str, str]:
+    root = Path(repo_root)
+    validate_run_id(run_id)
+    if planner_driver not in {"fake", "codex-exec"}:
+        raise ValueError(f"unsupported autonomous planner driver: {planner_driver}")
+    if generator_driver not in {"fake", "fake-denylist", "fake-dependency", "codex-exec"}:
+        raise ValueError(f"unsupported autonomous generator driver: {generator_driver}")
+    if evaluator_driver not in {"fake", "codex-exec"}:
+        raise ValueError(f"unsupported autonomous evaluator driver: {evaluator_driver}")
+
+    tasks_completed = 0
+    while True:
+        run = load_run(root, run_id)
+        if run["policy"] != "autonomous_knowledge":
+            raise RuntimeError(f"run_autonomous requires autonomous_knowledge policy; current policy is {run['policy']}")
+        if run["phase"] == "preflight":
+            raise RuntimeError("run_autonomous requires confirmed preflight; current phase is preflight")
+        if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
+            return status_for_run(root, run_id)
+        if run["phase"] == "planning" and tasks_completed >= max_tasks:
+            return _stop_run(root, run, phase="stopped_budget", next_action="none", last_result="pass")
+        if run["phase"] not in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}:
+            raise RuntimeError(f"run_autonomous unsupported phase {run['phase']}")
+
+        if run["phase"] == "planning":
+            task_number = int(run["attempts"]["generator"]) + 1
+            if planner_driver != "fake" and _stop_if_autonomous_no_action(root, run):
+                return status_for_run(root, run_id)
+            if planner_driver == "fake":
+                planned = _run_fake_autonomous_planner(root, run, task_number=task_number)
+            else:
+                planned = _run_codex_autonomous_planner(root, run)
+            if not planned:
+                current = load_run(root, run_id)
+                if current["phase"] == "stopped_no_action":
+                    return status_for_run(root, run_id)
+                return _stop_run(root, current, phase="stopped_blocked", next_action="inspect_autonomous_planner", last_result="blocked")
+            continue
+
+        run = load_run(root, run_id)
+        if run["phase"] == "generating":
+            if _generator_attempts_for_task(root, run) >= int(run["limits"]["max_generator_attempts_per_task"]):
+                return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_autonomous_generator", last_result="blocked")
+            if generator_driver == "codex-exec":
+                generator_result = _run_codex_autonomous_generator(root, run)
+                if generator_result is None:
+                    continue
+            else:
+                task_number = int(run["attempts"]["generator"]) + 1
+                _write_fake_autonomous_generator_result(
+                    root,
+                    run,
+                    driver=generator_driver,
+                    task_number=task_number,
+                )
+            continue
+
+        run = load_run(root, run_id)
+        if run["phase"] == "evaluating":
+            if evaluator_driver == "fake":
+                evaluator_result = _run_fake_autonomous_evaluator(root, run, max_attempts=max_eval_attempts)
+            else:
+                evaluator_result = _run_codex_autonomous_evaluator(root, run)
+                if evaluator_result is None:
+                    return _stop_run(root, load_run(root, run_id), phase="stopped_blocked", next_action="inspect_autonomous_evaluator", last_result="blocked")
+            if evaluator_result["status"] != "pass" or evaluator_result["returncode"] != 0:
+                return _stop_run(root, load_run(root, run_id), phase="stopped_blocked", next_action="inspect_evaluator", last_result="blocked")
+            continue
+
+        run = load_run(root, run_id)
+        if run["phase"] == "artifact_hygiene":
+            run_artifact_hygiene_step(root, run_id)
+            run = load_run(root, run_id)
+            if run["phase"] == "stopped_blocked":
+                return status_for_run(root, run_id)
+            continue
+
+        run = load_run(root, run_id)
+        if run["phase"] == "cleanup":
+            generator_result = read_json_file(run_dir_for(root, run_id) / "generator-result.json")
+            validate_generator_result_payload(generator_result)
+            if not generator_result["commit"]:
+                if not _commit_autonomous_changes(root, run, generator_result):
+                    return status_for_run(root, run_id)
+            else:
+                if not _finish_autonomous_cleanup(root, run_id):
+                    return status_for_run(root, run_id)
+            tasks_completed += 1
+
+
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
     payload = load_run(repo_root, run_id)
     return {
@@ -715,6 +1461,7 @@ def _build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--requirement", required=True)
     preflight.add_argument("--run-id", required=True)
     preflight.add_argument("--task-id", default="")
+    preflight.add_argument("--domain", default="")
     preflight.add_argument("--constraint", action="append", default=[])
     preflight.add_argument("--stop-condition", action="append", default=[])
     preflight.add_argument("--confirm", action="store_true")
@@ -755,6 +1502,15 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
     run.add_argument("--max-eval-attempts", type=int, default=2)
 
+    run_autonomous_parser = subparsers.add_parser("run-autonomous", help="Run the autonomous knowledge loop.")
+    run_autonomous_parser.add_argument("--repo-root", default=".")
+    run_autonomous_parser.add_argument("--run-id", required=True)
+    run_autonomous_parser.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
+    run_autonomous_parser.add_argument("--generator-driver", choices=("fake", "fake-denylist", "fake-dependency", "codex-exec"), required=True)
+    run_autonomous_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
+    run_autonomous_parser.add_argument("--max-eval-attempts", type=int, default=2)
+    run_autonomous_parser.add_argument("--max-tasks", type=int, default=3)
+
     status = subparsers.add_parser("status", help="Print run status.")
     status.add_argument("--repo-root", default=".")
     status.add_argument("--run-id", required=True)
@@ -772,6 +1528,7 @@ def main(argv: list[str] | None = None) -> int:
             requirement=args.requirement,
             run_id=args.run_id,
             task_id=args.task_id,
+            domain=args.domain,
             constraints=args.constraint,
             stop_conditions=args.stop_condition or None,
             confirm=args.confirm,
@@ -806,6 +1563,16 @@ def main(argv: list[str] | None = None) -> int:
             generator_driver=args.generator_driver,
             evaluator_driver=args.evaluator_driver,
             max_eval_attempts=args.max_eval_attempts,
+        )
+    elif args.command == "run-autonomous":
+        payload = run_autonomous(
+            repo_root=args.repo_root,
+            run_id=args.run_id,
+            planner_driver=args.planner_driver,
+            generator_driver=args.generator_driver,
+            evaluator_driver=args.evaluator_driver,
+            max_eval_attempts=args.max_eval_attempts,
+            max_tasks=args.max_tasks,
         )
     elif args.command == "status":
         payload = status_for_run(repo_root=args.repo_root, run_id=args.run_id)

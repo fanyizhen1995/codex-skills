@@ -14,14 +14,17 @@ from scripts.harness_loop_contracts import (
     run_dir_for,
     validate_evaluator_result_payload,
     validate_generator_result_payload,
+    validate_loop_state_payload,
     validate_planner_output_payload,
     validate_run_payload,
     write_json_file,
 )
+from scripts.harness_loop_autonomous import create_default_loop_state, write_loop_state
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
     create_preflight_run,
     main,
+    run_autonomous,
     status_for_run,
 )
 
@@ -79,6 +82,87 @@ def remove_empty_directory(path: Path) -> None:
         pass
 
 
+def init_git_repo(repo_root: Path) -> None:
+    subprocess.run(["git", "init"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(
+        ["git", "config", "user.email", "codex@example.invalid"],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Codex"],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    (repo_root / "README.md").write_text("temporary repo\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(
+        ["git", "commit", "-m", "test: initial"],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def seed_no_action_loop_state(repo_root: Path, domain: str) -> dict[str, object]:
+    state = create_default_loop_state(domain, "Expand wiki")
+    state["candidate_backlog"] = []
+    state["coverage_gaps"] = []
+    state["known_sources"] = [
+        {
+            "id": "src-1",
+            "title": "Source",
+            "source": "manual",
+            "status": "scanned",
+            "updated_at": state["last_scan_at"],
+            "evidence": ["checked"],
+        }
+    ]
+    state["no_action_evidence"] = [
+        {
+            "id": "scan-1",
+            "title": "Scan",
+            "source": "planner",
+            "status": "complete",
+            "updated_at": state["last_scan_at"],
+            "evidence": ["no candidates"],
+        }
+    ]
+    write_loop_state(repo_root, domain, state)
+    return state
+
+
+def seed_candidate_loop_state(repo_root: Path, domain: str) -> dict[str, object]:
+    state = create_default_loop_state(domain, "Expand wiki")
+    state["known_sources"] = [
+        {
+            "id": "src-1",
+            "title": "Source",
+            "source": "manual",
+            "status": "scanned",
+            "updated_at": state["last_scan_at"],
+            "evidence": ["checked"],
+        }
+    ]
+    state["candidate_backlog"] = [
+        {
+            "id": "candidate-1",
+            "title": "Capture synthetic source",
+            "source": "planner",
+            "status": "pending",
+            "updated_at": state["last_scan_at"],
+            "evidence": ["seeded candidate"],
+        }
+    ]
+    write_loop_state(repo_root, domain, state)
+    return state
+
+
 class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_create_preflight_run_without_confirmation_writes_run_state_and_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -126,6 +210,19 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
 
             self.assertEqual(payload["baseline_dirty_paths"], ["?? unrelated.txt"])
+
+    def test_create_preflight_run_rejects_path_escape_run_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+
+            with self.assertRaisesRegex(ValueError, "run_id"):
+                create_preflight_run(
+                    repo_root=repo_root,
+                    mode="demand-development",
+                    requirement="Build the thing",
+                    run_id="../escape",
+                    confirm=True,
+                )
 
     def test_confirm_preflight_changes_phase_to_planned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -184,18 +281,686 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(saved_payload["phase"], "planned")
             self.assertEqual(saved_payload["next_action"], "run_planner")
 
-    def test_create_preflight_run_rejects_autonomous_knowledge_mode(self) -> None:
+    def test_create_preflight_run_accepts_autonomous_knowledge_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
 
-            with self.assertRaisesRegex(ValueError, "demand_development"):
-                create_preflight_run(
-                    repo_root=repo_root,
-                    mode="autonomous-knowledge",
-                    requirement="Crawl knowledge",
-                    run_id="demo-run",
-                    confirm=True,
+            payload = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Crawl knowledge",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+
+            self.assertEqual(payload["policy"], "autonomous_knowledge")
+            self.assertEqual(payload["phase"], "planning")
+            self.assertEqual(payload["domain"], "ai_infra")
+            self.assertEqual(payload["next_action"], "run_autonomous_planner")
+            self.assertIn("stopped_no_action", payload["stop_conditions"])
+            saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            validate_run_payload(saved_payload)
+
+    def test_confirm_preflight_preserves_autonomous_knowledge_start_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Crawl knowledge",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=False,
+            )
+
+            payload = confirm_preflight(repo_root=repo_root, run_id="demo-run")
+
+            self.assertEqual(payload["policy"], "autonomous_knowledge")
+            self.assertEqual(payload["phase"], "planning")
+            self.assertEqual(payload["next_action"], "run_autonomous_planner")
+
+    def test_run_autonomous_stops_when_loop_state_has_fresh_no_action_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_no_action_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_no_action")
+            self.assertEqual(status["next_action"], "none")
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["attempts"]["planner"], 1)
+            self.assertEqual(run["attempts"]["generator"], 0)
+
+    def test_run_autonomous_commits_allowlisted_change_then_returns_to_planning_and_stops_no_action(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_no_action")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            generator_result = read_json_file(run_dir / "generator-result.json")
+            self.assertEqual(generator_result["status"], "implemented")
+            self.assertTrue(generator_result["commit"])
+            changed_paths = set(generator_result["changed_paths"])
+            self.assertIn("personal-wiki/domains/ai_infra/loop-state.json", changed_paths)
+            self.assertTrue(any(path.startswith("personal-wiki/domains/ai_infra/raw/loop-autonomous/") for path in changed_paths))
+            committed_files = subprocess.run(
+                ["git", "show", "--name-only", "--format=", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertIn("personal-wiki/domains/ai_infra/loop-state.json", committed_files.stdout)
+            loop_state = read_json_file(repo_root / "personal-wiki" / "domains" / "ai_infra" / "loop-state.json")
+            validate_loop_state_payload(loop_state)
+            self.assertEqual(loop_state["last_planner_decision"], "no_action")
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["phase"], "stopped_no_action")
+            self.assertEqual(run["attempts"]["planner"], 2)
+            self.assertEqual(run["attempts"]["generator"], 1)
+            self.assertEqual(run["attempts"]["evaluator"], 1)
+
+    def test_run_autonomous_blocks_declared_paths_that_were_dirty_at_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            dirty_result = read_json_file(run_dir / "dirty-paths-result.json")
+            self.assertEqual(run["next_action"], "inspect_autonomous_dirty_paths")
+            self.assertIn("personal-wiki/domains/ai_infra/loop-state.json", dirty_result["baseline_changed_paths"])
+
+    def test_run_autonomous_supports_codex_exec_agents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            def write_agent_output(**kwargs: object) -> dict[str, object]:
+                output_path = Path(kwargs["output_json_path"])
+                role = str(kwargs["role"])
+                if role == "planner":
+                    write_json_file(
+                        output_path,
+                        {
+                            "task_id": "codex-autonomous-task",
+                            "policy": "autonomous_knowledge",
+                            "task_kind": "autonomous_implementation_task",
+                            "title": "Codex autonomous task",
+                            "goal": "Expand wiki",
+                            "non_goals": [],
+                            "allowed_paths": [
+                                "personal-wiki/domains/ai_infra/raw/**",
+                                "personal-wiki/domains/ai_infra/loop-state.json",
+                            ],
+                            "denylist_paths": [],
+                            "verify_commands": [],
+                            "evaluator_scenarios_path": "",
+                            "stop_conditions": ["stopped_no_action", "stopped_budget", "stopped_blocked"],
+                            "next_planning_hint": "continue planning",
+                        },
+                    )
+                elif role == "generator":
+                    raw_note = repo_root / "personal-wiki" / "domains" / "ai_infra" / "raw" / "loop-autonomous" / "codex-task.md"
+                    raw_note.parent.mkdir(parents=True, exist_ok=True)
+                    raw_note.write_text("# Codex autonomous note\n", encoding="utf-8")
+                    seed_no_action_loop_state(repo_root, "ai_infra")
+                    write_json_file(
+                        output_path,
+                        {
+                            "task_id": "codex-autonomous-task",
+                            "status": "implemented",
+                            "changed_paths": [
+                                "personal-wiki/domains/ai_infra/raw/loop-autonomous/codex-task.md",
+                                "personal-wiki/domains/ai_infra/loop-state.json",
+                            ],
+                            "commit": "",
+                            "verify_commands": [],
+                            "verify_results": ["python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v"],
+                            "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/codex-task.md"],
+                            "cleanup_required": False,
+                            "notes": "autonomous knowledge update without dependency changes",
+                        },
+                    )
+                elif role == "evaluator":
+                    write_json_file(
+                        output_path,
+                        {
+                            "status": "pass",
+                            "task_id": "codex-autonomous-task",
+                            "driver": "codex-exec",
+                            "returncode": 0,
+                            "stdout": "codex autonomous evaluator pass\n",
+                            "stderr": "",
+                        },
+                    )
+                return {
+                    "status": "pass",
+                    "run_id": "demo-run",
+                    "role": role,
+                    "attempt": int(kwargs["attempt"]),
+                }
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=write_agent_output):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="codex-exec",
+                    generator_driver="codex-exec",
+                    evaluator_driver="codex-exec",
+                    max_eval_attempts=2,
+                    max_tasks=3,
                 )
+
+            self.assertEqual(status["phase"], "stopped_no_action")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            generator_result = read_json_file(run_dir / "generator-result.json")
+            self.assertEqual(run["attempts"]["planner"], 2)
+            self.assertEqual(run["attempts"]["generator"], 1)
+            self.assertTrue(generator_result["commit"])
+
+    def test_run_autonomous_retries_generator_failures_until_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            attempts: list[int] = []
+
+            def fail_generator(**kwargs: object) -> dict[str, object]:
+                attempts.append(int(kwargs["attempt"]))
+                return {
+                    "status": "fail",
+                    "run_id": "demo-run",
+                    "role": "generator",
+                    "attempt": int(kwargs["attempt"]),
+                }
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=fail_generator):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="codex-exec",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(attempts, [1, 2])
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["next_action"], "inspect_autonomous_generator")
+            self.assertEqual(run["attempts"]["generator"], 2)
+
+    def test_run_autonomous_generator_retry_limit_is_per_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "generating"
+            run["next_action"] = "run_autonomous_generator"
+            run["task_id"] = "demo-run-task-2"
+            run["attempts"]["generator"] = 2
+            write_json_file(run_dir / "run.json", run)
+            attempts: list[int] = []
+
+            def fail_generator(**kwargs: object) -> dict[str, object]:
+                attempts.append(int(kwargs["attempt"]))
+                return {
+                    "status": "fail",
+                    "run_id": "demo-run",
+                    "role": "generator",
+                    "attempt": int(kwargs["attempt"]),
+                }
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=fail_generator):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="codex-exec",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(attempts, [3, 4])
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["next_action"], "inspect_autonomous_generator")
+            self.assertEqual(run["attempts"]["generator"], 4)
+
+    def test_run_autonomous_resumes_from_evaluating_after_interruption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            with patch(
+                "scripts.harness_loop_orchestrator._run_fake_autonomous_evaluator",
+                side_effect=RuntimeError("interrupted evaluator"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "interrupted evaluator"):
+                    run_autonomous(
+                        repo_root,
+                        "demo-run",
+                        planner_driver="fake",
+                        generator_driver="fake",
+                        evaluator_driver="fake",
+                        max_eval_attempts=2,
+                        max_tasks=3,
+                    )
+            interrupted = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(interrupted["phase"], "evaluating")
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_no_action")
+
+    def test_run_autonomous_resumes_from_artifact_hygiene_after_interruption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            with patch(
+                "scripts.harness_loop_orchestrator.run_artifact_hygiene_step",
+                side_effect=RuntimeError("interrupted hygiene"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "interrupted hygiene"):
+                    run_autonomous(
+                        repo_root,
+                        "demo-run",
+                        planner_driver="fake",
+                        generator_driver="fake",
+                        evaluator_driver="fake",
+                        max_eval_attempts=2,
+                        max_tasks=3,
+                    )
+            interrupted = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(interrupted["phase"], "artifact_hygiene")
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_no_action")
+
+    def test_run_autonomous_resumes_from_cleanup_after_commit_interruption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            with patch(
+                "scripts.harness_loop_orchestrator.run_cleanup",
+                side_effect=RuntimeError("interrupted cleanup"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "interrupted cleanup"):
+                    run_autonomous(
+                        repo_root,
+                        "demo-run",
+                        planner_driver="fake",
+                        generator_driver="fake",
+                        evaluator_driver="fake",
+                        max_eval_attempts=2,
+                        max_tasks=3,
+                    )
+            run_dir = run_dir_for(repo_root, "demo-run")
+            interrupted = read_json_file(run_dir / "run.json")
+            generator_result = read_json_file(run_dir / "generator-result.json")
+            self.assertEqual(interrupted["phase"], "cleanup")
+            self.assertTrue(generator_result["commit"])
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_no_action")
+
+    def test_run_autonomous_blocks_undeclared_dirty_denylist_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            from scripts import harness_loop_orchestrator as orchestrator
+
+            original_generator = orchestrator._write_fake_autonomous_generator_result
+
+            def write_undeclared_dirty_path(*args: object, **kwargs: object) -> dict[str, object]:
+                result = original_generator(*args, **kwargs)
+                (repo_root / ".env").write_text("FAKE_SECRET=redacted\n", encoding="utf-8")
+                return result
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=write_undeclared_dirty_path,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            dirty_result = read_json_file(run_dir / "dirty-paths-result.json")
+            self.assertEqual(run["next_action"], "inspect_autonomous_dirty_paths")
+            self.assertIn(".env", dirty_result["unexpected_paths"])
+
+    def test_run_autonomous_blocks_and_records_commit_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            with patch("scripts.harness_loop_orchestrator.run_git_commit", side_effect=RuntimeError("commit failed")):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            commit_result = read_json_file(run_dir / "commit-result.json")
+            self.assertEqual(run["next_action"], "inspect_autonomous_commit")
+            self.assertEqual(commit_result["status"], "blocked")
+            self.assertIn("commit failed", commit_result["error"])
+
+    def test_run_autonomous_blocks_denylist_changed_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake-denylist",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["last_result"], "blocked")
+            self.assertEqual(run["next_action"], "inspect_autonomous_scope")
+
+    def test_run_autonomous_blocks_dependency_change_without_supply_chain_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake-dependency",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["last_result"], "blocked")
+            self.assertEqual(run["next_action"], "inspect_supply_chain")
+
+    def test_run_autonomous_checks_scope_before_supply_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            calls: list[str] = []
+
+            from scripts.harness_loop_autonomous import ScopeCheckResult, SupplyChainCheckResult
+
+            def record_scope(*args: object, **kwargs: object) -> ScopeCheckResult:
+                calls.append("scope")
+                return ScopeCheckResult(True, ["requirements.txt"], [], [], [])
+
+            def record_supply_chain(*args: object, **kwargs: object) -> SupplyChainCheckResult:
+                calls.append("supply_chain")
+                return SupplyChainCheckResult(False, ["requirements.txt"], ["missing dependency evidence"])
+
+            with patch("scripts.harness_loop_orchestrator.check_autonomous_scope", side_effect=record_scope):
+                with patch("scripts.harness_loop_orchestrator.check_supply_chain", side_effect=record_supply_chain):
+                    status = run_autonomous(
+                        repo_root,
+                        "demo-run",
+                        planner_driver="fake",
+                        generator_driver="fake-dependency",
+                        evaluator_driver="fake",
+                        max_eval_attempts=2,
+                        max_tasks=1,
+                    )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(calls, ["scope", "supply_chain"])
+
+    def test_cli_run_autonomous_accepts_fake_drivers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_no_action_loop_state(repo_root, "ai_infra")
+
+            self.assertEqual(
+                call_cli(
+                    [
+                        "run-autonomous",
+                        "--repo-root",
+                        str(repo_root),
+                        "--run-id",
+                        "demo-run",
+                        "--planner-driver",
+                        "fake",
+                        "--generator-driver",
+                        "fake",
+                        "--evaluator-driver",
+                        "fake",
+                        "--max-eval-attempts",
+                        "2",
+                        "--max-tasks",
+                        "3",
+                    ]
+                ),
+                0,
+            )
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["phase"], "stopped_no_action")
 
     def test_create_preflight_run_accepts_explicit_task_id_for_fake_planner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
