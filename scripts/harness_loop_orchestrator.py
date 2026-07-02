@@ -12,6 +12,7 @@ try:
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
         validate_run_payload,
@@ -24,6 +25,7 @@ except ModuleNotFoundError:
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
         validate_run_payload,
@@ -154,11 +156,15 @@ def create_preflight_run(
     run_id: str,
     confirm: bool = False,
     task_id: str = "",
+    constraints: list[str] | None = None,
+    stop_conditions: list[str] | None = None,
 ) -> dict[str, Any]:
     root = Path(repo_root)
     policy = normalize_policy_id(mode)
     if policy != "demand_development":
         raise ValueError("Phase 1 preflight only supports demand_development policy")
+    constraints = list(constraints or [])
+    stop_conditions = list(stop_conditions or ["passed_waiting_human_merge"])
     phase = "planned" if confirm else "preflight"
     next_action = "run_planner" if confirm else "await_preflight_confirmation"
     baseline_dirty_paths = _baseline_dirty_paths(root)
@@ -176,6 +182,9 @@ def create_preflight_run(
         "domain": "",
         "branch": _current_branch(root),
         "worktree": str(root.resolve()),
+        "requirement": requirement,
+        "constraints": constraints,
+        "stop_conditions": stop_conditions,
         "baseline_dirty_paths": baseline_dirty_paths,
         "allowed_paths": [],
         "denylist_paths": [],
@@ -224,11 +233,11 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             "title": f"Loop task {run_id}",
             "goal": _read_requirement(run_dir),
             "non_goals": [],
-            "allowed_paths": [],
-            "denylist_paths": [],
+            "allowed_paths": list(run.get("allowed_paths", [])),
+            "denylist_paths": list(run.get("denylist_paths", [])),
             "verify_commands": [],
             "evaluator_scenarios_path": "",
-            "stop_conditions": ["passed_waiting_human_merge"],
+            "stop_conditions": list(run.get("stop_conditions", ["passed_waiting_human_merge"])),
             "next_planning_hint": "",
         }
         validate_planner_output_payload(payload)
@@ -239,7 +248,7 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             _planner_prompt(requirement=_read_requirement(run_dir), run_id=run_id),
             encoding="utf-8",
         )
-        run_codex_prompt(
+        attempt_payload = run_codex_prompt(
             role="planner",
             run_id=run_id,
             repo_root=root,
@@ -251,6 +260,9 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
         )
         run["attempts"]["planner"] = attempt
         save_run(root, run)
+        if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+            status = attempt_payload.get("status") if isinstance(attempt_payload, dict) else type(attempt_payload).__name__
+            raise RuntimeError(f"planner codex-exec attempt failed with status {status}")
     else:
         raise ValueError(f"unsupported planner driver: {driver}")
 
@@ -292,7 +304,7 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     elif driver == "codex-exec":
         prompt_path = run_dir / "generator-prompt.md"
         prompt_path.write_text(_generator_prompt(run_id), encoding="utf-8")
-        run_codex_prompt(
+        attempt_payload = run_codex_prompt(
             role="generator",
             run_id=run_id,
             repo_root=root,
@@ -304,6 +316,9 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
         )
         run["attempts"]["generator"] = attempt
         save_run(root, run)
+        if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+            status = attempt_payload.get("status") if isinstance(attempt_payload, dict) else type(attempt_payload).__name__
+            raise RuntimeError(f"generator codex-exec attempt failed with status {status}")
         validate_generator_result_payload(read_json_file(output_path))
     else:
         raise ValueError(f"unsupported generator driver: {driver}")
@@ -386,19 +401,22 @@ def run_evaluator(
         capture_output=True,
         text=True,
     )
-    synthetic_payload = {
-        "status": "pass" if result.returncode == 0 else "fail",
+    evaluator_status = "pass" if result.returncode == 0 else "fail"
+    if driver == "fake":
+        latest_result = _latest_fake_evaluator_result(root, task_id)
+        if latest_result:
+            raw_result = read_json_file(latest_result)
+            if raw_result.get("status") == "blocked":
+                evaluator_status = "blocked"
+    evaluator_payload = {
+        "status": evaluator_status,
         "task_id": task_id,
         "driver": driver,
         "returncode": result.returncode,
         "stdout": result.stdout,
         "stderr": result.stderr,
     }
-    if driver == "fake":
-        latest_result = _latest_fake_evaluator_result(root, task_id)
-        evaluator_payload = read_json_file(latest_result) if latest_result else synthetic_payload
-    else:
-        evaluator_payload = synthetic_payload
+    validate_evaluator_result_payload(evaluator_payload)
     write_json_file(output_path, evaluator_payload)
 
     run["phase"] = "passed_waiting_human_merge" if result.returncode == 0 else "repair_needed"
@@ -484,6 +502,8 @@ def _build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--requirement", required=True)
     preflight.add_argument("--run-id", required=True)
     preflight.add_argument("--task-id", default="")
+    preflight.add_argument("--constraint", action="append", default=[])
+    preflight.add_argument("--stop-condition", action="append", default=[])
     preflight.add_argument("--confirm", action="store_true")
 
     confirm = subparsers.add_parser("confirm-preflight", help="Confirm a preflight run.")
@@ -531,6 +551,8 @@ def main(argv: list[str] | None = None) -> int:
             requirement=args.requirement,
             run_id=args.run_id,
             task_id=args.task_id,
+            constraints=args.constraint,
+            stop_conditions=args.stop_condition or None,
             confirm=args.confirm,
         )
     elif args.command == "confirm-preflight":

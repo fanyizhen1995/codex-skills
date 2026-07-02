@@ -8,6 +8,8 @@ remains available for planner/generator prompts and evaluator auto-gate runs.
 ## Scope
 
 - `preflight` creates `.codex/loop-runs/<run-id>/run.json` and `preflight.md`.
+  The run contract records the requirement, repeatable constraints, and stop
+  conditions. Phase 1 defaults to `passed_waiting_human_merge`.
 - `plan` writes `planner-output.json` and advances to `generating`.
 - `generate` writes `generator-result.json` and advances to `evaluating`.
 - `evaluate` calls `scripts/harness_evaluator_orchestrator.py`, copies the
@@ -24,6 +26,8 @@ python3 scripts/harness_loop_orchestrator.py preflight \
   --mode demand-development \
   --requirement "Phase 1 full smoke" \
   --run-id smoke-phase-1 \
+  --constraint "Keep changes scoped to harness loop files" \
+  --stop-condition passed_waiting_human_merge \
   --confirm
 
 python3 scripts/harness_loop_orchestrator.py run \
@@ -41,7 +45,9 @@ python3 scripts/harness_loop_orchestrator.py status \
 
 Fake evaluator runs require scenario metadata at
 `docs/harness/evaluator-scenarios/<task-id>.json`. The fake planner derives
-`task_id` as `<run-id>-task` when preflight did not provide one.
+`task_id` as `<run-id>-task` when preflight did not provide one, and carries
+run-level `allowed_paths`, `denylist_paths`, and `stop_conditions` into
+`planner-output.json`.
 
 ## Human Merge Gate
 

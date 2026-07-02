@@ -9,6 +9,7 @@ from scripts.harness_loop_contracts import (
     read_json_file,
     run_dir_for,
     validate_agent_attempt_payload,
+    validate_evaluator_result_payload,
     validate_generator_result_payload,
     validate_planner_output_payload,
     validate_run_payload,
@@ -26,6 +27,9 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "domain": "",
             "branch": "main",
             "worktree": "/tmp/repo",
+            "requirement": "Demo requirement",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
             "baseline_dirty_paths": [],
             "allowed_paths": [],
             "denylist_paths": [],
@@ -99,6 +103,9 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "domain": "",
             "branch": "main",
             "worktree": "/tmp/repo",
+            "requirement": "Demo requirement",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
             "baseline_dirty_paths": [],
             "allowed_paths": [],
             "denylist_paths": [],
@@ -112,6 +119,12 @@ class HarnessLoopContractsTests(unittest.TestCase):
         validate_run_payload(payload)
         payload["phase"] = "bogus"
         with self.assertRaises(ValueError):
+            validate_run_payload(payload)
+
+    def test_validate_run_payload_rejects_phase_1_autonomous_policy(self) -> None:
+        payload = self._run_payload()
+        payload["policy"] = "autonomous_knowledge"
+        with self.assertRaisesRegex(ValueError, "demand_development"):
             validate_run_payload(payload)
 
     def test_validate_planner_output_payload_requires_task_kind(self) -> None:
@@ -210,17 +223,25 @@ class HarnessLoopContractsTests(unittest.TestCase):
             validate_run_payload(payload)
 
     def test_validate_planner_output_payload_uses_phase_1_task_kinds(self) -> None:
-        for task_kind in (
-            "candidate_task",
-            "task_contract_only",
-            "autonomous_implementation_task",
-        ):
+        for task_kind in ("registered_task", "candidate_task", "task_contract_only"):
             payload = self._planner_payload()
             payload["task_kind"] = task_kind
             validate_planner_output_payload(payload)
         payload = self._planner_payload()
         payload["task_kind"] = "ad_hoc_task"
         with self.assertRaises(ValueError):
+            validate_planner_output_payload(payload)
+
+    def test_validate_planner_output_payload_rejects_phase_1_autonomous_policy(self) -> None:
+        payload = self._planner_payload()
+        payload["policy"] = "autonomous_knowledge"
+        with self.assertRaisesRegex(ValueError, "demand_development"):
+            validate_planner_output_payload(payload)
+
+    def test_validate_planner_output_payload_rejects_phase_1_autonomous_task_kind(self) -> None:
+        payload = self._planner_payload()
+        payload["task_kind"] = "autonomous_implementation_task"
+        with self.assertRaisesRegex(ValueError, "autonomous_implementation_task"):
             validate_planner_output_payload(payload)
 
     def test_validate_generator_result_payload_accepts_repaired_status(self) -> None:
@@ -260,6 +281,60 @@ class HarnessLoopContractsTests(unittest.TestCase):
         payload["role"] = "cleanup"
         with self.assertRaises(ValueError):
             validate_agent_attempt_payload(payload)
+
+    def test_validate_run_payload_requires_requirement_constraints_and_stop_conditions(self) -> None:
+        payload = self._run_payload()
+        validate_run_payload(payload)
+        for key in ("requirement", "constraints", "stop_conditions"):
+            invalid = self._run_payload()
+            del invalid[key]
+            with self.assertRaises(ValueError):
+                validate_run_payload(invalid)
+
+    def test_validate_run_payload_requires_constraints_and_stop_conditions_lists(self) -> None:
+        payload = self._run_payload()
+        payload["constraints"] = "keep scope tight"
+        with self.assertRaisesRegex(ValueError, "constraints"):
+            validate_run_payload(payload)
+        payload = self._run_payload()
+        payload["stop_conditions"] = "passed_waiting_human_merge"
+        with self.assertRaisesRegex(ValueError, "stop_conditions"):
+            validate_run_payload(payload)
+
+    def test_validate_evaluator_result_payload_accepts_loop_level_shape(self) -> None:
+        payload = {
+            "status": "pass",
+            "task_id": "demo-task",
+            "driver": "fake",
+            "returncode": 0,
+            "stdout": "ok",
+            "stderr": "",
+        }
+        validate_evaluator_result_payload(payload)
+
+    def test_validate_evaluator_result_payload_rejects_unknown_status(self) -> None:
+        payload = {
+            "status": "success",
+            "task_id": "demo-task",
+            "driver": "fake",
+            "returncode": 0,
+            "stdout": "ok",
+            "stderr": "",
+        }
+        with self.assertRaisesRegex(ValueError, "status"):
+            validate_evaluator_result_payload(payload)
+
+    def test_validate_evaluator_result_payload_requires_returncode_int(self) -> None:
+        payload = {
+            "status": "blocked",
+            "task_id": "demo-task",
+            "driver": "fake",
+            "returncode": "1",
+            "stdout": "",
+            "stderr": "blocked",
+        }
+        with self.assertRaisesRegex(ValueError, "returncode"):
+            validate_evaluator_result_payload(payload)
 
     def test_default_limits_returns_phase_1_limit_keys(self) -> None:
         self.assertEqual(

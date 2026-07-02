@@ -8,9 +8,11 @@ from unittest.mock import patch
 from scripts.harness_loop_contracts import (
     read_json_file,
     run_dir_for,
+    validate_evaluator_result_payload,
     validate_generator_result_payload,
     validate_planner_output_payload,
     validate_run_payload,
+    write_json_file,
 )
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
@@ -75,6 +77,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             saved_payload = read_json_file(run_path)
             validate_run_payload(saved_payload)
             self.assertEqual(saved_payload["phase"], "preflight")
+            self.assertEqual(saved_payload["requirement"], "Build the thing")
+            self.assertEqual(saved_payload["constraints"], [])
+            self.assertEqual(saved_payload["stop_conditions"], ["passed_waiting_human_merge"])
             preflight = preflight_path.read_text(encoding="utf-8")
             self.assertIn("Build the thing", preflight)
             self.assertIn("Fallback Questionnaire", preflight)
@@ -114,6 +119,26 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(saved_payload["phase"], "planned")
             self.assertEqual(saved_payload["next_action"], "run_planner")
+
+    def test_create_preflight_run_captures_constraints_and_stop_conditions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+
+            payload = create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build the thing",
+                run_id="demo-run",
+                constraints=["Only touch scripts/"],
+                stop_conditions=["passed_waiting_human_merge", "stopped_blocked"],
+                confirm=True,
+            )
+
+            self.assertEqual(payload["constraints"], ["Only touch scripts/"])
+            self.assertEqual(payload["stop_conditions"], ["passed_waiting_human_merge", "stopped_blocked"])
+            saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(saved_payload["constraints"], ["Only touch scripts/"])
+            self.assertEqual(saved_payload["stop_conditions"], ["passed_waiting_human_merge", "stopped_blocked"])
 
     def test_create_preflight_run_with_confirmation_starts_planned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -198,6 +223,40 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(run["task_id"], "explicit-task")
 
+    def test_cli_preflight_accepts_constraints_and_stop_conditions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "preflight",
+                        "--repo-root",
+                        str(repo_root),
+                        "--mode",
+                        "demand-development",
+                        "--requirement",
+                        "Build through CLI",
+                        "--run-id",
+                        "demo-run",
+                        "--constraint",
+                        "Only touch scripts/",
+                        "--constraint",
+                        "No commits",
+                        "--stop-condition",
+                        "passed_waiting_human_merge",
+                        "--stop-condition",
+                        "stopped_blocked",
+                        "--confirm",
+                    ]
+                ),
+                0,
+            )
+
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            self.assertEqual(run["constraints"], ["Only touch scripts/", "No commits"])
+            self.assertEqual(run["stop_conditions"], ["passed_waiting_human_merge", "stopped_blocked"])
+
     def test_status_for_run_returns_run_id_policy_phase_next_action_and_task_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -230,6 +289,8 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 mode="demand-development",
                 requirement="Build the planner demo",
                 run_id="demo-run",
+                constraints=["Keep scope tight"],
+                stop_conditions=["passed_waiting_human_merge", "stopped_blocked"],
                 confirm=True,
             )
             from scripts.harness_loop_orchestrator import run_planner
@@ -244,6 +305,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(planner_output["task_kind"], "registered_task")
             self.assertEqual(planner_output["task_id"], "demo-run-task")
             self.assertEqual(planner_output["goal"], "Build the planner demo")
+            self.assertEqual(planner_output["stop_conditions"], ["passed_waiting_human_merge", "stopped_blocked"])
             run = read_json_file(run_dir / "run.json")
             validate_run_payload(run)
             self.assertEqual(run["task_id"], "demo-run-task")
@@ -314,7 +376,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             from scripts.harness_loop_contracts import write_json_file
             from scripts.harness_loop_orchestrator import run_planner
 
-            def write_planner_output(**kwargs: object) -> None:
+            def write_planner_output(**kwargs: object) -> dict[str, object]:
                 write_json_file(
                     kwargs["output_json_path"],
                     {
@@ -332,6 +394,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "next_planning_hint": "",
                     },
                 )
+                return {"status": "pass", "run_id": "demo-run", "role": "planner", "attempt": 1}
 
             with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=write_planner_output):
                 run_planner(repo_root, "demo-run", driver="codex-exec")
@@ -353,8 +416,14 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
             attempts: list[int] = []
 
-            def do_not_write_planner_output(**kwargs: object) -> None:
+            def do_not_write_planner_output(**kwargs: object) -> dict[str, object]:
                 attempts.append(int(kwargs["attempt"]))
+                return {
+                    "status": "pass",
+                    "run_id": "demo-run",
+                    "role": "planner",
+                    "attempt": int(kwargs["attempt"]),
+                }
 
             with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=do_not_write_planner_output):
                 with self.assertRaises(FileNotFoundError):
@@ -370,6 +439,49 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     run_planner(repo_root, "demo-run", driver="codex-exec")
 
             self.assertEqual(attempts, [1, 2])
+
+    def test_codex_exec_planner_failure_does_not_accept_stale_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build with codex planner",
+                run_id="demo-run",
+                confirm=True,
+            )
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "planner-output.json",
+                {
+                    "task_id": "stale-task-id",
+                    "policy": "demand_development",
+                    "task_kind": "registered_task",
+                    "title": "Stale planner task",
+                    "goal": "stale",
+                    "non_goals": [],
+                    "allowed_paths": [],
+                    "denylist_paths": [],
+                    "verify_commands": [],
+                    "evaluator_scenarios_path": "",
+                    "stop_conditions": ["passed_waiting_human_merge"],
+                    "next_planning_hint": "",
+                },
+            )
+            from scripts.harness_loop_orchestrator import run_planner
+
+            with patch(
+                "scripts.harness_loop_orchestrator.run_codex_prompt",
+                return_value={"status": "fail", "run_id": "demo-run", "role": "planner", "attempt": 1},
+            ):
+                with self.assertRaisesRegex(RuntimeError, "planner codex-exec attempt failed"):
+                    run_planner(repo_root, "demo-run", driver="codex-exec")
+
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["attempts"]["planner"], 1)
+            self.assertEqual(run["phase"], "planned")
+            self.assertEqual(run["next_action"], "run_planner")
+            self.assertEqual(run["task_id"], "")
 
     def test_run_generator_rejects_confirmed_preflight_before_planning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -446,8 +558,14 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run_planner(repo_root, "demo-run", driver="fake")
             attempts: list[int] = []
 
-            def do_not_write_generator_result(**kwargs: object) -> None:
+            def do_not_write_generator_result(**kwargs: object) -> dict[str, object]:
                 attempts.append(int(kwargs["attempt"]))
+                return {
+                    "status": "pass",
+                    "run_id": "demo-run",
+                    "role": "generator",
+                    "attempt": int(kwargs["attempt"]),
+                }
 
             with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=do_not_write_generator_result):
                 with self.assertRaises(FileNotFoundError):
@@ -463,6 +581,47 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     run_generator(repo_root, "demo-run", driver="codex-exec")
 
             self.assertEqual(attempts, [1, 2])
+
+    def test_codex_exec_generator_failure_does_not_accept_stale_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build the generator demo",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": "demo-run-task",
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "stale result",
+                },
+            )
+
+            with patch(
+                "scripts.harness_loop_orchestrator.run_codex_prompt",
+                return_value={"status": "fail", "run_id": "demo-run", "role": "generator", "attempt": 1},
+            ):
+                with self.assertRaisesRegex(RuntimeError, "generator codex-exec attempt failed"):
+                    run_generator(repo_root, "demo-run", driver="codex-exec")
+
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["attempts"]["generator"], 1)
+            self.assertEqual(run["phase"], "generating")
+            self.assertEqual(run["next_action"], "run_generator")
 
     def test_cli_plan_and_generate_accept_fake_driver(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -509,8 +668,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run_dir = run_dir_for(repo_root, "demo-run")
             self.assertEqual(output_path, run_dir / "evaluator-result.json")
             evaluator_result = read_json_file(output_path)
+            validate_evaluator_result_payload(evaluator_result)
             self.assertEqual(evaluator_result["status"], "pass")
             self.assertEqual(evaluator_result["task_id"], "demo-run-task")
+            self.assertEqual(evaluator_result["driver"], "fake")
+            self.assertEqual(evaluator_result["returncode"], 0)
             run = read_json_file(run_dir / "run.json")
             validate_run_payload(run)
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
@@ -536,7 +698,10 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
 
             evaluator_result = read_json_file(output_path)
+            validate_evaluator_result_payload(evaluator_result)
             self.assertEqual(evaluator_result["status"], "blocked")
+            self.assertEqual(evaluator_result["driver"], "fake")
+            self.assertEqual(evaluator_result["returncode"], 1)
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             validate_run_payload(run)
             self.assertEqual(run["phase"], "repair_needed")

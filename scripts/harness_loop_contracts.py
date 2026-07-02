@@ -34,10 +34,10 @@ ALLOWED_TASK_KINDS = frozenset(
         "registered_task",
         "candidate_task",
         "task_contract_only",
-        "autonomous_implementation_task",
     }
 )
 ALLOWED_GENERATOR_STATUSES = frozenset({"implemented", "repaired", "blocked", "failed"})
+ALLOWED_EVALUATOR_STATUSES = frozenset({"pass", "fail", "blocked"})
 ALLOWED_AGENT_ROLES = frozenset({"planner", "generator", "evaluator"})
 REQUIRED_RUN_ATTEMPT_KEYS = frozenset(
     {"planner", "generator", "evaluator", "artifact_hygiene", "cleanup"}
@@ -103,6 +103,9 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
             "domain",
             "branch",
             "worktree",
+            "requirement",
+            "constraints",
+            "stop_conditions",
             "baseline_dirty_paths",
             "allowed_paths",
             "denylist_paths",
@@ -116,12 +119,21 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
         "run payload",
     )
     _require_string(payload, "run_id")
-    normalize_policy_id(payload["policy"])
+    policy = normalize_policy_id(payload["policy"])
+    if policy != "demand_development":
+        raise ValueError("Phase 1 run payload only supports demand_development policy")
     _require_enum(payload, "phase", ALLOWED_PHASES)
-    for key in ("task_id", "domain", "branch", "worktree", "last_result", "next_action"):
+    for key in ("task_id", "domain", "branch", "worktree", "requirement", "last_result", "next_action"):
         _require_string(payload, key)
     _require_enum(payload, "last_result", ALLOWED_LAST_RESULTS)
-    for key in ("baseline_dirty_paths", "allowed_paths", "denylist_paths", "attempt_history"):
+    for key in (
+        "constraints",
+        "stop_conditions",
+        "baseline_dirty_paths",
+        "allowed_paths",
+        "denylist_paths",
+        "attempt_history",
+    ):
         _require_list(payload, key)
     attempts = _require_object(payload["attempts"], "attempts")
     _require_object(payload["limits"], "limits")
@@ -152,7 +164,11 @@ def validate_planner_output_payload(payload: dict[str, Any]) -> None:
         },
         "planner output payload",
     )
-    normalize_policy_id(payload["policy"])
+    policy = normalize_policy_id(payload["policy"])
+    if policy != "demand_development":
+        raise ValueError("Phase 1 planner output only supports demand_development policy")
+    if payload["task_kind"] == "autonomous_implementation_task":
+        raise ValueError("Phase 1 planner output rejects autonomous_implementation_task")
     _require_enum(payload, "task_kind", ALLOWED_TASK_KINDS)
     for key in ("task_id", "title", "goal", "evaluator_scenarios_path", "next_planning_hint"):
         _require_string(payload, key)
@@ -184,6 +200,26 @@ def validate_generator_result_payload(payload: dict[str, Any]) -> None:
     for key in ("commit", "notes"):
         _require_string(payload, key)
     _require_bool(payload, "cleanup_required")
+
+
+def validate_evaluator_result_payload(payload: dict[str, Any]) -> None:
+    _require_object(payload, "evaluator result payload")
+    _require_keys(
+        payload,
+        {
+            "status",
+            "task_id",
+            "driver",
+            "returncode",
+            "stdout",
+            "stderr",
+        },
+        "evaluator result payload",
+    )
+    _require_enum(payload, "status", ALLOWED_EVALUATOR_STATUSES)
+    for key in ("task_id", "driver", "stdout", "stderr"):
+        _require_string(payload, key)
+    _require_int(payload, "returncode")
 
 
 def validate_agent_attempt_payload(payload: dict[str, Any]) -> None:
