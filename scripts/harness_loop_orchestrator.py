@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +13,7 @@ try:
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_artifact_hygiene_result_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -20,13 +22,14 @@ try:
         write_json_file,
     )
     from scripts.harness_loop_agents import run_codex_prompt
-    from scripts.harness_loop_artifacts import run_scenario_commands
+    from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
 except ModuleNotFoundError:
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
         normalize_policy_id,
         read_json_file,
         run_dir_for,
+        validate_artifact_hygiene_result_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -35,7 +38,7 @@ except ModuleNotFoundError:
         write_json_file,
     )
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
-    from harness_loop_artifacts import run_scenario_commands  # type: ignore[no-redef]
+    from harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands  # type: ignore[no-redef]
 
 
 def _timestamp() -> str:
@@ -480,6 +483,88 @@ def run_evaluator(
     run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
     save_run(root, run)
     return output_path
+
+
+def run_artifact_hygiene_step(
+    repo_root: Path | str,
+    run_id: str,
+    *,
+    max_file_bytes: int = 5 * 1024 * 1024,
+    max_total_bytes: int = 50 * 1024 * 1024,
+) -> Path:
+    root = Path(repo_root)
+    run = load_run(root, run_id)
+    if run["phase"] != "artifact_hygiene":
+        raise RuntimeError(f"run_artifact_hygiene_step requires phase artifact_hygiene; current phase is {run['phase']}")
+
+    run_dir = run_dir_for(root, run_id)
+    generator_result = read_json_file(run_dir / "generator-result.json")
+    validate_generator_result_payload(generator_result)
+    result_path = run_artifact_hygiene(
+        repo_root=root,
+        run_dir=run_dir,
+        artifact_paths=list(generator_result["artifacts"]),
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+    )
+    hygiene_result = read_json_file(result_path)
+    validate_artifact_hygiene_result_payload(hygiene_result)
+
+    run["attempts"]["artifact_hygiene"] = int(run["attempts"]["artifact_hygiene"]) + 1
+    if hygiene_result["status"] == "blocked":
+        run["phase"] = "stopped_blocked"
+        run["last_result"] = "blocked"
+        run["next_action"] = "inspect_artifact_hygiene"
+    else:
+        run["phase"] = "cleanup"
+        run["next_action"] = "run_cleanup"
+    save_run(root, run)
+    return result_path
+
+
+def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
+    root = Path(repo_root).resolve()
+    run = load_run(root, run_id)
+    if run["phase"] != "cleanup":
+        raise RuntimeError(f"run_cleanup requires phase cleanup; current phase is {run['phase']}")
+
+    allowed_worktrees_root_path = root / ".worktrees"
+    removed: list[str] = []
+    if allowed_worktrees_root_path.is_symlink() or not allowed_worktrees_root_path.is_dir():
+        run["attempts"]["cleanup"] = int(run["attempts"]["cleanup"]) + 1
+        run["phase"] = "passed_waiting_human_merge"
+        run["next_action"] = "await_human_merge_confirmation"
+        save_run(root, run)
+        return write_json_file(
+            run_dir_for(root, run_id) / "cleanup-result.json",
+            {"status": "pass", "worktrees_removed": removed},
+        )
+
+    allowed_worktrees_root = allowed_worktrees_root_path.resolve()
+    for path_value in list(run["cleanup"].get("retained_artifacts", [])):
+        path = Path(path_value)
+        if not path.exists():
+            continue
+        try:
+            path.relative_to(allowed_worktrees_root_path)
+            resolved_path = path.resolve()
+            resolved_path.relative_to(allowed_worktrees_root)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if resolved_path == allowed_worktrees_root:
+            continue
+        if resolved_path.is_dir() and not resolved_path.is_symlink():
+            shutil.rmtree(resolved_path)
+        else:
+            resolved_path.unlink()
+        removed.append(str(path))
+
+    run["cleanup"]["worktrees_removed"].extend(removed)
+    run["attempts"]["cleanup"] = int(run["attempts"]["cleanup"]) + 1
+    run["phase"] = "passed_waiting_human_merge"
+    run["next_action"] = "await_human_merge_confirmation"
+    save_run(root, run)
+    return write_json_file(run_dir_for(root, run_id) / "cleanup-result.json", {"status": "pass", "worktrees_removed": removed})
 
 
 def run_loop(

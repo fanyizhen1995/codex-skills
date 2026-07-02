@@ -1,4 +1,5 @@
 import io
+import os
 import tempfile
 import unittest
 import json
@@ -1027,6 +1028,144 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     evaluator_driver="fake",
                     max_eval_attempts=2,
                 )
+
+    def test_run_artifact_hygiene_blocks_large_artifacts_and_records_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "Hygiene", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            large_path = repo_root / "large.bin"
+            large_path.write_bytes(b"x" * 20)
+            generator_result = {
+                "task_id": "demo-run-task",
+                "status": "implemented",
+                "changed_paths": [],
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": ["large.bin"],
+                "cleanup_required": False,
+                "notes": "needs hygiene",
+            }
+            write_json_file(run_dir / "generator-result.json", generator_result)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "artifact_hygiene"
+            run["task_id"] = "demo-run-task"
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_artifact_hygiene_step
+
+            result_path = run_artifact_hygiene_step(repo_root, "demo-run", max_file_bytes=10)
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "blocked")
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["phase"], "stopped_blocked")
+            self.assertEqual(run["last_result"], "blocked")
+            self.assertEqual(run["next_action"], "inspect_artifact_hygiene")
+
+    def test_run_cleanup_records_removed_worktree_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            temp_worktree = repo_root / ".worktrees" / "demo-run-attempt-1"
+            temp_worktree.mkdir(parents=True)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [str(temp_worktree)]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            result_path = run_cleanup(repo_root, "demo-run")
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertFalse(temp_worktree.exists())
+            run = read_json_file(run_dir / "run.json")
+            self.assertIn(str(temp_worktree), run["cleanup"]["worktrees_removed"])
+            self.assertEqual(run["phase"], "passed_waiting_human_merge")
+
+    def test_run_cleanup_accepts_absolute_retained_path_with_relative_repo_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            temp_worktree = repo_root / ".worktrees" / "demo-run-attempt-1"
+            temp_worktree.mkdir(parents=True)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [str(temp_worktree)]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            current_dir = Path.cwd()
+            os.chdir(repo_root)
+            try:
+                result_path = run_cleanup(Path("."), "demo-run").resolve()
+            finally:
+                os.chdir(current_dir)
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertFalse(temp_worktree.exists())
+            run = read_json_file(run_dir / "run.json")
+            self.assertIn(str(temp_worktree), run["cleanup"]["worktrees_removed"])
+
+    def test_run_cleanup_refuses_outside_worktrees_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp)
+            repo_root = parent / "repo"
+            repo_root.mkdir()
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            victim = parent / "outside" / ".worktrees" / "victim"
+            victim.mkdir(parents=True)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [str(victim)]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            result_path = run_cleanup(repo_root, "demo-run")
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertTrue(victim.exists())
+            self.assertNotIn(str(victim), result["worktrees_removed"])
+            run = read_json_file(run_dir / "run.json")
+            self.assertNotIn(str(victim), run["cleanup"]["worktrees_removed"])
+
+    def test_run_cleanup_skips_when_worktrees_root_is_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp)
+            repo_root = parent / "repo"
+            outside_worktrees = parent / "outside-worktrees"
+            repo_root.mkdir()
+            outside_worktrees.mkdir()
+            (repo_root / ".worktrees").symlink_to(outside_worktrees)
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            victim = repo_root / ".worktrees" / "victim"
+            victim.mkdir()
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [str(victim)]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            result_path = run_cleanup(repo_root, "demo-run")
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertTrue((outside_worktrees / "victim").exists())
+            self.assertNotIn(str(victim), result["worktrees_removed"])
+            run = read_json_file(run_dir / "run.json")
+            self.assertNotIn(str(victim), run["cleanup"]["worktrees_removed"])
 
     def test_phase_1_scenario_entrypoint_passes_self_contained_task_id(self) -> None:
         scenario_path = (
