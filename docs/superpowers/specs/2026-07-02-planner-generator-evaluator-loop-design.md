@@ -755,14 +755,31 @@ docs/harness/planner-generator-evaluator-loop.md
 
 ## 首期实现范围
 
-1. 实现 `demand-development` 单任务闭环骨架。
-2. 接入 `codex exec` Planner/Generator agent wrapper、JSON 契约校验、失败重试和 cleanup。
-3. 接入现有 evaluator gate，并扩展 evaluator CLI 支持 `task-contract.json`。
-4. 实现 `autonomous-knowledge` policy，允许 wiki/raw/sources/data、crawler workbench 和 crawler 脚本相关改动自动提交。
-5. 为 autonomous dependency changes 增加供应链检查。
-6. 接入 preflight 讨论门和 `grill-me` fallback。
-7. 增加 artifact hygiene、redaction、redaction manifest 和领域 `loop-state.json`。
-8. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
+实现按阶段推进，不要求一次性完成全部 autonomous 能力。
+
+### Phase 1
+
+1. 实现 preflight 讨论门和 `grill-me` fallback。
+2. 实现 JSON contract 校验、run 目录、`run.json`、`planner-output.json`、`generator-result.json`。
+3. 实现 `demand-development` 单任务闭环骨架。
+4. 接入 `codex exec` Planner/Generator agent wrapper 的最小可运行路径。
+5. 接入现有 evaluator gate，并能把 fail findings 回灌给 Generator。
+6. 通过 evaluator 后停在 human merge gate。
+
+### Phase 2
+
+1. 扩展 evaluator CLI 支持 `task-contract.json`。
+2. 增加 `scenario_commands`、required services、artifacts 采集。
+3. 增加失败重试、attempt 证据保存、临时 worktree cleanup 和中断恢复。
+4. 增加 artifact hygiene、redaction 和 redaction manifest。
+
+### Phase 3
+
+1. 实现 `autonomous-knowledge` policy。
+2. 增加领域 `loop-state.json` 和“无可行动缺口”判定。
+3. 允许 wiki/raw/sources/data、crawler workbench、crawler 脚本、相关测试和必要依赖在 auto mode 内自动修改。
+4. 为 autonomous dependency changes 增加供应链检查。
+5. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
 
 ## 验收标准
 
