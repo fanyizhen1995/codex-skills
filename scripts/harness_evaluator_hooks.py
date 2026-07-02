@@ -192,11 +192,11 @@ def _session_roots(root: Path, session: dict[str, str]) -> tuple[Path, Path]:
     return state_root, worktree_root
 
 
-def _latest_task_contract(worktree_root: Path, task_id: str) -> Path | None:
+def _matching_task_contracts(worktree_root: Path, task_id: str) -> list[Path]:
     candidates: list[Path] = []
     loop_root = worktree_root / ".codex" / "loop-runs"
     if not loop_root.exists():
-        return None
+        return []
     for candidate in loop_root.glob("*/task-contract.json"):
         try:
             payload = read_json_file(candidate)
@@ -205,22 +205,69 @@ def _latest_task_contract(worktree_root: Path, task_id: str) -> Path | None:
             continue
         if payload.get("task_id") == task_id:
             candidates.append(candidate)
-    if not candidates:
+    return sorted(candidates)
+
+
+def _latest_task_contract(worktree_root: Path, task_id: str) -> Path | None:
+    candidates = _matching_task_contracts(worktree_root, task_id)
+    if len(candidates) != 1:
         return None
-    return max(candidates, key=lambda path: path.stat().st_mtime_ns)
+    return candidates[0]
 
 
-def _auto_prepare_task_bundle(root: Path, session: dict[str, str]) -> Path | None:
+def _resolve_task_contract_path(
+    worktree_root: Path,
+    task_id: str,
+    task_contract_path: Path | None,
+) -> tuple[Path | None, str | None]:
+    if task_contract_path is not None:
+        try:
+            payload = read_json_file(task_contract_path)
+            validate_task_contract_payload(payload)
+        except (OSError, ValueError) as exc:
+            return None, f"Task contract is invalid: {exc}"
+        contract_task_id = str(payload.get("task_id", ""))
+        if contract_task_id != task_id:
+            return (
+                None,
+                f"Task contract task_id {contract_task_id!r} does not match requested task_id {task_id!r}.",
+            )
+        return task_contract_path, None
+
+    candidates = _matching_task_contracts(worktree_root, task_id)
+    if not candidates:
+        return None, None
+    if len(candidates) > 1:
+        return (
+            None,
+            "multiple task-contract.json files match this task; pass an explicit task contract path instead of guessing: "
+            + ", ".join(str(path) for path in candidates),
+        )
+    return candidates[0], None
+
+
+def _auto_prepare_task_bundle(
+    root: Path,
+    session: dict[str, str],
+    task_contract_path: Path | None = None,
+) -> Path | None:
     state_root, worktree_root = _session_roots(root, session)
     task_id = session.get("task", "")
     branch = session.get("branch", "")
     if not task_id or not branch:
         return None
+    resolved_contract_path, contract_issue = _resolve_task_contract_path(
+        worktree_root,
+        task_id,
+        task_contract_path,
+    )
+    if contract_issue is not None:
+        raise ValueError(contract_issue)
     bundle = create_task_bundle(
         worktree_root,
         task_id,
         1,
-        task_contract_path=_latest_task_contract(worktree_root, task_id),
+        task_contract_path=resolved_contract_path,
     )
     update_session_state_evaluator(
         state_root,
@@ -239,6 +286,7 @@ def _auto_prepare_next_attempt(
     root: Path,
     session: dict[str, str],
     result_payload: dict,
+    task_contract_path: Path | None = None,
 ) -> Path | None:
     state_root, worktree_root = _session_roots(root, session)
     task_id = session.get("task", "")
@@ -251,13 +299,19 @@ def _auto_prepare_next_attempt(
     max_attempts = max_task_eval_attempts(worktree_root, task_id)
     if max_attempts and next_attempt > max_attempts:
         return None
-    task_contract_path = _latest_task_contract(worktree_root, task_id)
-    if task_contract_path is not None:
+    resolved_contract_path, contract_issue = _resolve_task_contract_path(
+        worktree_root,
+        task_id,
+        task_contract_path,
+    )
+    if contract_issue is not None:
+        raise ValueError(contract_issue)
+    if resolved_contract_path is not None:
         bundle = create_task_bundle(
             worktree_root,
             task_id,
             next_attempt,
-            task_contract_path=task_contract_path,
+            task_contract_path=resolved_contract_path,
         )
     else:
         bundle = create_next_attempt_bundle(worktree_root, task_id, next_attempt)
@@ -473,10 +527,18 @@ def _auto_prepare_next_final_attempt(
     return bundle
 
 
-def _task_gate_decision(root: Path, session: dict[str, str], task_id: str) -> dict[str, str] | None:
+def _task_gate_decision(
+    root: Path,
+    session: dict[str, str],
+    task_id: str,
+    task_contract_path: Path | None = None,
+) -> dict[str, str] | None:
     bundle = latest_task_bundle(root, task_id)
     if bundle is None:
-        bundle = _auto_prepare_task_bundle(root, session)
+        try:
+            bundle = _auto_prepare_task_bundle(root, session, task_contract_path=task_contract_path)
+        except ValueError as exc:
+            return {"decision": "block", "reason": str(exc)}
         if bundle is None:
             return None
         return {
@@ -491,14 +553,18 @@ def _task_gate_decision(root: Path, session: dict[str, str], task_id: str) -> di
             "result contract is incomplete" in contract_issue
             and (bundle / "result.json").exists()
         ):
-            next_bundle = _auto_prepare_next_attempt(
-                root,
-                session,
-                {
-                    "status": "fail",
-                    "attempt": _load_json(bundle / "input.json").get("attempt", 0),
-                },
-            )
+            try:
+                next_bundle = _auto_prepare_next_attempt(
+                    root,
+                    session,
+                    {
+                        "status": "fail",
+                        "attempt": _load_json(bundle / "input.json").get("attempt", 0),
+                    },
+                    task_contract_path=task_contract_path,
+                )
+            except ValueError as exc:
+                return {"decision": "block", "reason": str(exc)}
             if next_bundle is not None:
                 return {
                     "decision": "block",
@@ -518,7 +584,15 @@ def _task_gate_decision(root: Path, session: dict[str, str], task_id: str) -> di
         }
     payload = _load_json(result_path)
     if payload["status"] in {"fail", "blocked"} and payload["gate"] == "task":
-        next_bundle = _auto_prepare_next_attempt(root, session, payload)
+        try:
+            next_bundle = _auto_prepare_next_attempt(
+                root,
+                session,
+                payload,
+                task_contract_path=task_contract_path,
+            )
+        except ValueError as exc:
+            return {"decision": "block", "reason": str(exc)}
         return {
             "decision": "block",
             "reason": f"Resolve findings from {bundle / 'summary.md'} and rerun task-level evaluation before requesting user acceptance.",
@@ -585,17 +659,22 @@ def _final_gate_decision(root: Path, session: dict[str, str], final_bundle_id: s
     return None
 
 
-def stop_hook(root: Path, task_id: str | None = None) -> dict[str, str] | None:
+def stop_hook(
+    root: Path,
+    task_id: str | None = None,
+    task_contract_path: Path | None = None,
+) -> dict[str, str] | None:
     session = _resolve_session(root, task_id)
     if session is None:
         return None
-    return stop_hook_for_session(root, session, task_id=task_id)
+    return stop_hook_for_session(root, session, task_id=task_id, task_contract_path=task_contract_path)
 
 
 def stop_hook_for_session(
     root: Path,
     session: dict[str, str],
     task_id: str | None = None,
+    task_contract_path: Path | None = None,
 ) -> dict[str, str] | None:
     worktree_root = Path(session.get("worktree", str(root))).resolve()
     current_task_id = task_id or session.get("task", "")
@@ -619,7 +698,12 @@ def stop_hook_for_session(
     should_run_final_gate = final_required or (not task_defined and existing_final_bundle is not None)
 
     if should_run_task_gate:
-        task_decision = _task_gate_decision(root, session, current_task_id)
+        task_decision = _task_gate_decision(
+            root,
+            session,
+            current_task_id,
+            task_contract_path=task_contract_path,
+        )
         if task_decision is not None:
             return task_decision
 

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shlex
@@ -179,6 +180,7 @@ def _inline_evidence_for_prompt(bundle_dir: Path, input_payload: dict) -> dict:
             artifacts_payload = {
                 "read_error": str(exc),
             }
+    artifacts_payload = _prompt_safe_artifacts_payload(artifacts_payload)
 
     artifact_paths: list[str] = []
     for candidate in input_payload.get("artifact_paths", []):
@@ -190,9 +192,6 @@ def _inline_evidence_for_prompt(bundle_dir: Path, input_payload: dict) -> dict:
         for artifact in scenario_output.get("artifacts", []):
             if isinstance(artifact, dict) and isinstance(artifact.get("path"), str):
                 artifact_paths.append(artifact["path"])
-        for key in ("stdout_path", "stderr_path"):
-            if isinstance(scenario_output.get(key), str):
-                artifact_paths.append(scenario_output[key])
 
     seen: set[str] = set()
     excerpts: list[dict] = []
@@ -200,6 +199,9 @@ def _inline_evidence_for_prompt(bundle_dir: Path, input_payload: dict) -> dict:
         if candidate in seen:
             continue
         seen.add(candidate)
+        if _is_scenario_stream_path(Path(candidate)):
+            excerpts.append({"path": candidate, "status": "scenario_stream_omitted"})
+            continue
         excerpts.append(_read_text_excerpt(Path(candidate)))
 
     return {
@@ -235,6 +237,29 @@ def _codex_exec_prompt(bundle_dir: Path, gate: str) -> str:
             json.dumps(inline_evidence, ensure_ascii=False, indent=2),
         ]
     )
+
+
+def _prompt_safe_artifacts_payload(payload: dict) -> dict:
+    safe_payload = dict(payload)
+    safe_outputs: list[dict] = []
+    for output in safe_payload.get("scenario_outputs", []):
+        if not isinstance(output, dict):
+            continue
+        safe_outputs.append(
+            {
+                key: value
+                for key, value in output.items()
+                if key not in {"stdout", "stderr"}
+            }
+        )
+    if "scenario_outputs" in safe_payload:
+        safe_payload["scenario_outputs"] = safe_outputs
+    return safe_payload
+
+
+def _is_scenario_stream_path(path: Path) -> bool:
+    name = path.name
+    return name.endswith(".stdout.log") or name.endswith(".stderr.log")
 
 
 def _load_bundle_input(bundle_dir: Path) -> dict:
@@ -385,6 +410,38 @@ def _kill_process_group(process: subprocess.Popen) -> None:
             pass
 
 
+def _close_process_pipes(process: subprocess.Popen) -> None:
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(process, stream_name, None)
+        if stream is None:
+            continue
+        try:
+            stream.close()
+        except OSError:
+            pass
+
+
+def _file_metadata(path: Path) -> dict:
+    try:
+        size = path.stat().st_size
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        return {
+            "path": str(path),
+            "status": "unreadable",
+            "error": str(exc),
+        }
+    return {
+        "path": str(path),
+        "size_bytes": size,
+        "sha256": digest,
+    }
+
+
+def _text_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds: int = 60) -> None:
     input_payload = _load_bundle_input(bundle_dir)
     if input_payload.get("gate") != "task":
@@ -421,9 +478,21 @@ def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds:
             stdout, stderr = process.communicate(timeout=timeout_seconds)
             exit_code = int(process.returncode)
             status = "pass" if exit_code == 0 else "fail"
+            second_communicate_timeout = False
         except subprocess.TimeoutExpired as exc:
             _kill_process_group(process)
-            stdout, stderr = process.communicate()
+            second_communicate_timeout = False
+            try:
+                stdout, stderr = process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                second_communicate_timeout = True
+                _close_process_pipes(process)
+                try:
+                    process.kill()
+                except OSError:
+                    pass
+                stdout = exc.output
+                stderr = exc.stderr
             exit_code = 124
             stdout = _decode_timeout_stream(stdout or exc.output)
             stderr = _decode_timeout_stream(stderr or exc.stderr)
@@ -445,13 +514,18 @@ def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds:
         scenario_outputs.append(
             {
                 "scenario_id": scenario_id,
-                "command": entrypoint,
+                "command_size_bytes": len(entrypoint.encode("utf-8")),
+                "command_sha256": _text_sha256(entrypoint),
                 "exit_code": exit_code,
                 "status": status,
-                "stdout": stdout,
-                "stderr": stderr,
                 "stdout_path": str(stdout_path),
                 "stderr_path": str(stderr_path),
+                "stdout_size_bytes": stdout_path.stat().st_size,
+                "stderr_size_bytes": stderr_path.stat().st_size,
+                "stdout_sha256": _file_metadata(stdout_path).get("sha256", ""),
+                "stderr_sha256": _file_metadata(stderr_path).get("sha256", ""),
+                "truncated": False,
+                "second_communicate_timeout": second_communicate_timeout,
                 "artifacts": [{"path": path} for path in discovered_artifacts],
             }
         )
@@ -612,7 +686,11 @@ def _load_session(repo_root: Path, task_id: str) -> dict:
     raise FileNotFoundError(f"multiple session-state files found for task {task_id}")
 
 
-def run_one_stop_auto_gate(task_id: str, repo_root: Path) -> dict[str, str] | None:
+def run_one_stop_auto_gate(
+    task_id: str,
+    repo_root: Path,
+    task_contract_path: Path | None = None,
+) -> dict[str, str] | None:
     session = _load_session(repo_root, task_id)
     branch = session["branch"]
     worktree_root = Path(session["worktree"])
@@ -631,7 +709,12 @@ def run_one_stop_auto_gate(task_id: str, repo_root: Path) -> dict[str, str] | No
         "run_final_evaluator",
         "rerun_final_evaluator",
     }
-    decision = harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+    decision = harness_evaluator_hooks.stop_hook_for_session(
+        worktree_root,
+        session,
+        task_id=task_id,
+        task_contract_path=task_contract_path,
+    )
     if decision is None:
         return None
     action = decision.get("action", "")
@@ -646,7 +729,12 @@ def run_one_stop_auto_gate(task_id: str, repo_root: Path) -> dict[str, str] | No
         decision,
     )
 
-    followup = harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+    followup = harness_evaluator_hooks.stop_hook_for_session(
+        worktree_root,
+        session,
+        task_id=task_id,
+        task_contract_path=task_contract_path,
+    )
     if followup is None:
         return None
     if followup.get("action") != "run_final_evaluator":
@@ -659,10 +747,20 @@ def run_one_stop_auto_gate(task_id: str, repo_root: Path) -> dict[str, str] | No
         task_id,
         followup,
     )
-    return harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+    return harness_evaluator_hooks.stop_hook_for_session(
+        worktree_root,
+        session,
+        task_id=task_id,
+        task_contract_path=task_contract_path,
+    )
 
 
-def run_fake_auto_task_gate(task_id: str, repo_root: Path, max_attempts: int) -> int:
+def run_fake_auto_task_gate(
+    task_id: str,
+    repo_root: Path,
+    max_attempts: int,
+    task_contract_path: Path | None = None,
+) -> int:
     session = _load_session(repo_root, task_id)
     branch = session["branch"]
     worktree_root = Path(session["worktree"])
@@ -675,7 +773,12 @@ def run_fake_auto_task_gate(task_id: str, repo_root: Path, max_attempts: int) ->
         worktree_root,
     )
     for loop_index in range(max_attempts):
-        decision = harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+        decision = harness_evaluator_hooks.stop_hook_for_session(
+            worktree_root,
+            session,
+            task_id=task_id,
+            task_contract_path=task_contract_path,
+        )
         if decision is None:
             return 0
         action = decision.get("action", "")
@@ -706,11 +809,21 @@ def run_fake_auto_task_gate(task_id: str, repo_root: Path, max_attempts: int) ->
                 last_task_eval_result="fail",
                 repair_from_eval=True,
             )
-    final_decision = harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+    final_decision = harness_evaluator_hooks.stop_hook_for_session(
+        worktree_root,
+        session,
+        task_id=task_id,
+        task_contract_path=task_contract_path,
+    )
     return 0 if final_decision is None else 1
 
 
-def run_codex_exec_auto_task_gate(task_id: str, repo_root: Path, max_attempts: int) -> int:
+def run_codex_exec_auto_task_gate(
+    task_id: str,
+    repo_root: Path,
+    max_attempts: int,
+    task_contract_path: Path | None = None,
+) -> int:
     session = _load_session(repo_root, task_id)
     branch = session["branch"]
     worktree_root = Path(session["worktree"])
@@ -723,7 +836,12 @@ def run_codex_exec_auto_task_gate(task_id: str, repo_root: Path, max_attempts: i
         worktree_root,
     )
     for _ in range(max_attempts):
-        decision = harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+        decision = harness_evaluator_hooks.stop_hook_for_session(
+            worktree_root,
+            session,
+            task_id=task_id,
+            task_contract_path=task_contract_path,
+        )
         if decision is None:
             return 0
         handled = _consume_decision_with_codex_exec(
@@ -735,7 +853,12 @@ def run_codex_exec_auto_task_gate(task_id: str, repo_root: Path, max_attempts: i
         )
         if not handled:
             return 1
-    final_decision = harness_evaluator_hooks.stop_hook_for_session(worktree_root, session, task_id=task_id)
+    final_decision = harness_evaluator_hooks.stop_hook_for_session(
+        worktree_root,
+        session,
+        task_id=task_id,
+        task_contract_path=task_contract_path,
+    )
     return 0 if final_decision is None else 1
 
 
@@ -869,6 +992,7 @@ def build_parser() -> argparse.ArgumentParser:
     auto_task.add_argument("--task-id", required=True)
     auto_task.add_argument("--max-attempts", type=int, default=3)
     auto_task.add_argument("--repo-root", default=".")
+    auto_task.add_argument("--task-contract", default="")
     return parser
 
 
@@ -885,9 +1009,19 @@ def main() -> int:
     if args.command == "run-task-loop" and args.driver == "codex-sdk":
         return run_codex_sdk_task_loop(args.task_id, args.max_attempts)
     if args.command == "run-task-auto-gate" and args.driver == "fake":
-        return run_fake_auto_task_gate(args.task_id, Path(args.repo_root), args.max_attempts)
+        return run_fake_auto_task_gate(
+            args.task_id,
+            Path(args.repo_root),
+            args.max_attempts,
+            Path(args.task_contract) if args.task_contract else None,
+        )
     if args.command == "run-task-auto-gate" and args.driver == "codex-exec":
-        return run_codex_exec_auto_task_gate(args.task_id, Path(args.repo_root), args.max_attempts)
+        return run_codex_exec_auto_task_gate(
+            args.task_id,
+            Path(args.repo_root),
+            args.max_attempts,
+            Path(args.task_contract) if args.task_contract else None,
+        )
     return 2
 
 

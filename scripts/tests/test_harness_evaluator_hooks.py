@@ -14,7 +14,6 @@
 
 import json
 import io
-import os
 import subprocess
 import tempfile
 import unittest
@@ -23,6 +22,87 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts import harness_evaluator_hooks
+
+
+def _write_hook_repo(root: Path, task_id: str = "demo-task") -> dict[str, str]:
+    session = {
+        "task": task_id,
+        "branch": f"task/{task_id}",
+        "worktree": str(root),
+        "status": "implementation",
+        "evaluator": {
+            "phase": "implementation",
+            "task_eval_attempt": 0,
+            "last_task_eval_result": "",
+            "final_eval_attempt": 0,
+            "last_final_eval_result": "",
+            "repair_from_eval": False,
+        },
+    }
+    state_dir = root / ".codex" / "session-state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "demo-session.json").write_text(json.dumps(session), encoding="utf-8")
+    templates_dir = root / ".codex" / "evaluations" / "templates"
+    templates_dir.mkdir(parents=True)
+    (templates_dir / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+    (templates_dir / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+    (root / "tasks.json").write_text(
+        json.dumps(
+            {
+                "eval_defaults": {
+                    "task_level_required": True,
+                    "final_level_required": False,
+                    "task_scope": "code_and_local_k3s",
+                    "final_scope": "report_and_artifacts",
+                    "max_task_eval_attempts": 3,
+                    "max_final_eval_attempts": 2,
+                },
+                "tasks": [
+                    {
+                        "id": task_id,
+                        "title": "Demo task",
+                        "description": "demo",
+                        "verify": "python3 -m unittest demo -v",
+                        "requires_eval": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return session
+
+
+def _write_hook_contract(path: Path, task_id: str, scenario_id: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "title": "Demo task",
+                "description": "Contract task.",
+                "verify_commands": ["python3 -m unittest contract -v"],
+                "scenario_commands": [f"python3 -c \"print('{scenario_id}')\""],
+                "artifact_paths": ["docs/contract.md"],
+                "required_services": [],
+                "evaluator_driver": "harness_auto_gate",
+                "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
+                "allowed_scope": "local_repo_and_harness",
+                "must_simulate": True,
+                "user_scenarios": [
+                    {
+                        "scenario_id": scenario_id,
+                        "user_goal": "Run the contract scenario.",
+                        "prerequisites": [],
+                        "steps": ["Run the contract command."],
+                        "expected_outcomes": ["Contract output is present."],
+                        "failure_signals": ["Contract command is missing."],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 class HarnessEvaluatorHookTests(unittest.TestCase):
@@ -198,7 +278,7 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
             self.assertTrue((bundle_dir / "input.json").exists())
             self.assertIn(".codex/evaluations/tasks/demo-task", decision["bundle_dir"])
 
-    def test_stop_hook_auto_prepares_bundle_from_latest_task_contract(self) -> None:
+    def test_stop_hook_auto_prepares_bundle_from_single_task_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             state_dir = root / ".codex" / "session-state"
@@ -273,10 +353,8 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
                 encoding="utf-8",
             )
             loop_root = root / ".codex" / "loop-runs"
-            old_contract_dir = loop_root / "old-run"
-            latest_contract_dir = loop_root / "latest-run"
-            old_contract_dir.mkdir(parents=True)
-            latest_contract_dir.mkdir(parents=True)
+            contract_dir = loop_root / "single-run"
+            contract_dir.mkdir(parents=True)
             contract_payload = {
                 "task_id": "demo-task",
                 "title": "Demo task",
@@ -300,26 +378,8 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
                     }
                 ],
             }
-            old_payload = dict(contract_payload)
-            old_payload["scenario_commands"] = ["python3 -c \"print('contract-old')\""]
-            old_payload["user_scenarios"] = [
-                {
-                    "scenario_id": "CONTRACT-OLD-01",
-                    "user_goal": "Run the old contract scenario.",
-                    "prerequisites": [],
-                    "steps": ["Run the old contract command."],
-                    "expected_outcomes": ["Old contract output is present."],
-                    "failure_signals": ["Old contract command is missing."],
-                }
-            ]
-            old_contract = old_contract_dir / "task-contract.json"
-            latest_contract = latest_contract_dir / "task-contract.json"
-            old_contract.write_text(json.dumps(old_payload), encoding="utf-8")
-            latest_contract.write_text(json.dumps(contract_payload), encoding="utf-8")
-            old_mtime = 1_800_000_000
-            latest_mtime = old_mtime + 10
-            os.utime(old_contract, (old_mtime, old_mtime))
-            os.utime(latest_contract, (latest_mtime, latest_mtime))
+            contract = contract_dir / "task-contract.json"
+            contract.write_text(json.dumps(contract_payload), encoding="utf-8")
 
             decision = harness_evaluator_hooks.stop_hook(root)
 
@@ -327,7 +387,7 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
             assert decision is not None
             bundle_dir = Path(decision["bundle_dir"])
             input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
-            self.assertEqual(input_payload["scenario_source"], str(latest_contract))
+            self.assertEqual(input_payload["scenario_source"], str(contract))
             self.assertEqual(input_payload["scenario_commands"], ["python3 -c \"print('contract-latest')\""])
             self.assertEqual(input_payload["artifact_paths"], ["docs/contract.md"])
             self.assertEqual(input_payload["required_services"], ["demo-backend"])
@@ -337,6 +397,66 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
                 input_payload["user_scenarios"][0]["entrypoint"],
                 "python3 -c \"print('contract-latest')\"",
             )
+
+    def test_stop_hook_fails_closed_when_multiple_task_contracts_match_without_explicit_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_hook_repo(root)
+            first_contract = root / ".codex" / "loop-runs" / "first-run" / "task-contract.json"
+            second_contract = root / ".codex" / "loop-runs" / "second-run" / "task-contract.json"
+            _write_hook_contract(first_contract, "demo-task", "FIRST-01")
+            _write_hook_contract(second_contract, "demo-task", "SECOND-01")
+
+            decision = harness_evaluator_hooks.stop_hook(root)
+
+            self.assertIsNotNone(decision)
+            assert decision is not None
+            self.assertEqual(decision["decision"], "block")
+            self.assertNotIn("bundle_dir", decision)
+            self.assertIn("multiple task-contract.json files", decision["reason"])
+
+    def test_stop_hook_for_session_uses_explicit_task_contract_path_when_multiple_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = _write_hook_repo(root)
+            explicit_contract = root / ".codex" / "loop-runs" / "explicit-run" / "task-contract.json"
+            other_contract = root / ".codex" / "loop-runs" / "other-run" / "task-contract.json"
+            _write_hook_contract(explicit_contract, "demo-task", "EXPLICIT-01")
+            _write_hook_contract(other_contract, "demo-task", "OTHER-01")
+
+            decision = harness_evaluator_hooks.stop_hook_for_session(
+                root,
+                session,
+                task_id="demo-task",
+                task_contract_path=explicit_contract,
+            )
+
+            self.assertIsNotNone(decision)
+            assert decision is not None
+            bundle_dir = Path(decision["bundle_dir"])
+            input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(input_payload["scenario_source"], str(explicit_contract))
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "EXPLICIT-01")
+
+    def test_stop_hook_for_session_rejects_explicit_task_contract_for_wrong_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = _write_hook_repo(root)
+            wrong_contract = root / ".codex" / "loop-runs" / "wrong-run" / "task-contract.json"
+            _write_hook_contract(wrong_contract, "other-task", "WRONG-01")
+
+            decision = harness_evaluator_hooks.stop_hook_for_session(
+                root,
+                session,
+                task_id="demo-task",
+                task_contract_path=wrong_contract,
+            )
+
+            self.assertIsNotNone(decision)
+            assert decision is not None
+            self.assertEqual(decision["decision"], "block")
+            self.assertNotIn("bundle_dir", decision)
+            self.assertIn("does not match requested task_id", decision["reason"])
 
     def test_stop_hook_auto_prepares_next_attempt_after_fail_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

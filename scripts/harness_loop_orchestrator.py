@@ -360,6 +360,21 @@ def _generator_result_has_artifacts(run_dir: Path) -> bool:
     return bool(generator_result["artifacts"])
 
 
+def _scenario_command_results_have_logs(run_dir: Path) -> bool:
+    scenario_results_path = run_dir / "scenario-command-results.json"
+    if not scenario_results_path.exists():
+        return False
+    scenario_results = read_json_file(scenario_results_path)
+    for result in scenario_results.get("results", []):
+        if not isinstance(result, dict):
+            continue
+        for key in ("stdout_path", "stderr_path"):
+            path_value = result.get(key)
+            if isinstance(path_value, str) and path_value:
+                return True
+    return False
+
+
 def _apply_evaluator_result_to_run(
     run: dict[str, Any],
     evaluator_payload: dict[str, Any],
@@ -367,7 +382,7 @@ def _apply_evaluator_result_to_run(
     has_artifacts: bool = False,
 ) -> None:
     passed = evaluator_payload["returncode"] == 0 and evaluator_payload["status"] == "pass"
-    if passed and has_artifacts:
+    if has_artifacts:
         run["phase"] = "artifact_hygiene"
     elif passed:
         run["phase"] = "passed_waiting_human_merge"
@@ -380,12 +395,15 @@ def _apply_evaluator_result_to_run(
         if evaluator_payload.get("status") == "blocked"
         else "fail"
     )
-    if passed and has_artifacts:
+    if has_artifacts:
         run["next_action"] = "run_artifact_hygiene"
     elif passed:
         run["next_action"] = "await_human_merge_confirmation"
     else:
         run["next_action"] = "repair_from_evaluator_findings"
+    run["_post_hygiene_phase"] = (
+        "passed_waiting_human_merge" if passed else "repair_needed"
+    )
 
 
 def run_evaluator(
@@ -434,7 +452,11 @@ def run_evaluator(
                 }
                 validate_evaluator_result_payload(evaluator_payload)
                 write_json_file(output_path, evaluator_payload)
-                _apply_evaluator_result_to_run(run, evaluator_payload)
+                _apply_evaluator_result_to_run(
+                    run,
+                    evaluator_payload,
+                    has_artifacts=_scenario_command_results_have_logs(run_dir),
+                )
                 run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
                 save_run(root, run)
                 return output_path
@@ -504,9 +526,8 @@ def run_evaluator(
         run,
         evaluator_payload,
         has_artifacts=(
-            evaluator_status == "pass"
-            and result.returncode == 0
-            and _generator_result_has_artifacts(run_dir)
+            (evaluator_status == "pass" and result.returncode == 0 and _generator_result_has_artifacts(run_dir))
+            or _scenario_command_results_have_logs(run_dir)
         ),
     )
     run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
@@ -559,9 +580,13 @@ def run_artifact_hygiene_step(
         run["phase"] = "stopped_blocked"
         run["last_result"] = "blocked"
         run["next_action"] = "inspect_artifact_hygiene"
+    elif run.get("_post_hygiene_phase") == "repair_needed":
+        run["phase"] = "repair_needed"
+        run["next_action"] = "repair_from_evaluator_findings"
     else:
         run["phase"] = "cleanup"
         run["next_action"] = "run_cleanup"
+    run.pop("_post_hygiene_phase", None)
     save_run(root, run)
     return result_path
 

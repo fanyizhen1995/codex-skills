@@ -18,8 +18,10 @@ explicit human merge gate after all automated checks finish.
 - `evaluate` calls `scripts/harness_evaluator_orchestrator.py`, copies the
   evaluator result into `evaluator-result.json`, and advances to
   `artifact_hygiene`, `passed_waiting_human_merge`, or `repair_needed`.
-- `artifact-hygiene` scans declared generator artifacts and advances to
-  `cleanup` or `stopped_blocked`.
+  Scenario command stdout/stderr evidence also forces `artifact_hygiene`,
+  including failing scenario command paths, before the run is repairable.
+- `artifact-hygiene` scans declared generator artifacts and scenario command
+  logs, then advances to `cleanup`, `repair_needed`, or `stopped_blocked`.
 - `cleanup` removes retained temporary worktrees and advances to the human
   merge gate.
 - `run` executes the confirmed run from its current phase through evaluator,
@@ -80,9 +82,12 @@ exit code, and manifest are written under the loop run directory:
 ```
 
 Generator artifacts are listed in `generator-result.json` under `artifacts`.
-After an evaluator pass, a non-empty artifact list moves the run to
-`artifact_hygiene` with `next_action=run_artifact_hygiene`; an empty list still
-moves directly to `passed_waiting_human_merge`.
+After an evaluator pass, a non-empty artifact list or any scenario command
+stdout/stderr logs move the run to `artifact_hygiene` with
+`next_action=run_artifact_hygiene`. An empty generator artifact list moves
+directly to `passed_waiting_human_merge` only when there are no scenario
+command logs. Failed scenario commands still write evidence and enter
+`artifact_hygiene`; after hygiene passes, the run returns to `repair_needed`.
 
 Run hygiene and cleanup directly when operating the loop one step at a time:
 
@@ -97,10 +102,12 @@ python3 scripts/harness_loop_orchestrator.py cleanup \
 ```
 
 `artifact-hygiene` scans only repo-relative artifact paths, rejects path
-traversal and binary or oversized artifacts, writes
+traversal and binary or oversized artifacts, includes scenario command
+stdout/stderr logs from `scenario-command-results.json`, writes
 `artifact-manifest.json`, and writes `redaction-manifest.json` when sensitive
 text is redacted. A blocked hygiene result stops the run at `stopped_blocked`
-for inspection; otherwise the run advances to `cleanup`.
+for inspection; otherwise the run advances to `cleanup` for passing evaluator
+paths or back to `repair_needed` for failing scenario command paths.
 
 `cleanup` removes only retained paths recorded under the repository
 `.worktrees/` directory and records `cleanup-result.json`. It does not remove
@@ -131,7 +138,8 @@ remains under `.codex/evaluations/tasks/<task-id>/`.
 Evaluator pass does not mean the loop is merged. A passing evaluator result
 with no generator artifacts sets `phase` to `passed_waiting_human_merge`,
 `last_result` to `pass`, and `next_action` to
-`await_human_merge_confirmation`. A passing evaluator result with artifacts
+`await_human_merge_confirmation` only when no scenario command logs were
+produced. A passing evaluator result with artifacts or scenario command logs
 must pass artifact hygiene and cleanup before reaching the same gate. A human
 operator must inspect the run artifacts, decide whether to merge or continue
 repairs, and perform any repository integration outside the loop.

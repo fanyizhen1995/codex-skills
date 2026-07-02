@@ -30,6 +30,88 @@ from scripts.harness_evaluator_orchestrator import (
 )
 
 
+def _write_auto_gate_repo(root: Path, task_id: str) -> None:
+    (root / ".codex" / "evaluations" / "templates").mkdir(parents=True)
+    (root / ".codex" / "evaluations" / "templates" / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+    (root / ".codex" / "evaluations" / "templates" / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+    (root / ".codex" / "session-state").mkdir(parents=True)
+    (root / ".codex" / "session-state" / "demo-session.json").write_text(
+        json.dumps(
+            {
+                "task": task_id,
+                "branch": f"task/{task_id}",
+                "worktree": str(root),
+                "status": "implementation",
+                "evaluator": {
+                    "phase": "implementation",
+                    "task_eval_attempt": 0,
+                    "last_task_eval_result": "",
+                    "final_eval_attempt": 0,
+                    "last_final_eval_result": "",
+                    "repair_from_eval": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "tasks.json").write_text(
+        json.dumps(
+            {
+                "eval_defaults": {
+                    "task_level_required": True,
+                    "final_level_required": False,
+                    "task_scope": "code_and_local_k3s",
+                    "final_scope": "report_and_artifacts",
+                    "max_task_eval_attempts": 3,
+                    "max_final_eval_attempts": 2,
+                },
+                "tasks": [
+                    {
+                        "id": task_id,
+                        "title": "Contract task",
+                        "description": "contract only",
+                        "verify": "python3 -m unittest demo -v",
+                        "requires_eval": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_task_contract(path: Path, task_id: str, scenario_id: str = "CONTRACT-01") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "title": "Contract task",
+                "description": "Temporary contract task.",
+                "verify_commands": [],
+                "scenario_commands": ["python3 -c \"print('contract')\""],
+                "artifact_paths": [],
+                "required_services": [],
+                "evaluator_driver": "harness_auto_gate",
+                "eval_policy": {"task_level_required": True},
+                "allowed_scope": "local_repo_and_harness",
+                "must_simulate": True,
+                "user_scenarios": [
+                    {
+                        "scenario_id": scenario_id,
+                        "user_goal": "Run the contract scenario.",
+                        "prerequisites": [],
+                        "steps": ["Run command."],
+                        "expected_outcomes": ["Contract scenario is used."],
+                        "failure_signals": ["Contract scenario is ignored."],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
     def test_next_loop_action_pass_completes_loop(self) -> None:
         decision = next_loop_action("pass", attempt=1, max_attempts=3, gate="task")
@@ -229,6 +311,46 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             input_payload = json.loads((bundle / "input.json").read_text(encoding="utf-8"))
             self.assertEqual(input_payload["scenario_source"], str(contract_path))
 
+    def test_run_task_auto_gate_cli_accepts_task_contract_and_uses_exact_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "contract-task"
+            _write_auto_gate_repo(root, task_id)
+            explicit_contract = root / ".codex" / "loop-runs" / "explicit-run" / "task-contract.json"
+            ambiguous_contract = root / ".codex" / "loop-runs" / "ambiguous-run" / "task-contract.json"
+            _write_task_contract(explicit_contract, task_id, scenario_id="EXPLICIT-01")
+            _write_task_contract(ambiguous_contract, task_id, scenario_id="AMBIGUOUS-01")
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(Path(__file__).resolve().parents[1] / "harness_evaluator_orchestrator.py"),
+                    "run-task-auto-gate",
+                    "--driver",
+                    "codex-exec",
+                    "--task-id",
+                    task_id,
+                    "--max-attempts",
+                    "0",
+                    "--repo-root",
+                    str(root),
+                    "--task-contract",
+                    str(explicit_contract),
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            bundle_root = root / ".codex" / "evaluations" / "tasks" / task_id
+            bundles = sorted(bundle_root.iterdir())
+            self.assertEqual(len(bundles), 1)
+            input_payload = json.loads((bundles[0] / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(input_payload["scenario_source"], str(explicit_contract))
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "EXPLICIT-01")
+
     def test_shell_scenario_timeout_records_failed_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -296,6 +418,79 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             self.assertEqual(output["status"], "timeout")
             self.assertTrue((bundle / "TIMEOUT-01.stdout.log").exists())
             self.assertTrue((bundle / "TIMEOUT-01.stderr.log").exists())
+
+    def test_run_shell_scenarios_records_partial_evidence_when_second_communicate_times_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "bundle"
+            bundle.mkdir()
+            (bundle / "input.json").write_text(
+                json.dumps(
+                    {
+                        "gate": "task",
+                        "task_id": "timeout-task",
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "verify_commands": [],
+                        "artifact_paths": [],
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "scenario_source": "task-contract.json",
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "TIMEOUT-02",
+                                "user_goal": "Timeout twice.",
+                                "prerequisites": [],
+                                "entrypoint": "python3 -c \"import time; time.sleep(60)\"",
+                                "steps": ["Run command."],
+                                "expected_outcomes": ["Command times out."],
+                                "failure_signals": ["Command hangs indefinitely."],
+                                "cleanup": [],
+                                "automation_hint": "shell",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (bundle / "artifacts.json").write_text("{}", encoding="utf-8")
+
+            class DoubleTimeoutProcess:
+                pid = 123456
+                returncode = None
+
+                def __init__(self) -> None:
+                    self.calls = 0
+                    self.killed = False
+
+                def communicate(self, timeout: int | None = None) -> tuple[str, str]:
+                    self.calls += 1
+                    if self.calls == 1:
+                        raise subprocess.TimeoutExpired(cmd="timeout", timeout=timeout or 1, output="partial out", stderr="partial err")
+                    raise subprocess.TimeoutExpired(cmd="timeout", timeout=timeout or 1, output="later out", stderr="later err")
+
+                def kill(self) -> None:
+                    self.killed = True
+                    self.returncode = -9
+
+            process = DoubleTimeoutProcess()
+            from scripts.harness_evaluator_orchestrator import _run_shell_scenarios
+
+            with patch("scripts.harness_evaluator_orchestrator.subprocess.Popen", return_value=process), patch(
+                "scripts.harness_evaluator_orchestrator.os.killpg"
+            ), patch("scripts.harness_evaluator_orchestrator._close_process_pipes") as close_pipes:
+                _run_shell_scenarios(bundle, root, timeout_seconds=1)
+
+            self.assertTrue(process.killed)
+            close_pipes.assert_called_once_with(process)
+            stdout_log = (bundle / "TIMEOUT-02.stdout.log").read_text(encoding="utf-8")
+            stderr_log = (bundle / "TIMEOUT-02.stderr.log").read_text(encoding="utf-8")
+            self.assertIn("partial out", stdout_log)
+            self.assertIn("partial err", stderr_log)
+            artifacts = json.loads((bundle / "artifacts.json").read_text(encoding="utf-8"))
+            output = artifacts["scenario_outputs"][0]
+            self.assertEqual(output["status"], "timeout")
+            self.assertTrue(output["second_communicate_timeout"])
 
     def test_run_fake_task_loop_writes_result_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -816,6 +1011,16 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            scenario_entrypoint = (
+                "python3 -c \"from pathlib import Path; "
+                "import os; "
+                "os.environ['TOKEN']='secret-token'; "
+                "print('Authorization: Bearer ' + os.environ['TOKEN']); "
+                "p=Path('.codex/evaluator-demo/demo-task/result.txt'); "
+                "p.parent.mkdir(parents=True, exist_ok=True); "
+                "p.write_text('done\\\\n', encoding='utf-8')\" "
+                "--output-dir .codex/evaluator-demo/demo-task"
+            )
             scenario_dir = root / "docs" / "harness" / "evaluator-scenarios"
             scenario_dir.mkdir(parents=True)
             (scenario_dir / "demo-task.json").write_text(
@@ -828,7 +1033,7 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
                                 "scenario_id": "EUS-01",
                                 "user_goal": "Run the public flow.",
                                 "prerequisites": [],
-                                "entrypoint": "python3 scripts/demo.py --output-dir .codex/evaluator-demo/demo-task",
+                                "entrypoint": scenario_entrypoint,
                                 "steps": ["Run the command."],
                                 "expected_outcomes": ["It exits with status 0."],
                                 "failure_signals": ["It exits non-zero."],
@@ -882,7 +1087,7 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
                                 "scenario_id": "EUS-01",
                                 "user_goal": "Run the public flow.",
                                 "prerequisites": [],
-                                "entrypoint": "python3 scripts/demo.py --output-dir .codex/evaluator-demo/demo-task",
+                                "entrypoint": scenario_entrypoint,
                                 "steps": ["Run the command."],
                                 "expected_outcomes": ["It exits with status 0."],
                                 "failure_signals": ["It exits non-zero."],
@@ -950,7 +1155,21 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             scenario_output = artifacts_payload["scenario_outputs"][0]
             self.assertEqual(scenario_output["scenario_id"], "EUS-01")
             self.assertEqual(scenario_output["exit_code"], 0)
-            self.assertIn("scenario-ok", scenario_output["stdout"])
+            self.assertNotIn("command", scenario_output)
+            self.assertIn("command_sha256", scenario_output)
+            self.assertGreater(scenario_output["command_size_bytes"], 0)
+            self.assertNotIn("stdout", scenario_output)
+            self.assertNotIn("stderr", scenario_output)
+            self.assertEqual(scenario_output["stdout_path"], str(bundle_dir / "EUS-01.stdout.log"))
+            self.assertEqual(scenario_output["stdout_size_bytes"], len("Authorization: Bearer secret-token\n"))
+            self.assertNotIn(
+                "Authorization: Bearer secret-token",
+                json.dumps(artifacts_payload),
+            )
+            self.assertIn(
+                "Authorization: Bearer secret-token",
+                (bundle_dir / "EUS-01.stdout.log").read_text(encoding="utf-8"),
+            )
             self.assertTrue(any(item["path"].endswith("result.txt") for item in scenario_output["artifacts"]))
             input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
             self.assertTrue(any(path.endswith("result.txt") for path in input_payload["artifact_paths"]))
@@ -1022,6 +1241,73 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             self.assertIn('"exit_code": 0', prompt)
             self.assertIn(str(artifact), prompt)
             self.assertIn("step4-ready", prompt)
+
+    def test_codex_exec_prompt_omits_raw_scenario_logs_and_artifacts_json_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle_dir = root / "bundle"
+            bundle_dir.mkdir()
+            stdout_log = bundle_dir / "EUS-01.stdout.log"
+            stdout_log.write_text("Authorization: Bearer secret-token\n", encoding="utf-8")
+            (bundle_dir / "input.json").write_text(
+                json.dumps(
+                    {
+                        "gate": "task",
+                        "task_id": "demo-task",
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "verify_commands": [],
+                        "artifact_paths": [str(stdout_log)],
+                        "allowed_scope": "code_and_local_k3s",
+                        "must_simulate": True,
+                        "scenario_source": "demo-task.json",
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "EUS-01",
+                                "user_goal": "Confirm no secrets enter prompt.",
+                                "prerequisites": [],
+                                "entrypoint": "python3 scripts/demo.py",
+                                "steps": ["Run the demo."],
+                                "expected_outcomes": ["The command exits 0."],
+                                "failure_signals": ["The command exits non-zero."],
+                                "cleanup": [],
+                                "automation_hint": "shell",
+                            }
+                        ],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (bundle_dir / "artifacts.json").write_text(
+                json.dumps(
+                    {
+                        "logs": [str(stdout_log)],
+                        "reports": [],
+                        "screenshots": [],
+                        "kubectl_outputs": [],
+                        "scenario_outputs": [
+                            {
+                                "scenario_id": "EUS-01",
+                                "command": "python3 scripts/demo.py",
+                                "exit_code": 0,
+                                "status": "pass",
+                                "stdout": "Authorization: Bearer secret-token\n",
+                                "stderr": "",
+                                "stdout_path": str(stdout_log),
+                            }
+                        ],
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            prompt = _codex_exec_prompt(bundle_dir, "task")
+
+            self.assertNotIn("Authorization: Bearer secret-token", prompt)
+            self.assertIn(str(stdout_log), prompt)
 
     def test_run_one_stop_auto_gate_returns_followup_rerun_after_fail_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
