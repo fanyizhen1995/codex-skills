@@ -575,6 +575,8 @@ def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
             path = root / path
         if not path.exists():
             continue
+        if path.is_symlink():
+            continue
         try:
             path.relative_to(allowed_worktrees_root_path)
             resolved_path = path.resolve()

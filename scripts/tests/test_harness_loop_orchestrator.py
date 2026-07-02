@@ -1305,6 +1305,54 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir / "run.json")
             self.assertNotIn(str(victim), run["cleanup"]["worktrees_removed"])
 
+    def test_run_cleanup_skips_absolute_symlink_retained_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            real_worktree = repo_root / ".worktrees" / "real"
+            real_worktree.mkdir(parents=True)
+            symlink_path = repo_root / ".worktrees" / "link"
+            symlink_path.symlink_to(real_worktree, target_is_directory=True)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [str(symlink_path)]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            result_path = run_cleanup(repo_root, "demo-run")
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertTrue(symlink_path.is_symlink())
+            self.assertTrue(real_worktree.exists())
+            self.assertNotIn(str(symlink_path), result["worktrees_removed"])
+
+    def test_run_cleanup_skips_relative_symlink_retained_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(repo_root, "demand-development", "Cleanup", "demo-run", confirm=True)
+            run_dir = run_dir_for(repo_root, "demo-run")
+            real_worktree = repo_root / ".worktrees" / "real"
+            real_worktree.mkdir(parents=True)
+            symlink_path = repo_root / ".worktrees" / "link"
+            symlink_path.symlink_to(real_worktree, target_is_directory=True)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "cleanup"
+            run["cleanup"]["retained_artifacts"] = [".worktrees/link"]
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_cleanup
+
+            result_path = run_cleanup(repo_root, "demo-run")
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertTrue(symlink_path.is_symlink())
+            self.assertTrue(real_worktree.exists())
+            self.assertNotIn(".worktrees/link", result["worktrees_removed"])
+
     def test_run_cleanup_skips_when_worktrees_root_is_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             parent = Path(tmp)

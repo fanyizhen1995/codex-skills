@@ -12,8 +12,8 @@
 - Updated the loop runbook with task-contract evaluator input, scenario command evidence, artifact redaction manifests, cleanup behavior, and the human merge gate rules.
 - Marked Phase 2 done in `tasks.json`; Phase 3 is the next active focus.
 - Evidence:
-  - `python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v` -> 46 passed
-  - `python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_artifacts scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_cli scripts.tests.test_harness_evaluator_orchestrator scripts.tests.test_harness_evaluator_scenarios -v` -> 140 passed
+  - `python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v` -> 48 passed
+  - `python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_artifacts scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_evaluator_cli scripts.tests.test_harness_evaluator_orchestrator scripts.tests.test_harness_evaluator_scenarios -v` -> 142 passed
   - `python3 scripts/harness_loop_phase2_smoke.py --repo-root . --run-id evaluator-scenario-phase-2 --task-id planner-generator-evaluator-loop-phase-2-01` -> `passed_waiting_human_merge`, with scenario command, artifact hygiene, and cleanup evidence
   - `python3 -m json.tool tasks.json >/dev/null` -> pass
   - `python3 -m json.tool docs/harness/evaluator-scenarios/planner-generator-evaluator-loop-phase-2-01.json >/dev/null` -> pass
