@@ -9,10 +9,13 @@ from scripts.harness_loop_contracts import (
     read_json_file,
     run_dir_for,
     validate_agent_attempt_payload,
+    validate_artifact_hygiene_result_payload,
     validate_evaluator_result_payload,
     validate_generator_result_payload,
     validate_planner_output_payload,
     validate_run_payload,
+    validate_scenario_command_result_payload,
+    validate_task_contract_payload,
     write_json_file,
 )
 
@@ -85,6 +88,31 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "output_json_path": "planner-output.json",
             "diff_patch_path": "",
             "verify_log_paths": [],
+        }
+
+    def _task_contract_payload(self) -> dict:
+        return {
+            "task_id": "phase-2-task",
+            "title": "Phase 2 task",
+            "description": "Exercise task contract bundle preparation.",
+            "verify_commands": ["python3 -m unittest scripts.tests.test_harness_loop_contracts -v"],
+            "scenario_commands": ["python3 -c \"print('scenario-ok')\""],
+            "artifact_paths": ["docs/harness/planner-generator-evaluator-loop.md"],
+            "required_services": ["crawler_workbench_backend"],
+            "evaluator_driver": "harness_auto_gate",
+            "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
+            "allowed_scope": "local_repo_and_harness",
+            "must_simulate": True,
+            "user_scenarios": [
+                {
+                    "scenario_id": "PGE-PHASE2-TASK-CONTRACT",
+                    "user_goal": "Prepare an evaluator bundle from a temporary task contract.",
+                    "prerequisites": ["Temporary task contract exists."],
+                    "steps": ["Run prepare-task with --task-contract."],
+                    "expected_outcomes": ["input.json includes scenario commands."],
+                    "failure_signals": ["Bundle ignores task contract fields."],
+                }
+            ],
         }
 
     def test_normalize_policy_id_accepts_dash_and_underscore(self) -> None:
@@ -335,6 +363,87 @@ class HarnessLoopContractsTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "returncode"):
             validate_evaluator_result_payload(payload)
+
+    def test_validate_task_contract_payload_accepts_phase_2_shape(self) -> None:
+        validate_task_contract_payload(self._task_contract_payload())
+
+    def test_validate_task_contract_payload_rejects_missing_scenario_commands(self) -> None:
+        payload = self._task_contract_payload()
+        del payload["scenario_commands"]
+        with self.assertRaisesRegex(ValueError, "scenario_commands"):
+            validate_task_contract_payload(payload)
+
+    def test_validate_task_contract_payload_rejects_non_list_required_services(self) -> None:
+        payload = self._task_contract_payload()
+        payload["required_services"] = "backend"
+        with self.assertRaisesRegex(ValueError, "required_services"):
+            validate_task_contract_payload(payload)
+
+    def test_validate_task_contract_payload_rejects_non_string_scenario_command(self) -> None:
+        payload = self._task_contract_payload()
+        payload["scenario_commands"] = [123]
+        with self.assertRaisesRegex(ValueError, "scenario_commands\\[0\\]|scenario_commands"):
+            validate_task_contract_payload(payload)
+
+    def test_validate_task_contract_payload_rejects_malformed_user_scenario(self) -> None:
+        payload = self._task_contract_payload()
+        payload["user_scenarios"] = [{}]
+        with self.assertRaisesRegex(ValueError, "scenario_id"):
+            validate_task_contract_payload(payload)
+
+    def test_validate_scenario_command_result_payload_accepts_command_evidence(self) -> None:
+        validate_scenario_command_result_payload(
+            {
+                "command": "python3 -c \"print('ok')\"",
+                "cwd": "/tmp/repo",
+                "exit_code": 0,
+                "stdout_path": ".codex/loop-runs/demo/scenario-commands/command-1.stdout.log",
+                "stderr_path": ".codex/loop-runs/demo/scenario-commands/command-1.stderr.log",
+                "duration_seconds": 0,
+                "status": "pass",
+            }
+        )
+
+    def test_validate_scenario_command_result_payload_rejects_unknown_status(self) -> None:
+        payload = {
+            "command": "python3 -c \"print('ok')\"",
+            "cwd": "/tmp/repo",
+            "exit_code": 0,
+            "stdout_path": "stdout.log",
+            "stderr_path": "stderr.log",
+            "duration_seconds": 0,
+            "status": "success",
+        }
+        with self.assertRaisesRegex(ValueError, "status"):
+            validate_scenario_command_result_payload(payload)
+
+    def test_validate_scenario_command_result_payload_rejects_negative_duration(self) -> None:
+        payload = {
+            "command": "python3 -c \"print('ok')\"",
+            "cwd": "/tmp/repo",
+            "exit_code": 0,
+            "stdout_path": "stdout.log",
+            "stderr_path": "stderr.log",
+            "duration_seconds": -1,
+            "status": "pass",
+        }
+        with self.assertRaisesRegex(ValueError, "duration_seconds"):
+            validate_scenario_command_result_payload(payload)
+
+    def test_validate_artifact_hygiene_result_payload_accepts_redaction_manifest(self) -> None:
+        validate_artifact_hygiene_result_payload(
+            {
+                "status": "redacted",
+                "scanned_paths": ["artifact.txt"],
+                "redacted_paths": ["artifact.redacted.txt"],
+                "omitted_paths": [],
+                "manifest_path": ".codex/loop-runs/demo/artifact-manifest.json",
+                "redaction_manifest_path": ".codex/loop-runs/demo/redaction-manifest.json",
+                "original_hashes": {"artifact.txt": "abc123"},
+                "redaction_map": [{"path": "artifact.txt", "rule_id": "token", "replacement": "[REDACTED]"}],
+                "findings": [{"path": "artifact.txt", "severity": "warning", "message": "token redacted"}],
+            }
+        )
 
     def test_default_limits_returns_phase_1_limit_keys(self) -> None:
         self.assertEqual(
