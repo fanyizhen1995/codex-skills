@@ -157,6 +157,7 @@ Preflight 必须确认：
 - **目的**：这次 loop 要解决什么问题，成功后应看到什么产物。
 - **约束**：哪些路径能改，哪些不能改；是否允许联网、抓取、写 wiki、写代码、重启服务、自动 commit。
 - **停止条件**：什么时候算完成，最多跑几轮，遇到网络、鉴权、脏工作区、验证失败时如何停。
+- **领域状态契约**：如果是 `autonomous_knowledge`，必须和用户确认 `loop-state.json` 的领域目标、扫描范围、来源清单、资料缺口字段，以及“无可行动缺口”的判定标准。
 
 `grill-me` 接入要求：
 
@@ -176,7 +177,9 @@ Fallback questionnaire 的最小问题集：
 5. 是否允许自动 commit？是否允许合入 `main`？
 6. 最多允许多少任务、多少修复轮次、多少 evaluator 轮次、多少运行时间？
 7. 遇到鉴权、网络失败、脏工作区、非 allowlist 路径、代码改动需求时如何继续、停止或升级？
-8. 用户是否明确说“讨论清楚 / 确认进入 loop”？
+8. 如果是 `autonomous_knowledge`，`loop-state.json` 需要追踪哪些领域目标、来源、资料缺口、候选 backlog、blocked item 和 no-action 证据？
+9. 如果是 `autonomous_knowledge`，什么证据足以证明“无可行动缺口”？扫描 TTL、来源覆盖、blocked/auth 项是否计入缺口？
+10. 用户是否明确说“讨论清楚 / 确认进入 loop”？
 
 ## 状态与产物
 
@@ -359,6 +362,7 @@ personal-wiki/domains/<domain>/loop-state.json
 
 “无可行动缺口”的最低判定标准：
 
+- 这些标准必须在 preflight 阶段与用户确认；Planner 只能在用户确认过的领域目标和扫描范围内判定 no-action。
 - `candidate_backlog` 为空。
 - `coverage_gaps` 为空，或剩余 gap 全部有明确 `blocked_reason`。
 - `last_scan_at` 未超过 `scan_ttl_days`。
@@ -747,6 +751,7 @@ docs/harness/planner-generator-evaluator-loop.md
 - evaluator pass 后，Demand Loop 停在 human merge gate。
 - Autonomous Knowledge Loop 能在 pass 后自动 commit 并继续规划下一项。
 - Autonomous Knowledge Loop 能在领域 `loop-state.json` 中记录资料缺口，并在“无可行动缺口”时停止。
+- Autonomous Knowledge Loop 的 `loop-state.json` schema 和“无可行动缺口”判定标准必须在 preflight 阶段与用户确认。
 - Autonomous Knowledge Loop 发现需要 crawler、crawler workbench 后端/前端或相关测试改动时，能在 auto mode 内自动实现、验证、redaction、提交。
 - `.codex` artifacts 通过大小和敏感信息扫描；敏感文本 redaction 后继续提交，无法 redaction 的原始 artifact 不入 git。
 - Planner/Generator `codex exec` 失败、超时、JSON 无效时能按 attempt 规则重试并清理临时 worktree/进程。
