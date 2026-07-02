@@ -334,6 +334,9 @@ personal-wiki/domains/<domain>/loop-state.json
   "redacted_paths": [],
   "omitted_paths": [],
   "manifest_path": "string",
+  "redaction_manifest_path": "string",
+  "original_hashes": {},
+  "redaction_map": [],
   "findings": []
 }
 ```
@@ -358,7 +361,7 @@ personal-wiki/domains/<domain>/loop-state.json
 }
 ```
 
-`coverage_gaps`、`candidate_backlog`、`processed_items` 和 `blocked_items` 条目必须至少包含 `id`、`title`、`source`、`status`、`updated_at` 和 `evidence`。`blocked_items` 还必须包含 `blocked_reason` 和 `required_human_input`。
+`coverage_gaps`、`candidate_backlog`、`processed_items` 和 `blocked_items` 条目必须至少包含 `id`、`title`、`source`、`status`、`updated_at` 和 `evidence`。`blocked_items` 还必须包含 `blocked_reason`、`required_human_input`、`retry_after`、`retry_count`、`last_error` 和 `requires_user_input`。
 
 “无可行动缺口”的最低判定标准：
 
@@ -368,7 +371,8 @@ personal-wiki/domains/<domain>/loop-state.json
 - `last_scan_at` 未超过 `scan_ttl_days`。
 - `known_sources` 中本轮 scope 内的来源都已扫描或记录了不可连接原因。
 - `no_action_evidence` 至少包含本轮 Planner 扫描摘要、来源列表、查询条件和验证命令结果。
-- 如果存在 `blocked_auth`、凭据缺失、denylist 命中或需要用户授权的来源，状态应为 `stopped_blocked`，不能归类为“无可行动缺口”。
+- 如果存在 `blocked_auth`、凭据缺失、denylist 命中或需要用户授权的来源，该来源必须进入 `blocked_items`，不能归类为“无可行动缺口”的证据。
+- 单个来源 blocked 不应停止整个 autonomous loop；Planner 应继续处理其它 `candidate_backlog` 或 `coverage_gaps`。只有所有剩余工作都被 blocked，或 blocked item 触碰 denylist/凭据/生产权限，才进入 `stopped_blocked`。
 
 Policy JSON 必填字段：
 
@@ -414,6 +418,10 @@ python3 scripts/harness_evaluator_cli.py prepare-task \
   "title": "string",
   "description": "string",
   "verify_commands": [],
+  "scenario_commands": [],
+  "artifact_paths": [],
+  "required_services": [],
+  "evaluator_driver": "harness_auto_gate | wiki_crawler_e2e | playwright_live | custom",
   "eval_policy": {},
   "allowed_scope": "string",
   "must_simulate": true,
@@ -421,7 +429,9 @@ python3 scripts/harness_evaluator_cli.py prepare-task \
 }
 ```
 
-当 `--task-contract` 存在时，`prepare-task` 从该文件读取 task definition、verify commands、eval policy 和 user scenarios，不再要求任务已经存在于 `tasks.json` 或 `docs/harness/evaluator-scenarios/<task-id>.json`。这让 autonomous loop 可以完成一次性资料拓展、自动修复和验证，而不污染长期任务注册表。
+当 `--task-contract` 存在时，`prepare-task` 从该文件读取 task definition、verify commands、scenario commands、artifact paths、required services、eval policy 和 user scenarios，不再要求任务已经存在于 `tasks.json` 或 `docs/harness/evaluator-scenarios/<task-id>.json`。这让 autonomous loop 可以完成一次性资料拓展、自动修复和验证，而不污染长期任务注册表。
+
+`scenario_commands` 由 evaluator orchestrator 在 LLM 判定前执行，用于 Playwright、wiki crawler e2e、API health check 或专用验证脚本。命令输出写入 `artifacts.json`，LLM evaluator 只能把这些 artifacts 作为主要证据，不能只根据自然语言场景判定通过。
 
 ## Agent 调用、重试与清理
 
@@ -493,7 +503,7 @@ preflight
 - `pass`：如果 changed paths 全部在 allowlist 内，自动 commit，记录日志，回到 Planner。
 - `fail`：最多修复指定轮次；仍失败则停止。
 - `blocked_network`：记录 URL、错误、重试次数，不无限重试。
-- `blocked_auth`：记录所需 token/scope，停止等待用户。
+- `blocked_auth`：记录所需 token/scope 到 `blocked_items`，继续处理其它来源；如果所有剩余项都 blocked，才停止等待用户。
 - `blocked_scope`：Planner 可拆小任务；仍触碰非 allowlist 则停止。
 - `artifact_hygiene_failed`：尝试 redaction；redaction 成功则继续提交，redaction 失败则停止。
 - `dirty_baseline`：如果不是本轮创建的路径，停止并让用户确认。
@@ -526,6 +536,8 @@ scripts/tests/test_*crawl*.py
 scripts/tests/test_*crawler*.py
 scripts/tests/test_compute_*.py
 scripts/tests/test_github_*.py
+package*.json
+requirements*.txt
 .codex/loop-runs/**
 .codex/evaluations/**
 loop-run-log.md
@@ -540,12 +552,18 @@ docs/harness/**
 tasks.json
 AGENTS.md
 LOOP.md
-package*.json
 pyproject.toml
-requirements*.txt
 ```
 
 说明：`tasks.json` 对 autonomous loop 是关键元数据。Autonomous loop 默认用 `task-contract.json`，不自动修改 `tasks.json`。如果确实要把某个自动任务升级为长期任务注册表条目，必须由 Planner 显式生成 candidate patch，并通过 evaluator 验证后才允许提交。
+
+`package*.json` 和 `requirements*.txt` 允许 autonomous loop 修改，但必须满足额外供应链检查：
+
+- Planner 必须说明为什么需要新增或升级依赖，且该依赖是完成资料抓取、解析、验证或 UI 展示所必需。
+- 只能新增直接依赖，不能批量升级无关依赖。
+- 必须运行对应 lockfile/安装验证、backend/frontend 测试和相关 evaluator scenario。
+- 必须记录依赖来源、版本、许可证摘要和已知风险检查结果。
+- 如果依赖安装失败、许可证不可接受、来源不可信、或风险检查无法完成，则停止并升级给用户。
 
 `.codex/loop-runs/**` 和 `.codex/evaluations/**` 需要保留在 git 中作为审计证据，但提交前必须做 artifact hygiene：
 
@@ -554,6 +572,8 @@ requirements*.txt
 - 扫描 token、secret、cookie、authorization header、private key 关键词。
 - 文本文件命中敏感模式时先 redaction，再提交 redacted 文件；原始文件只保留本地并在 manifest 中记录 hash，不入 git。
 - 二进制文件命中敏感模式或无法扫描时，不提交原文件，只提交 manifest。
+- redacted artifact 必须同时写出 `redaction-manifest.json`，包含原始文件 hash、redacted 文件 hash、redaction 规则 id、字段路径或行号范围、处理原因和不可逆处理说明。
+- evaluator result 和 summary 必须标注引用的是原始本地 artifact 还是 redacted artifact；git 中的审计证据以 redacted artifact 和 manifest 为准，本地复现以 manifest hash 校验原始 artifact。
 - 默认提交 summary、manifest、result、scenario evidence；大型截图、trace、HTML report 可记录路径和 hash，是否入 git 由 policy 决定。
 - 如果 redaction 或 manifest 生成失败，即使 evaluator pass 也不能自动 commit。
 
@@ -614,6 +634,7 @@ Autonomous Loop 每轮 Planner 必须检查：
 - 连续 fail/blocked 次数达到。
 - 遇到鉴权、无法 redaction 的敏感 artifact、非 allowlist 代码路径或 denylist 路径。
 - 涉及非 allowlist 路径。
+- 所有剩余 `candidate_backlog` 和 `coverage_gaps` 都处于 blocked，且没有可处理的其它来源。
 - 领域 `loop-state.json` 判定当前目标已达到“无可行动缺口”。
 
 建议默认值：
@@ -726,7 +747,7 @@ docs/harness/planner-generator-evaluator-loop.md
 ```text
 进入 Planner loop。模式：autonomous-knowledge。
 需求：持续拓展 ai_infra wiki 中 GPU/NPU/TPU 资料。
-只允许自动改 personal-wiki/domains/** 下的 raw/wiki/sources/data。
+允许自动改 personal-wiki/domains/** 下的 raw/wiki/sources/data，以及 crawler workbench、crawler 脚本、相关测试和必要依赖；仍受 denylist、供应链检查和 evaluator gate 约束。
 每轮最多 3 个任务，通过 evaluator 后自动 commit 并继续规划。
 ```
 
@@ -738,9 +759,10 @@ docs/harness/planner-generator-evaluator-loop.md
 2. 接入 `codex exec` Planner/Generator agent wrapper、JSON 契约校验、失败重试和 cleanup。
 3. 接入现有 evaluator gate，并扩展 evaluator CLI 支持 `task-contract.json`。
 4. 实现 `autonomous-knowledge` policy，允许 wiki/raw/sources/data、crawler workbench 和 crawler 脚本相关改动自动提交。
-5. 接入 preflight 讨论门和 `grill-me` fallback。
-6. 增加 artifact hygiene、redaction 和领域 `loop-state.json`。
-7. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
+5. 为 autonomous dependency changes 增加供应链检查。
+6. 接入 preflight 讨论门和 `grill-me` fallback。
+7. 增加 artifact hygiene、redaction、redaction manifest 和领域 `loop-state.json`。
+8. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
 
 ## 验收标准
 
@@ -753,7 +775,11 @@ docs/harness/planner-generator-evaluator-loop.md
 - Autonomous Knowledge Loop 能在领域 `loop-state.json` 中记录资料缺口，并在“无可行动缺口”时停止。
 - Autonomous Knowledge Loop 的 `loop-state.json` schema 和“无可行动缺口”判定标准必须在 preflight 阶段与用户确认。
 - Autonomous Knowledge Loop 发现需要 crawler、crawler workbench 后端/前端或相关测试改动时，能在 auto mode 内自动实现、验证、redaction、提交。
+- Autonomous Knowledge Loop 修改 `package*.json` 或 `requirements*.txt` 时必须通过供应链检查、安装验证和相关 evaluator scenario。
 - `.codex` artifacts 通过大小和敏感信息扫描；敏感文本 redaction 后继续提交，无法 redaction 的原始 artifact 不入 git。
+- Redacted artifact 必须有原始 hash、redacted hash 和 redaction manifest，evaluator summary 必须说明引用的是原始还是 redacted 证据。
+- `task-contract.json` 支持 `scenario_commands`，并能把命令输出纳入 evaluator artifacts。
+- 单个 blocked source 不会停止整个 autonomous loop；Planner 会继续处理其它来源，直到无可处理项或达到停止条件。
 - Planner/Generator `codex exec` 失败、超时、JSON 无效时能按 attempt 规则重试并清理临时 worktree/进程。
 - dirty baseline、denylist、max attempts 能正确停止。
 - `loop-run-log.md` 和 `.codex/loop-runs/<run-id>/` 有完整证据。
@@ -766,7 +792,10 @@ docs/harness/planner-generator-evaluator-loop.md
 - **Autonomous loop 无限跑**：max tasks、max attempts、max wall time、no-action stop 必须硬编码。
 - **知识入库自动提交错误内容**：只允许 allowlist 内改动，且必须通过 wiki validate、search/API/UI 可见性检查。
 - **Autonomous code 改动扩大范围**：crawler workbench 和 crawler 脚本相关路径可自动改；denylist、生产基础设施、凭据、认证、支付、账单仍阻断。
+- **依赖供应链风险**：允许 autonomous 修改 `package*.json` 和 `requirements*.txt`，但必须有必要性说明、安装验证、测试、许可证和风险检查。
 - **`.codex` artifacts 泄露敏感信息或过大**：提交前执行 artifact hygiene；敏感文本 redaction 后继续提交，无法处理的原始 artifact 不入 git。
+- **Redaction 破坏证据链**：提交 redacted artifact 时必须保留原始 hash、redacted hash 和 redaction manifest；summary 必须说明证据引用关系。
 - **`tasks.json` 成为 autonomous loop 阻塞点**：区分 candidate task、registered task 和临时 task contract；autonomous 默认使用 `task-contract.json`。
+- **单个 blocked source 卡住整个领域**：blocked source 进入 `blocked_items`，Planner 继续处理其它来源；只有所有剩余项 blocked 或触碰硬边界才停止。
 - **失败尝试堆积 worktree 或进程**：每次 retry 前保存证据并重建 worktree；pass、blocked 或中断恢复时执行 cleanup。
 - **grill-me 不可用**：使用 fallback questionnaire，并在 run artifact 中记录。
