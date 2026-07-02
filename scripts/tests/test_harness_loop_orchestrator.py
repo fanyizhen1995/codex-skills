@@ -788,6 +788,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
             self.assertEqual(run["last_result"], "pass")
             self.assertEqual(run["next_action"], "await_human_merge_confirmation")
+            self.assertNotIn("_post_hygiene_phase", run)
             self.assertEqual(run["attempts"]["evaluator"], 1)
 
     def test_run_evaluator_runs_scenario_commands_from_task_contract(self) -> None:

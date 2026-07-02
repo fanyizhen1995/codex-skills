@@ -438,6 +438,65 @@ class HarnessEvaluatorHookTests(unittest.TestCase):
             self.assertEqual(input_payload["scenario_source"], str(explicit_contract))
             self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "EXPLICIT-01")
 
+    def test_stop_hook_for_session_ignores_stale_bundle_when_explicit_task_contract_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = _write_hook_repo(root)
+            explicit_contract = root / ".codex" / "loop-runs" / "explicit-run" / "task-contract.json"
+            stale_contract = root / ".codex" / "loop-runs" / "stale-run" / "task-contract.json"
+            _write_hook_contract(explicit_contract, "demo-task", "EXPLICIT-01")
+            _write_hook_contract(stale_contract, "demo-task", "STALE-01")
+            stale_bundle = (
+                root
+                / ".codex"
+                / "evaluations"
+                / "tasks"
+                / "demo-task"
+                / "20260702T000000Z-attempt-1"
+            )
+            stale_bundle.mkdir(parents=True)
+            (stale_bundle / "input.json").write_text(
+                json.dumps(
+                    {
+                        "gate": "task",
+                        "task_id": "demo-task",
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "verify_commands": [],
+                        "artifact_paths": [],
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "scenario_source": str(stale_contract),
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "STALE-01",
+                                "user_goal": "Run stale contract scenario.",
+                                "prerequisites": [],
+                                "steps": ["Run stale command."],
+                                "expected_outcomes": ["Stale output exists."],
+                                "failure_signals": ["Stale command is missing."],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            decision = harness_evaluator_hooks.stop_hook_for_session(
+                root,
+                session,
+                task_id="demo-task",
+                task_contract_path=explicit_contract,
+            )
+
+            self.assertIsNotNone(decision)
+            assert decision is not None
+            bundle_dir = Path(decision["bundle_dir"])
+            input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
+            self.assertNotEqual(bundle_dir, stale_bundle)
+            self.assertEqual(input_payload["scenario_source"], str(explicit_contract))
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "EXPLICIT-01")
+
     def test_stop_hook_for_session_rejects_explicit_task_contract_for_wrong_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

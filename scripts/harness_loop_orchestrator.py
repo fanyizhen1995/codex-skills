@@ -401,9 +401,12 @@ def _apply_evaluator_result_to_run(
         run["next_action"] = "await_human_merge_confirmation"
     else:
         run["next_action"] = "repair_from_evaluator_findings"
-    run["_post_hygiene_phase"] = (
-        "passed_waiting_human_merge" if passed else "repair_needed"
-    )
+    if has_artifacts:
+        run["_post_hygiene_phase"] = (
+            "passed_waiting_human_merge" if passed else "repair_needed"
+        )
+    else:
+        run.pop("_post_hygiene_phase", None)
 
 
 def run_evaluator(

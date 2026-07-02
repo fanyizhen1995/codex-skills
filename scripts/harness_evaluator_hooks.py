@@ -246,6 +246,17 @@ def _resolve_task_contract_path(
     return candidates[0], None
 
 
+def _bundle_uses_task_contract(bundle: Path, task_contract_path: Path) -> bool:
+    input_path = bundle / "input.json"
+    if not input_path.exists():
+        return False
+    try:
+        payload = _load_json(input_path)
+    except json.JSONDecodeError:
+        return False
+    return payload.get("scenario_source") == str(task_contract_path)
+
+
 def _auto_prepare_task_bundle(
     root: Path,
     session: dict[str, str],
@@ -533,10 +544,23 @@ def _task_gate_decision(
     task_id: str,
     task_contract_path: Path | None = None,
 ) -> dict[str, str] | None:
+    _, worktree_root = _session_roots(root, session)
+    resolved_contract_path, contract_issue = _resolve_task_contract_path(
+        worktree_root,
+        task_id,
+        task_contract_path,
+    )
+    if contract_issue is not None:
+        return {"decision": "block", "reason": contract_issue}
     bundle = latest_task_bundle(root, task_id)
+    if resolved_contract_path is not None and bundle is not None and not _bundle_uses_task_contract(
+        bundle,
+        resolved_contract_path,
+    ):
+        bundle = None
     if bundle is None:
         try:
-            bundle = _auto_prepare_task_bundle(root, session, task_contract_path=task_contract_path)
+            bundle = _auto_prepare_task_bundle(root, session, task_contract_path=resolved_contract_path)
         except ValueError as exc:
             return {"decision": "block", "reason": str(exc)}
         if bundle is None:
