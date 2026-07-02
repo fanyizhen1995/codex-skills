@@ -16,7 +16,7 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 try:
     from scripts.harness_evaluator_scenarios import load_task_scenarios
@@ -26,6 +26,10 @@ try:
         validate_eval_result_payload,
         validate_task_eval_result_against_input,
     )
+    from scripts.harness_loop_contracts import (
+        read_json_file,
+        validate_task_contract_payload,
+    )
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     from harness_evaluator_scenarios import load_task_scenarios
     from harness_evaluator_state import (
@@ -34,6 +38,7 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
         validate_eval_result_payload,
         validate_task_eval_result_against_input,
     )
+    from harness_loop_contracts import read_json_file, validate_task_contract_payload
 
 
 def _timestamp() -> str:
@@ -108,13 +113,54 @@ def _effective_task_scope(repo_root: Path, task_id: str) -> str:
     return str(resolve_task_eval_policy(repo_root, task_id).get("task_scope", ""))
 
 
+def _normalize_task_contract_scenarios(contract: Mapping[str, Any]) -> list[dict[str, Any]]:
+    scenario_commands = list(contract["scenario_commands"])
+    default_entrypoint = str(scenario_commands[0]) if scenario_commands else ""
+    default_automation_hint = "shell" if scenario_commands else "manual"
+    normalized = []
+    for scenario in contract["user_scenarios"]:
+        scenario_payload = dict(scenario)
+        scenario_payload.setdefault("entrypoint", default_entrypoint)
+        scenario_payload.setdefault("cleanup", [])
+        scenario_payload.setdefault("automation_hint", default_automation_hint)
+        normalized.append(scenario_payload)
+    return normalized
+
+
 def create_task_bundle(
     repo_root: Path,
     task_id: str,
     attempt: int,
     *,
     bundle_name: str | None = None,
+    task_contract_path: Path | None = None,
 ) -> Path:
+    if task_contract_path is not None:
+        contract = read_json_file(task_contract_path)
+        validate_task_contract_payload(contract)
+        task_id = str(contract["task_id"])
+        scenario_contract = {
+            "must_simulate": contract["must_simulate"],
+            "source": str(task_contract_path),
+            "user_scenarios": _normalize_task_contract_scenarios(contract),
+        }
+        verify_commands = list(contract["verify_commands"])
+        artifact_paths = list(contract["artifact_paths"])
+        allowed_scope = str(contract["allowed_scope"])
+        scenario_commands = list(contract["scenario_commands"])
+        required_services = list(contract["required_services"])
+        evaluator_driver = str(contract["evaluator_driver"])
+        eval_policy = dict(contract["eval_policy"])
+    else:
+        scenario_contract = load_task_scenarios(repo_root, task_id)
+        verify_commands = _verify_commands(repo_root, task_id)
+        artifact_paths = []
+        allowed_scope = _effective_task_scope(repo_root, task_id)
+        scenario_commands = []
+        required_services = []
+        evaluator_driver = ""
+        eval_policy = resolve_task_eval_policy(repo_root, task_id)
+
     bundle_dir = (
         repo_root
         / ".codex"
@@ -125,16 +171,19 @@ def create_task_bundle(
     )
     templates_dir = repo_root / ".codex" / "evaluations" / "templates"
     bundle_dir.mkdir(parents=True, exist_ok=False)
-    scenario_contract = load_task_scenarios(repo_root, task_id)
 
     input_payload = {
         "gate": "task",
         "task_id": task_id,
         "final_bundle_id": "",
         "attempt": attempt,
-        "verify_commands": _verify_commands(repo_root, task_id),
-        "artifact_paths": [],
-        "allowed_scope": _effective_task_scope(repo_root, task_id),
+        "verify_commands": verify_commands,
+        "scenario_commands": scenario_commands,
+        "artifact_paths": artifact_paths,
+        "required_services": required_services,
+        "allowed_scope": allowed_scope,
+        "evaluator_driver": evaluator_driver,
+        "eval_policy": eval_policy,
         "must_simulate": scenario_contract["must_simulate"],
         "scenario_source": scenario_contract["source"],
         "user_scenarios": scenario_contract["user_scenarios"],
@@ -326,7 +375,13 @@ def _artifact_paths(args: argparse.Namespace) -> list[str]:
 
 def prepare_task(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root)
-    bundle_dir = create_task_bundle(repo_root, args.task_id, args.attempt)
+    task_contract_path = Path(args.task_contract) if args.task_contract else None
+    bundle_dir = create_task_bundle(
+        repo_root,
+        args.task_id,
+        args.attempt,
+        task_contract_path=task_contract_path,
+    )
     print(bundle_dir)
     return 0
 
@@ -369,6 +424,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_task_parser.add_argument("--repo-root", required=True)
     prepare_task_parser.add_argument("--task-id", required=True)
     prepare_task_parser.add_argument("--attempt", type=int, required=True)
+    prepare_task_parser.add_argument("--task-contract", default="")
     prepare_task_parser.set_defaults(func=prepare_task)
 
     prepare_final_parser = subcommands.add_parser("prepare-final")

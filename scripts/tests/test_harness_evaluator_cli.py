@@ -16,10 +16,134 @@ import json
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+
+from scripts.harness_evaluator_cli import create_task_bundle, main
+from scripts.harness_evaluator_hooks import _bundle_contract_issue
 
 
 class HarnessEvaluatorCliTests(unittest.TestCase):
+    def _write_bundle_templates(self, repo_root: Path) -> None:
+        templates_dir = repo_root / ".codex" / "evaluations" / "templates"
+        templates_dir.mkdir(parents=True)
+        (templates_dir / "artifacts.template.json").write_text("{}", encoding="utf-8")
+        (templates_dir / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+
+    def _task_contract(self) -> dict:
+        return {
+            "task_id": "contract-task",
+            "title": "Contract task",
+            "description": "Temporary contract task.",
+            "verify_commands": ["python3 -m json.tool tasks.json"],
+            "scenario_commands": ["python3 -c \"print('scenario-ok')\""],
+            "artifact_paths": ["tasks.json"],
+            "required_services": ["backend"],
+            "evaluator_driver": "harness_auto_gate",
+            "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
+            "allowed_scope": "local_repo_and_harness",
+            "must_simulate": True,
+            "user_scenarios": [
+                {
+                    "scenario_id": "CONTRACT-01",
+                    "user_goal": "Use task contract.",
+                    "prerequisites": ["Task contract exists."],
+                    "steps": ["Prepare bundle."],
+                    "expected_outcomes": ["input.json includes contract data."],
+                    "failure_signals": ["input.json omits contract data."],
+                }
+            ],
+        }
+
+    def test_create_task_bundle_accepts_task_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._write_bundle_templates(repo_root)
+            contract_path = repo_root / "task-contract.json"
+            contract_path.write_text(json.dumps(self._task_contract()), encoding="utf-8")
+
+            bundle_dir = create_task_bundle(
+                repo_root,
+                "ignored-task",
+                1,
+                task_contract_path=contract_path,
+            )
+
+            input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(input_payload["task_id"], "contract-task")
+            self.assertEqual(input_payload["verify_commands"], ["python3 -m json.tool tasks.json"])
+            self.assertEqual(input_payload["scenario_commands"], ["python3 -c \"print('scenario-ok')\""])
+            self.assertEqual(input_payload["artifact_paths"], ["tasks.json"])
+            self.assertEqual(input_payload["required_services"], ["backend"])
+            self.assertEqual(input_payload["allowed_scope"], "local_repo_and_harness")
+            self.assertEqual(
+                input_payload["evaluator_driver"],
+                "harness_auto_gate",
+            )
+            self.assertEqual(
+                input_payload["eval_policy"],
+                {"task_level_required": True, "task_scope": "local_repo_and_harness"},
+            )
+            self.assertTrue(input_payload["must_simulate"])
+            self.assertEqual(input_payload["scenario_source"], str(contract_path))
+            self.assertEqual(input_payload["user_scenarios"][0]["scenario_id"], "CONTRACT-01")
+
+    def test_task_contract_bundle_is_normalized_for_stop_hook_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._write_bundle_templates(repo_root)
+            contract_path = repo_root / "task-contract.json"
+            contract_path.write_text(json.dumps(self._task_contract()), encoding="utf-8")
+
+            bundle_dir = create_task_bundle(
+                repo_root,
+                "ignored-task",
+                1,
+                task_contract_path=contract_path,
+            )
+
+            input_payload = json.loads((bundle_dir / "input.json").read_text(encoding="utf-8"))
+            scenario = input_payload["user_scenarios"][0]
+            self.assertEqual(scenario["entrypoint"], "python3 -c \"print('scenario-ok')\"")
+            self.assertEqual(scenario["cleanup"], [])
+            self.assertEqual(scenario["automation_hint"], "shell")
+            self.assertIsNone(_bundle_contract_issue(bundle_dir))
+
+    def test_prepare_task_cli_accepts_task_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._write_bundle_templates(repo_root)
+            contract_path = repo_root / "task-contract.json"
+            contract_path.write_text(json.dumps(self._task_contract()), encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "prepare-task",
+                            "--repo-root",
+                            str(repo_root),
+                            "--task-id",
+                            "ignored-task",
+                            "--attempt",
+                            "1",
+                            "--task-contract",
+                            str(contract_path),
+                        ]
+                    ),
+                    0,
+                )
+
+            bundles = list(
+                (
+                    repo_root / ".codex" / "evaluations" / "tasks" / "contract-task"
+                ).glob("*-attempt-1")
+            )
+            self.assertEqual(len(bundles), 1)
+            self.assertEqual(Path(stdout.getvalue().strip()), bundles[0])
+
     def test_prepare_task_creates_bundle_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -44,8 +168,12 @@ class HarnessEvaluatorCliTests(unittest.TestCase):
                     "final_bundle_id": "",
                     "attempt": 1,
                     "verify_commands": [],
+                    "scenario_commands": [],
                     "artifact_paths": [],
+                    "required_services": [],
                     "allowed_scope": "",
+                    "evaluator_driver": "",
+                    "eval_policy": {},
                     "must_simulate": True,
                     "scenario_source": str(
                         root
