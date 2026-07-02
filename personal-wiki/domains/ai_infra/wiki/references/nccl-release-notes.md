@@ -74,7 +74,7 @@ source_refs:
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-0-5-html.md
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-0-4-html.md
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-0-2-html.md
-updated: 2026-06-24
+updated: 2026-07-02
 aliases:
   - NVIDIA NCCL release notes
   - NCCL changelog
@@ -174,6 +174,17 @@ For field reports and issue discussions that are not necessarily represented in 
 - Key feature sections identify new NCCL capabilities and behavior changes; fixed-issue sections are better suited for upgrade-risk checks.
 - Known-issue sections are not present in every release page. When present, treat them as version-specific operational constraints and check the raw source before applying them to a later version.
 - Repository key update sections appear across many releases because NVIDIA rotated RPM and Debian package signing keys beginning April 27, 2022.
+
+## Terminology Note: Green Context Query
+
+The local `ai_infra` wiki and checked NCCL release-note raw evidence do not establish a feature or product named "NVIDIA Green Context". The closest local NVIDIA evidence is NCCL Device API and GIN terminology:
+
+- NCCL 2.29.7 added multi-context support for GIN, including the option to request exclusive GIN contexts.
+- NCCL 2.30.3 changed GIN context behavior so GIN contexts were no longer shared between device communicators backed by the same host communicator. It also added per-context GIN resource-sharing modes and moved `ginProgress` CQ polling to per-context operation.
+- NCCL 2.30.4 added elastic buffer support with GIN and records runtime compatibility notes for applications using GIN APIs.
+- NCCL 2.30.7 added GIN enhancements and fixed a GIN init context leak.
+
+Treat "NVIDIA Green Context" as unverified in this wiki unless a future raw source uses that exact term. For the currently captured evidence, the reusable term is NCCL GIN contexts.
 
 # Relationships
 

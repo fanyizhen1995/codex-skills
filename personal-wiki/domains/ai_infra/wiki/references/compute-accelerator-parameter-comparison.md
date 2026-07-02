@@ -16,6 +16,10 @@ source_refs:
   - ../../data/compute_accelerators/observations/sample-observations.yaml
   - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md
+  - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md
+  - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md
+  - ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz
+  - ../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz
   - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
@@ -100,6 +104,16 @@ before becoming normalized catalog facts.
 - Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. It is the
   only captured single-GPU row with complete high-end tensor, memory bandwidth,
   NVLink, PCIe, and power fields. [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md)
+- NVIDIA H800 is present in local runtime and release-note evidence, but not as
+  a resolved product-spec record. The local evidence supports only limited
+  facts: NCCL groups H800 with H100 as Hopper GPUs, one NCCL issue log reports
+  `H800 SXM5` devices named `NVIDIA H800`, and one SGLang issue comment reports
+  an 8 x NVIDIA H800 environment with CUDA compute capability 9.0 and NV18
+  intra-node GPU topology. Do not infer memory capacity, memory bandwidth,
+  tensor FLOPS, power, or host-interface parameters from these runtime logs.
+  [NCCL 2.19.3](../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md),
+  [NCCL issue page](../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz),
+  [SGLang comment page](../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz)
 - Strong domestic card-level comparison set: Huawei Atlas 300I A2, Cambricon
   MLU370, and Kunlunxin R200/RG800 all expose enough local raw parameters to
   compare compute, memory, host interface, and power as individual cards.
@@ -138,6 +152,12 @@ before becoming normalized catalog facts.
 | AMD Alveo V80 | FPGA / PCIe card | no resolved parameter yet | [SKUs](../../data/compute_accelerators/skus/sample-skus.yaml) |
 | Intel IPU Adapter E2100 | IPU / PCIe card | 200 Gb/s network bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | Microsoft Maia 200 | cloud-integrated DSA | 216 GB memory; 7 TB/s memory bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
+
+# Unresolved Runtime Evidence
+
+| Record | Evidence status | Locally supported facts | Not locally resolved | Citation |
+| --- | --- | --- | --- | --- |
+| NVIDIA H800 | Runtime and release-note evidence only; no product-spec or resolved catalog row captured | Hopper-class GPU grouping in NCCL release notes; observed as `H800 SXM5` / `NVIDIA H800` in an NCCL issue log; one SGLang issue comment reports 8 x NVIDIA H800 with CUDA compute capability 9.0 and NV18 intra-node GPU topology | Memory capacity, memory bandwidth, tensor/INT8/FP64/FP32 performance, power, host interface, and official NVLink bandwidth | [NCCL 2.19.3](../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md), [NCCL 2.18.3](../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md), [NCCL issue API page](../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz), [SGLang issue comment API page](../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz) |
 
 # AI Accelerator And System Raw Comparison
 
@@ -228,6 +248,10 @@ processing, storage offload, IOPS, and latency matter more than tensor FLOPS.
 - ../../data/compute_accelerators/observations/sample-observations.yaml
 - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
 - ../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md
+- ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md
+- ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md
+- ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz
+- ../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz
 - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
 - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
 - ../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md
