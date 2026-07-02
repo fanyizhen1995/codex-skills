@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import json
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +18,37 @@ from scripts.harness_loop_orchestrator import (
     main,
     status_for_run,
 )
+
+
+def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
+    scenario_dir = repo_root / "docs" / "harness" / "evaluator-scenarios"
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+    scenario_path = scenario_dir / f"{task_id}.json"
+    scenario_path.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "must_simulate": True,
+                "user_scenarios": [
+                    {
+                        "scenario_id": "EUS-01",
+                        "user_goal": "Exercise the synthetic evaluator loop.",
+                        "prerequisites": ["Temporary repository exists."],
+                        "entrypoint": "python3 -c \"print('scenario-ok')\"",
+                        "steps": ["Run the fake evaluator task loop."],
+                        "expected_outcomes": ["Fake evaluator records a pass result."],
+                        "failure_signals": ["Fake evaluator result is missing."],
+                        "cleanup": ["TemporaryDirectory cleanup removes generated files."],
+                        "automation_hint": "manual",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return scenario_path
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
@@ -307,6 +340,173 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(run["phase"], "evaluating")
             self.assertEqual(run["next_action"], "run_evaluator")
+
+    def test_fake_evaluator_writes_result_and_waits_for_human_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through evaluator",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            write_fake_evaluator_scenario(repo_root, "demo-run-task")
+
+            output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            run_dir = run_dir_for(repo_root, "demo-run")
+            self.assertEqual(output_path, run_dir / "evaluator-result.json")
+            evaluator_result = read_json_file(output_path)
+            self.assertEqual(evaluator_result["status"], "pass")
+            self.assertEqual(evaluator_result["task_id"], "demo-run-task")
+            run = read_json_file(run_dir / "run.json")
+            validate_run_payload(run)
+            self.assertEqual(run["phase"], "passed_waiting_human_merge")
+            self.assertEqual(run["last_result"], "pass")
+            self.assertEqual(run["next_action"], "await_human_merge_confirmation")
+            self.assertEqual(run["attempts"]["evaluator"], 1)
+
+    def test_fake_evaluator_preserves_blocked_result_when_scenarios_are_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through evaluator",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+
+            output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            evaluator_result = read_json_file(output_path)
+            self.assertEqual(evaluator_result["status"], "blocked")
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            validate_run_payload(run)
+            self.assertEqual(run["phase"], "repair_needed")
+            self.assertEqual(run["last_result"], "blocked")
+            self.assertEqual(run["next_action"], "repair_from_evaluator_findings")
+
+    def test_fake_evaluator_writes_synthetic_result_when_no_result_file_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through evaluator",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            completed = subprocess.CompletedProcess(
+                args=["fake-evaluator"],
+                returncode=1,
+                stdout="fake stdout",
+                stderr="fake stderr",
+            )
+
+            with patch("scripts.harness_loop_orchestrator.subprocess.run", return_value=completed):
+                output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            evaluator_result = read_json_file(output_path)
+            self.assertEqual(evaluator_result["status"], "fail")
+            self.assertEqual(evaluator_result["driver"], "fake")
+            self.assertEqual(evaluator_result["returncode"], 1)
+            self.assertEqual(evaluator_result["stdout"], "fake stdout")
+            self.assertEqual(evaluator_result["stderr"], "fake stderr")
+            self.assertEqual(evaluator_result["task_id"], "demo-run-task")
+            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+            validate_run_payload(run)
+            self.assertEqual(run["phase"], "repair_needed")
+            self.assertEqual(run["last_result"], "fail")
+
+    def test_run_loop_rejects_unconfirmed_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through loop",
+                run_id="demo-run",
+                confirm=False,
+            )
+            from scripts.harness_loop_orchestrator import run_loop
+
+            with self.assertRaisesRegex(RuntimeError, "preflight"):
+                run_loop(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                )
+
+    def test_run_loop_plans_generates_and_evaluates_from_planned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through loop",
+                run_id="demo-run",
+                confirm=True,
+            )
+            write_fake_evaluator_scenario(repo_root, "demo-run-task")
+            from scripts.harness_loop_orchestrator import run_loop
+
+            status = run_loop(
+                repo_root,
+                "demo-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+            )
+
+            self.assertEqual(status["phase"], "passed_waiting_human_merge")
+            self.assertEqual(status["next_action"], "await_human_merge_confirmation")
+            self.assertEqual(status["task_id"], "demo-run-task")
+
+    def test_run_loop_rejects_unsupported_active_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build through loop",
+                run_id="demo-run",
+                confirm=True,
+            )
+            from scripts.harness_loop_contracts import write_json_file
+            from scripts.harness_loop_orchestrator import run_loop
+
+            run_path = run_dir_for(repo_root, "demo-run") / "run.json"
+            run = read_json_file(run_path)
+            run["phase"] = "verifying"
+            write_json_file(run_path, run)
+
+            with self.assertRaisesRegex(RuntimeError, "unsupported.*verifying"):
+                run_loop(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                )
 
 
 if __name__ == "__main__":

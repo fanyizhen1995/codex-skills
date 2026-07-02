@@ -307,6 +307,150 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     return output_path
 
 
+def _latest_fake_evaluator_result(repo_root: Path | str, task_id: str) -> Path | None:
+    task_root = Path(repo_root) / ".codex" / "evaluations" / "tasks" / task_id
+    result_paths = list(task_root.glob("fake-attempt-*/result.json"))
+    if not result_paths:
+        return None
+
+    def attempt_number(path: Path) -> int:
+        try:
+            return int(path.parent.name.rsplit("-", 1)[1])
+        except (IndexError, ValueError):
+            return -1
+
+    return max(result_paths, key=lambda path: (attempt_number(path), path.stat().st_mtime_ns))
+
+
+def run_evaluator(
+    repo_root: Path | str,
+    run_id: str,
+    *,
+    driver: str,
+    max_attempts: int,
+) -> Path:
+    root = Path(repo_root)
+    run = load_run(root, run_id)
+    if run["phase"] != "evaluating":
+        raise RuntimeError(f"run_evaluator requires phase evaluating; current phase is {run['phase']}")
+    task_id = str(run["task_id"]).strip()
+    if not task_id:
+        raise RuntimeError("run_evaluator requires a non-empty task_id")
+
+    run_dir = run_dir_for(root, run_id)
+    output_path = run_dir / "evaluator-result.json"
+    checkout_root = Path(__file__).resolve().parents[1]
+    if driver == "fake":
+        command = [
+            "python3",
+            "scripts/harness_evaluator_orchestrator.py",
+            "run-task-loop",
+            "--driver",
+            "fake",
+            "--task-id",
+            task_id,
+            "--max-attempts",
+            str(max_attempts),
+            "--repo-root",
+            str(root),
+        ]
+    elif driver == "codex-exec":
+        command = [
+            "python3",
+            "scripts/harness_evaluator_orchestrator.py",
+            "run-task-auto-gate",
+            "--driver",
+            "codex-exec",
+            "--task-id",
+            task_id,
+            "--max-attempts",
+            str(max_attempts),
+            "--repo-root",
+            str(root),
+        ]
+    else:
+        raise ValueError(f"unsupported evaluator driver: {driver}")
+
+    result = subprocess.run(
+        command,
+        cwd=checkout_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    synthetic_payload = {
+        "status": "pass" if result.returncode == 0 else "fail",
+        "task_id": task_id,
+        "driver": driver,
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
+    if driver == "fake":
+        latest_result = _latest_fake_evaluator_result(root, task_id)
+        evaluator_payload = read_json_file(latest_result) if latest_result else synthetic_payload
+    else:
+        evaluator_payload = synthetic_payload
+    write_json_file(output_path, evaluator_payload)
+
+    run["phase"] = "passed_waiting_human_merge" if result.returncode == 0 else "repair_needed"
+    run["last_result"] = (
+        "pass"
+        if result.returncode == 0
+        else "blocked"
+        if evaluator_payload.get("status") == "blocked"
+        else "fail"
+    )
+    run["next_action"] = (
+        "await_human_merge_confirmation"
+        if result.returncode == 0
+        else "repair_from_evaluator_findings"
+    )
+    run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
+    save_run(root, run)
+    return output_path
+
+
+def run_loop(
+    repo_root: Path | str,
+    run_id: str,
+    *,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+) -> dict[str, str]:
+    root = Path(repo_root)
+    run = load_run(root, run_id)
+    if run["phase"] == "preflight":
+        raise RuntimeError("run_loop requires confirmed preflight; current phase is preflight")
+    if run["phase"] == "planned":
+        run_planner(root, run_id, driver=planner_driver)
+        run = load_run(root, run_id)
+    if run["phase"] == "generating":
+        run_generator(root, run_id, driver=generator_driver)
+        run = load_run(root, run_id)
+    if run["phase"] == "evaluating":
+        run_evaluator(
+            root,
+            run_id,
+            driver=evaluator_driver,
+            max_attempts=max_eval_attempts,
+        )
+        run = load_run(root, run_id)
+    terminal_phases = {
+        "passed_waiting_human_merge",
+        "repair_needed",
+        "committed",
+        "stopped_no_action",
+        "stopped_budget",
+        "stopped_blocked",
+    }
+    if run["phase"] not in terminal_phases:
+        raise RuntimeError(f"run_loop unsupported phase {run['phase']} in Phase 1")
+    return status_for_run(root, run_id)
+
+
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
     payload = load_run(repo_root, run_id)
     return {
@@ -347,6 +491,20 @@ def _build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--run-id", required=True)
     generate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
 
+    evaluate = subparsers.add_parser("evaluate", help="Run the Evaluator step.")
+    evaluate.add_argument("--repo-root", default=".")
+    evaluate.add_argument("--run-id", required=True)
+    evaluate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
+    evaluate.add_argument("--max-attempts", type=int, default=2)
+
+    run = subparsers.add_parser("run", help="Run the planner/generator/evaluator loop.")
+    run.add_argument("--repo-root", default=".")
+    run.add_argument("--run-id", required=True)
+    run.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
+    run.add_argument("--generator-driver", choices=("fake", "codex-exec"), required=True)
+    run.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
+    run.add_argument("--max-eval-attempts", type=int, default=2)
+
     status = subparsers.add_parser("status", help="Print run status.")
     status.add_argument("--repo-root", default=".")
     status.add_argument("--run-id", required=True)
@@ -373,6 +531,23 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "generate":
         run_generator(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
         payload = load_run(args.repo_root, args.run_id)
+    elif args.command == "evaluate":
+        run_evaluator(
+            repo_root=args.repo_root,
+            run_id=args.run_id,
+            driver=args.driver,
+            max_attempts=args.max_attempts,
+        )
+        payload = load_run(args.repo_root, args.run_id)
+    elif args.command == "run":
+        payload = run_loop(
+            repo_root=args.repo_root,
+            run_id=args.run_id,
+            planner_driver=args.planner_driver,
+            generator_driver=args.generator_driver,
+            evaluator_driver=args.evaluator_driver,
+            max_eval_attempts=args.max_eval_attempts,
+        )
     elif args.command == "status":
         payload = status_for_run(repo_root=args.repo_root, run_id=args.run_id)
     else:
