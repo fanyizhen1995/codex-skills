@@ -16,9 +16,11 @@ try:
         validate_generator_result_payload,
         validate_planner_output_payload,
         validate_run_payload,
+        validate_task_contract_payload,
         write_json_file,
     )
     from scripts.harness_loop_agents import run_codex_prompt
+    from scripts.harness_loop_artifacts import run_scenario_commands
 except ModuleNotFoundError:
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
@@ -29,9 +31,11 @@ except ModuleNotFoundError:
         validate_generator_result_payload,
         validate_planner_output_payload,
         validate_run_payload,
+        validate_task_contract_payload,
         write_json_file,
     )
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
+    from harness_loop_artifacts import run_scenario_commands  # type: ignore[no-redef]
 
 
 def _timestamp() -> str:
@@ -347,6 +351,23 @@ def _latest_fake_evaluator_result(repo_root: Path | str, task_id: str) -> Path |
     return max(result_paths, key=lambda path: (attempt_number(path), path.stat().st_mtime_ns))
 
 
+def _apply_evaluator_result_to_run(run: dict[str, Any], evaluator_payload: dict[str, Any]) -> None:
+    passed = evaluator_payload["returncode"] == 0 and evaluator_payload["status"] == "pass"
+    run["phase"] = "passed_waiting_human_merge" if passed else "repair_needed"
+    run["last_result"] = (
+        "pass"
+        if passed
+        else "blocked"
+        if evaluator_payload.get("status") == "blocked"
+        else "fail"
+    )
+    run["next_action"] = (
+        "await_human_merge_confirmation"
+        if passed
+        else "repair_from_evaluator_findings"
+    )
+
+
 def run_evaluator(
     repo_root: Path | str,
     run_id: str,
@@ -365,6 +386,39 @@ def run_evaluator(
     run_dir = run_dir_for(root, run_id)
     output_path = run_dir / "evaluator-result.json"
     checkout_root = Path(__file__).resolve().parents[1]
+    task_contract_path = run_dir / "task-contract.json"
+    scenario_command_results_path = ""
+    if task_contract_path.exists():
+        task_contract = read_json_file(task_contract_path)
+        validate_task_contract_payload(task_contract)
+        scenario_commands = list(task_contract["scenario_commands"])
+        if scenario_commands:
+            scenario_command_results_path = str(
+                run_scenario_commands(
+                    repo_root=root,
+                    run_dir=run_dir,
+                    commands=scenario_commands,
+                    timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+                )
+            )
+            scenario_manifest = read_json_file(Path(scenario_command_results_path))
+            if scenario_manifest.get("status") != "pass":
+                evaluator_payload = {
+                    "status": "fail",
+                    "task_id": task_id,
+                    "driver": driver,
+                    "returncode": 1,
+                    "stdout": f"scenario commands failed: {scenario_command_results_path}\n",
+                    "stderr": "",
+                    "scenario_command_results_path": scenario_command_results_path,
+                }
+                validate_evaluator_result_payload(evaluator_payload)
+                write_json_file(output_path, evaluator_payload)
+                _apply_evaluator_result_to_run(run, evaluator_payload)
+                run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
+                save_run(root, run)
+                return output_path
+
     if driver == "fake":
         command = [
             "python3",
@@ -417,23 +471,12 @@ def run_evaluator(
         "returncode": result.returncode,
         "stdout": result.stdout,
         "stderr": result.stderr,
+        "scenario_command_results_path": scenario_command_results_path,
     }
     validate_evaluator_result_payload(evaluator_payload)
     write_json_file(output_path, evaluator_payload)
 
-    run["phase"] = "passed_waiting_human_merge" if result.returncode == 0 else "repair_needed"
-    run["last_result"] = (
-        "pass"
-        if result.returncode == 0
-        else "blocked"
-        if evaluator_payload.get("status") == "blocked"
-        else "fail"
-    )
-    run["next_action"] = (
-        "await_human_merge_confirmation"
-        if result.returncode == 0
-        else "repair_from_evaluator_findings"
-    )
+    _apply_evaluator_result_to_run(run, evaluator_payload)
     run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1
     save_run(root, run)
     return output_path

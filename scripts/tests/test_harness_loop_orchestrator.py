@@ -1,7 +1,9 @@
+import io
 import tempfile
 import unittest
 import json
 import subprocess
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -51,6 +53,11 @@ def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
         encoding="utf-8",
     )
     return scenario_path
+
+
+def call_cli(argv: list[str]) -> int:
+    with redirect_stdout(io.StringIO()):
+        return main(argv)
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
@@ -201,7 +208,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             repo_root = Path(tmp)
 
             self.assertEqual(
-                main(
+                call_cli(
                     [
                         "preflight",
                         "--repo-root",
@@ -228,7 +235,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             repo_root = Path(tmp)
 
             self.assertEqual(
-                main(
+                call_cli(
                     [
                         "preflight",
                         "--repo-root",
@@ -719,11 +726,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                main(["plan", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
+                call_cli(["plan", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
                 0,
             )
             self.assertEqual(
-                main(["generate", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
+                call_cli(["generate", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
                 0,
             )
 
@@ -763,6 +770,123 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "pass")
             self.assertEqual(run["next_action"], "await_human_merge_confirmation")
             self.assertEqual(run["attempts"]["evaluator"], 1)
+
+    def test_run_evaluator_runs_scenario_commands_from_task_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Run scenario command",
+                run_id="demo-run",
+                task_id="contract-task",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            write_fake_evaluator_scenario(repo_root, "contract-task")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "task-contract.json",
+                {
+                    "task_id": "contract-task",
+                    "title": "Contract task",
+                    "description": "Temporary contract task.",
+                    "verify_commands": [],
+                    "scenario_commands": ["python3 -c \"print('scenario artifact')\""],
+                    "artifact_paths": [],
+                    "required_services": [],
+                    "evaluator_driver": "harness_auto_gate",
+                    "eval_policy": {"task_level_required": True},
+                    "allowed_scope": "local_repo_and_harness",
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "CONTRACT-01",
+                            "user_goal": "Run command.",
+                            "prerequisites": [],
+                            "steps": ["Run command."],
+                            "expected_outcomes": ["Artifact exists."],
+                            "failure_signals": ["Artifact missing."],
+                        }
+                    ],
+                },
+            )
+
+            output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            evaluator_result = read_json_file(output_path)
+            self.assertEqual(evaluator_result["status"], "pass")
+            manifest_path = Path(evaluator_result["scenario_command_results_path"])
+            self.assertEqual(manifest_path, run_dir / "scenario-command-results.json")
+            manifest = read_json_file(manifest_path)
+            self.assertEqual(manifest["status"], "pass")
+            stdout_path = Path(manifest["results"][0]["stdout_path"])
+            self.assertIn("scenario artifact", stdout_path.read_text(encoding="utf-8"))
+
+    def test_run_evaluator_fails_when_task_contract_scenario_command_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Run failing scenario command",
+                run_id="demo-run",
+                task_id="contract-task",
+                confirm=True,
+            )
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            write_fake_evaluator_scenario(repo_root, "contract-task")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "task-contract.json",
+                {
+                    "task_id": "contract-task",
+                    "title": "Contract task",
+                    "description": "Temporary contract task.",
+                    "verify_commands": [],
+                    "scenario_commands": ["python3 -c \"raise SystemExit(7)\""],
+                    "artifact_paths": [],
+                    "required_services": [],
+                    "evaluator_driver": "harness_auto_gate",
+                    "eval_policy": {"task_level_required": True},
+                    "allowed_scope": "local_repo_and_harness",
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "CONTRACT-01",
+                            "user_goal": "Run command.",
+                            "prerequisites": [],
+                            "steps": ["Run command."],
+                            "expected_outcomes": ["Artifact exists."],
+                            "failure_signals": ["Artifact missing."],
+                        }
+                    ],
+                },
+            )
+
+            output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            evaluator_result = read_json_file(output_path)
+            validate_evaluator_result_payload(evaluator_result)
+            self.assertEqual(evaluator_result["status"], "fail")
+            self.assertNotEqual(evaluator_result["returncode"], 0)
+            manifest_path = Path(evaluator_result["scenario_command_results_path"])
+            self.assertEqual(manifest_path, run_dir / "scenario-command-results.json")
+            manifest = read_json_file(manifest_path)
+            self.assertEqual(manifest["status"], "fail")
+            self.assertEqual(manifest["results"][0]["status"], "fail")
+            self.assertEqual(manifest["results"][0]["exit_code"], 7)
+            run = read_json_file(run_dir / "run.json")
+            validate_run_payload(run)
+            self.assertEqual(run["phase"], "repair_needed")
+            self.assertEqual(run["last_result"], "fail")
+            self.assertEqual(run["next_action"], "repair_from_evaluator_findings")
 
     def test_fake_evaluator_preserves_blocked_result_when_scenarios_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
