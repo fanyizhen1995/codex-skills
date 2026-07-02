@@ -23,6 +23,7 @@
    - 用于 wiki 资料拓展、定期抓取、资料整理、领域知识补全等。
    - evaluator 通过后，Planner 读取最新仓库和 wiki 状态继续拆分下一项任务。
    - 只允许在明确 allowlist 范围内自动提交。
+   - 终止目标是“无可行动缺口”，而不是固定 commit 数、页面数或抓取批次数。
 
 ## 非目标
 
@@ -31,6 +32,7 @@
 - 不默认自动合入 `main`。
 - 不允许自动修改 secrets、凭据、生产基础设施、认证、支付、账单等高风险路径。
 - 不在需求未讨论清楚时直接生成任务和进入自动开发。
+- 不把 autonomous knowledge loop 扩展成自动代码修改；如果资料拓展需要改 crawler、schema、前端或 harness 代码，必须自动切换为 demand development 工作流并停在人工合入门。
 
 ## 角色模型
 
@@ -56,6 +58,7 @@ Planner 负责把意图变成可执行任务，不做业务实现。
 - `AGENTS.md`、`LOOP.md`、`tasks.json`、`progress.md`。
 - 最近的 `loop-run-log.md`。
 - 相关 wiki/source manifest/search 状态。
+- 领域级 loop state，例如 `personal-wiki/domains/<domain>/loop-state.json`。
 - preflight 讨论结果。
 
 输出：
@@ -74,6 +77,7 @@ Planner 决策：
 - 任务 scope、allowlist、denylist、验证命令。
 - evaluator 必须模拟哪些用户行为。
 - autonomous loop 是否继续规划下一项。
+- 如果下一项需要代码、schema、前端或 harness 改动，Planner 必须把当前 autonomous run 标记为 `handoff_to_demand_development`，生成 demand task 候选，并停止 autonomous 自动执行。
 
 ### generator_agent
 
@@ -159,6 +163,19 @@ Preflight 必须确认：
 - 如果未安装，实现阶段先尝试安装。
 - 如果安装不可用，loop runner 使用内置 `preflight_questionnaire` fallback，并在 run artifact 中标记 `grill_me_unavailable=true`。
 - 只有用户明确说“讨论清楚 / 确认 / 进入 loop”后，Planner 才允许写 `tasks.json`、scenario 和 generator prompt。
+- 在新 session 中，用户一句“进入 Planner loop”足以启动 preflight；如果缺少 mode、allowlist、max tasks 或停止条件，不能执行，只能继续追问。
+- `grill-me` 是交互式讨论能力，不假设存在 headless CLI。headless orchestrator 只能调用 fallback questionnaire，或把待讨论问题写入 `preflight.md` 等待用户答复。
+
+Fallback questionnaire 的最小问题集：
+
+1. 本次 loop 的目标产物是什么？
+2. 这是 `demand_development`、`autonomous_knowledge`，还是需要由 Planner 判断？
+3. 哪些路径允许修改，哪些路径必须禁止修改？
+4. 是否允许联网、抓取外部内容、调用 GitHub/API、重启本地服务？
+5. 是否允许自动 commit？是否允许合入 `main`？
+6. 最多允许多少任务、多少修复轮次、多少 evaluator 轮次、多少运行时间？
+7. 遇到鉴权、网络失败、脏工作区、非 allowlist 路径、代码改动需求时如何停止或切换？
+8. 用户是否明确说“讨论清楚 / 确认进入 loop”？
 
 ## 状态与产物
 
@@ -189,6 +206,9 @@ docs/harness/evaluator-scenarios/<task-id>.json
 
 tasks.json
   继续作为正式任务注册表。
+
+personal-wiki/domains/<domain>/loop-state.json
+  autonomous knowledge loop 的领域状态：资料缺口、已处理来源、候选下一步、无可行动缺口判断证据。
 ```
 
 机器可读 policy id 统一使用 `demand_development` 和 `autonomous_knowledge`。文件名和 CLI 参数可以接受 `demand-development`、`autonomous-knowledge` 作为别名，但进入 `run.json`、`planner-output.json` 和 evaluator metadata 前必须规范化为下划线形式。
@@ -200,6 +220,100 @@ tasks.json
 - `docs/harness/evaluator-scenarios/` 是“用户视角怎么验收”的事实来源。
 - `loop-run-log.md` 是给人看的审计记录。
 - `LOOP.md` 是长期运行规则。
+- `personal-wiki/domains/<domain>/loop-state.json` 是某个知识领域持续规划的事实来源。
+
+## 结构化契约
+
+所有 JSON 产物必须有 schema 校验。首期可以用 Python 标准库校验必填字段，后续再独立 JSON Schema 文件。
+
+`run.json` 必填字段：
+
+```json
+{
+  "run_id": "string",
+  "policy": "demand_development | autonomous_knowledge",
+  "phase": "preflight | planned | generating | verifying | evaluating | repair_needed | passed_waiting_human_merge | planning | committed | stopped_no_action | stopped_budget | stopped_blocked",
+  "task_id": "string",
+  "domain": "string",
+  "branch": "string",
+  "worktree": "string",
+  "baseline_dirty_paths": [],
+  "allowed_paths": [],
+  "denylist_paths": [],
+  "attempts": {
+    "planner": 0,
+    "generator": 0,
+    "evaluator": 0
+  },
+  "limits": {
+    "max_tasks_per_run": 3,
+    "max_generator_attempts_per_task": 2,
+    "max_eval_attempts_per_task": 3,
+    "max_wall_time_minutes": 60
+  },
+  "last_result": "pass | fail | blocked | none",
+  "next_action": "string"
+}
+```
+
+`planner-output.json` 必填字段：
+
+```json
+{
+  "task_id": "string",
+  "policy": "demand_development | autonomous_knowledge",
+  "task_kind": "registered_task | candidate_task | handoff_to_demand_development",
+  "title": "string",
+  "goal": "string",
+  "non_goals": [],
+  "allowed_paths": [],
+  "denylist_paths": [],
+  "verify_commands": [],
+  "evaluator_scenarios_path": "string",
+  "stop_conditions": [],
+  "next_planning_hint": "string"
+}
+```
+
+`generator-result.json` 必填字段：
+
+```json
+{
+  "task_id": "string",
+  "status": "implemented | repaired | blocked | failed",
+  "changed_paths": [],
+  "commit": "string",
+  "verify_commands": [],
+  "verify_results": [],
+  "artifacts": [],
+  "notes": "string"
+}
+```
+
+Policy JSON 必填字段：
+
+```json
+{
+  "policy": "demand_development | autonomous_knowledge",
+  "auto_commit": true,
+  "auto_merge_main": false,
+  "allowed_paths": [],
+  "manual_confirm_paths": [],
+  "denylist_paths": [],
+  "limits": {},
+  "required_evidence": []
+}
+```
+
+### Candidate Task 与 Registered Task
+
+Planner 在 preflight 后可以先生成 `candidate_task`，写入 `.codex/loop-runs/<run-id>/planner-output.json`。只有满足以下条件时才写入 `tasks.json` 成为 `registered_task`：
+
+- demand development 已经通过 preflight，且用户确认进入 loop。
+- autonomous knowledge 的本轮任务不需要修改 `tasks.json`、`docs/harness/**`、代码或 schema。
+- evaluator 需要正式 task id 时，orchestrator 可以为 autonomous knowledge 生成临时 task metadata，放在 `.codex/loop-runs/<run-id>/task-contract.json`；不自动修改 `tasks.json`。
+
+如果 autonomous knowledge 规划出的下一步需要修改 crawler、schema、前端、harness 或 `tasks.json`，Planner 输出 `task_kind=handoff_to_demand_development`，停止 autonomous loop，并等待需求驱动 loop 接管。
 
 ## 状态机
 
@@ -242,6 +356,7 @@ preflight
 - `blocked_network`：记录 URL、错误、重试次数，不无限重试。
 - `blocked_auth`：记录所需 token/scope，停止等待用户。
 - `blocked_scope`：Planner 可拆小任务；仍触碰非 allowlist 则停止。
+- `handoff_to_demand_development`：Planner 发现必须改代码、schema、前端、harness 或正式任务策略时，停止 autonomous loop，生成 demand task 候选。
 - `dirty_baseline`：如果不是本轮创建的路径，停止并让用户确认。
 
 ## 安全策略
@@ -266,6 +381,7 @@ personal-wiki/domains/**/data/**
 .codex/evaluations/**
 loop-run-log.md
 progress.md
+personal-wiki/domains/**/loop-state.json
 ```
 
 需要人工确认的路径：
@@ -283,6 +399,14 @@ requirements*.txt
 ```
 
 说明：`tasks.json` 对 autonomous loop 是关键元数据。Planner 可以生成候选 patch，但不应无确认自动提交任务 schema 或策略变更。
+
+`.codex/loop-runs/**` 和 `.codex/evaluations/**` 需要保留在 git 中作为审计证据，但提交前必须做 artifact hygiene：
+
+- 单文件大小超过阈值时停止并要求人工确认，默认阈值 5 MiB。
+- 总 artifact 大小超过阈值时停止并要求人工确认，默认阈值 50 MiB。
+- 扫描 token、secret、cookie、authorization header、private key 关键词。
+- 默认提交 summary、manifest、result、scenario evidence；大型截图、trace、HTML report 可记录路径和 hash，是否入 git 由 policy 决定。
+- 如果 artifact hygiene 失败，即使 evaluator pass 也不能自动 commit。
 
 ### denylist
 
@@ -318,6 +442,7 @@ loop 开始时必须记录 baseline：
 
 - Demand Loop：只提交任务归属文件，不自动合入 `main`。
 - Autonomous Knowledge Loop：只有所有 changed paths 都在 allowlist，evaluator pass，wiki validate pass，才允许自动 commit。
+- `.codex/loop-runs/**` 和 `.codex/evaluations/**` 只有通过 artifact hygiene 后才允许自动 commit。
 - 如果 baseline 已经 dirty，loop 只能提交本轮创建或明确归属的文件。
 - 如果发现 baseline dirty paths 超出任务范围，停止并记录错误，避免再次出现 “baseline dirty paths include files outside task”。
 
@@ -340,6 +465,7 @@ Autonomous Loop 每轮 Planner 必须检查：
 - 连续 fail/blocked 次数达到。
 - 遇到鉴权、网络、schema、代码改动需求。
 - 涉及非 allowlist 路径。
+- 领域 `loop-state.json` 判定当前目标已达到“无可行动缺口”。
 
 建议默认值：
 
@@ -348,7 +474,8 @@ Autonomous Loop 每轮 Planner 必须检查：
   "max_tasks_per_run": 3,
   "max_generator_attempts_per_task": 2,
   "max_eval_attempts_per_task": 3,
-  "max_wall_time_minutes": 60
+  "max_wall_time_minutes": 60,
+  "max_no_action_rounds": 1
 }
 ```
 
@@ -381,7 +508,8 @@ preflight
 plan
   - 启动 planner_agent
   - 写 planner-output.json
-  - 写或更新 tasks.json、scenario、verify contract
+  - 写 candidate task 或 registered task
+  - 写 scenario、verify contract 或临时 task-contract.json
 
 generate
   - 创建隔离 worktree
@@ -398,6 +526,7 @@ decide
   - blocked: 记录 human inbox
   - pass + demand: 停在 waiting_human_merge
   - pass + autonomous: 自动 commit allowlist 内容，然后回到 plan
+  - handoff_to_demand_development: 停止 autonomous，等待 demand loop
 ```
 
 ## 与现有 Harness 的关系
@@ -429,6 +558,14 @@ docs/harness/planner-generator-evaluator-loop.md
 用户可以在新 session 中这样下发：
 
 ```text
+进入 Planner loop。
+```
+
+这句话足以启动 preflight，但不足以直接执行。Planner 必须继续追问目的、约束和停止条件，直到用户明确确认进入 loop。
+
+更完整的下发方式：
+
+```text
 进入 Planner loop。模式：demand-development。
 需求：给 crawler workbench 增加 GitHub issue 查询页面。
 合入 main 前需要我确认。
@@ -443,7 +580,7 @@ docs/harness/planner-generator-evaluator-loop.md
 每轮最多 3 个任务，通过 evaluator 后自动 commit 并继续规划。
 ```
 
-新 session 中，loop runner 通过 `LOOP.md`、`tasks.json`、`.codex/loop-runs/`、`loop-run-log.md` 恢复上下文，不依赖旧聊天记录。
+新 session 中，loop runner 通过 `LOOP.md`、`tasks.json`、`.codex/loop-runs/`、`loop-run-log.md` 和领域 `loop-state.json` 恢复上下文，不依赖旧聊天记录。
 
 ## 首期实现范围
 
@@ -451,7 +588,8 @@ docs/harness/planner-generator-evaluator-loop.md
 2. 接入现有 evaluator gate，并能把 fail findings 回灌给 Generator。
 3. 实现 `autonomous-knowledge` policy，但只允许 wiki/raw/sources/data 自动提交。
 4. 接入 preflight 讨论门和 `grill-me` fallback。
-5. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
+5. 增加 JSON 契约校验、artifact hygiene 和领域 `loop-state.json`。
+6. 后续再接 crawler workbench UI，展示 loop run、状态、日志和 evaluator 结果。
 
 ## 验收标准
 
@@ -461,6 +599,9 @@ docs/harness/planner-generator-evaluator-loop.md
 - evaluator fail 时能进入 repair。
 - evaluator pass 后，Demand Loop 停在 human merge gate。
 - Autonomous Knowledge Loop 能在 pass 后自动 commit 并继续规划下一项。
+- Autonomous Knowledge Loop 能在领域 `loop-state.json` 中记录资料缺口，并在“无可行动缺口”时停止。
+- Autonomous Knowledge Loop 发现需要代码改动时能自动切换为 demand task 候选并停止自动执行。
+- `.codex` artifacts 通过大小和敏感信息扫描后才会自动提交。
 - dirty baseline、denylist、max attempts 能正确停止。
 - `loop-run-log.md` 和 `.codex/loop-runs/<run-id>/` 有完整证据。
 
@@ -471,4 +612,6 @@ docs/harness/planner-generator-evaluator-loop.md
 - **Evaluator 只看自述不做验证**：继续使用 scenario-first evaluator contract，必须有 evidence。
 - **Autonomous loop 无限跑**：max tasks、max attempts、max wall time、no-action stop 必须硬编码。
 - **知识入库自动提交错误内容**：只允许 wiki/raw/sources/data，且必须通过 wiki validate、search/API/UI 可见性检查。
+- **`.codex` artifacts 泄露敏感信息或过大**：提交前执行 artifact hygiene；失败时阻断自动提交。
+- **`tasks.json` 成为 autonomous loop 阻塞点**：区分 candidate task、registered task 和临时 task contract；需要正式策略变更时切换到 demand loop。
 - **grill-me 不可用**：使用 fallback questionnaire，并在 run artifact 中记录。
