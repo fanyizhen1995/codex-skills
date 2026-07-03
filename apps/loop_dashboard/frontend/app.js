@@ -669,10 +669,10 @@ function renderAgents() {
 
 function renderDiagnostics() {
   const relationshipDiagnostics = state.detail && Array.isArray(state.detail.relationship_diagnostics) ? state.detail.relationship_diagnostics : [];
-  const diagnostics = [
+  const diagnostics = dedupeDiagnostics([
     ...(state.detail && Array.isArray(state.detail.blocked_diagnostics) ? state.detail.blocked_diagnostics : []),
     ...relationshipDiagnostics,
-  ];
+  ]);
   if (diagnostics.length === 0) {
     setChildren(els.diagnostics, [empty("暂无阻塞诊断")]);
     return;
@@ -690,6 +690,28 @@ function renderDiagnostics() {
     }
     return node;
   }));
+}
+
+function dedupeDiagnostics(diagnostics) {
+  const seen = new Set();
+  return diagnostics.filter((item) => {
+    const diagnostic = item && typeof item === "object" ? item : {};
+    const evidence = Array.isArray(diagnostic.evidence)
+      ? diagnostic.evidence.map((value) => text(value, "")).join("；")
+      : text(diagnostic.evidence, "");
+    const key = [
+      diagnostic.kind,
+      diagnostic.title,
+      diagnostic.message,
+      diagnostic.source,
+      evidence,
+    ].map((value) => text(value, "")).join("|");
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function renderLogs() {
