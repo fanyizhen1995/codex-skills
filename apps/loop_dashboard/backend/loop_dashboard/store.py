@@ -13,6 +13,8 @@ COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_
 BLOCKED_PHASES = {"stopped_blocked", "repair_needed", "invalid_artifact"}
 LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
+SESSION_EVENT_LIMIT = 200
+SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
 
 
 def safe_join(root: Path, relative_path: str) -> Path:
@@ -89,6 +91,7 @@ class LoopDashboardStore:
                 events.append(Event("agent", log.source, self._summarize_log(log.content), log.updated_at))
             if "tool" in lowered:
                 events.append(Event("tool", log.source, self._summarize_log(log.content), log.updated_at))
+        events.extend(self._session_events(run_id))
         return [event.to_dict() for event in sorted(events, key=lambda event: event.updated_at)]
 
     def get_logs(self, run_id: str) -> list[dict[str, Any]] | None:
@@ -184,8 +187,8 @@ class LoopDashboardStore:
         payload: Any,
         run_dir: Path,
     ) -> AgentSummary:
-        artifact_paths = [self._relative_artifact(path) for path in self._agent_artifacts(run_dir, name)]
         data = payload if isinstance(payload, dict) else {}
+        artifact_paths = self._agent_artifact_labels(run_dir, name, data)
         attempt = (
             self._safe_int(data.get("attempt"))
             or self._safe_int(attempts.get(name))
@@ -195,6 +198,23 @@ class LoopDashboardStore:
         current_action = next_action if name in next_action else ""
         last_result = self._structured_summary(name, data) or self._log_summary(run_dir, name) or FALLBACK_SUMMARY
         return AgentSummary(name, status, attempt, current_action, last_result, artifact_paths)
+
+    def _agent_artifact_labels(self, run_dir: Path, name: str, data: dict[str, Any]) -> list[str]:
+        paths = [self._relative_artifact(path) for path in self._agent_artifacts(run_dir, name)]
+        for key in ("artifact_paths", "artifacts", "changed_paths"):
+            value = data.get(key)
+            if not isinstance(value, list):
+                continue
+            for item in value:
+                if isinstance(item, str) and item:
+                    paths.append(item)
+        unique: list[str] = []
+        seen: set[str] = set()
+        for path in paths:
+            if path not in seen:
+                seen.add(path)
+                unique.append(path)
+        return unique
 
     def _structured_summary(self, name: str, data: dict[str, Any]) -> str:
         if name == "planner":
@@ -234,41 +254,139 @@ class LoopDashboardStore:
     def _flow_nodes(self, run_dir: Path, run_data: dict[str, Any]) -> list[FlowNode]:
         policy = str(run_data.get("policy") or "demand_development")
         if policy == "autonomous_knowledge":
-            labels = [("preflight", "Preflight"), ("planner", "Planner"), ("crawler", "Crawler"), ("curator", "Curator"), ("evaluator", "Evaluator")]
+            labels = [
+                ("planner", "Planner"),
+                ("generator", "Generator"),
+                ("evaluator", "Evaluator"),
+                ("artifact_hygiene", "Artifact Hygiene"),
+                ("cleanup", "Cleanup"),
+                ("commit", "Commit"),
+                ("planner_loop", "Planner"),
+            ]
         else:
-            labels = [("preflight", "Preflight"), ("planner", "Planner"), ("generator", "Generator"), ("evaluator", "Evaluator"), ("human_merge", "Human Merge")]
+            labels = [
+                ("preflight", "Preflight"),
+                ("planner", "Planner"),
+                ("generator", "Generator"),
+                ("evaluator", "Evaluator"),
+                ("repair_needed", "Repair Needed"),
+                ("artifact_hygiene", "Artifact Hygiene"),
+                ("cleanup", "Cleanup"),
+                ("human_merge", "Human Merge"),
+            ]
         phase = str(run_data.get("phase") or "")
         next_action = str(run_data.get("next_action") or "")
-        evaluator = self._read_json(run_dir / "evaluator-result.json")
-        evaluator_status = evaluator.get("status") if isinstance(evaluator, dict) else ""
+        artifacts_by_node = {
+            "preflight": [run_dir / "preflight.md", run_dir / "run.json"],
+            "planner": [run_dir / "planner-output.json"],
+            "generator": [run_dir / "generator-result.json"],
+            "evaluator": [run_dir / "evaluator-result.json"],
+            "repair_needed": [run_dir / "evaluator-result.json"],
+            "artifact_hygiene": [run_dir / "artifact-manifest.json", run_dir / "redaction-manifest.json"],
+            "cleanup": [run_dir / "cleanup-result.json"],
+            "commit": [run_dir / "commit-result.json"],
+            "planner_loop": [run_dir / "planner-output.json"],
+            "human_merge": [run_dir / "run.json"],
+        }
         nodes: list[FlowNode] = []
         for node_id, label in labels:
-            status = "waiting"
-            if node_id == "preflight":
-                status = "done"
-            elif node_id == "planner":
-                status = "done" if (run_dir / "planner-output.json").exists() else self._node_pending("planner", next_action)
-            elif node_id in {"generator", "crawler", "curator"}:
-                result_name = "generator-result.json" if node_id == "generator" else f"{node_id}-result.json"
-                status = self._node_pending(node_id, next_action)
-                if status != "running" and (run_dir / result_name).exists():
-                    status = "done"
-            elif node_id == "evaluator":
-                if phase in BLOCKED_PHASES or evaluator_status in {"fail", "failed", "blocked"}:
-                    status = "blocked"
-                elif evaluator_status == "pass" or phase in COMPLETED_PHASES:
-                    status = "done"
-                else:
-                    status = self._node_pending("evaluator", next_action)
-            elif node_id == "human_merge":
-                status = "waiting" if phase == "passed_waiting_human_merge" else "waiting"
+            artifact_paths = [
+                self._relative_artifact(path)
+                for path in artifacts_by_node.get(node_id, [])
+                if self._safe_file_under(path, run_dir) is not None
+            ]
+            status = self._flow_node_status(node_id, phase, next_action, run_dir)
+            recent_result = self._flow_node_result(node_id, run_dir, run_data)
+            current_action = self._flow_node_action(node_id, next_action, phase)
             if node_id in next_action and status == "waiting":
                 status = "running"
-            nodes.append(FlowNode(node_id, label, status))
+            nodes.append(FlowNode(node_id, label, status, current_action, recent_result, artifact_paths))
         return nodes
 
     def _node_pending(self, node_id: str, next_action: str) -> str:
         return "running" if node_id in next_action else "waiting"
+
+    def _flow_node_status(self, node_id: str, phase: str, next_action: str, run_dir: Path) -> str:
+        evaluator = self._read_json(run_dir / "evaluator-result.json")
+        evaluator_status = evaluator.get("status") if isinstance(evaluator, dict) else ""
+        if node_id == "preflight":
+            return "done"
+        if node_id == "planner":
+            return "done" if (run_dir / "planner-output.json").exists() else self._node_pending("planner", next_action)
+        if node_id == "generator":
+            if "generator" in next_action:
+                return "running"
+            return "done" if (run_dir / "generator-result.json").exists() else "waiting"
+        if node_id == "evaluator":
+            if phase in BLOCKED_PHASES or evaluator_status in {"fail", "failed", "blocked"}:
+                return "blocked"
+            if evaluator_status == "pass" or phase in COMPLETED_PHASES:
+                return "done"
+            return self._node_pending("evaluator", next_action)
+        if node_id == "repair_needed":
+            if phase == "repair_needed" or "repair" in next_action:
+                return "running"
+            if evaluator_status in {"fail", "failed", "blocked"}:
+                return "done"
+            return "waiting"
+        if node_id == "artifact_hygiene":
+            if "artifact_hygiene" in next_action or phase == "artifact_hygiene":
+                return "running"
+            return "done" if (run_dir / "artifact-manifest.json").exists() else "waiting"
+        if node_id == "cleanup":
+            if "cleanup" in next_action or phase == "cleanup":
+                return "running"
+            return "done" if (run_dir / "cleanup-result.json").exists() else "waiting"
+        if node_id == "commit":
+            if "commit" in next_action or phase == "commit":
+                return "running"
+            return "done" if (run_dir / "commit-result.json").exists() else "waiting"
+        if node_id == "planner_loop":
+            if phase in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
+                return "done"
+            return "running" if "planner" in next_action else "waiting"
+        if node_id == "human_merge":
+            return "running" if phase == "passed_waiting_human_merge" else "waiting"
+        return "waiting"
+
+    def _flow_node_result(self, node_id: str, run_dir: Path, run_data: dict[str, Any]) -> str:
+        if node_id == "preflight":
+            return str(run_data.get("phase") or "")
+        if node_id == "planner":
+            payload = self._read_json(run_dir / "planner-output.json")
+            return self._structured_summary("planner", payload if isinstance(payload, dict) else {})
+        if node_id == "generator":
+            payload = self._read_json(run_dir / "generator-result.json")
+            return self._structured_summary("generator", payload if isinstance(payload, dict) else {})
+        if node_id in {"evaluator", "repair_needed"}:
+            payload = self._read_json(run_dir / "evaluator-result.json")
+            return self._structured_summary("evaluator", payload if isinstance(payload, dict) else {})
+        if node_id == "artifact_hygiene":
+            payload = self._read_json(run_dir / "artifact-manifest.json")
+            return str(payload.get("status") if isinstance(payload, dict) else "")
+        if node_id == "cleanup":
+            payload = self._read_json(run_dir / "cleanup-result.json")
+            return str(payload.get("status") if isinstance(payload, dict) else "")
+        if node_id == "commit":
+            payload = self._read_json(run_dir / "commit-result.json")
+            if isinstance(payload, dict):
+                return str(payload.get("commit") or payload.get("status") or "")
+        if node_id == "human_merge":
+            return str(run_data.get("next_action") or "")
+        if node_id == "planner_loop":
+            return str(run_data.get("last_result") or "")
+        return ""
+
+    def _flow_node_action(self, node_id: str, next_action: str, phase: str) -> str:
+        if node_id in next_action:
+            return next_action
+        if node_id == "evaluator" and (phase == "repair_needed" or "repair" in next_action):
+            return next_action or "repair_needed"
+        if node_id == "repair_needed" and (phase == "repair_needed" or "repair" in next_action):
+            return next_action or "repair_needed"
+        if node_id == "human_merge" and phase == "passed_waiting_human_merge":
+            return "await_human_merge_confirmation"
+        return ""
 
     def _blocked_diagnostics(self, run_dir: Path, run_data: dict[str, Any]) -> list[dict[str, Any]]:
         diagnostics: list[dict[str, Any]] = []
@@ -385,7 +503,7 @@ class LoopDashboardStore:
                 logs.extend(self._inline_logs(rich_evaluator, rich_path, rich_path.parent))
             scenario_path = evaluator.get("scenario_command_results_path")
             if isinstance(scenario_path, str) and scenario_path:
-                scenario_result = self._resolve_artifact_reference(scenario_path, run_dir)
+                scenario_result = self._resolve_artifact_reference(scenario_path, run_dir, allowed_roots=[run_dir])
                 if scenario_result is not None:
                     scenario_payload = self._read_json(scenario_result)
                     if isinstance(scenario_payload, dict):
@@ -394,6 +512,7 @@ class LoopDashboardStore:
 
     def _inline_logs(self, payload: dict[str, Any], source_path: Path, run_dir: Path) -> list[LogEntry]:
         logs: list[LogEntry] = []
+        source_dir = source_path.parent
 
         def visit(value: Any, prefix: str = "") -> None:
             if isinstance(value, dict):
@@ -403,7 +522,12 @@ class LoopDashboardStore:
                         logs.append(LogEntry(f"{source_path.name}:{lowered}", lowered, redact_text(child), self._mtime_iso(source_path)))
                     elif lowered in {"stdout_path", "stderr_path"} and isinstance(child, str) and child:
                         stream = lowered.split("_", 1)[0]
-                        path = self._resolve_artifact_reference(child, run_dir)
+                        path = self._resolve_artifact_reference(
+                            child,
+                            source_dir,
+                            allowed_roots=[run_dir, source_dir],
+                            relative_roots=[run_dir],
+                        )
                         if path is not None:
                             logs.append(
                                 LogEntry(
@@ -421,6 +545,65 @@ class LoopDashboardStore:
 
         visit(payload)
         return logs
+
+    def _session_events(self, run_id: str) -> list[Event]:
+        sessions_dir = self.project_root / ".codex" / "sessions"
+        if not sessions_dir.exists():
+            return []
+        events: list[Event] = []
+        for path in sorted(sessions_dir.rglob("*.jsonl"), key=lambda item: item.stat().st_mtime, reverse=True):
+            safe_path = self._safe_file_under(path, sessions_dir)
+            if safe_path is None:
+                continue
+            try:
+                if safe_path.stat().st_size > SESSION_FILE_MAX_BYTES:
+                    continue
+                lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines[-SESSION_EVENT_LIMIT:]:
+                if len(events) >= SESSION_EVENT_LIMIT:
+                    break
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(payload, dict) or payload.get("run_id") != run_id:
+                    continue
+                event = self._session_event_from_payload(payload, safe_path)
+                if event is not None:
+                    events.append(event)
+            if len(events) >= SESSION_EVENT_LIMIT:
+                break
+        return events
+
+    def _session_event_from_payload(self, payload: dict[str, Any], source_path: Path) -> Event | None:
+        raw_type = str(payload.get("type") or payload.get("event") or "").lower()
+        agent = str(payload.get("agent") or "").strip()
+        timestamp = str(payload.get("timestamp") or payload.get("created_at") or self._mtime_iso(source_path))
+        source = self._relative_artifact(source_path)
+        if raw_type in {"agent_message", "assistant_message", "message"}:
+            message = str(payload.get("message") or payload.get("content") or "")
+            if not message:
+                return None
+            prefix = f"{agent}: " if agent else ""
+            return Event("agent", source, self._trim(redact_text(prefix + message), 180), timestamp)
+        if raw_type in {"token_usage", "tokens", "usage"}:
+            tokens = payload.get("tokens") or payload.get("usage") or {}
+            if isinstance(tokens, dict):
+                parts = [f"{key}={value}" for key, value in tokens.items()]
+                token_message = ", ".join(parts)
+            else:
+                token_message = str(tokens)
+            prefix = f"{agent}: " if agent else ""
+            return Event("token", source, self._trim(prefix + token_message, 180), timestamp)
+        if raw_type in {"tool_call", "tool"}:
+            name = str(payload.get("name") or payload.get("tool") or "")
+            return Event("tool", source, self._trim(redact_text(name or json.dumps(payload, ensure_ascii=False)), 180), timestamp)
+        if raw_type in {"skill", "skill_use"}:
+            name = str(payload.get("name") or payload.get("skill") or "")
+            return Event("skill", source, self._trim(redact_text(name or json.dumps(payload, ensure_ascii=False)), 180), timestamp)
+        return None
 
     def _rich_evaluator_result(self, evaluator: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
         task_id = evaluator.get("task_id")
@@ -501,14 +684,33 @@ class LoopDashboardStore:
         except ValueError:
             return path.name
 
-    def _resolve_artifact_reference(self, reference: str, base_dir: Path) -> Path | None:
+    def _resolve_artifact_reference(
+        self,
+        reference: str,
+        base_dir: Path,
+        allowed_roots: list[Path],
+        relative_roots: list[Path] | None = None,
+    ) -> Path | None:
         ref_path = Path(reference)
-        candidates = [ref_path] if ref_path.is_absolute() else [base_dir / ref_path, self.project_root / ref_path]
+        extra_roots = list(relative_roots or [])
+        if ref_path.is_absolute():
+            candidates = [ref_path]
+        else:
+            candidates = [base_dir / ref_path, *(root / ref_path for root in extra_roots), self.project_root / ref_path]
         for candidate in candidates:
             safe_path = self._safe_file_under(candidate, self.project_root)
-            if safe_path is not None:
+            if safe_path is not None and self._is_under_any(safe_path, allowed_roots):
                 return safe_path
         return None
+
+    def _is_under_any(self, path: Path, roots: list[Path]) -> bool:
+        for root in roots:
+            try:
+                path.resolve().relative_to(root.resolve())
+                return True
+            except (OSError, ValueError):
+                continue
+        return False
 
     def _safe_file_under(self, path: Path, root: Path) -> Path | None:
         try:

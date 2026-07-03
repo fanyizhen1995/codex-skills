@@ -165,6 +165,7 @@ def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path
     assert active["project_root"] == str(tmp_path.resolve())
     assert active["agents"]["planner"]["attempt"] == 1
     assert active["agents"]["generator"]["last_result"] == "完成只读 API"
+    assert "apps/loop_dashboard/backend/loop_dashboard/store.py" in active["agents"]["generator"]["artifact_paths"]
     assert active["agents"]["evaluator"]["status"] == "fail"
     assert active["blocked_diagnostics"][0]["kind"] == "evaluator_finding"
     assert active["constraints"] == ["只读后端", "中文 UI"]
@@ -305,6 +306,31 @@ def test_scenario_result_and_log_paths_ignore_absolute_paths_outside_project_roo
     assert all(str(outside_dir) not in source for source in sources)
 
 
+def test_scenario_result_and_log_paths_do_not_overread_unrelated_project_files(tmp_path: Path) -> None:
+    secret_file = tmp_path / "private-notes.md"
+    secret_file.write_text("private in-repo secret should not be exposed\n", encoding="utf-8")
+    seed_run(
+        tmp_path,
+        "overread-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "overread-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["scenario_command_results_path"] = "private-notes.md"
+    evaluator_result["scenario_results"] = [{"stdout_path": "private-notes.md"}]
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+
+    logs = LoopDashboardStore(tmp_path).get_logs("overread-run")
+
+    joined = "\n".join(log["content"] for log in logs)
+    sources = {log["source"] for log in logs}
+    assert "private in-repo secret should not be exposed" not in joined
+    assert "private-notes.md" not in sources
+
+
 def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,
@@ -440,6 +466,102 @@ def test_rich_evaluator_bundle_result_is_merged_into_blocked_diagnostics_and_log
     assert all(item["title"] != "OLD" for item in detail["blocked_diagnostics"])
     assert any(log["source"] == "result.json:stdout" and "bundle-secret" not in log["content"] for log in logs)
     assert any(event["kind"] == "log" and event["source"] == "result.json:stdout" for event in events)
+
+
+def test_flow_nodes_include_required_loop_steps_and_node_details(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "flow-run",
+        "repair_needed",
+        last_result="fail",
+        next_action="run_generator_repair",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "flow-run"
+    write_json(run_dir / "artifact-manifest.json", {"status": "pass", "artifacts": []})
+    write_json(run_dir / "cleanup-result.json", {"status": "pending"})
+
+    detail = LoopDashboardStore(tmp_path).get_run("flow-run")
+    nodes = detail["flow_nodes"]
+
+    assert [node["id"] for node in nodes] == [
+        "preflight",
+        "planner",
+        "generator",
+        "evaluator",
+        "repair_needed",
+        "artifact_hygiene",
+        "cleanup",
+        "human_merge",
+    ]
+    evaluator = next(node for node in nodes if node["id"] == "evaluator")
+    repair = next(node for node in nodes if node["id"] == "repair_needed")
+    assert evaluator["status"] == "blocked"
+    assert repair["status"] == "running"
+    assert evaluator["current_action"]
+    assert evaluator["recent_result"]
+    assert evaluator["artifact_paths"]
+
+
+def test_autonomous_flow_nodes_include_commit_and_planner_loop(tmp_path: Path) -> None:
+    seed_run(tmp_path, "autonomous-flow-run", "evaluating", next_action="run_evaluator")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "autonomous-flow-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["policy"] = "autonomous_knowledge"
+    write_json(run_dir / "run.json", run_data)
+    write_json(run_dir / "commit-result.json", {"status": "pass", "commit": "abc123"})
+
+    detail = LoopDashboardStore(tmp_path).get_run("autonomous-flow-run")
+
+    assert [node["id"] for node in detail["flow_nodes"]] == [
+        "planner",
+        "generator",
+        "evaluator",
+        "artifact_hygiene",
+        "cleanup",
+        "commit",
+        "planner_loop",
+    ]
+
+
+def test_codex_session_jsonl_events_are_included_with_token_counts(tmp_path: Path) -> None:
+    seed_run(tmp_path, "session-run", "repair_needed", last_result="fail")
+    session_dir = tmp_path / ".codex" / "sessions"
+    session_dir.mkdir(parents=True)
+    session_file = session_dir / "session.jsonl"
+    session_file.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "run_id": "session-run",
+                        "type": "agent_message",
+                        "agent": "planner",
+                        "message": "Planner saw Authorization: Basic session-secret",
+                        "timestamp": "2026-07-03T00:00:00Z",
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "run_id": "session-run",
+                        "type": "token_usage",
+                        "agent": "generator",
+                        "tokens": {"input": 11, "output": 7},
+                        "timestamp": "2026-07-03T00:00:01Z",
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    events = LoopDashboardStore(tmp_path).get_events("session-run")
+
+    assert any(event["kind"] == "agent" and "Planner saw Authorization: [REDACTED]" in event["message"] for event in events)
+    assert any(event["kind"] == "token" and "input=11" in event["message"] and "output=7" in event["message"] for event in events)
+    assert all("session-secret" not in event["message"] for event in events)
 
 
 def test_missing_loop_runs_directory_returns_empty_list(tmp_path: Path) -> None:

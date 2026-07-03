@@ -933,4 +933,3 @@
 - [ ] Fix any Critical or Important reviewer findings with tests.
 - [ ] Run the full verification command set from Task 5 again.
 - [ ] Use `superpowers:finishing-a-development-branch`; the expected outcome for this user request is to stop at the human merge gate and ask before merging.
-

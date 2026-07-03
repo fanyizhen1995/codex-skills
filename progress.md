@@ -15,6 +15,7 @@
   - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests`
   - `python3 -m unittest scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_evaluator_scenarios -v`
   - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01`
+  - `python3 scripts/harness_loop_orchestrator.py status --repo-root . --run-id loop-dashboard-dev` -> `passed_waiting_human_merge`
   - `python3 -m json.tool tasks.json >/dev/null`
   - `git diff --check`
 

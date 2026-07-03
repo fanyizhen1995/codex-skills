@@ -237,7 +237,7 @@ from a project checkout to monitor that current project by default:
 
 ```bash
 PYTHONPATH=apps/loop_dashboard/backend \
-python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766
 ```
 
 Open `http://127.0.0.1:8766`. The frontend is Chinese and polls the backend for
@@ -246,13 +246,17 @@ blocked diagnostics. The backend only reads loop/evaluator artifacts from the
 configured project root; it does not execute, delete, restart, merge, or roll
 back loop runs.
 
+The dashboard has no authentication layer. Keep the default `127.0.0.1`
+binding unless the port is exposed through a trusted tunnel or controlled
+network.
+
 To inspect a different project, point `LOOP_DASHBOARD_PROJECT_ROOT` at that
 checkout:
 
 ```bash
 PYTHONPATH=apps/loop_dashboard/backend \
 LOOP_DASHBOARD_PROJECT_ROOT=/path/to/other/project \
-python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766
 ```
 
 Browser-click evaluator:

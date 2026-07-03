@@ -41,6 +41,7 @@ const state = {
   detail: null,
   events: [],
   logs: [],
+  agentFilter: "all",
   loadingDetailFor: "",
   lastError: "",
   pollTimer: 0,
@@ -58,6 +59,7 @@ const els = {
   agentCards: document.getElementById("agent-cards"),
   diagnostics: document.getElementById("blocked-diagnostics"),
   kindFilter: document.getElementById("log-kind-filter"),
+  agentFilter: document.getElementById("agent-filter"),
   keywordFilter: document.getElementById("log-keyword-filter"),
   logList: document.getElementById("log-list"),
 };
@@ -100,6 +102,25 @@ function empty(message) {
 
 function errorNode(message) {
   return el("div", "error-message", message);
+}
+
+function normalizeList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => text(item, "")).filter(Boolean);
+}
+
+function agentLabel(agentName) {
+  return AGENT_LABELS[agentName] || text(agentName);
+}
+
+function setAgentFilter(agentName) {
+  const nextAgent = ["planner", "generator", "evaluator"].includes(agentName) ? agentName : "all";
+  state.agentFilter = nextAgent;
+  els.agentFilter.value = nextAgent;
+  renderAgents();
+  renderLogs();
 }
 
 async function fetchJson(path) {
@@ -337,11 +358,12 @@ function renderFlow() {
   setChildren(els.flowDiagram, nodes.map((node) => {
     const status = text(node.status, "waiting");
     const block = el("div", `flow-node status-${status}`);
-    block.append(
-      el("div", "flow-node-title", text(node.label)),
-      el("div", `status-pill status-${status}`, statusLabel(status)),
+    const meta = el("div", "flow-node-meta");
+    meta.append(
       el("div", "flow-hint", flowHint(node, state.detail)),
+      ...flowDetailRows(node),
     );
+    block.append(el("div", "flow-node-title", text(node.label)), el("div", `status-pill status-${status}`, statusLabel(status)), meta);
     return block;
   }));
 }
@@ -355,14 +377,20 @@ function renderAgents() {
   }
   setChildren(els.agentCards, names.map((name) => {
     const agent = agents[name] || {};
-    const card = el("article", "agent-card");
+    const card = el("button", `agent-card${state.agentFilter === name ? " is-selected" : ""}`);
+    card.type = "button";
+    card.dataset.agent = name;
+    card.setAttribute("aria-pressed", state.agentFilter === name ? "true" : "false");
+    card.addEventListener("click", () => setAgentFilter(name));
     const title = el("div", "agent-title");
-    title.append(el("span", "", AGENT_LABELS[name] || name), el("span", "badge", `尝试 ${agent.attempt || 0}`));
+    title.append(el("span", "", agentLabel(name)), el("span", "badge", `尝试 ${agent.attempt || 0}`));
+    const artifacts = artifactList(agentArtifactPaths(agent));
     card.append(
       title,
       el("div", "agent-field", `状态：${agentStatusLabel(agent.status)}`),
       el("div", "agent-field", `当前动作：${actionLabel(agent.current_action)}`),
       el("div", "agent-result", `最后结果：${text(agent.last_result)}`),
+      artifacts,
     );
     return card;
   }));
@@ -391,13 +419,17 @@ function renderDiagnostics() {
 
 function renderLogs() {
   const kind = els.kindFilter.value;
+  const agent = els.agentFilter.value || state.agentFilter;
+  state.agentFilter = agent;
   const keyword = els.keywordFilter.value.trim().toLowerCase();
   const allEntries = combinedLogEntries();
   const entries = allEntries.filter((entry) => {
     const entryKind = entry.kind || entry.stream || "log";
     const kindMatches = kind === "all" || entryKind === kind || entry.stream === kind;
-    const haystack = `${entryKind} ${entry.source || ""} ${entry.message || ""} ${entry.content || ""}`.toLowerCase();
-    return kindMatches && (!keyword || haystack.includes(keyword));
+    const entryAgent = entry.agent || inferAgent(entry);
+    const agentMatches = agent === "all" || entryAgent === agent;
+    const haystack = `${entryKind} ${entryAgent} ${entry.source || ""} ${entry.message || ""} ${entry.content || ""}`.toLowerCase();
+    return kindMatches && agentMatches && (!keyword || haystack.includes(keyword));
   });
 
   if (entries.length === 0) {
@@ -409,8 +441,12 @@ function renderLogs() {
     const isEvent = entry.type === "event";
     const block = el("article", `log-entry${isEvent ? " event-entry" : ""}`);
     const meta = el("div", "log-meta");
+    const entryAgent = entry.agent || inferAgent(entry);
+    const sourceText = entryAgent === "all"
+      ? `${entry.kind || entry.stream || "log"} · ${text(entry.source)}`
+      : `${agentLabel(entryAgent)} · ${entry.kind || entry.stream || "log"} · ${text(entry.source)}`;
     meta.append(
-      el("span", "log-source", `${entry.kind || entry.stream || "log"} · ${text(entry.source)}`),
+      el("span", "log-source", sourceText),
       el("span", "", formatTime(entry.updated_at)),
     );
     block.append(meta, el("pre", "log-content", text(entry.content || entry.message)));
@@ -419,9 +455,59 @@ function renderLogs() {
 }
 
 function combinedLogEntries() {
-  const events = state.events.map((event) => ({ ...event, type: "event" }));
-  const logs = state.logs.map((log) => ({ ...log, kind: log.stream || "log", type: "log" }));
+  const events = state.events.map((event) => ({ ...event, type: "event", agent: inferAgent(event) }));
+  const logs = state.logs.map((log) => ({ ...log, kind: log.stream || "log", type: "log", agent: inferAgent(log) }));
   return [...events, ...logs].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
+}
+
+function flowDetailRows(node) {
+  const rows = [];
+  if (node.current_action) {
+    rows.push(el("div", "flow-detail", `动作：${actionLabel(node.current_action)}`));
+  }
+  if (node.recent_result) {
+    rows.push(el("div", "flow-detail", `结果：${resultLabel(node.recent_result)}`));
+  }
+  const paths = normalizeList(node.artifact_paths);
+  if (paths.length) {
+    rows.push(artifactList(paths, "flow-artifacts"));
+  }
+  return rows;
+}
+
+function artifactList(paths, className = "artifact-list") {
+  const normalized = normalizeList(paths);
+  const wrapper = el("div", className);
+  wrapper.append(el("div", "artifact-title", "产物路径"));
+  if (normalized.length === 0) {
+    wrapper.append(el("div", "artifact-empty", "暂无"));
+    return wrapper;
+  }
+  const list = el("ul", "artifact-items");
+  normalized.forEach((path) => {
+    list.append(el("li", "", path));
+  });
+  wrapper.append(list);
+  return wrapper;
+}
+
+function agentArtifactPaths(agent) {
+  const paths = [
+    ...normalizeList(agent.artifact_paths),
+    ...normalizeList(agent.artifacts),
+    ...normalizeList(agent.changed_paths),
+  ];
+  return Array.from(new Set(paths));
+}
+
+function inferAgent(entry) {
+  const haystack = `${entry.agent || ""} ${entry.source || ""} ${entry.message || ""} ${entry.content || ""}`.toLowerCase();
+  for (const name of ["planner", "generator", "evaluator"]) {
+    if (haystack.includes(name)) {
+      return name;
+    }
+  }
+  return "all";
 }
 
 function renderErrorState() {
@@ -538,6 +624,7 @@ function setPollState(message) {
 }
 
 els.kindFilter.addEventListener("change", renderLogs);
+els.agentFilter.addEventListener("change", () => setAgentFilter(els.agentFilter.value));
 els.keywordFilter.addEventListener("input", renderLogs);
 
 refresh();

@@ -384,14 +384,22 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             flow = page.get_by_test_id("flow-diagram")
             expect(flow).to_contain_text("Evaluator")
             expect(flow).to_contain_text("阻塞")
+            expect(flow).to_contain_text("Artifact Hygiene")
+            expect(flow).to_contain_text("Cleanup")
 
             diagnostics = page.get_by_test_id("blocked-diagnostics")
             expect(diagnostics).to_contain_text("LD-001")
 
-            page.get_by_test_id("log-kind-filter").select_option("stderr")
+            expect(agent_cards).to_contain_text("apps/loop_dashboard/frontend/app.js")
+            page.get_by_test_id("agent-filter").select_option("generator")
             log_list = page.get_by_test_id("log-list")
             expect(log_list).to_contain_text("Generator stderr")
+            expect(log_list).not_to_contain_text("Planner:")
 
+            page.get_by_test_id("log-kind-filter").select_option("stderr")
+            expect(log_list).to_contain_text("Generator stderr")
+
+            page.get_by_test_id("agent-filter").select_option("all")
             page.get_by_test_id("log-kind-filter").select_option("all")
             page.get_by_test_id("log-keyword-filter").fill("REDACTED")
             expect(log_list).to_contain_text("Authorization: Bearer [REDACTED]")

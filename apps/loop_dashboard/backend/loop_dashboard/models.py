@@ -22,6 +22,9 @@ class FlowNode:
     id: str
     label: str
     status: str
+    current_action: str = ""
+    recent_result: str = ""
+    artifact_paths: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

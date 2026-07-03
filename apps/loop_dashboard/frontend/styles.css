@@ -337,6 +337,19 @@ button {
   overflow-wrap: anywhere;
 }
 
+.flow-node-meta {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.flow-detail {
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .agent-cards {
   min-height: 156px;
   display: grid;
@@ -348,11 +361,26 @@ button {
   min-height: 168px;
   padding: 10px;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto 1fr;
   gap: 8px;
+  text-align: left;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-alt);
+  cursor: pointer;
+  appearance: none;
+}
+
+.agent-card:hover,
+.agent-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.agent-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .agent-title {
@@ -373,6 +401,36 @@ button {
 .agent-result {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.artifact-list,
+.flow-artifacts {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.artifact-title {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.artifact-items {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+
+.artifact-items li,
+.artifact-empty {
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.artifact-empty {
+  color: var(--muted);
 }
 
 .blocked-diagnostics {
@@ -409,7 +467,7 @@ button {
 .filters {
   margin-bottom: 10px;
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 132px 132px minmax(0, 1fr);
   gap: 10px;
 }
 
