@@ -824,6 +824,67 @@ button {
   border-color: #efaaa5;
 }
 
+.run-child-current {
+  margin-top: 2px;
+  color: #526172;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.parent-reader-summary,
+.child-queue {
+  margin-top: 5px;
+  padding-top: 12px;
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.child-card {
+  min-width: 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.child-card:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.child-card-title {
+  min-width: 0;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.child-card-meta {
+  margin-top: 4px;
+  color: #657284;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.child-reader-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.child-reader-label {
+  font-weight: 700;
+  color: #334155;
+}
+
+.child-reader-value {
+  color: #4d5a69;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1100px) {
   .workbench {
     grid-template-columns: 240px minmax(0, 1fr);
@@ -875,5 +936,12 @@ button {
 
   .log-list {
     max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .child-reader-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 }

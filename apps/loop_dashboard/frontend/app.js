@@ -90,6 +90,18 @@ function phaseLabel(phase) {
   return PHASE_LABELS[phase] || text(phase);
 }
 
+function runKindLabel(runKind) {
+  const labels = { parent: "父需求", child: "子任务", single: "单任务" };
+  return labels[runKind] || "单任务";
+}
+
+function childrenProgressLabel(summary) {
+  if (!summary || !summary.total) {
+    return "无子任务";
+  }
+  return `${summary.passed || 0} / ${summary.total || 0} 通过`;
+}
+
 function healthLabel(health) {
   return HEALTH_LABELS[health] || text(health);
 }
@@ -338,11 +350,19 @@ function runButton(run) {
   topline.append(el("span", "run-id", text(run.run_id)));
   topline.append(el("span", `badge health-${text(run.health, "progressing")}`, healthLabel(run.health)));
 
+  const metaParts = [runKindLabel(run.run_kind), phaseLabel(run.phase), formatTime(run.updated_at)];
+  if (run.run_kind === "parent") {
+    metaParts.splice(1, 0, childrenProgressLabel(run.children_summary));
+  }
+
   button.append(
     topline,
     el("div", "run-summary", text(run.task_summary)),
-    el("div", "run-meta", `${phaseLabel(run.phase)} · ${formatTime(run.updated_at)}`),
+    el("div", "run-meta", metaParts.join(" · ")),
   );
+  if (run.run_kind === "parent" && run.current_child_run_id) {
+    button.append(el("div", "run-child-current", `当前子任务：${run.current_child_run_id}`));
+  }
   return button;
 }
 
@@ -390,6 +410,9 @@ function renderDetail() {
     decisionGrid.append(summaryMetric(label, value));
   });
   summary.append(decisionGrid);
+  if (detail.run_kind === "parent") {
+    summary.append(renderParentReaderSummary(detail), renderChildQueue(detail.children || []));
+  }
 
   const info = el("section", "run-info-card");
   info.append(el("div", "detail-section-title", "运行信息"));
@@ -443,6 +466,48 @@ function renderReaderSummary(detail) {
   });
   wrapper.append(titleRow, objective, facts);
   return wrapper;
+}
+
+function renderParentReaderSummary(detail) {
+  const summary = detail.reader_summary || {};
+  const section = el("section", "parent-reader-summary");
+  section.append(el("div", "detail-section-title", "父需求读者摘要"));
+  [
+    ["目的", summary.purpose || detail.task_description || detail.task_summary],
+    ["当前进展", summary.current_progress || phaseLabel(detail.phase)],
+    ["下一步", summary.next_step || actionLabel(detail.next_action)],
+    ["用户决策", summary.decision_needed || "不需要"],
+  ].forEach(([label, value]) => section.append(infoRow(label, value)));
+  return section;
+}
+
+function renderChildQueue(children) {
+  const section = el("section", "child-queue");
+  section.append(el("div", "detail-section-title", "子任务队列"));
+  if (!children.length) {
+    section.append(empty("暂无子任务"));
+    return section;
+  }
+  children.forEach((child) => {
+    const card = el("article", "child-card");
+    const reader = child.reader_summary || {};
+    card.append(
+      el("div", "child-card-title", `${child.child_index || ""}. ${text(child.task_description || child.task_summary || child.run_id)}`),
+      el("div", "child-card-meta", `${phaseLabel(child.phase)} · ${text(child.run_id)}`),
+      childReaderRow("Planner", reader.planner_action),
+      childReaderRow("Generator", reader.generator_action),
+      childReaderRow("Evaluator", reader.evaluator_action),
+      childReaderRow("验收", reader.acceptance_result),
+    );
+    section.append(card);
+  });
+  return section;
+}
+
+function childReaderRow(label, value) {
+  const row = el("div", "child-reader-row");
+  row.append(el("span", "child-reader-label", `${label}:`), el("span", "child-reader-value", text(value, "暂无")));
+  return row;
 }
 
 function renderAcceptanceSummary(summary) {
@@ -603,7 +668,11 @@ function renderAgents() {
 }
 
 function renderDiagnostics() {
-  const diagnostics = state.detail && Array.isArray(state.detail.blocked_diagnostics) ? state.detail.blocked_diagnostics : [];
+  const relationshipDiagnostics = state.detail && Array.isArray(state.detail.relationship_diagnostics) ? state.detail.relationship_diagnostics : [];
+  const diagnostics = [
+    ...(state.detail && Array.isArray(state.detail.blocked_diagnostics) ? state.detail.blocked_diagnostics : []),
+    ...relationshipDiagnostics,
+  ];
   if (diagnostics.length === 0) {
     setChildren(els.diagnostics, [empty("暂无阻塞诊断")]);
     return;
