@@ -201,18 +201,40 @@ def _aggregate_pending(aggregate: dict[str, Any]) -> int:
 
 
 def _dirty_paths_after_baseline(repo_root: Path, parent: dict[str, Any], child: dict[str, Any]) -> list[str]:
-    baseline = {str(path) for path in parent.get("baseline_dirty_paths", [])}
+    baseline: set[str] = set()
+    for value in parent.get("baseline_dirty_paths", []):
+        if not isinstance(value, str):
+            continue
+        baseline.add(value)
+        baseline.update(_parse_porcelain_paths(value))
     accepted = {str(path) for path in parent.get("accepted_changed_paths", [])}
     allowed = {str(path) for path in child.get("allowed_paths", [])}
     unexpected: list[str] = []
     for porcelain in _baseline_dirty_paths(repo_root):
-        path = porcelain[3:] if len(porcelain) > 3 else porcelain
-        if path.startswith(".codex/loop-runs/"):
-            continue
-        if porcelain in baseline or path in baseline or path in accepted or path in allowed:
-            continue
-        unexpected.append(path)
+        paths = _parse_porcelain_paths(porcelain)
+        for path in paths:
+            if _is_demand_internal_dirty_path(path, parent, child):
+                continue
+            if porcelain in baseline or path in baseline or path in accepted or path in allowed:
+                continue
+            unexpected.append(path)
     return sorted(set(unexpected))
+
+
+def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dict[str, Any]) -> bool:
+    parent_run_id = str(parent["run_id"])
+    child_run_id = str(child["run_id"])
+    return path in {
+        f".codex/loop-runs/{parent_run_id}/events.jsonl",
+        f".codex/loop-runs/{parent_run_id}/planner-output.json",
+        f".codex/loop-runs/{parent_run_id}/preflight.md",
+        f".codex/loop-runs/{parent_run_id}/run.json",
+        f".codex/loop-runs/{child_run_id}/events.jsonl",
+        f".codex/loop-runs/{child_run_id}/generator-result.json",
+        f".codex/loop-runs/{child_run_id}/planner-output.json",
+        f".codex/loop-runs/{child_run_id}/run.json",
+        f".codex/loop-runs/{child_run_id}/task-contract.json",
+    }
 
 
 def _block_parent(repo_root: Path, parent: dict[str, Any], reason: str, *, actor: str = "orchestrator") -> dict[str, str]:
@@ -231,6 +253,25 @@ def _block_parent(repo_root: Path, parent: dict[str, Any], reason: str, *, actor
     save_run(repo_root, parent)
     append_loop_event(repo_root, run_id=parent["run_id"], actor=actor, event_type="blocked", summary=reason)
     return status_for_run(repo_root, parent["run_id"])
+
+
+def _block_child(repo_root: Path, child: dict[str, Any], reason: str, *, actor: str = "orchestrator") -> dict[str, str]:
+    child["phase"] = "stopped_blocked"
+    child["last_result"] = "blocked"
+    child["next_action"] = "inspect_blocked_diagnostics"
+    child["reader_summary"]["evaluator_action"] = "Blocked before evaluator"
+    child["reader_summary"]["acceptance_result"] = "Blocked"
+    save_run(repo_root, child)
+    append_loop_event(
+        repo_root,
+        run_id=child["run_id"],
+        parent_run_id=child["parent_run_id"],
+        child_id=f"child-{int(child['child_index']):03d}",
+        actor=actor,
+        event_type="blocked",
+        summary=reason,
+    )
+    return status_for_run(repo_root, child["run_id"])
 
 
 def _create_child_run(
@@ -1079,7 +1120,6 @@ def _run_fake_demand_child(
             "fake-invalid-json": "generator invalid_json",
             "fake-missing-artifact": "generator missing artifact",
         }[generator_driver]
-        append_loop_event(repo_root, run_id=parent["run_id"], actor="generator", event_type="blocked", summary=reason)
         parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
         _block_parent(repo_root, parent, reason, actor="generator")
         return
@@ -1117,7 +1157,9 @@ def _run_fake_demand_child(
     parent_for_dirty = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
     unexpected_dirty = _dirty_paths_after_baseline(repo_root, parent_for_dirty, child)
     if unexpected_dirty:
-        _block_parent(repo_root, parent_for_dirty, f"unexpected dirty path: {', '.join(unexpected_dirty)}")
+        reason = f"unexpected dirty path: {', '.join(unexpected_dirty)}"
+        _block_child(repo_root, child, reason)
+        _block_parent(repo_root, parent_for_dirty, reason)
         return
 
     should_fail_once = (

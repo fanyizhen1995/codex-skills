@@ -2842,8 +2842,45 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             parent = read_json_file(run_dir_for(repo_root, "dirty-parent") / "run.json")
             self.assertEqual(payload["phase"], "stopped_blocked")
             self.assertEqual(parent["last_result"], "blocked")
+            child = read_json_file(run_dir_for(repo_root, parent["child_run_ids"][0]) / "run.json")
+            self.assertEqual(child["phase"], "stopped_blocked")
+            self.assertEqual(child["last_result"], "blocked")
+            self.assertEqual(child["next_action"], "inspect_blocked_diagnostics")
+            self.assertEqual(child["attempts"]["generator"], 1)
+            self.assertFalse((run_dir_for(repo_root, child["run_id"]) / "evaluator-result.json").exists())
             events = (run_dir_for(repo_root, "dirty-parent") / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("unexpected dirty path", events)
+
+    def test_demand_dirty_paths_only_ignore_current_parent_and_child_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            parent = self._create_parent(repo_root, "dirty-scope-parent")
+
+            from scripts import harness_loop_orchestrator as orchestrator
+
+            child = orchestrator._create_child_run(
+                repo_root,
+                parent,
+                1,
+                {
+                    "child_id": "child-001",
+                    "title": "Fake child 1",
+                    "description": "Implement fake child 1",
+                    "allowed_paths": ["generated/child-001.txt"],
+                    "denylist_paths": [".env"],
+                    "verify_commands": [],
+                    "scenario_commands": [],
+                    "done_criteria": ["child 1 passes fake evaluator"],
+                },
+            )
+            other_run_path = repo_root / ".codex" / "loop-runs" / "other-run" / "unexpected.txt"
+            other_run_path.parent.mkdir(parents=True, exist_ok=True)
+            other_run_path.write_text("unexpected\n", encoding="utf-8")
+
+            unexpected = orchestrator._dirty_paths_after_baseline(repo_root, parent, child)
+
+            self.assertEqual(unexpected, [".codex/loop-runs/other-run/unexpected.txt"])
 
     def test_run_demand_multi_blocks_on_agent_timeout_invalid_json_and_missing_artifact(self) -> None:
         for driver, expected in [
@@ -2870,6 +2907,18 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 self.assertTrue(parent["aggregate_acceptance"]["user_decision_required"])
                 events = (run_dir_for(repo_root, f"agent-{driver}") / "events.jsonl").read_text(encoding="utf-8")
                 self.assertIn(expected, events)
+                reason = {
+                    "fake-timeout": "generator timeout",
+                    "fake-invalid-json": "generator invalid_json",
+                    "fake-missing-artifact": "generator missing artifact",
+                }[driver]
+                event_payloads = [json.loads(line) for line in events.splitlines()]
+                blocked_summaries = [
+                    event["summary"]
+                    for event in event_payloads
+                    if event["actor"] == "generator" and event["event_type"] == "blocked"
+                ]
+                self.assertEqual(blocked_summaries, [reason])
 
     def test_run_demand_multi_resumes_current_child_without_repeating_passed_child(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
