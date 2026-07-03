@@ -67,6 +67,33 @@ def test_api_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:
     assert all("dangling.log" not in source for source in sources)
 
 
+def test_api_events_skip_dangling_session_symlink(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    sessions_dir = tmp_path / ".codex" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (sessions_dir / "bad.jsonl").symlink_to(sessions_dir / "missing.jsonl")
+    (sessions_dir / "good.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "demo-run",
+                "type": "agent_message",
+                "agent": "planner",
+                "message": "Planner API session event",
+                "timestamp": "2026-07-03T00:00:00Z",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    response = client.get("/api/runs/demo-run/events")
+
+    assert response.status_code == 200
+    assert any("Planner API session event" in event["message"] for event in response.json()["events"])
+
+
 def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
     worktree_root = tmp_path / ".worktrees" / "loop-dashboard"
     seed_minimal_run(worktree_root)

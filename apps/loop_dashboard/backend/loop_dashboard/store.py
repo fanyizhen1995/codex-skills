@@ -221,23 +221,25 @@ class LoopDashboardStore:
         return list(runs_by_id.values())
 
     def _filter_top_level_runs(self, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        parent_ids = {
-            str(run.get("run_id") or "")
-            for run in runs
-            if run.get("run_kind") == "parent" and self._safe_run_id(str(run.get("run_id") or ""))
-        }
-        if not parent_ids:
-            return runs
         aggregated_child_ids: set[str] = set()
         for run in runs:
-            if run.get("run_kind") == "child" and str(run.get("parent_run_id") or "") in parent_ids:
-                run_id = str(run.get("run_id") or "")
-                if self._safe_run_id(run_id):
-                    aggregated_child_ids.add(run_id)
             if run.get("run_kind") != "parent":
                 continue
-            child_run_ids = self._run_child_ids_from_source(str(run.get("run_id") or ""))
-            aggregated_child_ids.update(child_run_ids)
+            parent_run_id = str(run.get("run_id") or "")
+            source = self._run_source(parent_run_id)
+            if source is None:
+                continue
+            parent_data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
+            if not isinstance(parent_data, dict):
+                continue
+            child_runs, _diagnostics = self._children_for_parent(parent_run_id, parent_data)
+            aggregated_child_ids.update(
+                str(child.summary.get("run_id") or "")
+                for child in child_runs
+                if self._safe_run_id(str(child.summary.get("run_id") or ""))
+            )
+        if not aggregated_child_ids:
+            return runs
         top_level: list[dict[str, Any]] = []
         for run in runs:
             run_id = str(run.get("run_id") or "")
@@ -245,22 +247,6 @@ class LoopDashboardStore:
                 continue
             top_level.append(run)
         return top_level
-
-    def _run_child_ids_from_source(self, run_id: str) -> set[str]:
-        source = self._run_source(run_id)
-        if source is None:
-            return set()
-        data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
-        if not isinstance(data, dict):
-            return set()
-        child_run_ids = data.get("child_run_ids")
-        if not isinstance(child_run_ids, list):
-            return set()
-        return {
-            child_run_id
-            for item in child_run_ids
-            if self._safe_child_run_id(child_run_id := str(item))
-        }
 
     def _safe_run_id(self, run_id: str) -> bool:
         candidate_path = Path(run_id)
@@ -340,7 +326,7 @@ class LoopDashboardStore:
             "current_child_run_id": "",
             "reader_summary": {},
             "children_summary": self._children_summary({}),
-            "decision_required": False,
+            "decision_required": True,
             "project_root": str(self.project_root),
             "source_kind": source_kind,
             "source_path": self._source_path(run_dir),
@@ -1251,10 +1237,7 @@ class LoopDashboardStore:
         if not sessions_dir.exists():
             return []
         events: list[Event] = []
-        for path in sorted(sessions_dir.rglob("*.jsonl"), key=lambda item: item.stat().st_mtime, reverse=True):
-            safe_path = self._safe_file_under(path, sessions_dir)
-            if safe_path is None:
-                continue
+        for safe_path in self._safe_jsonl_files(sessions_dir):
             try:
                 if safe_path.stat().st_size > SESSION_FILE_MAX_BYTES:
                     continue
@@ -1276,6 +1259,18 @@ class LoopDashboardStore:
             if len(events) >= SESSION_EVENT_LIMIT:
                 break
         return events
+
+    def _safe_jsonl_files(self, root: Path) -> list[Path]:
+        safe_paths: list[tuple[float, Path]] = []
+        for path in root.rglob("*.jsonl"):
+            safe_path = self._safe_file_under(path, root)
+            if safe_path is None:
+                continue
+            try:
+                safe_paths.append((safe_path.stat().st_mtime, safe_path))
+            except OSError:
+                continue
+        return [path for _mtime, path in sorted(safe_paths, reverse=True)]
 
     def _session_event_from_payload(self, payload: dict[str, Any], source_path: Path) -> Event | None:
         raw_type = str(payload.get("type") or payload.get("event") or "").lower()
@@ -1351,12 +1346,16 @@ class LoopDashboardStore:
         return [self._relative_artifact(path) for path in sorted(paths)]
 
     def _direct_artifact_files(self, run_dir: Path) -> list[Path]:
-        safe_paths = [
-            safe_path
-            for path in run_dir.iterdir()
-            if (safe_path := self._safe_file_under(path, run_dir)) is not None
-        ]
-        return sorted(safe_paths, key=lambda path: path.stat().st_mtime)
+        safe_paths: list[tuple[float, Path]] = []
+        for path in run_dir.iterdir():
+            safe_path = self._safe_file_under(path, run_dir)
+            if safe_path is None:
+                continue
+            try:
+                safe_paths.append((safe_path.stat().st_mtime, safe_path))
+            except OSError:
+                continue
+        return [path for _mtime, path in sorted(safe_paths)]
 
     def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
         safe_path = self._safe_file_under(path, allowed_root or self.project_root)
@@ -1375,7 +1374,7 @@ class LoopDashboardStore:
         return "progressing"
 
     def _updated_at(self, run_dir: Path) -> str:
-        mtimes = [path.stat().st_mtime for path in run_dir.iterdir() if path.is_file()]
+        mtimes = [path.stat().st_mtime for path in self._direct_artifact_files(run_dir)]
         if not mtimes:
             mtimes = [run_dir.stat().st_mtime]
         return self._timestamp_iso(max(mtimes))

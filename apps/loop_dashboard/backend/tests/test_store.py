@@ -864,6 +864,71 @@ def test_parent_child_relationship_conflicts_are_deduped_sorted_and_diagnosed(tm
     assert any(item["kind"] == "child_parent_conflict" for item in detail["relationship_diagnostics"])
 
 
+def test_top_level_list_runs_keeps_conflicting_child_visible(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "parent-run" / "run.json",
+        {
+            "run_id": "parent-run",
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": "",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Parent with conflicting child",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_parent_planner",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": ["child-x"],
+            "current_child_run_id": "child-x",
+            "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
+        },
+    )
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "child-x" / "run.json",
+        {
+            "run_id": "child-x",
+            "run_kind": "child",
+            "parent_run_id": "missing-parent",
+            "child_index": 1,
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "child-x-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Conflicting child should remain top level",
+            "constraints": [],
+            "stop_conditions": ["passed"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_child_generator",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+
+    store = LoopDashboardStore(tmp_path)
+    detail = store.get_run("parent-run")
+    runs = store.list_runs()
+
+    assert [child["run_id"] for child in detail["children"]] == []
+    assert [run["run_id"] for run in runs] == ["child-x", "parent-run"]
+
+
 def test_parent_child_relationship_rejects_path_traversal(tmp_path: Path) -> None:
     seed_parent_child_runs(tmp_path)
     parent_path = tmp_path / ".codex" / "loop-runs" / "parent-run" / "run.json"
@@ -973,6 +1038,32 @@ def test_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:
     assert events is not None
     assert any(event["kind"] == "artifact" and event["source"].endswith("run.json") for event in events)
     assert all("dangling.log" not in event["source"] for event in events)
+
+
+def test_session_events_skip_dangling_symlink_files(tmp_path: Path) -> None:
+    seed_run(tmp_path, "session-dangling-run", "generating")
+    sessions_dir = tmp_path / ".codex" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (sessions_dir / "bad.jsonl").symlink_to(sessions_dir / "missing.jsonl")
+    (sessions_dir / "good.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "session-dangling-run",
+                "type": "agent_message",
+                "agent": "planner",
+                "message": "Planner session event",
+                "timestamp": "2026-07-03T00:00:00Z",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    events = LoopDashboardStore(tmp_path).get_events("session-dangling-run")
+
+    assert any(event["kind"] == "agent" and "Planner session event" in event["message"] for event in events)
+    assert all("bad.jsonl" not in event["source"] for event in events)
 
 
 def test_multi_parent_explicit_orphan_child_has_single_owner_and_diagnostic(tmp_path: Path) -> None:
@@ -1100,6 +1191,47 @@ def test_symlinked_log_and_rich_evaluator_result_outside_project_root_are_not_ex
     assert "outside symlink log leaked" not in joined
     assert "outside-rich-result" not in joined
     assert all(item.get("title") != "OUTSIDE" for item in detail["blocked_diagnostics"])
+
+
+def test_duplicate_run_id_ignores_unsafe_symlink_mtime_when_selecting_source(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "duplicate-symlink-run",
+        "passed_waiting_human_merge",
+        last_result="pass",
+        next_action="await_human_merge_confirmation",
+    )
+    worktree_root = tmp_path / ".worktrees" / "older-source"
+    seed_run(
+        worktree_root,
+        "duplicate-symlink-run",
+        "repair_needed",
+        last_result="fail",
+        next_action="run_generator_repair",
+    )
+    outside_dir = tmp_path.parent / f"{tmp_path.name}-newer-outside"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "newer.log"
+    outside_file.write_text("outside newer mtime should not select source\n", encoding="utf-8")
+    current_run = tmp_path / ".codex" / "loop-runs" / "duplicate-symlink-run" / "run.json"
+    worktree_run_dir = worktree_root / ".codex" / "loop-runs" / "duplicate-symlink-run"
+    worktree_run = worktree_run_dir / "run.json"
+    os.utime(current_run, (1_800_000_000, 1_800_000_000))
+    os.utime(worktree_run, (1_700_000_000, 1_700_000_000))
+    os.utime(outside_file, (1_900_000_000, 1_900_000_000))
+    (worktree_run_dir / "outside-newer.log").symlink_to(outside_file)
+    try:
+        store = LoopDashboardStore(tmp_path)
+        runs = store.list_runs()
+        detail = store.get_run("duplicate-symlink-run")
+    finally:
+        (worktree_run_dir / "outside-newer.log").unlink(missing_ok=True)
+        outside_file.unlink(missing_ok=True)
+        outside_dir.rmdir()
+
+    assert runs[0]["source_kind"] == "current"
+    assert detail["source_kind"] == "current"
+    assert detail["phase"] == "passed_waiting_human_merge"
 
 
 def test_fixed_run_json_symlink_outside_run_dir_is_not_loaded(tmp_path: Path) -> None:
