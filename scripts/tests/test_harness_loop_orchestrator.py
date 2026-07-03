@@ -2875,6 +2875,38 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             events = (run_dir_for(repo_root, "dirty-parent") / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("unexpected dirty path", events)
 
+    def test_run_demand_multi_blocks_when_child_allowed_path_was_baseline_dirty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            dirty_path = repo_root / "generated" / "child-001.txt"
+            dirty_path.parent.mkdir(parents=True, exist_ok=True)
+            dirty_path.write_text("pre-existing user change\n", encoding="utf-8")
+            self._create_parent(repo_root, "baseline-overlap-parent")
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="baseline-overlap-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            parent = read_json_file(run_dir_for(repo_root, "baseline-overlap-parent") / "run.json")
+            child = read_json_file(run_dir_for(repo_root, parent["child_run_ids"][0]) / "run.json")
+            events = (run_dir_for(repo_root, "baseline-overlap-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(payload["phase"], "stopped_blocked")
+            self.assertEqual(parent["phase"], "stopped_blocked")
+            self.assertEqual(parent["last_result"], "blocked")
+            self.assertTrue(parent["aggregate_acceptance"]["user_decision_required"])
+            self.assertNotEqual(child["phase"], "passed")
+            self.assertNotIn("generated/child-001.txt", parent["accepted_changed_paths"])
+            self.assertIn("baseline dirty path", events)
+            self.assertIn("generated/child-001.txt", events)
+            self.assertEqual(dirty_path.read_text(encoding="utf-8"), "pre-existing user change\n")
+
     def test_demand_dirty_paths_only_ignore_current_parent_and_child_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -3033,6 +3065,55 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             parent_events = (run_dir_for(repo_root, "resume-reconcile-parent") / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("resume", parent_events)
             self.assertNotIn("unexpected dirty path", parent_events)
+
+    def test_run_demand_multi_reconciles_existing_unpassed_child_before_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "stale-aggregate-parent")
+            run_demand_multi(
+                repo_root=repo_root,
+                run_id="stale-aggregate-parent",
+                planner_driver="fake",
+                generator_driver="fake-stop-after-child-1",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=2,
+            )
+            parent_before = read_json_file(run_dir_for(repo_root, "stale-aggregate-parent") / "run.json")
+            repair_child_id = parent_before["child_run_ids"][0]
+            repair_child = read_json_file(run_dir_for(repo_root, repair_child_id) / "run.json")
+            repair_child["phase"] = "repair_needed"
+            repair_child["last_result"] = "fail"
+            repair_child["next_action"] = "repair_child"
+            write_json_file(run_dir_for(repo_root, repair_child_id) / "run.json", repair_child)
+            parent_before["phase"] = "planning"
+            parent_before["next_action"] = "run_parent_planner"
+            parent_before["current_child_run_id"] = ""
+            parent_before["aggregate_acceptance"]["total"] = 2
+            parent_before["aggregate_acceptance"]["passed"] = 1
+            parent_before["aggregate_acceptance"]["pending"] = 1
+            write_json_file(run_dir_for(repo_root, "stale-aggregate-parent") / "run.json", parent_before)
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="stale-aggregate-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=2,
+            )
+
+            parent_after = read_json_file(run_dir_for(repo_root, "stale-aggregate-parent") / "run.json")
+            events = (run_dir_for(repo_root, "stale-aggregate-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(payload["phase"], "child_running")
+            self.assertEqual(parent_after["phase"], "child_running")
+            self.assertEqual(parent_after["current_child_run_id"], repair_child_id)
+            self.assertEqual(parent_after["next_action"], "repair_child")
+            self.assertEqual(parent_after["child_run_ids"], [repair_child_id])
+            self.assertNotEqual(parent_after["phase"], "passed_waiting_human_merge")
+            self.assertIn("current child", events)
+            self.assertIn("reconcile", events)
 
 
 if __name__ == "__main__":

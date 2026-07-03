@@ -215,10 +215,22 @@ def _dirty_paths_after_baseline(repo_root: Path, parent: dict[str, Any], child: 
         for path in paths:
             if _is_demand_internal_dirty_path(path, parent, child):
                 continue
-            if porcelain in baseline or path in baseline or path in accepted or path in allowed:
+            if path in accepted:
+                continue
+            if porcelain in baseline or path in baseline:
+                if path in allowed:
+                    unexpected.append(path)
+                continue
+            if path in allowed:
                 continue
             unexpected.append(path)
     return sorted(set(unexpected))
+
+
+def _baseline_dirty_overlap(parent: dict[str, Any], candidate_paths: list[str]) -> list[str]:
+    baseline = _baseline_dirty_relative_paths(parent)
+    accepted = {str(path) for path in parent.get("accepted_changed_paths", [])}
+    return sorted({str(path) for path in candidate_paths if str(path) in baseline and str(path) not in accepted})
 
 
 def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dict[str, Any]) -> bool:
@@ -284,7 +296,7 @@ def _block_child(repo_root: Path, child: dict[str, Any], reason: str, *, actor: 
 
 def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> dict[str, Any]:
     parent = _ensure_parent_fields(parent)
-    accepted = set(parent["accepted_changed_paths"])
+    accepted: set[str] = set()
     passed_count = 0
     for child_run_id in parent["child_run_ids"]:
         child = load_run(repo_root, str(child_run_id))
@@ -298,6 +310,48 @@ def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -
     parent["aggregate_acceptance"]["passed"] = passed_count
     parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
     return parent
+
+
+def _reconcile_demand_parent_children(repo_root: Path, parent: dict[str, Any]) -> str:
+    parent = _reconcile_passed_demand_children(repo_root, parent)
+    for child_run_id in parent["child_run_ids"]:
+        child = load_run(repo_root, str(child_run_id))
+        if child.get("phase") == "passed":
+            continue
+        if child.get("phase") == "stopped_blocked":
+            save_run(repo_root, parent)
+            _block_parent(
+                repo_root,
+                parent,
+                f"reconcile blocked child {child['run_id']} in phase {child['phase']}",
+            )
+            return "blocked"
+
+        parent["phase"] = "child_running"
+        parent["current_child_run_id"] = child["run_id"]
+        parent["next_action"] = str(child.get("next_action") or "inspect_child_state")
+        parent["reader_summary"]["current_progress"] = f"Waiting for child {child['child_index']}"
+        parent["reader_summary"]["next_step"] = parent["next_action"]
+        parent["reader_summary"]["decision_needed"] = "No"
+        parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
+        save_run(repo_root, parent)
+        append_loop_event(
+            repo_root,
+            run_id=parent["run_id"],
+            actor="orchestrator",
+            event_type="wait",
+            summary=f"reconcile current child {child['run_id']} in phase {child['phase']}",
+            child_id=f"child-{int(child['child_index']):03d}",
+            details={
+                "child_run_id": child["run_id"],
+                "child_phase": child["phase"],
+                "child_next_action": child.get("next_action", ""),
+            },
+        )
+        return "waiting"
+
+    save_run(repo_root, parent)
+    return "ready"
 
 
 def _create_child_run(
@@ -1151,6 +1205,15 @@ def _run_fake_demand_child(
         _block_parent(repo_root, parent, reason, actor="generator")
         return
 
+    parent_for_dirty = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    planned_paths = sorted(set([generated_path] + [str(path) for path in child.get("allowed_paths", [])]))
+    baseline_overlap = _baseline_dirty_overlap(parent_for_dirty, planned_paths)
+    if baseline_overlap:
+        reason = f"baseline dirty path overlaps child allowed paths: {', '.join(baseline_overlap)}"
+        _block_child(repo_root, child, reason)
+        _block_parent(repo_root, parent_for_dirty, reason)
+        return
+
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(f"child {child_index}\n", encoding="utf-8")
     if generator_driver == "fake-dirty-path":
@@ -1338,6 +1401,12 @@ def run_demand_multi(
         raise ValueError("run_demand_multi initially supports fake evaluator driver")
 
     while True:
+        parent = _ensure_parent_fields(load_run(root, run_id))
+        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+            return status_for_run(root, run_id)
+        reconcile_status = _reconcile_demand_parent_children(root, parent)
+        if reconcile_status in {"waiting", "blocked"}:
+            return status_for_run(root, run_id)
         parent = _ensure_parent_fields(load_run(root, run_id))
         if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
             return status_for_run(root, run_id)
