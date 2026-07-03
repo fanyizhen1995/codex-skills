@@ -436,6 +436,12 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(detail.locator(".run-summary-card")).to_have_count(1)
             expect(detail.locator(".decision-grid")).to_have_count(1)
             expect(detail.locator(".run-info-grid")).to_have_count(1)
+            expect(detail.locator(".run-info-row")).to_have_count(4)
+            info_columns = detail.locator(".run-info-grid").evaluate(
+                "el => getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length"
+            )
+            if info_columns != 1:
+                raise AssertionError(f"run info should render one field per row, got {info_columns} columns")
 
             tabs = page.get_by_test_id("detail-tabs")
             for tab_name in ["概览", "Agent结果", "验收", "日志", "阻塞诊断", "产物"]:
