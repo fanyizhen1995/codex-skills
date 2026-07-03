@@ -54,6 +54,7 @@ const state = {
   logs: [],
   agentFilter: "all",
   loadingDetailFor: "",
+  activeTab: "overview",
   lastError: "",
   pollTimer: 0,
   refreshInFlight: false,
@@ -65,7 +66,12 @@ const els = {
   projectStatus: document.getElementById("project-status-content"),
   runList: document.getElementById("run-list"),
   completedRuns: document.getElementById("completed-runs"),
+  runDetailHeading: document.getElementById("run-detail-heading"),
   runDetail: document.getElementById("run-detail-content"),
+  detailTabs: document.getElementById("detail-tabs"),
+  tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
+  acceptanceContent: document.getElementById("acceptance-content"),
+  artifactContent: document.getElementById("artifact-content"),
   flowDiagram: document.getElementById("flow-diagram"),
   agentCards: document.getElementById("agent-cards"),
   diagnostics: document.getElementById("blocked-diagnostics"),
@@ -148,6 +154,12 @@ function setAgentFilter(agentName) {
   renderLogs();
 }
 
+function setActiveTab(tabName) {
+  const validTabs = ["overview", "agents", "acceptance", "logs", "diagnostics", "artifacts"];
+  state.activeTab = validTabs.includes(tabName) ? tabName : "overview";
+  renderTabs();
+}
+
 async function fetchJson(path) {
   const response = await fetch(path, { headers: { Accept: "application/json" } });
   if (!response.ok) {
@@ -223,6 +235,9 @@ async function selectRun(runId, options = {}) {
   if (!runId) {
     return;
   }
+  if (state.selectedRunId !== runId) {
+    state.activeTab = "overview";
+  }
   state.selectedRunId = runId;
   state.loadingDetailFor = runId;
   const requestSeq = ++state.detailRequestSeq;
@@ -276,9 +291,12 @@ function renderAll() {
   renderProject();
   renderRunLists();
   renderDetail();
+  renderTabs();
   renderFlow();
   renderAgents();
+  renderAcceptanceTab();
   renderDiagnostics();
+  renderArtifacts();
   renderLogs();
 }
 
@@ -288,13 +306,12 @@ function renderProject() {
     return;
   }
   const rows = [
-    ["项目根", state.project.project_root],
+    ["项目", state.project.project_root],
     ["运行目录", state.project.loop_runs_path],
-    ["目录状态", state.project.loop_runs_exists ? "已发现" : "未创建"],
   ].map(([key, value]) => {
-    const dl = el("dl", "kv");
-    dl.append(el("dt", "", key), el("dd", "", text(value)));
-    return dl;
+    const item = el("div", "project-strip-item");
+    item.append(el("span", "project-strip-label", `${key}：`), el("span", "project-strip-value", text(value)));
+    return item;
   });
   setChildren(els.projectStatus, rows);
 }
@@ -306,36 +323,31 @@ function renderRunLists() {
     return;
   }
 
-  setChildren(els.runList, state.runs.map((run) => runButton(run, "run-button")));
-
-  const completed = state.runs.filter((run) => run.completed || COMPLETED_PHASES.has(run.phase));
-  if (completed.length === 0) {
-    setChildren(els.completedRuns, [empty("暂无已完成运行")]);
-    return;
-  }
-  setChildren(els.completedRuns, completed.map((run) => runButton(run, "completed-button")));
+  setChildren(els.runList, state.runs.map((run) => runButton(run)));
+  setChildren(els.completedRuns, []);
 }
 
-function runButton(run, className) {
-  const button = el("button", `${className}${run.run_id === state.selectedRunId ? " is-selected" : ""}`);
+function runButton(run) {
+  const button = el("button", `run-button${run.run_id === state.selectedRunId ? " is-selected" : ""}`);
   button.type = "button";
   button.dataset.runId = run.run_id;
   button.setAttribute("aria-pressed", run.run_id === state.selectedRunId ? "true" : "false");
   button.addEventListener("click", () => selectRun(run.run_id));
 
-  const topline = el("div", className === "run-button" ? "run-topline" : "completed-topline");
-  topline.append(el("span", className === "run-button" ? "run-id" : "completed-id", text(run.run_id)));
+  const topline = el("div", "run-topline");
+  topline.append(el("span", "run-id", text(run.run_id)));
   topline.append(el("span", `badge health-${text(run.health, "progressing")}`, healthLabel(run.health)));
 
   button.append(
     topline,
-    el("div", className === "run-button" ? "run-summary" : "completed-summary", text(run.task_summary)),
-    el("div", className === "run-button" ? "run-meta" : "completed-meta", `${phaseLabel(run.phase)} · ${formatTime(run.updated_at)}`),
+    el("div", "run-summary", text(run.task_summary)),
+    el("div", "run-meta", `${phaseLabel(run.phase)} · ${formatTime(run.updated_at)}`),
   );
   return button;
 }
 
 function renderDetail() {
+  setChildren(els.runDetailHeading, []);
   if (state.runs.length === 0) {
     setChildren(els.runDetail, [empty("暂无运行记录")]);
     return;
@@ -355,41 +367,57 @@ function renderDetail() {
     nodes.push(errorNode(state.lastError));
   }
 
-  const layout = el("div", "detail-layout");
-  const overview = el("section", "detail-overview");
-  const summaryColumn = el("div", "detail-summary-column");
-  const acceptanceColumn = el("div", "detail-acceptance-column");
-  const fieldsColumn = el("div", "detail-fields-column");
-  overview.append(
-    el("div", "detail-label", "任务描述"),
-    el("div", "detail-overview-value", text(detail.task_description || detail.task_summary)),
+  const heading = el("div", "run-detail-title");
+  heading.append(
+    el("h2", "", text(detail.run_id)),
+    el("span", `badge health-${text(detail.health, "progressing")}`, healthLabel(detail.health)),
   );
-  summaryColumn.append(renderReaderSummary(detail));
-  acceptanceColumn.append(renderAcceptanceSummary(detail.acceptance_summary || {}));
+  setChildren(els.runDetailHeading, [heading]);
 
-  const fieldsPanel = el("section", "detail-fields-panel");
-  fieldsPanel.append(el("div", "detail-section-title", "运行字段详情"));
-  const grid = el("div", "detail-grid");
+  const summary = el("section", "run-summary-card");
+  summary.append(
+    el("div", "detail-section-title", "任务摘要"),
+    el("div", "task-summary-text", text(detail.task_description || detail.task_summary)),
+  );
+
+  const decision = detail.decision_summary || {};
+  const decisionGrid = el("div", "decision-grid");
   [
-    ["运行 ID", detail.run_id, "compact"],
-    ["策略", policyLabel(detail.policy), "compact"],
-    ["阶段", phaseLabel(detail.phase), "compact"],
-    ["健康状态", healthLabel(detail.health), "compact"],
-    ["下一动作", actionLabel(detail.next_action), "long"],
-    ["最后结果", resultLabel(detail.last_result), "long"],
-    ["停止条件", listText(detail.stop_conditions), "long"],
-    ["允许路径", listText(detail.allowed_paths || detail.artifact_paths), "long"],
-  ].forEach(([label, value, kind]) => {
-    const item = el("div", `detail-item detail-${kind}`);
-    const valueClass = kind === "long" ? "detail-value full" : "detail-value";
-    item.append(el("div", "detail-label", label), el("div", valueClass, text(value)));
-    grid.append(item);
+    ["当前进展", phaseLabel(detail.phase)],
+    ["下一步", actionLabel(detail.next_action)],
+    ["用户决策", decision.requires_user_decision ? "需要" : "不需要"],
+  ].forEach(([label, value]) => {
+    decisionGrid.append(summaryMetric(label, value));
   });
-  fieldsPanel.append(grid);
-  fieldsColumn.append(fieldsPanel);
-  layout.append(overview, summaryColumn, acceptanceColumn, fieldsColumn);
-  nodes.push(layout);
+  summary.append(decisionGrid);
+
+  const info = el("section", "run-info-card");
+  info.append(el("div", "detail-section-title", "运行信息"));
+  const infoGrid = el("div", "run-info-grid");
+  [
+    ["ID", detail.run_id],
+    ["策略", policyLabel(detail.policy)],
+    ["阶段", phaseLabel(detail.phase)],
+    ["健康状态", healthLabel(detail.health)],
+  ].forEach(([label, value]) => {
+    infoGrid.append(infoRow(label, value));
+  });
+  info.append(infoGrid);
+
+  nodes.push(summary, info);
   setChildren(els.runDetail, nodes);
+}
+
+function summaryMetric(label, value) {
+  const item = el("div", "summary-metric");
+  item.append(el("div", "summary-metric-label", label), el("div", "summary-metric-value", text(value)));
+  return item;
+}
+
+function infoRow(label, value) {
+  const row = el("div", "run-info-row");
+  row.append(el("span", "run-info-label", `${label}:`), el("span", "run-info-value", text(value)));
+  return row;
 }
 
 function renderReaderSummary(detail) {
@@ -453,6 +481,64 @@ function renderAcceptanceSummary(summary) {
   if (commands.length) {
     wrapper.append(labeledList("复跑命令", commands, "acceptance-list command-list"));
   }
+  return wrapper;
+}
+
+function renderTabs() {
+  if (!els.detailTabs) {
+    return;
+  }
+  const buttons = Array.from(els.detailTabs.querySelectorAll("[data-tab]"));
+  buttons.forEach((button) => {
+    const selected = button.dataset.tab === state.activeTab;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+    button.tabIndex = selected ? 0 : -1;
+  });
+  els.tabPanels.forEach((panel) => {
+    const tabName = panel.id.replace(/^tab-/, "");
+    const selected = tabName === state.activeTab;
+    panel.hidden = !selected;
+  });
+}
+
+function renderAcceptanceTab() {
+  if (!els.acceptanceContent) {
+    return;
+  }
+  if (!state.detail) {
+    setChildren(els.acceptanceContent, [empty("暂无结构化验收场景")]);
+    return;
+  }
+  setChildren(els.acceptanceContent, [renderAcceptanceSummary(state.detail.acceptance_summary || {})]);
+}
+
+function renderArtifacts() {
+  if (!els.artifactContent) {
+    return;
+  }
+  if (!state.detail) {
+    setChildren(els.artifactContent, [empty("暂无产物路径")]);
+    return;
+  }
+  const sections = [];
+  sections.push(artifactSection("运行产物", normalizeList(state.detail.artifact_paths)));
+  const flowPaths = [];
+  (Array.isArray(state.detail.flow_nodes) ? state.detail.flow_nodes : []).forEach((node) => {
+    flowPaths.push(...normalizeList(node.artifact_paths));
+  });
+  sections.push(artifactSection("流程产物", Array.from(new Set(flowPaths))));
+  const agentPaths = [];
+  Object.values(state.detail.agents || {}).forEach((agent) => {
+    agentPaths.push(...agentArtifactPaths(agent || {}));
+  });
+  sections.push(artifactSection("Agent 产物", Array.from(new Set(agentPaths))));
+  setChildren(els.artifactContent, sections);
+}
+
+function artifactSection(title, paths) {
+  const wrapper = el("section", "artifact-section");
+  wrapper.append(el("div", "detail-section-title", title), artifactList(paths));
   return wrapper;
 }
 
@@ -776,6 +862,12 @@ function setPollState(message) {
 els.kindFilter.addEventListener("change", renderLogs);
 els.agentFilter.addEventListener("change", () => setAgentFilter(els.agentFilter.value));
 els.keywordFilter.addEventListener("input", renderLogs);
+els.detailTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-tab]");
+  if (button) {
+    setActiveTab(button.dataset.tab);
+  }
+});
 
 refresh();
 state.pollTimer = window.setInterval(refresh, POLL_MS);

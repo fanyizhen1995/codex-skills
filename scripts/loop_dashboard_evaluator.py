@@ -18,12 +18,15 @@ from typing import Any
 
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
 CHECKED = [
-    "打开 Loop 看板并确认标题可见",
+    "打开 Loop Dashboard 并确认标题、项目路径和运行目录可见",
     "选择运行记录并查看完整任务摘要",
-    "查看 Planner、Generator、Evaluator 的状态说明",
+    "确认页面为左侧选运行、右侧看结论的两栏结构",
+    "通过 tabs 查看概览、Agent 结果、验收、日志、阻塞诊断和产物",
     "查看流程图中的当前阶段、跳过节点和人工合并节点",
-    "查看阻塞诊断中的 evaluator finding",
-    "按 Agent、日志类型和关键词过滤原始日志",
+    "查看 Planner、Generator、Evaluator 的状态说明",
+    "查看验收 tab 中的模拟用户验收场景",
+    "查看阻塞诊断 tab 中的 evaluator finding",
+    "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
     "确认敏感 token 在日志中被脱敏",
     "切换查看已完成、无需操作、预算耗尽和阻塞运行",
     "在 390px 移动端宽度确认页面没有横向溢出",
@@ -409,68 +412,38 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         try:
             page.goto(dashboard_url, wait_until="networkidle")
-            expect(page).to_have_title("Loop 看板")
-            expect(page.get_by_role("heading", name="Loop 看板")).to_be_visible()
+            expect(page).to_have_title("Loop Dashboard")
+            expect(page.get_by_role("heading", name="Loop Dashboard")).to_be_visible()
+            expect(page.get_by_test_id("project-status")).to_contain_text("项目：")
+            expect(page.get_by_test_id("project-status")).to_contain_text("运行目录：")
+            workbench_columns = page.locator(".workbench").evaluate(
+                "el => getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length"
+            )
+            if workbench_columns != 2:
+                raise AssertionError(f"dashboard should use two primary columns, got {workbench_columns}")
             expect(page.get_by_test_id("run-list")).to_contain_text("active-repair-run")
 
             page.get_by_role("button").filter(has_text="active-repair-run").first.click()
             detail = page.get_by_test_id("run-detail")
             expect(detail).to_contain_text("实现独立本地 Loop Dashboard")
             expect(detail).to_contain_text("需要修复")
-            expect(detail).to_contain_text("任务读者摘要")
-            expect(detail).to_contain_text("验收情况")
-            expect(detail).to_contain_text("自动修复后复验")
+            expect(detail).to_contain_text("任务摘要")
+            expect(detail).to_contain_text("当前进展")
+            expect(detail).to_contain_text("下一步")
+            expect(detail).to_contain_text("用户决策")
+            expect(detail).to_contain_text("运行信息")
             expect(detail).to_contain_text("用户决策不需要")
-            expect(detail).to_contain_text("模拟用户过滤日志时发现 stderr 过滤未按预期更新")
-            expect(detail).to_contain_text("选择日志类型 stderr")
-            expect(detail).to_contain_text("查看阻塞诊断中的 evaluator finding")
-            expect(detail).to_contain_text("修复日志过滤")
-            expect(detail.locator(".detail-layout")).to_have_count(1)
-            expect(detail.locator(".detail-overview")).to_have_count(1)
-            expect(detail.locator(".detail-overview")).to_contain_text("任务描述")
-            expect(detail.locator(".detail-summary-column > .reader-summary")).to_have_count(1)
-            expect(detail.locator(".detail-acceptance-column > .acceptance-summary")).to_have_count(1)
-            expect(detail.locator(".detail-fields-column .detail-fields-panel .detail-grid")).to_have_count(1)
-            expect(detail.locator(".detail-item.detail-compact")).to_have_count(4)
-            expect(detail.locator(".detail-item.detail-long")).to_have_count(4)
-            expect(detail.locator(".detail-fields-column")).to_contain_text("运行字段详情")
+            expect(detail.locator(".run-summary-card")).to_have_count(1)
+            expect(detail.locator(".decision-grid")).to_have_count(1)
+            expect(detail.locator(".run-info-grid")).to_have_count(1)
 
-            agent_cards = page.get_by_test_id("agent-cards")
-            expect(agent_cards).to_contain_text("Planner")
-            expect(agent_cards).to_contain_text("Generator")
-            expect(agent_cards).to_contain_text("Evaluator")
-            expect(agent_cards.locator(".agent-card-layout")).to_have_count(3)
-            expect(agent_cards.locator(".agent-main")).to_have_count(3)
-            expect(agent_cards.locator(".agent-long-fields")).to_have_count(3)
+            tabs = page.get_by_test_id("detail-tabs")
+            for tab_name in ["概览", "Agent结果", "验收", "日志", "阻塞诊断", "产物"]:
+                expect(tabs.get_by_role("tab", name=tab_name)).to_be_visible()
 
-            page.set_viewport_size({"width": 1440, "height": 950})
-            expect(detail.locator(".detail-layout")).to_have_count(1)
-            layout_metrics = page.evaluate(
-                """() => {
-                    const content = document.querySelector("#run-detail-content");
-                    const layout = document.querySelector(".detail-layout");
-                    const diagnostics = document.querySelector("[data-testid='blocked-diagnostics']");
-                    const rightPanel = diagnostics ? diagnostics.closest(".panel") : null;
-                    const rect = (node) => {
-                        const bounds = node.getBoundingClientRect();
-                        return { left: bounds.left, right: bounds.right, width: bounds.width };
-                    };
-                    return {
-                        content: rect(content),
-                        layout: rect(layout),
-                        rightPanel: rect(rightPanel),
-                    };
-                }"""
-            )
-            if layout_metrics["layout"]["right"] > layout_metrics["content"]["right"] + 1:
-                raise AssertionError(f"detail layout overflows its content column: {layout_metrics!r}")
-            if layout_metrics["layout"]["right"] > layout_metrics["rightPanel"]["left"] - 1:
-                raise AssertionError(f"detail layout overlaps the right dashboard column: {layout_metrics!r}")
-            overview_grid_column = detail.locator(".detail-overview").evaluate(
-                "el => `${getComputedStyle(el).gridColumnStart} / ${getComputedStyle(el).gridColumnEnd}`"
-            )
-            if overview_grid_column not in {"2 / -1", "2 / 4"}:
-                raise AssertionError(f"detail overview should span the right two columns, got {overview_grid_column!r}")
+            overview_tab = page.get_by_test_id("tab-overview")
+            expect(overview_tab).to_be_visible()
+            expect(page.get_by_test_id("tab-diagnostics")).not_to_be_visible()
 
             flow = page.get_by_test_id("flow-diagram")
             expect(flow).to_contain_text("Evaluator")
@@ -482,12 +455,41 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(flow.locator(".flow-node-body")).to_have_count(8)
             expect(flow.locator(".flow-node-long")).to_have_count(8)
 
-            diagnostics = page.get_by_test_id("blocked-diagnostics")
-            expect(diagnostics).to_contain_text("LD-001")
-
+            tabs.get_by_role("tab", name="Agent结果").click()
+            agent_cards = page.get_by_test_id("agent-cards")
+            expect(page.get_by_test_id("tab-agents")).to_be_visible()
+            expect(agent_cards).to_contain_text("Planner")
+            expect(agent_cards).to_contain_text("Generator")
+            expect(agent_cards).to_contain_text("Evaluator")
+            expect(agent_cards.locator(".agent-card-layout")).to_have_count(3)
+            expect(agent_cards.locator(".agent-main")).to_have_count(3)
+            expect(agent_cards.locator(".agent-long-fields")).to_have_count(3)
             expect(agent_cards).to_contain_text("apps/loop_dashboard/frontend/app.js")
+
+            tabs.get_by_role("tab", name="验收").click()
+            acceptance = page.get_by_test_id("tab-acceptance")
+            expect(acceptance).to_be_visible()
+            expect(acceptance).to_contain_text("验收情况")
+            expect(acceptance).to_contain_text("模拟用户过滤日志时发现 stderr 过滤未按预期更新")
+            expect(acceptance).to_contain_text("选择日志类型 stderr")
+            expect(acceptance).to_contain_text("修复日志过滤")
+
+            tabs.get_by_role("tab", name="阻塞诊断").click()
+            diagnostics = page.get_by_test_id("blocked-diagnostics")
+            expect(page.get_by_test_id("tab-diagnostics")).to_be_visible()
+            expect(diagnostics).to_contain_text("LD-001")
+            expect(diagnostics).to_contain_text("修复日志过滤")
+
+            tabs.get_by_role("tab", name="产物").click()
+            artifacts = page.get_by_test_id("tab-artifacts")
+            expect(artifacts).to_be_visible()
+            expect(artifacts).to_contain_text(".codex/loop-runs/active-repair-run/evaluator-result.json")
+            expect(artifacts).to_contain_text("apps/loop_dashboard/frontend/app.js")
+
+            tabs.get_by_role("tab", name="日志").click()
             page.get_by_test_id("agent-filter").select_option("generator")
             log_list = page.get_by_test_id("log-list")
+            expect(page.get_by_test_id("tab-logs")).to_be_visible()
             expect(log_list).to_contain_text("Generator stderr")
             expect(log_list).not_to_contain_text("Planner:")
 
@@ -511,8 +513,9 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 "实现独立本地 Loop Dashboard，用于中文可视化监控当前项目 Planner Generator Evaluator loop、"
                 "agent、skill、日志、完成态和阻塞诊断；本次还需要验证开发流程并修复流程 bug。"
             )
-            expect(detail).to_contain_text("等待用户确认合入")
+            expect(detail).to_contain_text("等待人工合并确认")
             expect(detail).to_contain_text("用户决策")
+            tabs.get_by_role("tab", name="概览").click()
             expect(flow).to_contain_text("Repair Needed")
             expect(flow).to_contain_text("跳过")
             expect(flow).to_contain_text("本次未触发")
@@ -522,7 +525,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
 
             page.set_viewport_size({"width": 390, "height": 900})
             page.goto(dashboard_url, wait_until="networkidle")
-            expect(page.get_by_role("heading", name="Loop 看板")).to_be_visible()
+            expect(page.get_by_role("heading", name="Loop Dashboard")).to_be_visible()
             overflow = page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth")
             if overflow:
                 raise AssertionError("dashboard has horizontal overflow at 390px viewport width")
