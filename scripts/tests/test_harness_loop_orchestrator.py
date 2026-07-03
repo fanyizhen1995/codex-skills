@@ -2986,6 +2986,54 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             parent_events = (run_dir_for(repo_root, "resume-parent") / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("resume", parent_events)
 
+    def test_run_demand_multi_resume_reconciles_passed_child_acceptance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            self._create_parent(repo_root, "resume-reconcile-parent")
+            first = run_demand_multi(
+                repo_root=repo_root,
+                run_id="resume-reconcile-parent",
+                planner_driver="fake",
+                generator_driver="fake-stop-after-child-1",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+            self.assertEqual(first["phase"], "child_running")
+            parent_before = read_json_file(run_dir_for(repo_root, "resume-reconcile-parent") / "run.json")
+            first_child = parent_before["child_run_ids"][0]
+            parent_before["aggregate_acceptance"]["passed"] = 0
+            parent_before["aggregate_acceptance"]["pending"] = parent_before["aggregate_acceptance"]["total"]
+            parent_before["accepted_changed_paths"] = []
+            parent_before["phase"] = "child_running"
+            parent_before["current_child_run_id"] = first_child
+            parent_before["next_action"] = "resume_current_child"
+            write_json_file(run_dir_for(repo_root, "resume-reconcile-parent") / "run.json", parent_before)
+
+            second = run_demand_multi(
+                repo_root=repo_root,
+                run_id="resume-reconcile-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+
+            parent_after = read_json_file(run_dir_for(repo_root, "resume-reconcile-parent") / "run.json")
+            self.assertEqual(second["phase"], "passed_waiting_human_merge")
+            self.assertEqual(parent_after["phase"], "passed_waiting_human_merge")
+            self.assertEqual(parent_after["child_run_ids"][0], first_child)
+            self.assertEqual(len(parent_after["child_run_ids"]), 3)
+            self.assertEqual(parent_after["aggregate_acceptance"]["passed"], 3)
+            self.assertEqual(parent_after["aggregate_acceptance"]["pending"], 0)
+            self.assertIn("generated/child-001.txt", parent_after["accepted_changed_paths"])
+            self.assertEqual(parent_after["accepted_changed_paths"].count("generated/child-001.txt"), 1)
+            parent_events = (run_dir_for(repo_root, "resume-reconcile-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("resume", parent_events)
+            self.assertNotIn("unexpected dirty path", parent_events)
+
 
 if __name__ == "__main__":
     unittest.main()

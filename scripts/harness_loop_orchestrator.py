@@ -282,6 +282,24 @@ def _block_child(repo_root: Path, child: dict[str, Any], reason: str, *, actor: 
     return status_for_run(repo_root, child["run_id"])
 
 
+def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> dict[str, Any]:
+    parent = _ensure_parent_fields(parent)
+    accepted = set(parent["accepted_changed_paths"])
+    passed_count = 0
+    for child_run_id in parent["child_run_ids"]:
+        child = load_run(repo_root, str(child_run_id))
+        if child.get("phase") != "passed":
+            continue
+        passed_count += 1
+        generator_result = read_json_file(run_dir_for(repo_root, child["run_id"]) / "generator-result.json")
+        validate_generator_result_payload(generator_result)
+        accepted.update(str(path) for path in generator_result["changed_paths"])
+    parent["accepted_changed_paths"] = sorted(accepted)
+    parent["aggregate_acceptance"]["passed"] = passed_count
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
+    return parent
+
+
 def _create_child_run(
     repo_root: Path,
     parent: dict[str, Any],
@@ -1345,8 +1363,12 @@ def run_demand_multi(
                 child_id=f"child-{int(current_child['child_index']):03d}",
                 details={"child_run_id": current_child["run_id"]},
             )
+            parent = _reconcile_passed_demand_children(root, parent)
             parent["phase"] = "planning"
             parent["next_action"] = "run_parent_planner"
+            parent["reader_summary"]["current_progress"] = f"{parent['aggregate_acceptance']['passed']} children passed"
+            parent["reader_summary"]["next_step"] = "Run parent planner"
+            parent["reader_summary"]["decision_needed"] = "No"
             save_run(root, parent)
             continue
         if max_children < 1:
