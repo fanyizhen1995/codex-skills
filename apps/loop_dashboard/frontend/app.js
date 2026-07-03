@@ -29,6 +29,16 @@ const STATUS_LABELS = {
   skipped: "跳过",
 };
 
+const ACCEPTANCE_LABELS = {
+  pass: "通过",
+  passed: "通过",
+  fail: "失败",
+  failed: "失败",
+  blocked: "阻塞",
+  missing: "未发现",
+  unknown: "未知",
+};
+
 const AGENT_LABELS = {
   planner: "Planner",
   generator: "Generator",
@@ -80,6 +90,20 @@ function healthLabel(health) {
 
 function statusLabel(status) {
   return STATUS_LABELS[status] || text(status);
+}
+
+function acceptanceLabel(status) {
+  return ACCEPTANCE_LABELS[status] || text(status, "未知");
+}
+
+function acceptanceStatusClass(status) {
+  if (["pass", "passed"].includes(status)) {
+    return "done";
+  }
+  if (["fail", "failed", "blocked"].includes(status)) {
+    return "blocked";
+  }
+  return "waiting";
 }
 
 function setChildren(parent, children) {
@@ -330,6 +354,8 @@ function renderDetail() {
   if (state.lastError) {
     nodes.push(errorNode(state.lastError));
   }
+  nodes.push(renderReaderSummary(detail));
+  nodes.push(renderAcceptanceSummary(detail.acceptance_summary || {}));
   const grid = el("div", "detail-grid");
   [
     ["任务描述", detail.task_description || detail.task_summary, "wide"],
@@ -349,6 +375,70 @@ function renderDetail() {
   });
   nodes.push(grid);
   setChildren(els.runDetail, nodes);
+}
+
+function renderReaderSummary(detail) {
+  const decision = detail.decision_summary || {};
+  const wrapper = el("section", `reader-summary${decision.requires_user_decision ? " needs-decision" : ""}`);
+  const titleRow = el("div", "reader-summary-title");
+  titleRow.append(
+    el("span", "", "任务读者摘要"),
+    el("span", `badge ${decision.requires_user_decision ? "status-running" : "status-done"}`, text(decision.decision_label, "无需用户决策")),
+  );
+  const objective = el("div", "reader-objective", text(detail.task_description || detail.task_summary));
+  const facts = el("div", "reader-facts");
+  [
+    ["当前进展", phaseLabel(detail.phase)],
+    ["下一步", actionLabel(detail.next_action)],
+    ["用户决策", decision.requires_user_decision ? "需要" : "不需要"],
+    ["原因", resultLabel(decision.reason)],
+  ].forEach(([label, value]) => {
+    const item = el("div", "reader-fact");
+    item.append(el("div", "reader-fact-label", label), el("div", "reader-fact-value", value));
+    facts.append(item);
+  });
+  wrapper.append(titleRow, objective, facts);
+  return wrapper;
+}
+
+function renderAcceptanceSummary(summary) {
+  const wrapper = el("section", "acceptance-summary");
+  const titleRow = el("div", "reader-summary-title");
+  titleRow.append(
+    el("span", "", "验收情况"),
+    el("span", `badge status-${acceptanceStatusClass(summary.status)}`, acceptanceLabel(summary.status)),
+  );
+  wrapper.append(titleRow);
+
+  const scenarios = Array.isArray(summary.scenarios) ? summary.scenarios : [];
+  if (scenarios.length) {
+    const list = el("div", "acceptance-scenarios");
+    scenarios.forEach((scenario) => {
+      const item = el("article", "acceptance-scenario");
+      item.append(
+        el("div", "acceptance-scenario-title", `${text(scenario.scenario_id || scenario.id, "未命名场景")} · ${acceptanceLabel(scenario.status)}`),
+        el("div", "acceptance-scenario-summary", text(scenario.summary || scenario.user_goal || scenario.description, "暂无场景说明")),
+      );
+      list.append(item);
+    });
+    wrapper.append(list);
+  } else {
+    wrapper.append(empty("暂无结构化验收场景。Evaluator 运行后会在这里显示模拟用户验收内容。"));
+  }
+
+  const checked = normalizeList(summary.checked);
+  if (checked.length) {
+    wrapper.append(labeledList("已模拟检查的页面能力", checked, "acceptance-list"));
+  }
+  const evidence = normalizeList(summary.evidence);
+  if (evidence.length) {
+    wrapper.append(labeledList("验收证据", evidence, "acceptance-list evidence-list"));
+  }
+  const commands = normalizeList(summary.rerun_commands);
+  if (commands.length) {
+    wrapper.append(labeledList("复跑命令", commands, "acceptance-list command-list"));
+  }
+  return wrapper;
 }
 
 function renderFlow() {
@@ -491,6 +581,19 @@ function artifactList(paths, className = "artifact-list") {
   normalized.forEach((path) => {
     const item = el("li", "", path);
     item.title = path;
+    list.append(item);
+  });
+  wrapper.append(list);
+  return wrapper;
+}
+
+function labeledList(titleText, values, className) {
+  const wrapper = el("div", className);
+  wrapper.append(el("div", "artifact-title", titleText));
+  const list = el("ul", "artifact-items");
+  values.forEach((value) => {
+    const item = el("li", "", value);
+    item.title = value;
     list.append(item);
   });
   wrapper.append(list);

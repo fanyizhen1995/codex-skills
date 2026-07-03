@@ -195,6 +195,204 @@ def test_detail_keeps_full_task_description_while_list_uses_short_summary(tmp_pa
     assert detail["task_description"] == full_requirement
 
 
+def test_detail_includes_decision_and_acceptance_summaries_for_passed_run(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "accepted-run",
+        "passed_waiting_human_merge",
+        last_result="pass",
+        next_action="await_human_merge_confirmation",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "accepted-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["final_bundle_id"] = "bundle-pass"
+    evaluator_result["scenario_results"] = [
+        {
+            "scenario_id": "api-summary",
+            "status": "pass",
+            "summary": "API includes summaries",
+        }
+    ]
+    evaluator_result["rerun_commands"] = ["pytest -q apps/loop_dashboard/backend/tests/test_store.py"]
+    evaluator_result["environment_checks"] = [{"name": "backend pytest", "status": "pass"}]
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+    write_json(
+        tmp_path / ".codex" / "evaluations" / "tasks" / "loop-dashboard-dev-01" / "bundle-pass" / "result.json",
+        {
+            "status": "pass",
+            "scenario_id": "browser-acceptance",
+            "checked": ["任务摘要", {"label": "验收场景"}],
+            "scenario_results": [
+                {
+                    "scenario_id": "browser-acceptance",
+                    "status": "pass",
+                    "summary": "Dashboard shows human-readable acceptance",
+                }
+            ],
+            "browser_evidence": [
+                "summary panel visible",
+                {"text": "Authorization: Bearer browser-secret"},
+            ],
+        },
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("accepted-run")
+
+    assert detail["decision_summary"] == {
+        "requires_user_decision": True,
+        "decision_label": "等待用户确认合入",
+        "next_action": "await_human_merge_confirmation",
+        "reason": "通过",
+    }
+    assert detail["acceptance_summary"]["status"] == "pass"
+    assert detail["acceptance_summary"]["scenarios"] == [
+        {
+            "scenario_id": "browser-acceptance",
+            "status": "pass",
+            "summary": "Dashboard shows human-readable acceptance",
+        },
+        {
+            "scenario_id": "api-summary",
+            "status": "pass",
+            "summary": "API includes summaries",
+        },
+    ]
+    assert detail["acceptance_summary"]["checked"] == ["任务摘要", "验收场景"]
+    assert "pytest -q apps/loop_dashboard/backend/tests/test_store.py" in detail["acceptance_summary"]["rerun_commands"]
+    evidence = json.dumps(detail["acceptance_summary"]["evidence"], ensure_ascii=False)
+    assert "summary panel visible" in evidence
+    assert "backend pytest" in evidence
+    assert "Authorization: Bearer [REDACTED]" in evidence
+    assert "browser-secret" not in evidence
+
+
+def test_detail_includes_user_decision_and_redacted_finding_evidence_for_repair_run(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "repair-summary-run",
+        "repair_needed",
+        last_result="fail",
+        next_action="repair_from_evaluator_findings",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "repair-summary-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["findings"] = [
+        {
+            "id": "LD-SECRET",
+            "severity": "major",
+            "summary": "Log filter failed",
+            "evidence": ["api_key=finding-secret", {"stdout": "token=object-secret"}],
+            "recommended_action": "修复日志过滤",
+        }
+    ]
+    evaluator_result["scenario_results"] = [
+        {"scenario_id": "log-filter", "status": "fail", "summary": "Log filter did not update"}
+    ]
+    evaluator_result["rerun_commands"] = ["python3 scripts/loop_dashboard_evaluator.py"]
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+
+    detail = LoopDashboardStore(tmp_path).get_run("repair-summary-run")
+
+    assert detail["decision_summary"]["requires_user_decision"] is False
+    assert detail["decision_summary"]["decision_label"] == "自动修复后复验"
+    assert detail["decision_summary"]["next_action"] == "repair_from_evaluator_findings"
+    assert detail["decision_summary"]["reason"] == "需要修复"
+    assert detail["acceptance_summary"]["status"] == "fail"
+    assert detail["acceptance_summary"]["scenarios"] == [
+        {"scenario_id": "log-filter", "status": "fail", "summary": "Log filter did not update"}
+    ]
+    evidence = json.dumps(detail["acceptance_summary"]["evidence"], ensure_ascii=False)
+    assert "LD-SECRET" in evidence
+    assert "修复日志过滤" in evidence
+    assert "api_key=[REDACTED]" in evidence
+    assert "token=[REDACTED]" in evidence
+    assert "finding-secret" not in evidence
+    assert "object-secret" not in evidence
+    assert detail["acceptance_summary"]["rerun_commands"] == ["python3 scripts/loop_dashboard_evaluator.py"]
+
+
+def test_acceptance_summary_redacts_finding_titles_and_includes_scenario_evidence(tmp_path: Path) -> None:
+    seed_run(tmp_path, "redaction-run", "repair_needed", last_result="fail", next_action="run_generator_repair")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "redaction-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["findings"] = [
+        {
+            "id": "token=title-secret",
+            "evidence": ["visible evidence"],
+            "recommended_action": "修复验收摘要",
+        }
+    ]
+    evaluator_result["scenario_results"] = [
+        {
+            "scenario_id": "scenario-evidence",
+            "status": "fail",
+            "summary": "Scenario evidence should be visible",
+            "evidence": ["点击运行详情", "Authorization: Bearer scenario-secret"],
+        }
+    ]
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+
+    detail = LoopDashboardStore(tmp_path).get_run("redaction-run")
+    evidence = json.dumps(detail["acceptance_summary"]["evidence"], ensure_ascii=False)
+
+    assert "token=[REDACTED]" in evidence
+    assert "title-secret" not in evidence
+    assert "点击运行详情" in evidence
+    assert "Authorization: Bearer [REDACTED]" in evidence
+    assert "scenario-secret" not in evidence
+
+
+def test_acceptance_summary_falls_back_to_scenario_contract_for_older_results(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "contract-fallback-run",
+        "passed_waiting_human_merge",
+        last_result="pass",
+        next_action="await_human_merge_confirmation",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "contract-fallback-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["scenario_results"] = [
+        {"scenario_id": "CONTRACT-SCENARIO", "status": "pass", "evidence": ["summary.md#CONTRACT-SCENARIO"]}
+    ]
+    evaluator_result["summary"] = ""
+    evaluator_result["verdict_reason"] = ""
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+    write_json(
+        tmp_path / "docs" / "harness" / "evaluator-scenarios" / "loop-dashboard-dev-01.json",
+        {
+            "task_id": "loop-dashboard-dev-01",
+            "must_simulate": True,
+            "user_scenarios": [
+                {
+                    "scenario_id": "CONTRACT-SCENARIO",
+                    "user_goal": "作为操作者打开看板并确认任务、流程和日志都可读。",
+                    "steps": ["打开看板", "点击运行", "过滤日志"],
+                    "expected_outcomes": ["详情可见", "日志已脱敏"],
+                    "entrypoint": "python3 scripts/loop_dashboard_evaluator.py",
+                }
+            ],
+        },
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("contract-fallback-run")
+
+    assert detail["acceptance_summary"]["scenarios"] == [
+        {
+            "scenario_id": "CONTRACT-SCENARIO",
+            "status": "pass",
+            "summary": "作为操作者打开看板并确认任务、流程和日志都可读。",
+        }
+    ]
+    assert detail["acceptance_summary"]["checked"] == ["打开看板", "点击运行", "过滤日志"]
+    assert detail["acceptance_summary"]["evidence"] == [
+        "CONTRACT-SCENARIO: summary.md#CONTRACT-SCENARIO",
+        "详情可见",
+        "日志已脱敏",
+    ]
+    assert detail["acceptance_summary"]["rerun_commands"] == ["python3 scripts/loop_dashboard_evaluator.py"]
+
+
 def test_detail_includes_flow_nodes_events_and_redacted_logs(tmp_path: Path) -> None:
     seed_run(tmp_path, "active-run", "repair_needed", last_result="fail", next_action="run_generator_repair")
 

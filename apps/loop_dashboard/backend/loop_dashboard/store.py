@@ -59,6 +59,13 @@ class LoopDashboardStore:
             run_data = {}
         if not isinstance(planner, dict):
             planner = {}
+        evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
+        if not isinstance(evaluator, dict):
+            evaluator = {}
+        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        if not isinstance(rich_evaluator, dict):
+            rich_evaluator = {}
+        scenario_contract = self._scenario_contract(evaluator)
         summary.update(
             {
                 "constraints": run_data.get("constraints", []),
@@ -67,6 +74,8 @@ class LoopDashboardStore:
                 "limits": run_data.get("limits", {}),
                 "allowed_paths": planner.get("allowed_paths", run_data.get("allowed_paths", [])),
                 "denylist_paths": planner.get("denylist_paths", run_data.get("denylist_paths", [])),
+                "decision_summary": self._decision_summary(run_data, evaluator, rich_evaluator),
+                "acceptance_summary": self._acceptance_summary(evaluator, rich_evaluator, scenario_contract),
                 "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
             }
         )
@@ -424,6 +433,302 @@ class LoopDashboardStore:
                 }
             )
         return diagnostics
+
+    def _decision_summary(
+        self,
+        run_data: dict[str, Any],
+        evaluator: dict[str, Any],
+        rich_evaluator: dict[str, Any],
+    ) -> dict[str, Any]:
+        phase = str(run_data.get("phase") or "unknown")
+        next_action = str(run_data.get("next_action") or "")
+        reason = self._first_text(
+            rich_evaluator.get("verdict_reason"),
+            rich_evaluator.get("summary"),
+            evaluator.get("verdict_reason"),
+            evaluator.get("summary"),
+            run_data.get("last_result"),
+            next_action,
+            phase,
+        )
+
+        labels = {
+            "passed_waiting_human_merge": (True, "等待用户确认合入"),
+            "stopped_blocked": (True, "需要处理阻塞"),
+            "invalid_artifact": (True, "需要处理无效产物"),
+            "stopped_no_action": (False, "无需进一步操作"),
+            "stopped_budget": (False, "预算耗尽"),
+        }
+        if phase == "repair_needed":
+            if next_action and "human" not in next_action.lower() and "manual" not in next_action.lower():
+                requires_user_decision, decision_label = False, "自动修复后复验"
+            else:
+                requires_user_decision, decision_label = True, "需要修复后再验收"
+        else:
+            requires_user_decision, decision_label = labels.get(phase, (False, "继续自动执行"))
+        return {
+            "requires_user_decision": requires_user_decision,
+            "decision_label": decision_label,
+            "next_action": next_action,
+            "reason": self._trim(redact_text(reason), 160),
+        }
+
+    def _acceptance_summary(
+        self,
+        evaluator: dict[str, Any],
+        rich_evaluator: dict[str, Any],
+        scenario_contract: dict[str, Any],
+    ) -> dict[str, Any]:
+        primary = rich_evaluator if rich_evaluator else evaluator
+        fallback = evaluator if primary is rich_evaluator else rich_evaluator
+        return {
+            "status": self._first_text(primary.get("status"), fallback.get("status")),
+            "scenarios": self._acceptance_scenarios(primary, fallback, scenario_contract),
+            "checked": self._acceptance_checked(primary, fallback, scenario_contract),
+            "evidence": self._acceptance_evidence(primary, fallback, scenario_contract),
+            "rerun_commands": self._acceptance_rerun_commands(primary, fallback, scenario_contract),
+        }
+
+    def _acceptance_scenarios(
+        self,
+        primary: dict[str, Any],
+        fallback: dict[str, Any],
+        scenario_contract: dict[str, Any],
+    ) -> list[dict[str, str]]:
+        scenarios = self._dedupe_scenarios(
+            [
+                *self._scenario_summaries(primary.get("scenario_results")),
+                *self._scenario_summaries(fallback.get("scenario_results")),
+            ]
+        )
+        contract_by_id = self._contract_scenarios_by_id(scenario_contract)
+        for scenario in scenarios:
+            scenario_id = scenario.get("scenario_id", "")
+            contract = contract_by_id.get(scenario_id, {})
+            if not scenario.get("summary") and contract:
+                scenario["summary"] = self._trim(redact_text(str(contract.get("user_goal") or "")), 180)
+        if not scenarios:
+            scenario_id = self._first_text(primary.get("scenario_id"), fallback.get("scenario_id"))
+            if scenario_id:
+                contract = contract_by_id.get(scenario_id, {})
+                scenarios.append(
+                    {
+                        "scenario_id": scenario_id,
+                        "status": self._first_text(primary.get("status"), fallback.get("status")),
+                        "summary": self._first_text(
+                            primary.get("summary"),
+                            primary.get("verdict_reason"),
+                            fallback.get("summary"),
+                            fallback.get("verdict_reason"),
+                            contract.get("user_goal") if isinstance(contract, dict) else "",
+                        ),
+                    }
+                )
+        return scenarios
+
+    def _dedupe_scenarios(self, scenarios: list[dict[str, str]]) -> list[dict[str, str]]:
+        unique: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for scenario in scenarios:
+            key = (
+                scenario.get("scenario_id", ""),
+                scenario.get("status", ""),
+                scenario.get("summary", ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(scenario)
+        return unique
+
+    def _scenario_summaries(self, value: Any) -> list[dict[str, str]]:
+        if not isinstance(value, list):
+            return []
+        scenarios: list[dict[str, str]] = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            scenarios.append(
+                {
+                    "scenario_id": self._first_text(item.get("scenario_id"), item.get("id"), item.get("name")),
+                    "status": self._first_text(item.get("status"), item.get("verdict"), item.get("outcome")),
+                    "summary": self._trim(
+                        redact_text(
+                            self._first_text(
+                                item.get("summary"),
+                                item.get("verdict_reason"),
+                                item.get("message"),
+                                item.get("title"),
+                            )
+                        ),
+                        180,
+                    ),
+                }
+            )
+        return scenarios
+
+    def _acceptance_checked(self, primary: dict[str, Any], fallback: dict[str, Any], scenario_contract: dict[str, Any]) -> list[str]:
+        checked = self._checked_items(primary.get("checked"))
+        if not checked:
+            checked = self._checked_items(fallback.get("checked"))
+        if not checked:
+            checked = self._contract_list_items(scenario_contract, "steps")
+        return checked
+
+    def _checked_items(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        checked: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                checked.append(self._trim(redact_text(item), 120))
+            elif isinstance(item, dict):
+                checked.append(
+                    self._trim(
+                        redact_text(
+                            self._first_text(
+                                item.get("label"),
+                                item.get("name"),
+                                item.get("id"),
+                                item.get("text"),
+                                item.get("summary"),
+                                json.dumps(item, ensure_ascii=False),
+                            )
+                        ),
+                        120,
+                    )
+                )
+            elif item is not None:
+                checked.append(self._trim(redact_text(str(item)), 120))
+        return self._unique_nonempty(checked)
+
+    def _acceptance_evidence(self, primary: dict[str, Any], fallback: dict[str, Any], scenario_contract: dict[str, Any]) -> list[str]:
+        evidence: list[str] = []
+        for payload in (primary, fallback):
+            evidence.extend(self._scenario_evidence(payload.get("scenario_results")))
+            evidence.extend(self._short_evidence_items(payload.get("browser_evidence")))
+            evidence.extend(self._environment_check_evidence(payload.get("environment_checks")))
+            evidence.extend(self._finding_evidence(payload.get("findings")))
+        evidence.extend(self._contract_list_items(scenario_contract, "expected_outcomes"))
+        return self._unique_nonempty(evidence)
+
+    def _short_evidence_items(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [self._evidence_text(item) for item in value]
+
+    def _environment_check_evidence(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [f"environment_check: {self._evidence_text(item)}" for item in value]
+
+    def _scenario_evidence(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        evidence: list[str] = []
+        for scenario in value:
+            if not isinstance(scenario, dict):
+                continue
+            scenario_id = self._first_text(scenario.get("scenario_id"), scenario.get("id"), scenario.get("name"), "scenario")
+            for item in self._short_evidence_items(scenario.get("evidence")):
+                evidence.append(self._trim(f"{redact_text(scenario_id)}: {item}", 220))
+        return evidence
+
+    def _finding_evidence(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        evidence: list[str] = []
+        for finding in value:
+            if not isinstance(finding, dict):
+                continue
+            title = self._first_text(finding.get("id"), finding.get("category"), finding.get("summary"), "finding")
+            redacted_title = redact_text(title)
+            action = self._first_text(finding.get("recommended_action"), finding.get("summary"))
+            if action:
+                evidence.append(self._trim(f"{redacted_title}: {redact_text(action)}", 220))
+            for item in self._redacted_evidence(finding.get("evidence", [])):
+                evidence.append(self._trim(f"{redacted_title}: {item}", 220))
+        return evidence
+
+    def _acceptance_rerun_commands(self, primary: dict[str, Any], fallback: dict[str, Any], scenario_contract: dict[str, Any]) -> list[str]:
+        commands: list[str] = []
+        for payload in (primary, fallback):
+            value = payload.get("rerun_commands")
+            if not isinstance(value, list):
+                continue
+            for item in value:
+                if isinstance(item, str):
+                    commands.append(self._trim(redact_text(item), 220))
+        if not commands:
+            for scenario in self._contract_user_scenarios(scenario_contract):
+                entrypoint = scenario.get("entrypoint")
+                if isinstance(entrypoint, str) and entrypoint:
+                    commands.append(self._trim(redact_text(entrypoint), 220))
+        return self._unique_nonempty(commands)
+
+    def _scenario_contract(self, evaluator: dict[str, Any]) -> dict[str, Any]:
+        task_id = evaluator.get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            return {}
+        try:
+            path = safe_join(self.project_root / "docs" / "harness" / "evaluator-scenarios", f"{task_id}.json")
+        except ValueError:
+            return {}
+        payload = self._read_json(path, allowed_root=self.project_root)
+        return payload if isinstance(payload, dict) else {}
+
+    def _contract_scenarios_by_id(self, scenario_contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        scenarios: dict[str, dict[str, Any]] = {}
+        for scenario in self._contract_user_scenarios(scenario_contract):
+            scenario_id = scenario.get("scenario_id")
+            if isinstance(scenario_id, str) and scenario_id:
+                scenarios[scenario_id] = scenario
+        return scenarios
+
+    def _contract_user_scenarios(self, scenario_contract: dict[str, Any]) -> list[dict[str, Any]]:
+        value = scenario_contract.get("user_scenarios")
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]
+
+    def _contract_list_items(self, scenario_contract: dict[str, Any], key: str) -> list[str]:
+        values: list[str] = []
+        for scenario in self._contract_user_scenarios(scenario_contract):
+            items = scenario.get(key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, str):
+                    values.append(self._trim(redact_text(item), 180))
+                elif item is not None:
+                    values.append(self._evidence_text(item))
+        return self._unique_nonempty(values)
+
+    def _evidence_text(self, value: Any) -> str:
+        if isinstance(value, str):
+            raw = value
+        else:
+            raw = json.dumps(value, ensure_ascii=False)
+        return self._trim(redact_text(raw), 220)
+
+    def _first_text(self, *values: Any) -> str:
+        for value in values:
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+        return ""
+
+    def _unique_nonempty(self, values: list[str]) -> list[str]:
+        unique: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            unique.append(value)
+        return unique
 
     def _evaluator_diagnostics(self, evaluator: dict[str, Any], path: Path) -> list[dict[str, Any]]:
         diagnostics: list[dict[str, Any]] = []

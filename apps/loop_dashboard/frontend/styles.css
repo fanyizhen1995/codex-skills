@@ -284,6 +284,90 @@ button {
   border-color: #efaaa5;
 }
 
+.reader-summary,
+.acceptance-summary {
+  margin-bottom: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-alt);
+}
+
+.reader-summary.needs-decision {
+  border-color: #efc875;
+  background: #fffaf0;
+}
+
+.reader-summary-title {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.reader-objective {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.reader-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reader-fact {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.reader-fact-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reader-fact-value {
+  margin-top: 3px;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.acceptance-scenarios,
+.acceptance-list {
+  display: grid;
+  gap: 7px;
+}
+
+.acceptance-scenario {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.acceptance-scenario-title {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.acceptance-scenario-summary {
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -594,6 +678,7 @@ button {
   }
 
   .detail-grid,
+  .reader-facts,
   .filters {
     grid-template-columns: 1fr;
   }

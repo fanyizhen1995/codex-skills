@@ -4,42 +4,42 @@
   "user_scenarios": [
     {
       "scenario_id": "LOOP-DASHBOARD-CLICK-SMOKE",
-      "user_goal": "As an operator, open the local Loop Dashboard, select loop runs, inspect task and agent summaries, view the visual flow, filter logs, and confirm completed runs are visible.",
+      "user_goal": "作为操作者，打开本地 Loop 看板，选择运行记录，查看任务与 Agent 摘要、流程图、日志过滤结果，并确认已完成运行可见。",
       "prerequisites": [
-        "FastAPI, uvicorn, and Playwright for Python are available.",
-        "The Playwright Chromium browser has been installed.",
-        "The evaluator creates temporary loop-run fixture data and does not mutate real project artifacts."
+        "FastAPI、uvicorn 和 Python Playwright 可用。",
+        "Playwright Chromium 浏览器已安装。",
+        "Evaluator 会创建临时 loop-run fixture 数据，不会修改真实项目产物。"
       ],
       "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01",
       "steps": [
-        "Create fixture loop runs covering active repair, passed_waiting_human_merge, stopped_no_action, stopped_budget, and stopped_blocked states.",
-        "Start the dashboard backend against the temporary fixture project root.",
-        "Open the dashboard in a browser.",
-        "Click the active run and verify task description, phase, next action, agent cards, blocked diagnostics, and flow diagram.",
-        "Filter logs by stderr and by keyword.",
-        "Click completed runs and verify their terminal states remain visible.",
-        "Check a mobile-width viewport for horizontal overflow."
+        "创建覆盖 active repair、passed_waiting_human_merge、stopped_no_action、stopped_budget 和 stopped_blocked 状态的 fixture 运行记录。",
+        "针对临时 fixture 项目根目录启动 dashboard backend。",
+        "在浏览器中打开看板。",
+        "点击运行记录，验证任务描述、阶段、下一动作、Agent 卡片、阻塞诊断和流程图。",
+        "按 stderr 类型和关键词过滤日志。",
+        "点击已完成运行，验证终态记录仍然可见。",
+        "在移动端宽度检查页面没有横向溢出。"
       ],
       "expected_outcomes": [
-        "The dashboard page renders in Chinese.",
-        "Run selection updates detail, flow diagram, agent cards, logs, and diagnostics.",
-        "Completed runs are visible.",
-        "Log text is redacted before display.",
-        "A 390px-wide viewport has no horizontal document overflow.",
-        "The evaluator writes result.json with status pass and compact browser evidence.",
-        "The evaluator saves success.png as passing browser evidence."
+        "看板页面以中文渲染。",
+        "选择运行后，详情、流程图、Agent 卡片、日志和诊断同步更新。",
+        "已完成运行可见。",
+        "日志文本展示前已脱敏。",
+        "390px 宽视口没有页面级横向溢出。",
+        "Evaluator 写入 status 为 pass 的 result.json 和浏览器证据摘要。",
+        "Evaluator 保存 success.png 作为通过的浏览器证据。"
       ],
       "failure_signals": [
-        "The frontend reports failed to fetch.",
-        "Clicking a run does not update detail.",
-        "Planner, Generator, or Evaluator summaries are missing.",
-        "Log filtering does not change visible entries.",
-        "Completed run states are hidden.",
-        "The mobile-width viewport overflows horizontally."
+        "前端报告 failed to fetch。",
+        "点击运行记录后详情不更新。",
+        "Planner、Generator 或 Evaluator 摘要缺失。",
+        "日志过滤没有改变可见条目。",
+        "已完成运行状态被隐藏。",
+        "移动端宽度出现页面级横向溢出。"
       ],
       "cleanup": [
-        "Stop the temporary dashboard server.",
-        "Remove temporary fixture directories after writing evaluator evidence."
+        "停止临时 dashboard server。",
+        "写入 evaluator 证据后移除临时 fixture 目录。"
       ],
       "automation_hint": "playwright"
     }

@@ -17,7 +17,17 @@ from typing import Any
 
 
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
-CHECKED = ["run-list", "run-detail", "flow-diagram", "agent-cards", "logs", "completed-runs"]
+CHECKED = [
+    "打开 Loop 看板并确认标题可见",
+    "选择运行记录并查看完整任务摘要",
+    "查看 Planner、Generator、Evaluator 的状态说明",
+    "查看流程图中的当前阶段、跳过节点和人工合并节点",
+    "查看阻塞诊断中的 evaluator finding",
+    "按 Agent、日志类型和关键词过滤原始日志",
+    "确认敏感 token 在日志中被脱敏",
+    "切换查看已完成、无需操作、预算耗尽和阻塞运行",
+    "在 390px 移动端宽度确认页面没有横向溢出",
+]
 
 
 def main() -> int:
@@ -45,7 +55,19 @@ def main() -> int:
                 {
                     "status": "pass",
                     "scenario_id": SCENARIO_ID,
+                    "summary": "浏览器模拟用户完成 Loop 看板核心验收场景。",
+                    "scenario_results": [
+                        {
+                            "scenario_id": SCENARIO_ID,
+                            "status": "pass",
+                            "summary": "模拟用户查看任务、流程、agent、验收摘要、诊断、日志过滤、完成运行和移动端布局。",
+                            "evidence": CHECKED,
+                        }
+                    ],
                     "checked": CHECKED,
+                    "rerun_commands": [
+                        "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01"
+                    ],
                     "dashboard_url": dashboard_url,
                     "project_root": str(fixture_root.resolve()),
                     "browser_evidence": browser_evidence,
@@ -282,6 +304,23 @@ def seed_rich_evaluator_result(project_root: Path) -> None:
             "status": "fail",
             "scenario_id": SCENARIO_ID,
             "summary": "浏览器点击发现日志过滤问题",
+            "checked": CHECKED,
+            "scenario_results": [
+                {
+                    "scenario_id": SCENARIO_ID,
+                    "status": "fail",
+                    "summary": "模拟用户过滤日志时发现 stderr 过滤未按预期更新。",
+                    "evidence": ["选择日志类型 stderr", "期望只显示 stderr 日志", "实际过滤结果不正确"],
+                }
+            ],
+            "browser_evidence": [
+                "已打开 Loop 看板",
+                "已点击 active-repair-run",
+                "已查看阻塞诊断 LD-001",
+            ],
+            "rerun_commands": [
+                "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01"
+            ],
             "findings": [
                 {
                     "id": "LD-001",
@@ -378,6 +417,14 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             detail = page.get_by_test_id("run-detail")
             expect(detail).to_contain_text("实现独立本地 Loop Dashboard")
             expect(detail).to_contain_text("需要修复")
+            expect(detail).to_contain_text("任务读者摘要")
+            expect(detail).to_contain_text("验收情况")
+            expect(detail).to_contain_text("自动修复后复验")
+            expect(detail).to_contain_text("用户决策不需要")
+            expect(detail).to_contain_text("模拟用户过滤日志时发现 stderr 过滤未按预期更新")
+            expect(detail).to_contain_text("选择日志类型 stderr")
+            expect(detail).to_contain_text("查看阻塞诊断中的 evaluator finding")
+            expect(detail).to_contain_text("修复日志过滤")
 
             agent_cards = page.get_by_test_id("agent-cards")
             expect(agent_cards).to_contain_text("Planner")
@@ -420,6 +467,8 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 "实现独立本地 Loop Dashboard，用于中文可视化监控当前项目 Planner Generator Evaluator loop、"
                 "agent、skill、日志、完成态和阻塞诊断；本次还需要验证开发流程并修复流程 bug。"
             )
+            expect(detail).to_contain_text("等待用户确认合入")
+            expect(detail).to_contain_text("用户决策")
             expect(flow).to_contain_text("Repair Needed")
             expect(flow).to_contain_text("跳过")
             expect(flow).to_contain_text("本次未触发")
