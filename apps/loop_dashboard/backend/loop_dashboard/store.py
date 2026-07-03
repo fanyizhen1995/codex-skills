@@ -72,6 +72,7 @@ class LoopDashboardStore:
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         scenario_contract = self._scenario_contract(evaluator)
+        run_kind = self._run_kind(run_data)
         summary.update(
             {
                 "constraints": run_data.get("constraints", []),
@@ -85,6 +86,18 @@ class LoopDashboardStore:
                 "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
             }
         )
+        if run_kind == "parent":
+            children, relationship_diagnostics = self._children_for_parent(str(summary.get("run_id") or run_id), run_data)
+            aggregate_acceptance = run_data.get("aggregate_acceptance")
+            summary.update(
+                {
+                    "reader_summary": run_data.get("reader_summary") if isinstance(run_data.get("reader_summary"), dict) else {},
+                    "aggregate_acceptance": aggregate_acceptance if isinstance(aggregate_acceptance, dict) else {},
+                    "children": children,
+                    "relationship_diagnostics": relationship_diagnostics,
+                    "blocked_diagnostics": [*summary.get("blocked_diagnostics", []), *relationship_diagnostics],
+                }
+            )
         return summary
 
     def get_events(self, run_id: str) -> list[dict[str, Any]] | None:
@@ -93,6 +106,10 @@ class LoopDashboardStore:
             return None
         run_dir = source.run_dir
         events: list[Event] = []
+        run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
+        if not isinstance(run_data, dict):
+            run_data = {}
+        events.extend(self._structured_events(run_dir))
         for path in sorted(run_dir.iterdir(), key=lambda item: item.stat().st_mtime):
             if not path.is_file():
                 continue
@@ -108,6 +125,12 @@ class LoopDashboardStore:
             if "tool" in lowered:
                 events.append(Event("tool", log.source, self._summarize_log(log.content), log.updated_at))
         events.extend(self._session_events(run_id))
+        if self._run_kind(run_data) == "parent":
+            children, _diagnostics = self._children_for_parent(str(run_data.get("run_id") or run_id), run_data)
+            for child in children:
+                child_source = self._run_source(str(child.get("run_id") or ""))
+                if child_source is not None and child_source.run_dir.is_dir():
+                    events.extend(self._structured_events(child_source.run_dir))
         return [event.to_dict() for event in sorted(events, key=lambda event: event.updated_at)]
 
     def get_logs(self, run_id: str) -> list[dict[str, Any]] | None:
@@ -181,6 +204,24 @@ class LoopDashboardStore:
         candidate_path = Path(run_id)
         return bool(run_id) and not candidate_path.is_absolute() and ".." not in candidate_path.parts and "/" not in run_id and "\\" not in run_id
 
+    def _run_kind(self, run_data: dict[str, Any]) -> str:
+        value = run_data.get("run_kind")
+        return str(value) if value in {"parent", "child"} else "single"
+
+    def _safe_child_run_id(self, run_id: str) -> bool:
+        return self._safe_run_id(run_id)
+
+    def _all_run_data_by_id(self) -> dict[str, tuple[RunSource, dict[str, Any]]]:
+        result: dict[str, tuple[RunSource, dict[str, Any]]] = {}
+        for source in self._run_sources():
+            data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
+            if not isinstance(data, dict):
+                continue
+            run_id = str(data.get("run_id") or source.run_dir.name)
+            if self._safe_run_id(run_id):
+                result[run_id] = (source, data)
+        return result
+
     def _load_run_summary(self, run_dir: Path, source_kind: str = "current") -> dict[str, Any]:
         run_json = run_dir / "run.json"
         run_data = self._read_json(run_json, allowed_root=run_dir)
@@ -193,8 +234,17 @@ class LoopDashboardStore:
         completed = phase in COMPLETED_PHASES
         artifacts = self._artifact_paths(run_dir)
         task_description = self._task_description(run_data)
+        aggregate_acceptance = run_data.get("aggregate_acceptance")
+        reader_summary = run_data.get("reader_summary")
         return {
             "run_id": str(run_data.get("run_id") or run_dir.name),
+            "run_kind": self._run_kind(run_data),
+            "parent_run_id": str(run_data.get("parent_run_id") or ""),
+            "child_index": self._safe_int(run_data.get("child_index")),
+            "current_child_run_id": str(run_data.get("current_child_run_id") or ""),
+            "reader_summary": reader_summary if isinstance(reader_summary, dict) else {},
+            "children_summary": self._children_summary(aggregate_acceptance),
+            "decision_required": bool(aggregate_acceptance.get("user_decision_required")) if isinstance(aggregate_acceptance, dict) else False,
             "project_root": str(self.project_root),
             "source_kind": source_kind,
             "source_path": self._source_path(run_dir),
@@ -226,6 +276,13 @@ class LoopDashboardStore:
         }
         return {
             "run_id": run_dir.name,
+            "run_kind": "single",
+            "parent_run_id": "",
+            "child_index": 0,
+            "current_child_run_id": "",
+            "reader_summary": {},
+            "children_summary": self._children_summary({}),
+            "decision_required": False,
             "project_root": str(self.project_root),
             "source_kind": source_kind,
             "source_path": self._source_path(run_dir),
@@ -241,6 +298,118 @@ class LoopDashboardStore:
             "blocked_diagnostics": [diagnostic],
             "artifact_paths": self._artifact_paths(run_dir),
         }
+
+    def _children_summary(self, aggregate_acceptance: Any) -> dict[str, int]:
+        if not isinstance(aggregate_acceptance, dict):
+            aggregate_acceptance = {}
+        return {
+            key: self._safe_int(aggregate_acceptance.get(key))
+            for key in ("total", "passed", "failed", "blocked", "pending")
+        }
+
+    def _relationship_diagnostic(self, kind: str, message: str, source: str) -> dict[str, Any]:
+        return {
+            "kind": kind,
+            "severity": "warning",
+            "title": kind.replace("_", " "),
+            "message": message,
+            "source": source,
+        }
+
+    def _children_for_parent(self, parent_run_id: str, parent_data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        all_runs = self._all_run_data_by_id()
+        parent_source = all_runs.get(parent_run_id, (None, {}))[0]
+        parent_source_path = (
+            self._relative_artifact(parent_source.run_dir / "run.json")
+            if isinstance(parent_source, RunSource)
+            else f"{parent_run_id}/run.json"
+        )
+        children: list[dict[str, Any]] = []
+        diagnostics: list[dict[str, Any]] = []
+        included: set[str] = set()
+        explicit_ids: set[str] = set()
+
+        def add_diagnostic(kind: str, message: str, source: str) -> None:
+            diagnostic = self._relationship_diagnostic(kind, message, source)
+            key = (diagnostic["kind"], diagnostic["message"], diagnostic["source"])
+            if key not in {
+                (item.get("kind"), item.get("message"), item.get("source"))
+                for item in diagnostics
+            }:
+                diagnostics.append(diagnostic)
+
+        def add_child(child_run_id: str, child_source: RunSource, child_data: dict[str, Any]) -> None:
+            child_parent_run_id = str(child_data.get("parent_run_id") or "")
+            child_source_path = self._relative_artifact(child_source.run_dir / "run.json")
+            if child_parent_run_id and child_parent_run_id != parent_run_id:
+                add_diagnostic(
+                    "child_parent_conflict",
+                    f"child {child_run_id} points to parent {child_parent_run_id}, not {parent_run_id}",
+                    child_source_path,
+                )
+                return
+            if child_run_id in included:
+                return
+            children.append(self._load_run_summary(child_source.run_dir, child_source.source_kind))
+            included.add(child_run_id)
+
+        explicit_value = parent_data.get("child_run_ids")
+        if isinstance(explicit_value, list):
+            for item in explicit_value:
+                child_run_id = str(item)
+                if not self._safe_child_run_id(child_run_id):
+                    add_diagnostic(
+                        "unsafe_child_reference",
+                        f"child reference is unsafe and was ignored: {child_run_id}",
+                        parent_source_path,
+                    )
+                    continue
+                explicit_ids.add(child_run_id)
+                child_entry = all_runs.get(child_run_id)
+                if child_entry is None:
+                    add_diagnostic(
+                        "child_artifact_missing",
+                        f"child run artifact not found: {child_run_id}",
+                        parent_source_path,
+                    )
+                    continue
+                child_source, child_data = child_entry
+                add_child(child_run_id, child_source, child_data)
+
+        for child_run_id, (child_source, child_data) in all_runs.items():
+            if self._run_kind(child_data) != "child":
+                continue
+            child_parent_run_id = str(child_data.get("parent_run_id") or "")
+            if child_parent_run_id == parent_run_id:
+                if child_run_id not in explicit_ids:
+                    add_diagnostic(
+                        "parent_index_missing",
+                        f"child {child_run_id} points to parent {parent_run_id}, but is missing from child_run_ids",
+                        self._relative_artifact(child_source.run_dir / "run.json"),
+                    )
+                add_child(child_run_id, child_source, child_data)
+            elif child_run_id.startswith(f"{parent_run_id}-child-"):
+                add_diagnostic(
+                    "child_parent_conflict",
+                    f"child {child_run_id} points to parent {child_parent_run_id or 'unknown'}, not {parent_run_id}",
+                    self._relative_artifact(child_source.run_dir / "run.json"),
+                )
+
+        return (
+            sorted(
+                children,
+                key=lambda child: (
+                    self._child_sort_index(child.get("child_index")),
+                    str(child.get("updated_at") or ""),
+                    str(child.get("run_id") or ""),
+                ),
+            ),
+            diagnostics,
+        )
+
+    def _child_sort_index(self, value: Any) -> int:
+        index = self._safe_int(value)
+        return index if index > 0 else 1_000_000
 
     def _agents(self, run_dir: Path, run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         attempts = run_data.get("attempts") if isinstance(run_data.get("attempts"), dict) else {}
@@ -937,6 +1106,37 @@ class LoopDashboardStore:
 
         visit(payload)
         return logs
+
+    def _structured_events(self, run_dir: Path) -> list[Event]:
+        events_path = run_dir / "events.jsonl"
+        safe_path = self._safe_file_under(events_path, run_dir)
+        if safe_path is None:
+            return []
+        events: list[Event] = []
+        updated_at = self._mtime_iso(safe_path)
+        try:
+            lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            return []
+        for line in lines:
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            kind = str(payload.get("event_type") or "event")
+            summary = str(payload.get("summary") or "")
+            timestamp = str(payload.get("timestamp") or updated_at)
+            events.append(
+                Event(
+                    kind,
+                    self._relative_artifact(safe_path),
+                    self._trim(redact_text(summary), 180),
+                    timestamp,
+                )
+            )
+        return events
 
     def _session_events(self, run_id: str) -> list[Event]:
         sessions_dir = self.project_root / ".codex" / "sessions"

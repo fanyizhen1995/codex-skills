@@ -631,6 +631,156 @@ def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_pat
     assert detail["agents"]["evaluator"]["attempt"] == 4
 
 
+def seed_parent_child_runs(repo_root: Path) -> None:
+    parent_dir = repo_root / ".codex" / "loop-runs" / "parent-run"
+    write_json(
+        parent_dir / "run.json",
+        {
+            "run_id": "parent-run",
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": "",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(repo_root),
+            "requirement": "Parent requirement for dashboard",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 2, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_parent_planner",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": ["parent-run-child-002", "missing-child"],
+            "current_child_run_id": "parent-run-child-002",
+            "backlog": [],
+            "aggregate_acceptance": {"total": 2, "passed": 1, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
+            "reader_summary": {"purpose": "Explain parent", "current_progress": "One child passed", "next_step": "Run child 2", "decision_needed": "No"},
+            "accepted_changed_paths": ["generated/child-001.txt"],
+        },
+    )
+    for index, phase in [(1, "passed"), (2, "generating")]:
+        child_id = f"parent-run-child-{index:03d}"
+        child_dir = repo_root / ".codex" / "loop-runs" / child_id
+        write_json(
+            child_dir / "run.json",
+            {
+                "run_id": child_id,
+                "run_kind": "child",
+                "parent_run_id": "parent-run",
+                "child_index": index,
+                "policy": "demand_development",
+                "phase": phase,
+                "task_id": f"{child_id}-task",
+                "domain": "",
+                "branch": "main",
+                "worktree": str(repo_root),
+                "requirement": f"Child {index} description with enough text to wrap cleanly",
+                "constraints": [],
+                "stop_conditions": ["passed"],
+                "baseline_dirty_paths": [],
+                "allowed_paths": [f"generated/child-{index:03d}.txt"],
+                "denylist_paths": [],
+                "attempts": {"planner": 1, "generator": 1, "evaluator": 1 if phase == "passed" else 0, "artifact_hygiene": 0, "cleanup": 0},
+                "limits": {},
+                "last_result": "pass" if phase == "passed" else "none",
+                "next_action": "return_to_parent_planner" if phase == "passed" else "run_child_generator",
+                "attempt_history": [],
+                "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+                "reader_summary": {
+                    "purpose": f"Child {index}",
+                    "planner_action": "Planner picked child",
+                    "generator_action": "Generator wrote file",
+                    "evaluator_action": "Evaluator checked result",
+                    "acceptance_result": "Passed" if phase == "passed" else "Pending",
+                },
+            },
+        )
+        (child_dir / "events.jsonl").write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-07-03T00:00:00Z",
+                    "run_id": child_id,
+                    "parent_run_id": "parent-run",
+                    "child_id": f"child-{index:03d}",
+                    "actor": "planner",
+                    "event_type": "plan",
+                    "summary": f"Planner selected child {index}",
+                    "details": {},
+                    "artifact_paths": [],
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+
+def test_parent_child_runs_are_aggregated_with_children_and_events(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+    store = LoopDashboardStore(tmp_path)
+
+    runs = store.list_runs()
+    parent = next(run for run in runs if run["run_id"] == "parent-run")
+    detail = store.get_run("parent-run")
+    events = store.get_events("parent-run")
+
+    assert parent["run_kind"] == "parent"
+    assert parent["children_summary"]["total"] == 2
+    assert parent["children_summary"]["passed"] == 1
+    assert detail["reader_summary"]["purpose"] == "Explain parent"
+    assert [child["run_id"] for child in detail["children"]] == ["parent-run-child-001", "parent-run-child-002"]
+    assert detail["children"][0]["reader_summary"]["acceptance_result"] == "Passed"
+    assert any(event["kind"] == "plan" and "Planner selected child 1" in event["message"] for event in events)
+    assert any(item["kind"] == "child_artifact_missing" for item in detail["relationship_diagnostics"])
+
+
+def test_parent_child_relationship_conflicts_are_deduped_sorted_and_diagnosed(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+    other_parent = tmp_path / ".codex" / "loop-runs" / "other-parent" / "run.json"
+    payload = json.loads((tmp_path / ".codex" / "loop-runs" / "parent-run" / "run.json").read_text(encoding="utf-8"))
+    payload["run_id"] = "other-parent"
+    payload["child_run_ids"] = ["parent-run-child-001"]
+    write_json(other_parent, payload)
+    child_path = tmp_path / ".codex" / "loop-runs" / "parent-run-child-001" / "run.json"
+    child_payload = json.loads(child_path.read_text(encoding="utf-8"))
+    child_payload["parent_run_id"] = "other-parent"
+    child_path.write_text(json.dumps(child_payload, indent=2), encoding="utf-8")
+
+    detail = LoopDashboardStore(tmp_path).get_run("parent-run")
+
+    assert [child["run_id"] for child in detail["children"]].count("parent-run-child-001") == 0
+    assert any(item["kind"] == "child_parent_conflict" for item in detail["relationship_diagnostics"])
+
+
+def test_parent_child_relationship_rejects_path_traversal(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+    parent_path = tmp_path / ".codex" / "loop-runs" / "parent-run" / "run.json"
+    parent = json.loads(parent_path.read_text(encoding="utf-8"))
+    parent["child_run_ids"].append("../outside")
+    parent_path.write_text(json.dumps(parent, indent=2), encoding="utf-8")
+
+    detail = LoopDashboardStore(tmp_path).get_run("parent-run")
+
+    assert all(child["run_id"] != "../outside" for child in detail["children"])
+    assert any(item["kind"] == "unsafe_child_reference" for item in detail["relationship_diagnostics"])
+
+
+def test_single_run_without_run_kind_remains_top_level(tmp_path: Path) -> None:
+    seed_run(tmp_path, "single-run", "passed_waiting_human_merge", last_result="pass", next_action="await_human_merge_confirmation")
+
+    runs = LoopDashboardStore(tmp_path).list_runs()
+    detail = LoopDashboardStore(tmp_path).get_run("single-run")
+
+    assert runs[0]["run_kind"] == "single"
+    assert "children" not in detail or detail["children"] == []
+
+
 def test_symlinked_log_and_rich_evaluator_result_outside_project_root_are_not_exposed(tmp_path: Path) -> None:
     outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-rich"
     outside_dir.mkdir()

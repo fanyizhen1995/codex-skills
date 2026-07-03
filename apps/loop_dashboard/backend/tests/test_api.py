@@ -103,3 +103,75 @@ def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monke
     assert "/src/main.tsx" not in index.text
     assert asset.status_code == 200
     assert "built" in asset.text
+
+
+def seed_parent_child_api_run(repo_root: Path) -> None:
+    parent_dir = repo_root / ".codex" / "loop-runs" / "api-parent"
+    write_json(
+        parent_dir / "run.json",
+        {
+            "run_id": "api-parent",
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": "",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(repo_root),
+            "requirement": "API parent",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_parent_planner",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": ["api-parent-child-001"],
+            "current_child_run_id": "api-parent-child-001",
+            "backlog": [],
+            "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
+            "reader_summary": {"purpose": "API summary", "current_progress": "running", "next_step": "child", "decision_needed": "No"},
+            "accepted_changed_paths": [],
+        },
+    )
+    child_dir = repo_root / ".codex" / "loop-runs" / "api-parent-child-001"
+    child_payload = json.loads((parent_dir / "run.json").read_text(encoding="utf-8"))
+    child_payload.update(
+        {
+            "run_id": "api-parent-child-001",
+            "run_kind": "child",
+            "parent_run_id": "api-parent",
+            "child_index": 1,
+            "phase": "generating",
+            "task_id": "api-parent-child-001-task",
+            "requirement": "API child",
+            "stop_conditions": ["passed"],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "reader_summary": {
+                "purpose": "API child",
+                "planner_action": "planned",
+                "generator_action": "pending",
+                "evaluator_action": "pending",
+                "acceptance_result": "pending",
+            },
+        }
+    )
+    write_json(child_dir / "run.json", child_payload)
+
+
+def test_api_returns_parent_child_fields(tmp_path: Path) -> None:
+    seed_parent_child_api_run(tmp_path)
+    client = TestClient(create_app(project_root=tmp_path))
+
+    runs = client.get("/api/runs").json()
+    detail = client.get("/api/runs/api-parent").json()
+
+    parent = next(run for run in runs if run["run_id"] == "api-parent")
+    assert parent["run_kind"] == "parent"
+    assert parent["children_summary"]["total"] == 1
+    assert detail["reader_summary"]["purpose"] == "API summary"
+    assert detail["children"][0]["run_id"] == "api-parent-child-001"
