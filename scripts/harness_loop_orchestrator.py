@@ -1075,7 +1075,7 @@ def _run_fake_demand_child(
     write_json_file(child_run_dir / "evaluator-result.json", evaluator_payload)
     child["attempts"]["evaluator"] = int(child["attempts"]["evaluator"]) + 1
 
-    if should_fail_once and child["attempts"]["evaluator"] < max_eval_attempts:
+    if should_fail_once:
         child["phase"] = "repair_needed"
         child["last_result"] = "fail"
         child["next_action"] = "repair_child"
@@ -1091,6 +1091,31 @@ def _run_fake_demand_child(
             event_type="evaluate",
             summary="Evaluator failed child; repair required",
         )
+        if child["attempts"]["evaluator"] >= max_eval_attempts:
+            parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+            parent["phase"] = "stopped_blocked"
+            parent["last_result"] = "blocked"
+            parent["next_action"] = "inspect_child_evaluator_attempts"
+            parent["aggregate_acceptance"]["blocked"] = int(parent["aggregate_acceptance"]["blocked"]) + 1
+            parent["aggregate_acceptance"]["pending"] = max(
+                0,
+                int(parent["aggregate_acceptance"]["total"]) - int(parent["aggregate_acceptance"]["passed"]),
+            )
+            parent["aggregate_acceptance"]["user_decision_required"] = True
+            parent["reader_summary"]["current_progress"] = f"Child {child_index} evaluator failed"
+            parent["reader_summary"]["next_step"] = "Inspect child evaluator attempts"
+            parent["reader_summary"]["decision_needed"] = "Yes"
+            save_run(repo_root, parent)
+            append_loop_event(
+                repo_root,
+                run_id=parent["run_id"],
+                actor="evaluator",
+                event_type="blocked",
+                summary=f"Evaluator failed child {child_index}; max attempts exhausted",
+                child_id=f"child-{child_index:03d}",
+                details={"child_run_id": child["run_id"], "max_eval_attempts": max_eval_attempts},
+            )
+            return
         append_loop_event(
             repo_root,
             run_id=child["run_id"],
@@ -1151,9 +1176,14 @@ def run_demand_multi(
 ) -> dict[str, str]:
     root = Path(repo_root)
     validate_run_id(run_id)
-    parent = _ensure_parent_fields(load_run(root, run_id))
+    run = load_run(root, run_id)
+    if run.get("run_kind") == "child":
+        raise RuntimeError("run_demand_multi requires a parent run_id")
+    parent = _ensure_parent_fields(run)
     if parent["phase"] == "preflight":
         raise RuntimeError("run_demand_multi requires confirmed preflight")
+    if parent["phase"] in {"stopped_blocked", "passed_waiting_human_merge"}:
+        return status_for_run(root, run_id)
     if planner_driver not in {"fake", "fake-blocked", "fake-failed"}:
         raise ValueError("run_demand_multi initially supports fake planner drivers")
     if generator_driver not in {"fake", "fake-fail-child-2-once", "fake-stop-after-child-1"}:
@@ -1163,6 +1193,8 @@ def run_demand_multi(
 
     while True:
         parent = _ensure_parent_fields(load_run(root, run_id))
+        if parent["phase"] in {"stopped_blocked", "passed_waiting_human_merge"}:
+            return status_for_run(root, run_id)
         if max_children < 1:
             parent["phase"] = "stopped_budget"
             parent["last_result"] = "blocked"
@@ -1256,6 +1288,9 @@ def run_demand_multi(
             generator_driver=generator_driver,
             max_eval_attempts=max_eval_attempts,
         )
+        parent_after_child = load_run(root, run_id)
+        if parent_after_child["phase"] in {"stopped_blocked", "stopped_budget"}:
+            return status_for_run(root, run_id)
         if generator_driver == "fake-stop-after-child-1" and child_index == 1:
             return status_for_run(root, run_id)
 

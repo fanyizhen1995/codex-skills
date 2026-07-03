@@ -2563,6 +2563,102 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             events = (run_dir_for(repo_root, child2["run_id"]) / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("repair", events)
 
+    def test_run_demand_multi_blocks_when_child_repair_attempts_exhausted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "exhausted-parent")
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="exhausted-parent",
+                planner_driver="fake",
+                generator_driver="fake-fail-child-2-once",
+                evaluator_driver="fake",
+                max_eval_attempts=1,
+                max_children=3,
+            )
+
+            parent = read_json_file(run_dir_for(repo_root, "exhausted-parent") / "run.json")
+            child2 = read_json_file(run_dir_for(repo_root, parent["child_run_ids"][1]) / "run.json")
+            child2_events = (run_dir_for(repo_root, child2["run_id"]) / "events.jsonl").read_text(encoding="utf-8")
+            parent_events = (run_dir_for(repo_root, "exhausted-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(payload["phase"], "stopped_blocked")
+            self.assertEqual(parent["phase"], "stopped_blocked")
+            self.assertEqual(parent["last_result"], "blocked")
+            self.assertTrue(parent["aggregate_acceptance"]["user_decision_required"])
+            self.assertNotEqual(child2["phase"], "passed")
+            self.assertEqual(child2["last_result"], "fail")
+            self.assertEqual(parent["aggregate_acceptance"]["passed"], 1)
+            self.assertIn("Evaluator failed child", child2_events)
+            self.assertIn("max attempts exhausted", parent_events)
+
+    def test_run_demand_multi_terminal_rerun_returns_status_without_new_children(self) -> None:
+        for run_id, expected_phase, planner_driver, max_children in [
+            ("terminal-blocked", "stopped_blocked", "fake-blocked", 3),
+            ("terminal-passed", "passed_waiting_human_merge", "fake", 2),
+        ]:
+            with self.subTest(run_id=run_id), tempfile.TemporaryDirectory() as tmp:
+                repo_root = Path(tmp)
+                self._create_parent(repo_root, run_id)
+                run_demand_multi(
+                    repo_root=repo_root,
+                    run_id=run_id,
+                    planner_driver=planner_driver,
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_children=max_children,
+                )
+                parent_before = read_json_file(run_dir_for(repo_root, run_id) / "run.json")
+                child_ids_before = list(parent_before["child_run_ids"])
+                aggregate_before = dict(parent_before["aggregate_acceptance"])
+
+                payload = run_demand_multi(
+                    repo_root=repo_root,
+                    run_id=run_id,
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_children=max_children,
+                )
+
+                parent_after = read_json_file(run_dir_for(repo_root, run_id) / "run.json")
+                self.assertEqual(payload["phase"], expected_phase)
+                self.assertEqual(parent_after["phase"], expected_phase)
+                self.assertEqual(parent_after["child_run_ids"], child_ids_before)
+                self.assertEqual(parent_after["aggregate_acceptance"], aggregate_before)
+
+    def test_run_demand_multi_rejects_child_run_id_without_nested_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "child-reject-parent")
+            run_demand_multi(
+                repo_root=repo_root,
+                run_id="child-reject-parent",
+                planner_driver="fake",
+                generator_driver="fake-stop-after-child-1",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=2,
+            )
+            parent = read_json_file(run_dir_for(repo_root, "child-reject-parent") / "run.json")
+            child_run_id = parent["child_run_ids"][0]
+
+            with self.assertRaisesRegex((RuntimeError, ValueError), "parent"):
+                run_demand_multi(
+                    repo_root=repo_root,
+                    run_id=child_run_id,
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_children=2,
+                )
+
+            nested_child_run_id = f"{child_run_id}-child-001"
+            self.assertFalse(run_dir_for(repo_root, nested_child_run_id).exists())
+
     def test_run_demand_multi_planner_blocked_or_failed_creates_no_child(self) -> None:
         for planner_driver, expected_reason in [
             ("fake-blocked", "fake planner blocked"),
