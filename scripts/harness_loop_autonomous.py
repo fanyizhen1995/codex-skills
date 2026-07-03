@@ -232,7 +232,13 @@ def _resolve_commit_pathspecs(repo: Path, paths: Sequence[str]) -> list[str]:
         path = str(raw_path).strip()
         if not path:
             raise ValueError("commit pathspec must not be empty")
-        if path.startswith(":") or path.startswith("-") or Path(path).is_absolute() or ".." in Path(path).parts:
+        if (
+            path.startswith(":")
+            or path.startswith("-")
+            or _is_unsafe_git_pathspec(path)
+            or Path(path).is_absolute()
+            or ".." in Path(path).parts
+        ):
             raise ValueError(f"unsafe commit pathspec: {path}")
         candidate = repo / path
         if candidate.exists() and candidate.is_dir():
@@ -256,6 +262,10 @@ def _resolve_commit_pathspecs(repo: Path, paths: Sequence[str]) -> list[str]:
             seen.add(path)
             unique.append(path)
     return unique
+
+
+def _is_unsafe_git_pathspec(path: str) -> bool:
+    return any(char in path for char in ("*", "?", "["))
 
 
 def _dirty_files_for_commit(repo: Path) -> list[GitDirtyRecord]:

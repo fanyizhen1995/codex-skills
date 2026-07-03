@@ -361,6 +361,32 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsafe commit pathspec"):
                 run_git_commit(repo_root, [":(glob)**/*.md"], "test: reject pathspec magic")
 
+    def test_run_git_commit_rejects_git_wildcard_pathspecs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            (repo_root / "one.md").write_text("one\n", encoding="utf-8")
+            (repo_root / "two.md").write_text("two\n", encoding="utf-8")
+
+            for pathspec in ("*.md", "**/*.md", "?.md", "[ot]ne.md"):
+                with self.subTest(pathspec=pathspec):
+                    with self.assertRaisesRegex(ValueError, "unsafe commit pathspec"):
+                        run_git_commit(repo_root, [pathspec], "test: reject wildcard pathspec")
+
     def test_run_git_commit_with_directory_pathspec_commits_single_dirty_file_containing_space(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
