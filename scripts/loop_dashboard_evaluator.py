@@ -713,7 +713,12 @@ def expect_route_404(url: str, case: str) -> dict[str, object]:
     except urllib.error.HTTPError as exc:
         if exc.code != 404:
             raise AssertionError(f"route-level unsafe run lookup should return 404 for {case}: got {exc.code}") from exc
-        return {"case": case, "status": exc.code, "detail": read_error_detail(exc)}
+        detail = read_error_detail(exc)
+        if detail != "Not Found":
+            raise AssertionError(
+                f"route-level unsafe run lookup should be rejected by router for {case}: detail={detail!r}"
+            ) from exc
+        return {"case": case, "status": exc.code, "detail": detail}
     raise AssertionError(f"route-level unsafe run lookup should return 404 for {case}")
 
 
