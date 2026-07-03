@@ -673,6 +673,10 @@ class HarnessLoopContractsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "blocked_reason"):
             validate_planner_output_payload(payload)
 
+        del payload["blocked_reason"]
+        with self.assertRaisesRegex(ValueError, "blocked_reason"):
+            validate_planner_output_payload(payload)
+
     def test_validate_loop_state_payload_accepts_no_action_shape(self) -> None:
         validate_loop_state_payload(self._loop_state_payload())
 
