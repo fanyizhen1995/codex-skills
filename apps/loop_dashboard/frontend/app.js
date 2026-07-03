@@ -354,8 +354,15 @@ function renderDetail() {
   if (state.lastError) {
     nodes.push(errorNode(state.lastError));
   }
-  nodes.push(renderReaderSummary(detail));
-  nodes.push(renderAcceptanceSummary(detail.acceptance_summary || {}));
+
+  const layout = el("div", "detail-layout");
+  const summaryColumn = el("div", "detail-summary-column");
+  const fieldsColumn = el("div", "detail-fields-column");
+  summaryColumn.append(
+    renderReaderSummary(detail),
+    renderAcceptanceSummary(detail.acceptance_summary || {}),
+  );
+
   const grid = el("div", "detail-grid");
   [
     ["任务描述", detail.task_description || detail.task_summary, "long"],
@@ -373,7 +380,9 @@ function renderDetail() {
     item.append(el("div", "detail-label", label), el("div", valueClass, text(value)));
     grid.append(item);
   });
-  nodes.push(grid);
+  fieldsColumn.append(grid);
+  layout.append(summaryColumn, fieldsColumn);
+  nodes.push(layout);
   setChildren(els.runDetail, nodes);
 }
 
