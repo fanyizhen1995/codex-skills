@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from .models import AgentSummary, Event, FlowNode, LogEntry
 from .redaction import redact_text
@@ -15,6 +15,11 @@ LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
+
+
+class RunSource(NamedTuple):
+    run_dir: Path
+    source_kind: str
 
 
 def safe_join(root: Path, relative_path: str) -> Path:
@@ -40,19 +45,20 @@ class LoopDashboardStore:
             "project_root": str(self.project_root),
             "loop_runs_path": str(self.loop_runs_dir),
             "loop_runs_exists": self.loop_runs_dir.exists(),
+            "history_sources": [self._source_path(source.run_dir) for source in self._run_sources()],
         }
 
     def list_runs(self) -> list[dict[str, Any]]:
-        if not self.loop_runs_dir.exists():
-            return []
-        runs = [self._load_run_summary(path) for path in self.loop_runs_dir.iterdir() if path.is_dir()]
+        runs = [self._load_run_summary(source.run_dir, source.source_kind) for source in self._run_sources()]
+        runs = self._dedupe_runs(runs)
         return sorted(runs, key=lambda run: (run.get("updated_at", ""), run.get("run_id", "")), reverse=True)
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
-        run_dir = self._run_dir(run_id)
-        if run_dir is None or not run_dir.is_dir() or not (run_dir / "run.json").exists():
+        source = self._run_source(run_id)
+        if source is None or not source.run_dir.is_dir() or not (source.run_dir / "run.json").exists():
             return None
-        summary = self._load_run_summary(run_dir)
+        run_dir = source.run_dir
+        summary = self._load_run_summary(run_dir, source.source_kind)
         run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
         planner = self._read_json(run_dir / "planner-output.json", allowed_root=run_dir)
         if not isinstance(run_data, dict):
@@ -82,9 +88,10 @@ class LoopDashboardStore:
         return summary
 
     def get_events(self, run_id: str) -> list[dict[str, Any]] | None:
-        run_dir = self._run_dir(run_id)
-        if run_dir is None or not run_dir.is_dir():
+        source = self._run_source(run_id)
+        if source is None or not source.run_dir.is_dir():
             return None
+        run_dir = source.run_dir
         events: list[Event] = []
         for path in sorted(run_dir.iterdir(), key=lambda item: item.stat().st_mtime):
             if not path.is_file():
@@ -104,22 +111,81 @@ class LoopDashboardStore:
         return [event.to_dict() for event in sorted(events, key=lambda event: event.updated_at)]
 
     def get_logs(self, run_id: str) -> list[dict[str, Any]] | None:
-        run_dir = self._run_dir(run_id)
-        if run_dir is None or not run_dir.is_dir():
+        source = self._run_source(run_id)
+        if source is None or not source.run_dir.is_dir():
             return None
-        return [log.to_dict() for log in self._collect_logs(run_dir)]
+        return [log.to_dict() for log in self._collect_logs(source.run_dir)]
 
-    def _run_dir(self, run_id: str) -> Path | None:
-        try:
-            return safe_join(self.loop_runs_dir, run_id)
-        except ValueError:
+    def _run_sources(self) -> list[RunSource]:
+        sources: list[RunSource] = []
+        sources.extend(RunSource(run_dir, "current") for run_dir in self._loop_run_dirs(self.loop_runs_dir))
+        worktrees_dir = self.project_root / ".worktrees"
+        if worktrees_dir.exists():
+            for worktree_path in sorted(worktrees_dir.iterdir(), key=lambda path: path.name):
+                if not worktree_path.is_dir():
+                    continue
+                safe_worktree = self._safe_dir_under(worktree_path, worktrees_dir)
+                if safe_worktree is None:
+                    continue
+                loop_runs_dir = safe_worktree / ".codex" / "loop-runs"
+                sources.extend(RunSource(run_dir, "worktree") for run_dir in self._loop_run_dirs(loop_runs_dir))
+        return sources
+
+    def _loop_run_dirs(self, loop_runs_dir: Path) -> list[Path]:
+        safe_loop_runs_dir = self._safe_dir_under(loop_runs_dir, self.project_root)
+        if safe_loop_runs_dir is None:
+            return []
+        return [
+            run_dir
+            for run_dir in sorted(safe_loop_runs_dir.iterdir(), key=lambda path: path.name)
+            if self._safe_dir_under(run_dir, safe_loop_runs_dir) is not None and run_dir.is_dir()
+        ]
+
+    def _run_source(self, run_id: str) -> RunSource | None:
+        if not self._safe_run_id(run_id):
             return None
+        sources_by_id = self._run_source_index()
+        return sources_by_id.get(run_id)
 
-    def _load_run_summary(self, run_dir: Path) -> dict[str, Any]:
+    def _run_source_index(self) -> dict[str, RunSource]:
+        sources_by_id: dict[str, tuple[RunSource, str]] = {}
+        for source in self._run_sources():
+            summary = self._load_run_summary(source.run_dir, source.source_kind)
+            run_id = str(summary.get("run_id") or "")
+            updated_at = str(summary.get("updated_at") or "")
+            if not self._safe_run_id(run_id):
+                continue
+            previous = sources_by_id.get(run_id)
+            if previous is None or (updated_at, self._source_path(source.run_dir)) > (previous[1], self._source_path(previous[0].run_dir)):
+                sources_by_id[run_id] = (source, updated_at)
+        return {run_id: source for run_id, (source, _updated_at) in sources_by_id.items()}
+
+    def _dedupe_runs(self, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        runs_by_id: dict[str, dict[str, Any]] = {}
+        for run in runs:
+            run_id = str(run.get("run_id") or "")
+            if not self._safe_run_id(run_id):
+                continue
+            previous = runs_by_id.get(run_id)
+            if previous is None or (
+                str(run.get("updated_at") or ""),
+                str(run.get("source_path") or ""),
+            ) > (
+                str(previous.get("updated_at") or ""),
+                str(previous.get("source_path") or ""),
+            ):
+                runs_by_id[run_id] = run
+        return list(runs_by_id.values())
+
+    def _safe_run_id(self, run_id: str) -> bool:
+        candidate_path = Path(run_id)
+        return bool(run_id) and not candidate_path.is_absolute() and ".." not in candidate_path.parts and "/" not in run_id and "\\" not in run_id
+
+    def _load_run_summary(self, run_dir: Path, source_kind: str = "current") -> dict[str, Any]:
         run_json = run_dir / "run.json"
         run_data = self._read_json(run_json, allowed_root=run_dir)
         if not isinstance(run_data, dict):
-            return self._invalid_summary(run_dir)
+            return self._invalid_summary(run_dir, source_kind)
         planner = self._read_json(run_dir / "planner-output.json", allowed_root=run_dir)
         if not isinstance(planner, dict):
             planner = {}
@@ -130,6 +196,8 @@ class LoopDashboardStore:
         return {
             "run_id": str(run_data.get("run_id") or run_dir.name),
             "project_root": str(self.project_root),
+            "source_kind": source_kind,
+            "source_path": self._source_path(run_dir),
             "task_summary": self._trim(task_description),
             "task_description": task_description,
             "policy": str(run_data.get("policy") or ""),
@@ -148,7 +216,7 @@ class LoopDashboardStore:
             "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
         }
 
-    def _invalid_summary(self, run_dir: Path) -> dict[str, Any]:
+    def _invalid_summary(self, run_dir: Path, source_kind: str = "current") -> dict[str, Any]:
         diagnostic = {
             "kind": "invalid_artifact",
             "severity": "critical",
@@ -159,6 +227,8 @@ class LoopDashboardStore:
         return {
             "run_id": run_dir.name,
             "project_root": str(self.project_root),
+            "source_kind": source_kind,
+            "source_path": self._source_path(run_dir),
             "task_summary": "invalid_artifact",
             "policy": "",
             "phase": "invalid_artifact",
@@ -1006,6 +1076,12 @@ class LoopDashboardStore:
         except ValueError:
             return path.name
 
+    def _source_path(self, run_dir: Path) -> str:
+        try:
+            return str(run_dir.resolve().relative_to(self.project_root))
+        except (OSError, ValueError):
+            return run_dir.name
+
     def _resolve_artifact_reference(
         self,
         reference: str,
@@ -1043,6 +1119,18 @@ class LoopDashboardStore:
         except (OSError, ValueError):
             return None
         if not resolved_path.is_file():
+            return None
+        return resolved_path
+
+    def _safe_dir_under(self, path: Path, root: Path) -> Path | None:
+        try:
+            resolved_root = root.resolve()
+            resolved_path = path.resolve()
+            resolved_path.relative_to(resolved_root)
+            resolved_path.relative_to(self.project_root)
+        except (OSError, ValueError):
+            return None
+        if not resolved_path.is_dir():
             return None
         return resolved_path
 

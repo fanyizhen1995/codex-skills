@@ -53,6 +53,26 @@ def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
     assert client.get("/api/runs/demo-run/logs").json()["run_id"] == "demo-run"
 
 
+def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
+    worktree_root = tmp_path / ".worktrees" / "loop-dashboard"
+    seed_minimal_run(worktree_root)
+    run_dir = worktree_root / ".codex" / "loop-runs" / "demo-run"
+    (run_dir / "planner-attempt-1.stdout.log").write_text("Planner history log\n", encoding="utf-8")
+    client = TestClient(create_app(project_root=tmp_path))
+
+    runs = client.get("/api/runs").json()
+    detail = client.get("/api/runs/demo-run").json()
+    events = client.get("/api/runs/demo-run/events").json()
+    logs = client.get("/api/runs/demo-run/logs").json()
+
+    assert runs[0]["run_id"] == "demo-run"
+    assert runs[0]["source_kind"] == "worktree"
+    assert detail["source_path"] == ".worktrees/loop-dashboard/.codex/loop-runs/demo-run"
+    assert detail["phase"] == "passed_waiting_human_merge"
+    assert events["events"]
+    assert logs["logs"][0]["content"] == "Planner history log\n"
+
+
 def test_api_returns_404_for_missing_run_and_traversal_run_id(tmp_path: Path) -> None:
     client = TestClient(create_app(project_root=tmp_path))
 

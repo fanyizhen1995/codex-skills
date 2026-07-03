@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-07-03 Loop Dashboard Worktree History
+
+- Completed `loop-dashboard-history-01`: Loop Dashboard now reads runs from both the current checkout `.codex/loop-runs` and project-local `.worktrees/*/.codex/loop-runs`.
+- Added source metadata (`source_kind`, `source_path`) to run summaries/details, deduplicates duplicate `run_id` entries by newest `updated_at`, and shows the source path in the frontend `运行信息`.
+- Extended the browser-click evaluator to seed and select a completed worktree history run, then verify the source path is visible to the user.
+- Evidence:
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests` -> 30 passed
+  - `python3 -m unittest scripts.tests.test_harness_evaluator_scenarios -v` -> 21 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-history-01` -> pass
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/loop-dashboard-dev-01.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-03 Loop Dashboard
 
 - Completed `loop-dashboard-dev-01`: added an independent read-only Loop Dashboard for current-project loop runs, agent summaries, visual flow, logs/events, completed states, and blocked diagnostics.

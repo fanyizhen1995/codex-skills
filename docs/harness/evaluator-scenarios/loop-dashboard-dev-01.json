@@ -4,7 +4,7 @@
   "user_scenarios": [
     {
       "scenario_id": "LOOP-DASHBOARD-CLICK-SMOKE",
-      "user_goal": "作为操作者，打开本地 Loop 看板，选择运行记录，查看任务与 Agent 摘要、流程图、日志过滤结果，并确认已完成运行可见。",
+      "user_goal": "作为操作者，打开本地 Loop 看板，选择运行记录，查看任务与 Agent 摘要、流程图、日志过滤结果，并确认当前项目和项目 worktree 中的已完成运行都可见。",
       "prerequisites": [
         "FastAPI、uvicorn 和 Python Playwright 可用。",
         "Playwright Chromium 浏览器已安装。",
@@ -12,18 +12,20 @@
       ],
       "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01",
       "steps": [
-        "创建覆盖 active repair、passed_waiting_human_merge、stopped_no_action、stopped_budget 和 stopped_blocked 状态的 fixture 运行记录。",
+        "创建覆盖 active repair、passed_waiting_human_merge、stopped_no_action、stopped_budget 和 stopped_blocked 状态的 fixture 运行记录，并在 .worktrees/loop-dashboard 下创建已完成历史运行。",
         "针对临时 fixture 项目根目录启动 dashboard backend。",
         "在浏览器中打开看板。",
         "点击运行记录，验证任务描述、阶段、下一动作、Agent 卡片、阻塞诊断和流程图。",
         "按 stderr 类型和关键词过滤日志。",
-        "点击已完成运行，验证终态记录仍然可见。",
+        "点击当前项目已完成运行，验证终态记录仍然可见。",
+        "点击 worktree 历史已完成运行，验证终态记录和来源路径仍然可见。",
         "在移动端宽度检查页面没有横向溢出。"
       ],
       "expected_outcomes": [
         "看板页面以中文渲染。",
         "选择运行后，详情、流程图、Agent 卡片、日志和诊断同步更新。",
-        "已完成运行可见。",
+        "当前项目和项目 worktree 中的已完成运行可见。",
+        "运行详情展示来源路径。",
         "日志文本展示前已脱敏。",
         "390px 宽视口没有页面级横向溢出。",
         "Evaluator 写入 status 为 pass 的 result.json 和浏览器证据摘要。",
@@ -35,6 +37,8 @@
         "Planner、Generator 或 Evaluator 摘要缺失。",
         "日志过滤没有改变可见条目。",
         "已完成运行状态被隐藏。",
+        "worktree 历史运行未出现在运行列表。",
+        "运行详情缺少来源路径。",
         "移动端宽度出现页面级横向溢出。"
       ],
       "cleanup": [

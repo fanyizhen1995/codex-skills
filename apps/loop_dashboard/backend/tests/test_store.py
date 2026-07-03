@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -173,6 +174,57 @@ def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path
     assert active["attempts"]["generator"] == 1
     assert active["flow_nodes"][0]["label"] == "Preflight"
     assert next(run for run in runs if run["run_id"] == "complete-run")["completed"] is True
+
+
+def test_list_runs_includes_project_worktree_history(tmp_path: Path) -> None:
+    worktree_root = tmp_path / ".worktrees" / "loop-dashboard"
+    seed_run(
+        worktree_root,
+        "loop-dashboard-dev",
+        "passed_waiting_human_merge",
+        last_result="pass",
+        next_action="await_human_merge_confirmation",
+    )
+
+    runs = LoopDashboardStore(tmp_path).list_runs()
+
+    assert [run["run_id"] for run in runs] == ["loop-dashboard-dev"]
+    run = runs[0]
+    assert run["completed"] is True
+    assert run["source_kind"] == "worktree"
+    assert run["source_path"] == ".worktrees/loop-dashboard/.codex/loop-runs/loop-dashboard-dev"
+
+
+def test_duplicate_run_id_prefers_newest_source(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "duplicate-run",
+        "repair_needed",
+        last_result="fail",
+        next_action="run_generator_repair",
+    )
+    worktree_root = tmp_path / ".worktrees" / "loop-dashboard"
+    seed_run(
+        worktree_root,
+        "duplicate-run",
+        "passed_waiting_human_merge",
+        last_result="pass",
+        next_action="await_human_merge_confirmation",
+    )
+    current_run = tmp_path / ".codex" / "loop-runs" / "duplicate-run" / "run.json"
+    worktree_run = worktree_root / ".codex" / "loop-runs" / "duplicate-run" / "run.json"
+    os.utime(current_run, (1_700_000_000, 1_700_000_000))
+    os.utime(worktree_run, (1_800_000_000, 1_800_000_000))
+
+    store = LoopDashboardStore(tmp_path)
+    runs = store.list_runs()
+    detail = store.get_run("duplicate-run")
+
+    assert [run["run_id"] for run in runs] == ["duplicate-run"]
+    assert runs[0]["source_kind"] == "worktree"
+    assert runs[0]["phase"] == "passed_waiting_human_merge"
+    assert detail["source_kind"] == "worktree"
+    assert detail["phase"] == "passed_waiting_human_merge"
 
 
 def test_detail_keeps_full_task_description_while_list_uses_short_summary(tmp_path: Path) -> None:

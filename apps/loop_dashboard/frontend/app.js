@@ -399,6 +399,7 @@ function renderDetail() {
     ["策略", policyLabel(detail.policy)],
     ["阶段", phaseLabel(detail.phase)],
     ["健康状态", healthLabel(detail.health)],
+    ["来源", detail.source_path],
   ].forEach(([label, value]) => {
     infoGrid.append(infoRow(label, value));
   });

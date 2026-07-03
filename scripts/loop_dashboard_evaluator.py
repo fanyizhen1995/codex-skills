@@ -29,6 +29,7 @@ CHECKED = [
     "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
     "确认敏感 token 在日志中被脱敏",
     "切换查看已完成、无需操作、预算耗尽和阻塞运行",
+    "查看项目 worktree 中的已完成历史运行，并确认详情展示来源路径",
     "在 390px 移动端宽度确认页面没有横向溢出",
 ]
 
@@ -130,6 +131,15 @@ def seed_fixture_project(project_root: Path) -> None:
     ]
     for index, (run_id, phase, last_result, next_action, summary) in enumerate(runs):
         seed_run(project_root, run_id, phase, last_result, next_action, summary, index)
+    seed_run(
+        project_root / ".worktrees" / "loop-dashboard",
+        "loop-dashboard-dev",
+        "passed_waiting_human_merge",
+        "pass",
+        "await_human_merge_confirmation",
+        "历史 worktree 里的 Loop Dashboard 开发任务已经完成。",
+        len(runs),
+    )
     seed_rich_evaluator_result(project_root)
 
 
@@ -422,6 +432,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             if workbench_columns != 2:
                 raise AssertionError(f"dashboard should use two primary columns, got {workbench_columns}")
             expect(page.get_by_test_id("run-list")).to_contain_text("active-repair-run")
+            expect(page.get_by_test_id("run-list")).to_contain_text("loop-dashboard-dev")
 
             page.get_by_role("button").filter(has_text="active-repair-run").first.click()
             detail = page.get_by_test_id("run-detail")
@@ -436,7 +447,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(detail.locator(".run-summary-card")).to_have_count(1)
             expect(detail.locator(".decision-grid")).to_have_count(1)
             expect(detail.locator(".run-info-grid")).to_have_count(1)
-            expect(detail.locator(".run-info-row")).to_have_count(4)
+            expect(detail.locator(".run-info-row")).to_have_count(5)
             info_columns = detail.locator(".run-info-grid").evaluate(
                 "el => getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length"
             )
@@ -525,6 +536,9 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(flow).to_contain_text("Repair Needed")
             expect(flow).to_contain_text("跳过")
             expect(flow).to_contain_text("本次未触发")
+            click_run_and_expect_phase(page, expect, "loop-dashboard-dev", "通过，等待人工合并")
+            expect(detail).to_contain_text("来源")
+            expect(detail).to_contain_text(".worktrees/loop-dashboard/.codex/loop-runs/loop-dashboard-dev")
             click_run_and_expect_phase(page, expect, "no-action-run", "停止：无需操作")
             click_run_and_expect_phase(page, expect, "budget-run", "停止：预算耗尽")
             click_run_and_expect_phase(page, expect, "blocked-run", "停止：阻塞")

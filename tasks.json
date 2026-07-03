@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-03",
-  "current_focus": "Loop Dashboard history visibility is in progress: completed loop runs from project-local worktrees should appear in the current project dashboard.",
+  "current_focus": "Loop Dashboard history visibility is complete: completed loop runs from project-local worktrees appear in the current project dashboard.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -87,7 +87,7 @@
       "id": "loop-dashboard-history-01",
       "title": "Show completed worktree loop history in Loop Dashboard",
       "description": "Extend the read-only Loop Dashboard so completed loop runs stored under project-local worktrees, such as .worktrees/*/.codex/loop-runs, appear in the current project run list with source metadata and remain inspectable through detail, events, logs, and browser evaluator coverage.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "loop-dashboard-dev-01",
       "verify": "PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 -m unittest scripts.tests.test_harness_evaluator_scenarios -v && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-history-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-dashboard-dev-01.json >/dev/null && git diff --check",
