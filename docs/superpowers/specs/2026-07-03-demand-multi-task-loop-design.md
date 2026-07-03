@@ -33,6 +33,7 @@ Parent Planner
 - 所有可行动子任务通过后，父 run 统一进入 `passed_waiting_human_merge`。
 - Loop Dashboard 展示父需求、子任务队列、每个 agent 做了什么、验收了什么、哪里失败、是否需要用户决策。
 - 兼容现有单 run artifact，不破坏历史 dashboard 和 evaluator 读取路径。
+- spec 必须包含测试方案设计和 e2e 测试用例设计；实现阶段必须把 spec 中列出的测试全部跑通，不能只完成代码改动。
 
 ## 非目标
 
@@ -52,6 +53,7 @@ Parent Planner
 - 看板以父 run 为主要列表项，子 run 在父 run 下折叠和聚合展示。
 - evaluator 必须提供用户场景结果；涉及前端或看板时必须模拟浏览器点击。
 - Planner、Generator、Evaluator、Orchestrator 都应写结构化事件，让看板不只显示文件更新时间。
+- 进入开发前必须把测试方案落入 implementation plan；开发完成前必须执行并记录所有单元、集成、e2e 和 evaluator 验证结果。
 
 ## 运行模型
 
@@ -473,16 +475,191 @@ Evaluator 验证子任务和父需求两层。
 - 验证关键任务描述没有被截断
 - 验证错误、阻塞和用户决策状态可见
 
+## 测试方案设计
+
+本需求的测试方案是 spec 的一部分，implementation plan 必须逐条引用并落地。
+实现阶段完成标准不是“代码写完”，而是本节列出的测试全部跑通并记录结果。
+
+### 单元测试
+
+覆盖范围：
+
+- `harness_loop_contracts.py`
+  - 旧 single run 无 `run_kind` 时仍通过校验。
+  - parent run 必须接受 `child_run_ids`、`backlog`、`aggregate_acceptance`、`reader_summary` 和 `accepted_changed_paths`。
+  - child run 必须接受 `parent_run_id`、`child_index`、child-level `passed`。
+  - 非法 `run_kind`、非法 child phase、缺少 parent linkage 时失败。
+- `harness_loop_orchestrator.py`
+  - parent planner 可以创建 backlog 和 next child。
+  - child evaluator pass 后更新 parent aggregate acceptance。
+  - child evaluator fail 后保持同一 child 进入 repair，不创建新 child。
+  - parent 达到 `max_child_tasks`、`max_parent_planner_rounds` 或 wall time 时进入 `stopped_budget`。
+  - dirty path 不在 parent baseline、accepted changed paths、当前 child allowed paths 中时进入 `stopped_blocked`。
+- Loop Dashboard backend store
+  - 同时通过父 `child_run_ids` 和子 `parent_run_id` 恢复父子关系。
+  - `GET /api/runs` 返回 parent summary、children summary、decision_required。
+  - `GET /api/runs/{parent}` 返回 children、reader summary、aggregate acceptance、agent summaries、acceptance summary、blocked diagnostics。
+  - 旧 single run 仍可作为顶层 run 展示。
+  - `events.jsonl` 优先于文件 mtime 生成日志叙事。
+
+### 集成测试
+
+覆盖范围：
+
+- fake driver 跑完整 `run-demand-multi`：
+  - 创建 parent run。
+  - Planner 生成 3 个 child。
+  - child 1/2/3 顺序 pass。
+  - parent 最终进入 `passed_waiting_human_merge`。
+- fake driver 跑修复路径：
+  - child 2 evaluator 第一次 fail。
+  - generator 修复同一个 child 2。
+  - child 2 第二次 pass。
+  - parent 才继续 child 3。
+- fake driver 跑阻塞路径：
+  - child 出现 denylist 或 dirty path violation。
+  - parent 进入 `stopped_blocked`。
+  - dashboard blocked diagnostics 能显示原因。
+- dashboard backend + fixture artifact：
+  - 用 parent/child fixture run 目录启动 API。
+  - API 返回聚合状态与 fixture 一致。
+  - 事件日志包含 planner、generator、evaluator、orchestrator 的结构化摘要。
+
+### 回归测试
+
+每次实现阶段必须运行现有相关测试，至少包括：
+
+```text
+PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests
+python3 -m unittest scripts.tests.test_harness_evaluator_scenarios -v
+python3 -m unittest discover scripts/tests -v
+```
+
+如果某条命令因环境或依赖不存在无法运行，implementation result 必须写明原因，并补充等价验证命令；不能静默跳过。
+
+### 验收记录
+
+Generator 和 Evaluator 都必须把测试结果写入 run artifact：
+
+- Generator 写入 `generator-result.json.verify_results`。
+- Evaluator 写入 `evaluator-result.json` 和 scenario results。
+- Orchestrator 追加 `events.jsonl`，记录每组测试的 pass/fail/blocked 摘要。
+- Dashboard 的验收 tab 必须能展示这些测试结论。
+
+## E2E 测试用例设计
+
+E2E 目标是证明“需求开发多子任务 loop”对真实使用者可见、可理解、可验收。
+
+### E2E-01：多子任务需求完整通过
+
+前置：
+
+- 使用 fake driver 或受控 fixture，创建一个 parent run。
+- parent backlog 包含 3 个 child。
+- 每个 child 都有 planner/generator/evaluator artifact 和 `events.jsonl`。
+
+步骤：
+
+1. 运行 `run-demand-multi`。
+2. 确认 child 1、child 2、child 3 顺序执行。
+3. 确认每个 child pass 后 parent aggregate acceptance 更新。
+4. 确认 parent 最终进入 `passed_waiting_human_merge`。
+
+预期：
+
+- 不需要用户逐个确认 child。
+- parent 只在所有 child pass 后等待合入。
+- parent run artifact 中能看到 child run IDs、aggregate acceptance、reader summary。
+
+### E2E-02：失败 child 修复后继续
+
+前置：
+
+- child 2 的 evaluator 第一次返回 fail。
+
+步骤：
+
+1. 运行 `run-demand-multi` 到 child 2 fail。
+2. 确认 parent phase 为 `repair_needed`。
+3. 确认 orchestrator 继续修复 child 2。
+4. child 2 pass 后，确认 parent planner 才选择 child 3。
+
+预期：
+
+- 不创建新的 child 绕过 child 2。
+- dashboard 子任务队列显示 child 2 曾失败并已修复通过。
+- events 里有 fail、repair、pass 三类记录。
+
+### E2E-03：意外 dirty path 阻塞
+
+前置：
+
+- parent baseline dirty paths 已记录。
+- child allowed paths 不包含某个新增 dirty path。
+
+步骤：
+
+1. 运行 child generator 后制造或检测到意外 dirty path。
+2. 运行 dirty path gate。
+3. 打开 dashboard 查看父 run。
+
+预期：
+
+- parent 进入 `stopped_blocked`。
+- dashboard blocked diagnostics 显示具体路径、为什么不属于 baseline/accepted/current allowed paths、下一步需要用户如何处理。
+
+### E2E-04：Dashboard 父子任务可读性
+
+前置：
+
+- 启动 Loop Dashboard。
+- 准备 parent + child fixture，其中包含长描述、agent action、acceptance summary、blocked diagnostics 和 artifact paths。
+
+步骤：
+
+1. 用浏览器自动化打开 dashboard。
+2. 点击父需求 run。
+3. 阅读顶部 reader summary。
+4. 查看子任务队列。
+5. 切换 `验收情况`、`事件与日志`、`阻塞诊断`、`产物` tab。
+6. 检查长任务描述和 agent 摘要没有被截断。
+
+预期：
+
+- 第三方读者能看懂任务是什么、进行到哪里、验收了什么、是否有错误、是否需要用户决策。
+- 日志不只显示文件 update，还显示 Planner/Generator/Evaluator 的结构化事件。
+- 页面无明显文字重叠、关键内容截断或无法点击。
+
+### E2E-05：旧 single run 兼容
+
+前置：
+
+- 准备旧格式 single run fixture，不包含 `run_kind`。
+
+步骤：
+
+1. 启动 dashboard。
+2. 打开 run list。
+3. 点击旧 single run。
+
+预期：
+
+- 旧 run 仍作为顶层项展示。
+- 详情页保持现有单 run 行为。
+- 新 parent/child 聚合逻辑不影响旧 run。
+
 ## 迁移计划
 
-1. 扩展 contracts，允许 `run_kind`、父子字段、backlog、aggregate acceptance、reader summary 和 child-level `passed`。
-2. 为旧 single run、parent run、child run、非法父子引用补单测。
-3. 用 fake driver 先实现 `run-demand-multi` 状态机。
-4. 增加结构化事件写入和 dashboard 读取。
-5. 扩展 dashboard 后端，聚合 parent/child run。
-6. 扩展 dashboard 前端，展示父需求列表、子任务队列、agent 动作、验收叙事和日志。
-7. 增加 dashboard evaluator 场景和浏览器点击检查。
-8. 用这个“需求开发多子任务 loop”需求本身跑一次新流程，作为验收用例。
+1. 先把本 spec 的测试方案拆进 implementation plan，明确每个阶段必须跑哪些测试。
+2. 扩展 contracts，允许 `run_kind`、父子字段、backlog、aggregate acceptance、reader summary 和 child-level `passed`。
+3. 为旧 single run、parent run、child run、非法父子引用补单测，并确认失败用例先能失败。
+4. 用 fake driver 先实现 `run-demand-multi` 状态机，并跑通 E2E-01、E2E-02、E2E-03 的非 UI 版本。
+5. 增加结构化事件写入和 dashboard 读取。
+6. 扩展 dashboard 后端，聚合 parent/child run，并跑通 API 集成测试。
+7. 扩展 dashboard 前端，展示父需求列表、子任务队列、agent 动作、验收叙事和日志。
+8. 增加 dashboard evaluator 场景和浏览器点击检查，跑通 E2E-04、E2E-05。
+9. 运行全部回归测试和 dashboard evaluator。
+10. 用这个“需求开发多子任务 loop”需求本身跑一次新流程，作为最终验收用例。
 
 ## 风险与缓解
 
@@ -513,6 +690,8 @@ Evaluator 验证子任务和父需求两层。
   结论：没有 `run_kind` 的 run 按 `single` 处理。
 - **用户何时介入？**
   结论：全部 child 通过后的合入门、denylist/权限/鉴权/预算/意外脏路径等阻塞点才需要用户介入。
+- **测试是否只是实现后的补充？**
+  结论：不是。spec 必须先定义测试方案和 e2e 用例，implementation plan 必须逐条落地，开发结束前必须全部跑通或写明不可运行原因和等价验证。
 
 ## 实现选择
 
