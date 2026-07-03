@@ -130,6 +130,162 @@ def _task_id_for_run(run_id: str) -> str:
     return f"{run_id}-task"
 
 
+def _child_run_id(parent_run_id: str, child_index: int) -> str:
+    return f"{parent_run_id}-child-{child_index:03d}"
+
+
+def _event_path(repo_root: Path, run_id: str) -> Path:
+    return run_dir_for(repo_root, run_id) / "events.jsonl"
+
+
+def append_loop_event(
+    repo_root: Path,
+    *,
+    run_id: str,
+    actor: str,
+    event_type: str,
+    summary: str,
+    parent_run_id: str = "",
+    child_id: str = "",
+    details: dict[str, Any] | None = None,
+    artifact_paths: list[str] | None = None,
+) -> Path:
+    payload = {
+        "timestamp": _timestamp(),
+        "run_id": run_id,
+        "parent_run_id": parent_run_id,
+        "child_id": child_id,
+        "actor": actor,
+        "event_type": event_type,
+        "summary": summary,
+        "details": details or {},
+        "artifact_paths": artifact_paths or [],
+    }
+    path = _event_path(repo_root, run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+    return path
+
+
+def _ensure_parent_fields(run: dict[str, Any]) -> dict[str, Any]:
+    run.setdefault("run_kind", "parent")
+    if run.get("run_kind") == "single":
+        run["run_kind"] = "parent"
+    if run.get("phase") == "planned":
+        run["phase"] = "planning"
+        run["next_action"] = "run_parent_planner"
+    run.setdefault("child_run_ids", [])
+    run.setdefault("current_child_run_id", "")
+    run.setdefault("backlog", [])
+    run.setdefault(
+        "aggregate_acceptance",
+        {"total": 0, "passed": 0, "failed": 0, "blocked": 0, "pending": 0, "user_decision_required": False},
+    )
+    run.setdefault(
+        "reader_summary",
+        {"purpose": run.get("requirement", ""), "current_progress": "", "next_step": "", "decision_needed": "No"},
+    )
+    run.setdefault("accepted_changed_paths", [])
+    return run
+
+
+def _create_child_run(
+    repo_root: Path,
+    parent: dict[str, Any],
+    child_index: int,
+    child_task: dict[str, Any],
+) -> dict[str, Any]:
+    child_run_id = _child_run_id(parent["run_id"], child_index)
+    child = {
+        "run_id": child_run_id,
+        "run_kind": "child",
+        "parent_run_id": parent["run_id"],
+        "child_index": child_index,
+        "policy": "demand_development",
+        "phase": "generating",
+        "task_id": f"{child_run_id}-task",
+        "domain": "",
+        "branch": parent.get("branch", ""),
+        "worktree": parent.get("worktree", ""),
+        "requirement": str(child_task.get("description") or child_task.get("title") or parent.get("requirement", "")),
+        "constraints": list(parent.get("constraints", [])),
+        "stop_conditions": ["passed"],
+        "baseline_dirty_paths": list(parent.get("baseline_dirty_paths", [])),
+        "allowed_paths": list(child_task.get("allowed_paths", [])),
+        "denylist_paths": list(child_task.get("denylist_paths", [])),
+        "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+        "limits": dict(parent.get("limits", default_limits())),
+        "last_result": "none",
+        "next_action": "run_child_generator",
+        "attempt_history": [],
+        "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        "reader_summary": {
+            "purpose": str(child_task.get("title", "")),
+            "planner_action": "Parent planner selected this child",
+            "generator_action": "",
+            "evaluator_action": "",
+            "acceptance_result": "",
+        },
+    }
+    save_run(repo_root, child)
+
+    planner_payload = {
+        "task_id": child["task_id"],
+        "policy": "demand_development",
+        "task_kind": "task_contract_only",
+        "title": str(child_task.get("title", "")),
+        "goal": str(child_task.get("description", "")),
+        "non_goals": [],
+        "allowed_paths": list(child_task.get("allowed_paths", [])),
+        "denylist_paths": list(child_task.get("denylist_paths", [])),
+        "verify_commands": list(child_task.get("verify_commands", [])),
+        "evaluator_scenarios_path": "",
+        "stop_conditions": ["passed"],
+        "next_planning_hint": "return to parent planner",
+    }
+    validate_planner_output_payload(planner_payload)
+    write_json_file(run_dir_for(repo_root, child_run_id) / "planner-output.json", planner_payload)
+
+    expected_outcomes = list(child_task.get("done_criteria", [])) or ["Child passes fake evaluator."]
+    task_contract = {
+        "task_id": child["task_id"],
+        "title": str(child_task.get("title", "")),
+        "description": str(child_task.get("description", "")),
+        "verify_commands": list(child_task.get("verify_commands", [])),
+        "scenario_commands": list(child_task.get("scenario_commands", [])),
+        "artifact_paths": list(child_task.get("allowed_paths", [])),
+        "required_services": [],
+        "evaluator_driver": "harness_auto_gate",
+        "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
+        "allowed_scope": "local_repo_and_harness",
+        "must_simulate": True,
+        "user_scenarios": [
+            {
+                "scenario_id": f"{child_run_id}-scenario",
+                "user_goal": str(child_task.get("description", "")),
+                "prerequisites": ["Parent demand multi-task run exists."],
+                "steps": ["Run child generator.", "Run child evaluator."],
+                "expected_outcomes": expected_outcomes,
+                "failure_signals": ["Child evaluator fails.", "Changed paths leave allowed scope."],
+            }
+        ],
+    }
+    validate_task_contract_payload(task_contract)
+    write_json_file(run_dir_for(repo_root, child_run_id) / "task-contract.json", task_contract)
+
+    append_loop_event(
+        repo_root,
+        run_id=child_run_id,
+        parent_run_id=parent["run_id"],
+        child_id=str(child_task.get("child_id", "")),
+        actor="planner",
+        event_type="plan",
+        summary=f"Planner selected child {child_index}: {child_task.get('title', '')}",
+    )
+    return child
+
+
 def _read_requirement(run_dir: Path) -> str:
     text = (run_dir / "preflight.md").read_text(encoding="utf-8")
     marker = "## Requirement"
@@ -781,6 +937,327 @@ def run_loop(
     if run["phase"] not in terminal_phases:
         raise RuntimeError(f"run_loop unsupported phase {run['phase']}")
     return status_for_run(root, run_id)
+
+
+def _fake_parent_planner_payload(
+    parent: dict[str, Any],
+    decision: str = "next_child",
+    max_children: int = 3,
+) -> dict[str, Any]:
+    aggregate = parent.get("aggregate_acceptance", {})
+    passed = int(aggregate.get("passed", 0)) if isinstance(aggregate, dict) else 0
+    base_payload: dict[str, Any] = {
+        "task_id": parent.get("task_id", ""),
+        "policy": "demand_development",
+        "task_kind": "registered_task",
+        "title": "Demand parent planner",
+        "goal": parent.get("requirement", ""),
+        "non_goals": [],
+        "allowed_paths": [],
+        "denylist_paths": [],
+        "verify_commands": [],
+        "evaluator_scenarios_path": "",
+        "stop_conditions": ["passed_waiting_human_merge", "stopped_blocked", "stopped_budget"],
+        "backlog": list(parent.get("backlog", [])),
+        "next_planning_hint": "",
+    }
+    if decision in {"blocked", "failed"}:
+        return {
+            **base_payload,
+            "planner_decision": decision,
+            "next_child_task": {},
+            "blocked_reason": f"fake planner {decision}",
+            "done_criteria": [],
+            "reader_summary": {
+                "purpose": parent.get("requirement", ""),
+                "current_progress": "Blocked",
+                "next_step": "User decision required",
+                "decision_needed": "Yes",
+            },
+            "decision_required": True,
+        }
+    if decision == "parent_done" or passed >= max_children:
+        return {
+            **base_payload,
+            "planner_decision": "parent_done",
+            "next_child_task": {},
+            "blocked_reason": "",
+            "done_criteria": ["all fake children passed"],
+            "reader_summary": {
+                "purpose": parent.get("requirement", ""),
+                "current_progress": f"{passed} children passed",
+                "next_step": "Await human merge",
+                "decision_needed": "No",
+            },
+            "decision_required": False,
+        }
+
+    next_index = passed + 1
+    return {
+        **base_payload,
+        "planner_decision": "next_child",
+        "next_child_task": {
+            "child_id": f"child-{next_index:03d}",
+            "title": f"Fake child {next_index}",
+            "description": f"Implement fake child {next_index}",
+            "allowed_paths": [f"generated/child-{next_index:03d}.txt"],
+            "denylist_paths": [".env"],
+            "verify_commands": [],
+            "scenario_commands": [],
+            "done_criteria": [f"child {next_index} passes fake evaluator"],
+        },
+        "blocked_reason": "",
+        "done_criteria": [],
+        "reader_summary": {
+            "purpose": parent.get("requirement", ""),
+            "current_progress": f"{passed} children passed",
+            "next_step": "Run next child",
+            "decision_needed": "No",
+        },
+        "decision_required": False,
+    }
+
+
+def _run_fake_demand_child(
+    repo_root: Path,
+    parent: dict[str, Any],
+    child: dict[str, Any],
+    *,
+    generator_driver: str,
+    max_eval_attempts: int,
+) -> None:
+    child_run_dir = run_dir_for(repo_root, child["run_id"])
+    child_index = int(child["child_index"])
+    generated_path = f"generated/child-{child_index:03d}.txt"
+    target = repo_root / generated_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(f"child {child_index}\n", encoding="utf-8")
+    generator_payload = {
+        "task_id": child["task_id"],
+        "status": "implemented",
+        "changed_paths": [generated_path],
+        "commit": "",
+        "verify_commands": [],
+        "verify_results": [{"command": "fake", "status": "pass"}],
+        "artifacts": [generated_path],
+        "cleanup_required": False,
+        "notes": "fake demand child generated",
+    }
+    validate_generator_result_payload(generator_payload)
+    write_json_file(child_run_dir / "generator-result.json", generator_payload)
+    child["attempts"]["generator"] = int(child["attempts"]["generator"]) + 1
+    child["reader_summary"]["generator_action"] = f"Generated {generated_path}"
+    append_loop_event(
+        repo_root,
+        run_id=child["run_id"],
+        parent_run_id=parent["run_id"],
+        child_id=f"child-{child_index:03d}",
+        actor="generator",
+        event_type="implement",
+        summary=f"Generator wrote {generated_path}",
+        artifact_paths=[generated_path],
+    )
+
+    should_fail_once = (
+        generator_driver == "fake-fail-child-2-once"
+        and child_index == 2
+        and int(child["attempts"]["evaluator"]) == 0
+    )
+    evaluator_payload = {
+        "status": "fail" if should_fail_once else "pass",
+        "task_id": child["task_id"],
+        "driver": "fake",
+        "returncode": 1 if should_fail_once else 0,
+        "stdout": "fake evaluator fail\n" if should_fail_once else "fake evaluator pass\n",
+        "stderr": "",
+    }
+    validate_evaluator_result_payload(evaluator_payload)
+    write_json_file(child_run_dir / "evaluator-result.json", evaluator_payload)
+    child["attempts"]["evaluator"] = int(child["attempts"]["evaluator"]) + 1
+
+    if should_fail_once and child["attempts"]["evaluator"] < max_eval_attempts:
+        child["phase"] = "repair_needed"
+        child["last_result"] = "fail"
+        child["next_action"] = "repair_child"
+        child["reader_summary"]["evaluator_action"] = "Fake evaluator failed; repair required"
+        child["reader_summary"]["acceptance_result"] = "Repair needed"
+        save_run(repo_root, child)
+        append_loop_event(
+            repo_root,
+            run_id=child["run_id"],
+            parent_run_id=parent["run_id"],
+            child_id=f"child-{child_index:03d}",
+            actor="evaluator",
+            event_type="evaluate",
+            summary="Evaluator failed child; repair required",
+        )
+        append_loop_event(
+            repo_root,
+            run_id=child["run_id"],
+            parent_run_id=parent["run_id"],
+            child_id=f"child-{child_index:03d}",
+            actor="generator",
+            event_type="repair",
+            summary="Generator repaired same child",
+        )
+        child["attempts"]["evaluator"] = int(child["attempts"]["evaluator"]) + 1
+        evaluator_payload["status"] = "pass"
+        evaluator_payload["returncode"] = 0
+        evaluator_payload["stdout"] = "fake evaluator pass after repair\n"
+        validate_evaluator_result_payload(evaluator_payload)
+        write_json_file(child_run_dir / "evaluator-result.json", evaluator_payload)
+
+    child["phase"] = "passed"
+    child["last_result"] = "pass"
+    child["next_action"] = "return_to_parent_planner"
+    child["reader_summary"]["evaluator_action"] = "Fake evaluator passed"
+    child["reader_summary"]["acceptance_result"] = "Passed"
+    save_run(repo_root, child)
+    append_loop_event(
+        repo_root,
+        run_id=child["run_id"],
+        parent_run_id=parent["run_id"],
+        child_id=f"child-{child_index:03d}",
+        actor="evaluator",
+        event_type="evaluate",
+        summary="Evaluator passed child",
+    )
+
+    parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    parent["accepted_changed_paths"] = sorted(set(parent["accepted_changed_paths"] + generator_payload["changed_paths"]))
+    parent["aggregate_acceptance"]["passed"] = int(parent["aggregate_acceptance"]["passed"]) + 1
+    parent["aggregate_acceptance"]["pending"] = max(
+        0,
+        int(parent["aggregate_acceptance"]["total"]) - int(parent["aggregate_acceptance"]["passed"]),
+    )
+    parent["current_child_run_id"] = child["run_id"]
+    parent["phase"] = "planning"
+    parent["next_action"] = "run_parent_planner"
+    parent["reader_summary"]["current_progress"] = f"{parent['aggregate_acceptance']['passed']} children passed"
+    parent["reader_summary"]["next_step"] = "Run parent planner"
+    parent["reader_summary"]["decision_needed"] = "No"
+    save_run(repo_root, parent)
+
+
+def run_demand_multi(
+    repo_root: Path | str,
+    run_id: str,
+    *,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+    max_children: int,
+) -> dict[str, str]:
+    root = Path(repo_root)
+    validate_run_id(run_id)
+    parent = _ensure_parent_fields(load_run(root, run_id))
+    if parent["phase"] == "preflight":
+        raise RuntimeError("run_demand_multi requires confirmed preflight")
+    if planner_driver not in {"fake", "fake-blocked", "fake-failed"}:
+        raise ValueError("run_demand_multi initially supports fake planner drivers")
+    if generator_driver not in {"fake", "fake-fail-child-2-once", "fake-stop-after-child-1"}:
+        raise ValueError("run_demand_multi initially supports fake generator drivers")
+    if evaluator_driver != "fake":
+        raise ValueError("run_demand_multi initially supports fake evaluator driver")
+
+    while True:
+        parent = _ensure_parent_fields(load_run(root, run_id))
+        if max_children < 1:
+            parent["phase"] = "stopped_budget"
+            parent["last_result"] = "blocked"
+            parent["next_action"] = "inspect_budget_limits"
+            parent["aggregate_acceptance"]["user_decision_required"] = True
+            parent["reader_summary"]["current_progress"] = "Budget exhausted"
+            parent["reader_summary"]["next_step"] = "Inspect budget limits"
+            parent["reader_summary"]["decision_needed"] = "Yes"
+            save_run(root, parent)
+            append_loop_event(
+                root,
+                run_id=run_id,
+                actor="orchestrator",
+                event_type="blocked",
+                summary="max_children budget exhausted",
+            )
+            return status_for_run(root, run_id)
+
+        passed = int(parent["aggregate_acceptance"]["passed"])
+        if passed >= max_children:
+            parent["phase"] = "passed_waiting_human_merge"
+            parent["next_action"] = "await_human_merge_confirmation"
+            parent["last_result"] = "pass"
+            parent["aggregate_acceptance"]["total"] = max_children
+            parent["aggregate_acceptance"]["pending"] = 0
+            parent["reader_summary"]["current_progress"] = f"{passed} children passed"
+            parent["reader_summary"]["next_step"] = "Await human merge"
+            parent["reader_summary"]["decision_needed"] = "No"
+            save_run(root, parent)
+            append_loop_event(
+                root,
+                run_id=run_id,
+                actor="orchestrator",
+                event_type="decision",
+                summary="All child tasks passed; awaiting human merge",
+            )
+            return status_for_run(root, run_id)
+
+        decision = {"fake-blocked": "blocked", "fake-failed": "failed"}.get(planner_driver, "next_child")
+        planner_payload = _fake_parent_planner_payload(parent, decision=decision, max_children=max_children)
+        validate_planner_output_payload(planner_payload)
+        write_json_file(run_dir_for(root, run_id) / "planner-output.json", planner_payload)
+        parent["attempts"]["planner"] = int(parent["attempts"]["planner"]) + 1
+        parent["reader_summary"] = planner_payload["reader_summary"]
+
+        if planner_payload["planner_decision"] in {"blocked", "failed"}:
+            parent["phase"] = "stopped_blocked"
+            parent["last_result"] = "blocked"
+            parent["next_action"] = "inspect_parent_planner_blocked"
+            parent["aggregate_acceptance"]["user_decision_required"] = True
+            save_run(root, parent)
+            append_loop_event(
+                root,
+                run_id=run_id,
+                actor="planner",
+                event_type="blocked",
+                summary=planner_payload["blocked_reason"],
+            )
+            return status_for_run(root, run_id)
+
+        if planner_payload["planner_decision"] == "parent_done":
+            parent["phase"] = "passed_waiting_human_merge"
+            parent["next_action"] = "await_human_merge_confirmation"
+            parent["last_result"] = "pass"
+            parent["aggregate_acceptance"]["total"] = max_children
+            parent["aggregate_acceptance"]["pending"] = 0
+            save_run(root, parent)
+            append_loop_event(
+                root,
+                run_id=run_id,
+                actor="planner",
+                event_type="decision",
+                summary="Parent planner marked demand run done",
+            )
+            return status_for_run(root, run_id)
+
+        child_index = len(parent["child_run_ids"]) + 1
+        child = _create_child_run(root, parent, child_index, planner_payload["next_child_task"])
+        parent["child_run_ids"].append(child["run_id"])
+        parent["current_child_run_id"] = child["run_id"]
+        parent["phase"] = "child_running"
+        parent["next_action"] = "run_child_generator"
+        parent["aggregate_acceptance"]["total"] = max_children
+        parent["aggregate_acceptance"]["pending"] = max_children - int(parent["aggregate_acceptance"]["passed"])
+        save_run(root, parent)
+
+        _run_fake_demand_child(
+            root,
+            parent,
+            child,
+            generator_driver=generator_driver,
+            max_eval_attempts=max_eval_attempts,
+        )
+        if generator_driver == "fake-stop-after-child-1" and child_index == 1:
+            return status_for_run(root, run_id)
 
 
 def _stop_run(
@@ -1502,6 +1979,28 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
     run.add_argument("--max-eval-attempts", type=int, default=2)
 
+    run_demand_multi_parser = subparsers.add_parser("run-demand-multi", help="Run demand-development parent/child loop.")
+    run_demand_multi_parser.add_argument("--repo-root", default=".")
+    run_demand_multi_parser.add_argument("--run-id", required=True)
+    run_demand_multi_parser.add_argument("--planner-driver", choices=("fake", "fake-blocked", "fake-failed", "codex-exec"), required=True)
+    run_demand_multi_parser.add_argument(
+        "--generator-driver",
+        choices=(
+            "fake",
+            "fake-fail-child-2-once",
+            "fake-dirty-path",
+            "fake-timeout",
+            "fake-invalid-json",
+            "fake-missing-artifact",
+            "fake-stop-after-child-1",
+            "codex-exec",
+        ),
+        required=True,
+    )
+    run_demand_multi_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
+    run_demand_multi_parser.add_argument("--max-eval-attempts", type=int, default=2)
+    run_demand_multi_parser.add_argument("--max-children", type=int, default=3)
+
     run_autonomous_parser = subparsers.add_parser("run-autonomous", help="Run the autonomous knowledge loop.")
     run_autonomous_parser.add_argument("--repo-root", default=".")
     run_autonomous_parser.add_argument("--run-id", required=True)
@@ -1563,6 +2062,16 @@ def main(argv: list[str] | None = None) -> int:
             generator_driver=args.generator_driver,
             evaluator_driver=args.evaluator_driver,
             max_eval_attempts=args.max_eval_attempts,
+        )
+    elif args.command == "run-demand-multi":
+        payload = run_demand_multi(
+            repo_root=args.repo_root,
+            run_id=args.run_id,
+            planner_driver=args.planner_driver,
+            generator_driver=args.generator_driver,
+            evaluator_driver=args.evaluator_driver,
+            max_eval_attempts=args.max_eval_attempts,
+            max_children=args.max_children,
         )
     elif args.command == "run-autonomous":
         payload = run_autonomous(
