@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-03",
-  "current_focus": "Loop Dashboard history visibility is complete: completed loop runs from project-local worktrees appear in the current project dashboard.",
+  "current_focus": "Domain Channel Management is in demand-development loop planning; first generator task is crawler-domain-channels-model-01.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -11,6 +11,78 @@
     "max_final_eval_attempts": 2
   },
   "tasks": [
+    {
+      "id": "crawler-domain-channels-model-01",
+      "title": "Add crawler workbench domain channel model",
+      "description": "Implement the backend schema migration, SQLite-as-source-of-truth import rules, generated channels, source channel_id and fetcher_type compatibility fields, and source/channel listing APIs for Domain Channel Management.",
+      "status": "in_progress",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channels_model.py tests/test_db_profiles.py tests/test_api.py tests/test_fetch_service_policy.py tests/test_scheduler.py && cd /home/fyz/codex-skills && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-model-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "crawler-domain-channels-probe-secrets-01",
+      "title": "Add crawler workbench channel secrets and probes",
+      "description": "Implement encrypted local channel secret storage, key-file lifecycle, probe APIs, probe history, channel readiness checks, and source-run blocking reasons without returning or persisting plaintext secrets.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "crawler-domain-channels-model-01",
+      "verify": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py tests/test_fetch_service_policy.py tests/test_api.py && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-probe-secrets-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "crawler-domain-channels-ui-01",
+      "title": "Add crawler workbench Domain Channels UI",
+      "description": "Implement the Domain Channels frontend page for channel CRUD, secret replacement, access probes, probe history, child source CRUD, and compatibility with existing Sources and Queue pages.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "crawler-domain-channels-probe-secrets-01",
+      "verify": "cd personal-wiki/apps/crawler_workbench/frontend && npm test -- src/App.test.tsx && npm run build && npm run test:ui && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "crawler-domain-channels-live-e2e-01",
+      "title": "Validate crawler workbench domain channels end to end",
+      "description": "Run integrated backend/frontend validation for Domain Channel Management against an isolated workbench state directory, including API visibility, UI flow, source-run continuity, and artifact hygiene for access diagnostics.",
+      "status": "pending",
+      "priority": "high",
+      "blocked_by": "crawler-domain-channels-ui-01",
+      "verify": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01 && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
     {
       "id": "planner-generator-evaluator-loop-phase-1-01",
       "title": "Implement Planner Generator Evaluator loop Phase 1",

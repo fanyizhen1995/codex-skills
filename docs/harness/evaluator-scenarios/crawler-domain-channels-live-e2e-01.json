@@ -1,0 +1,47 @@
+{
+  "task_id": "crawler-domain-channels-live-e2e-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "DOMAIN-CHANNELS-LIVE-E2E",
+      "user_goal": "As a remote crawler workbench operator, validate the integrated backend and frontend domain-channel workflow in an isolated local deployment.",
+      "prerequisites": [
+        "Backend and frontend dependencies are installed.",
+        "Playwright browser runtime is installed.",
+        "The evaluator can bind isolated local backend and frontend ports.",
+        "No long-running developer backend or frontend service is reused.",
+        "No real credentials are required; only synthetic test secrets may be used."
+      ],
+      "entrypoint": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01",
+      "steps": [
+        "Start an isolated crawler workbench backend with a temporary state directory and scheduler disabled.",
+        "Start an isolated Vite frontend bound to 0.0.0.0 or a safe local test host as required by the evaluator.",
+        "Use the API to create a channel, attach a source, write a synthetic secret, run a probe, and fetch probe history.",
+        "Use the UI to open Domain Channels, view the created channel, replace the synthetic secret, create a source, and inspect latest probe status.",
+        "Run an existing source-flow fixture to confirm raw evidence and queue continuity still work.",
+        "Write evaluator result, summary, and browser evidence under the output directory.",
+        "Scan retained artifacts for secret-like content and redact or omit sensitive diagnostics."
+      ],
+      "expected_outcomes": [
+        "Backend and frontend start from isolated state and do not reuse long-running services.",
+        "Channel and source API workflows succeed.",
+        "The UI shows the created channel and source.",
+        "Synthetic secret plaintext is not present in retained artifacts.",
+        "Source run, raw item, and queue continuity remain intact for the fixture.",
+        "Evaluator writes a pass result with evidence paths."
+      ],
+      "failure_signals": [
+        "The evaluator connects to an old backend or frontend service.",
+        "Channel API endpoints are missing or fail in the integrated environment.",
+        "The UI cannot complete the Domain Channels flow.",
+        "Synthetic secret plaintext appears in retained logs, traces, screenshots, or JSON artifacts.",
+        "Existing crawler source-run and queue continuity regress."
+      ],
+      "cleanup": [
+        "Stop isolated backend and frontend processes.",
+        "Remove temporary state directories created by the evaluator."
+      ],
+      "automation_hint": "playwright+shell"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "task_id": "crawler-domain-channels-model-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "DOMAIN-CHANNELS-MODEL-API",
+      "user_goal": "As a crawler workbench operator, verify that channel records become the durable access boundary while existing source profiles still load and run from SQLite.",
+      "prerequisites": [
+        "Repository root is writable.",
+        "Crawler workbench backend dependencies are installed.",
+        "The test uses an isolated SQLite database and does not require real credentials."
+      ],
+      "entrypoint": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channels_model.py",
+      "steps": [
+        "Create an isolated state directory with a sources.yaml seed file.",
+        "Initialize the backend database and verify the empty database imports YAML once.",
+        "Modify the seed YAML after the database is non-empty and reinitialize.",
+        "List sources through the backend API and inspect channel fields on each source.",
+        "List channels through the backend API and inspect generated channel IDs, kinds, connectors, and source counts.",
+        "Run an existing source with a static test fetcher to prove source run behavior is still compatible."
+      ],
+      "expected_outcomes": [
+        "The source_profiles table contains channel_id and fetcher_type columns.",
+        "The channels table exists and contains generated channel rows for imported sources.",
+        "An empty database imports sources.yaml exactly once.",
+        "A non-empty database is not overwritten by later YAML edits.",
+        "Existing source IDs remain stable.",
+        "GET /api/sources returns channel_id, channel_name, channel_base_url, and channel_auth_state fields.",
+        "GET /api/channels returns channel records with source_count.",
+        "Existing source run and queue behavior continue to work."
+      ],
+      "failure_signals": [
+        "YAML edits overwrite existing SQLite rows after first import.",
+        "Imported sources lack channel_id.",
+        "Existing source IDs change.",
+        "Existing /api/sources consumers fail.",
+        "A source run fails because fetcher dispatch still expects the old type field."
+      ],
+      "cleanup": [
+        "Remove temporary state directories created by pytest."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

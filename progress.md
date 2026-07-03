@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-03 Domain Channel Management Planner Loop
+
+- Started demand-development loop `crawler-domain-channels-dev-01` for Domain Channel Management.
+- Registered four evaluator-gated tasks: model/API compatibility, channel secrets/probes, Domain Channels UI, and isolated live e2e validation.
+- Added evaluator scenario contracts and the implementation plan for the loop handoff.
+- Local ignored loop artifacts were written under `.codex/loop-runs/crawler-domain-channels-dev-01/` with `planner-output.json`, `generator-prompt.md`, and `run.json` advanced to `generating`.
+- Evidence:
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-model-01.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-probe-secrets-01.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json >/dev/null`
+  - `python3 -m json.tool .codex/loop-runs/crawler-domain-channels-dev-01/planner-output.json >/dev/null`
+  - `python3 -c "from pathlib import Path; from scripts.harness_loop_contracts import read_json_file, validate_planner_output_payload, validate_run_payload; validate_planner_output_payload(read_json_file(Path('.codex/loop-runs/crawler-domain-channels-dev-01/planner-output.json'))); validate_run_payload(read_json_file(Path('.codex/loop-runs/crawler-domain-channels-dev-01/run.json')))"`
+  - `git diff --check`
+
 ## 2026-07-03 Loop Dashboard Worktree History
 
 - Completed `loop-dashboard-history-01`: Loop Dashboard now reads runs from both the current checkout `.codex/loop-runs` and project-local `.worktrees/*/.codex/loop-runs`.

@@ -1,0 +1,46 @@
+{
+  "task_id": "crawler-domain-channels-ui-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "DOMAIN-CHANNELS-UI-FLOW",
+      "user_goal": "As a crawler workbench user, manage domain channels and child sources from the frontend without leaking secret values.",
+      "prerequisites": [
+        "Frontend dependencies are installed.",
+        "Playwright browser runtime is installed for npm run test:ui.",
+        "The UI scenario uses mocked or isolated backend data and synthetic secrets only."
+      ],
+      "entrypoint": "cd personal-wiki/apps/crawler_workbench/frontend && npm run test:ui",
+      "steps": [
+        "Open the crawler workbench frontend.",
+        "Navigate to the Domain Channels page from the primary navigation.",
+        "Select a domain and view its channel table.",
+        "Create a channel with base URL, kind, connector, auth mode, trust, enabled state, and notes.",
+        "Select the channel and verify the detail panel shows editable channel fields, source count, secret status, child sources, and probe history.",
+        "Replace a synthetic secret and confirm the input is cleared after submission.",
+        "Run Verify Access and inspect latest probe status plus probe history.",
+        "Create a child source under the selected channel and confirm it appears in the child source list.",
+        "Navigate to existing Sources and Queue pages and confirm they still render."
+      ],
+      "expected_outcomes": [
+        "The Domain Channels page renders domains, channel search/filter controls, a channel table, and a right detail panel.",
+        "Create and edit channel actions send the expected API payloads.",
+        "Secret replacement never renders the plaintext secret after submission.",
+        "Probe history and latest probe status are visible to the user.",
+        "A child source can be created under a selected channel.",
+        "Existing Sources and Queue navigation still render."
+      ],
+      "failure_signals": [
+        "The Domain Channels navigation item is missing.",
+        "Channel create/edit controls do not send required fields.",
+        "Synthetic secret plaintext remains visible after submission.",
+        "Probe history is missing from the selected channel detail panel.",
+        "Existing Sources or Queue pages fail to render."
+      ],
+      "cleanup": [
+        "Remove generated Playwright output if a clean rerun is needed."
+      ],
+      "automation_hint": "playwright"
+    }
+  ]
+}
