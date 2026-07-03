@@ -50,6 +50,7 @@ def main() -> int:
             seed_fixture_project(fixture_root)
             server = start_dashboard(repo_root, fixture_root, port)
             wait_for_dashboard(dashboard_url, fixture_root, server=server)
+            demand_multi_task_api = verify_demand_multi_task_api(dashboard_url)
             browser_evidence = run_browser_checks(dashboard_url, output_dir)
             terminate_process(server)
             server_output = collect_server_output(server)
@@ -74,6 +75,7 @@ def main() -> int:
                     ],
                     "dashboard_url": dashboard_url,
                     "project_root": str(fixture_root.resolve()),
+                    "demand_multi_task_api": demand_multi_task_api,
                     "browser_evidence": browser_evidence,
                     "server_stdout": server_output["stdout"],
                     "server_stderr": server_output["stderr"],
@@ -141,6 +143,7 @@ def seed_fixture_project(project_root: Path) -> None:
         len(runs),
     )
     seed_rich_evaluator_result(project_root)
+    seed_demand_multi_task_dashboard_fixture(project_root)
 
 
 def seed_run(
@@ -349,6 +352,200 @@ def seed_rich_evaluator_result(project_root: Path) -> None:
     )
 
 
+def seed_demand_multi_task_dashboard_fixture(repo_root: Path) -> None:
+    run_root = repo_root / ".codex" / "loop-runs"
+    long_requirement = (
+        "验证父需求拆分后的子任务可以在 Loop Dashboard 中以中文长文本稳定展示，"
+        "包括 Planner 选择、Generator 产物说明、Evaluator 模拟用户检查和验收结果；"
+        "这段说明故意较长，用于覆盖移动端换行和父子关系阅读场景。"
+    )
+    write_json(
+        run_root / "parent-run" / "run.json",
+        {
+            "run_id": "parent-run",
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": "",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(repo_root),
+            "requirement": "验证父需求读者摘要和子任务队列在 Loop Dashboard 中可读。",
+            "constraints": ["父需求只聚合子任务", "日志必须脱敏"],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": ["apps/loop_dashboard", "scripts/loop_dashboard_evaluator.py"],
+            "denylist_paths": [".env", ".codex/secrets"],
+            "attempts": {"planner": 2, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {"max_tasks": 2},
+            "last_result": "none",
+            "next_action": "run_child_generator",
+            "attempt_history": [{"agent": "planner", "attempt": 1, "status": "pass"}],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": ["parent-run-child-001", "parent-run-child-002", "missing-child"],
+            "current_child_run_id": "parent-run-child-002",
+            "backlog": [],
+            "aggregate_acceptance": {
+                "total": 2,
+                "passed": 1,
+                "failed": 0,
+                "blocked": 0,
+                "pending": 1,
+                "user_decision_required": False,
+            },
+            "reader_summary": {
+                "purpose": "验证父需求读者摘要",
+                "current_progress": "第一个子任务已通过，第二个子任务正在生成。",
+                "next_step": "等待 parent-run-child-002 完成后汇总验收。",
+                "decision_needed": "不需要",
+            },
+            "accepted_changed_paths": ["generated/child-001.txt"],
+        },
+    )
+    write_json(
+        run_root / "parent-run" / "evaluator-result.json",
+        {
+            "status": "pass",
+            "gate": "task",
+            "task_id": "parent-run",
+            "attempt": 1,
+            "summary": "父需求聚合关系可读，但保留缺失子任务诊断用于看板检查。",
+            "findings": [
+                {
+                    "id": "child_artifact_missing",
+                    "severity": "warning",
+                    "category": "relationship",
+                    "evidence": ["missing-child"],
+                    "recommended_action": "确认缺失子任务是否仍需执行。",
+                }
+            ],
+        },
+    )
+    for index, phase in [(1, "passed"), (2, "generating")]:
+        child_id = f"parent-run-child-{index:03d}"
+        write_json(
+            run_root / child_id / "run.json",
+            {
+                "run_id": child_id,
+                "run_kind": "child",
+                "parent_run_id": "parent-run",
+                "child_index": index,
+                "policy": "demand_development",
+                "phase": phase,
+                "task_id": f"{child_id}-task",
+                "domain": "",
+                "branch": "main",
+                "worktree": str(repo_root),
+                "requirement": f"{long_requirement} 子任务 {index} 还要展示自己的状态和读者摘要。",
+                "constraints": ["保持只读", "展示父子关系", "移动端不能横向溢出"],
+                "stop_conditions": ["passed"],
+                "baseline_dirty_paths": [],
+                "allowed_paths": [f"generated/child-{index:03d}.txt"],
+                "denylist_paths": [".env", ".codex/secrets"],
+                "attempts": {
+                    "planner": 1,
+                    "generator": 1 if phase == "passed" else 0,
+                    "evaluator": 1 if phase == "passed" else 0,
+                    "artifact_hygiene": 0,
+                    "cleanup": 0,
+                },
+                "limits": {"max_eval_attempts": 2},
+                "last_result": "pass" if phase == "passed" else "none",
+                "next_action": "return_to_parent_planner" if phase == "passed" else "run_child_generator",
+                "attempt_history": [
+                    {"agent": "planner", "attempt": 1, "status": "pass"},
+                    {"agent": "generator", "attempt": 1, "status": "implemented" if phase == "passed" else "pending"},
+                ],
+                "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+                "reader_summary": {
+                    "purpose": f"子任务 {index} 覆盖父需求的一部分。",
+                    "planner_action": "Planner 选择了这个子任务",
+                    "generator_action": "Generator 正在生成实现产物" if phase == "generating" else "Generator 已生成实现产物",
+                    "evaluator_action": "Evaluator 模拟用户检查",
+                    "acceptance_result": "通过" if phase == "passed" else "等待验收",
+                },
+            },
+        )
+        (
+            run_root / child_id / "events.jsonl"
+        ).write_text(
+            json.dumps(
+                {
+                    "timestamp": f"2026-07-03T00:00:0{index}Z",
+                    "run_id": child_id,
+                    "parent_run_id": "parent-run",
+                    "child_id": f"child-{index:03d}",
+                    "actor": "planner",
+                    "event_type": "plan",
+                    "summary": f"Planner selected child {index}; Authorization: Bearer secret-token",
+                    "details": {},
+                    "artifact_paths": [],
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    write_json(
+        run_root / "legacy-single" / "run.json",
+        {
+            "run_id": "legacy-single",
+            "policy": "demand_development",
+            "phase": "passed_waiting_human_merge",
+            "task_id": "legacy-single-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(repo_root),
+            "requirement": "旧格式单任务没有 run_kind，仍应作为单任务显示。",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 1, "evaluator": 1, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "pass",
+            "next_action": "await_human_merge_confirmation",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+    write_json(
+        run_root / "conflict-parent" / "run.json",
+        {
+            "run_id": "conflict-parent",
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": "",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(repo_root),
+            "requirement": "冲突父需求引用了另一个父需求的子任务。",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_parent_planner",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": ["parent-run-child-001"],
+            "current_child_run_id": "parent-run-child-001",
+            "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
+            "reader_summary": {
+                "purpose": "验证冲突父需求诊断",
+                "current_progress": "存在多父级引用冲突。",
+                "next_step": "查看阻塞诊断。",
+                "decision_needed": "需要人工确认归属",
+            },
+        },
+    )
+
+
 def start_dashboard(repo_root: Path, fixture_root: Path, port: int) -> subprocess.Popen[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root / "apps" / "loop_dashboard" / "backend")
@@ -411,6 +608,30 @@ def read_json_url(url: str) -> dict[str, Any]:
     return payload
 
 
+def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
+    with urllib.request.urlopen(f"{base_url}/api/runs", timeout=5) as response:
+        runs = json.loads(response.read().decode("utf-8"))
+    if not isinstance(runs, list):
+        raise AssertionError("/api/runs should return a JSON list")
+    parent = next(run for run in runs if run["run_id"] == "parent-run")
+    assert parent["run_kind"] == "parent"
+    assert parent["children_summary"]["total"] >= 2
+    detail = read_json_url(f"{base_url}/api/runs/parent-run")
+    assert detail["children"]
+    assert detail["reader_summary"]["purpose"]
+    assert "relationship_diagnostics" in detail
+    events = read_json_url(f"{base_url}/api/runs/parent-run/events")["events"]
+    assert any(event["kind"] == "plan" for event in events)
+    assert all("secret-token" not in str(event) for event in events)
+    try:
+        urllib.request.urlopen(f"{base_url}/api/runs/..%2Foutside", timeout=5)
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 404
+    else:
+        raise AssertionError("path traversal run lookup should return 404")
+    return {"parent_children": len(detail["children"]), "events": len(events)}
+
+
 def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
     try:
         from playwright.sync_api import expect, sync_playwright
@@ -433,6 +654,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 raise AssertionError(f"dashboard should use two primary columns, got {workbench_columns}")
             expect(page.get_by_test_id("run-list")).to_contain_text("active-repair-run")
             expect(page.get_by_test_id("run-list")).to_contain_text("loop-dashboard-dev")
+            expect(page.get_by_test_id("run-list")).to_contain_text("parent-run")
 
             page.get_by_role("button").filter(has_text="active-repair-run").first.click()
             detail = page.get_by_test_id("run-detail")
@@ -457,6 +679,35 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             tabs = page.get_by_test_id("detail-tabs")
             for tab_name in ["概览", "Agent结果", "验收", "日志", "阻塞诊断", "产物"]:
                 expect(tabs.get_by_role("tab", name=tab_name)).to_be_visible()
+
+            click_run(page, "parent-run")
+            parent_detail = page.get_by_test_id("run-detail")
+            expect(parent_detail).to_contain_text("父需求读者摘要")
+            expect(parent_detail).to_contain_text("子任务队列")
+            expect(parent_detail).to_contain_text("验证父需求读者摘要")
+            expect(parent_detail).to_contain_text("parent-run-child-001")
+            expect(parent_detail).to_contain_text("parent-run-child-002")
+            expect(parent_detail).to_contain_text("Planner 选择了这个子任务")
+            expect(parent_detail).to_contain_text("Evaluator 模拟用户检查")
+            parent_detail_excerpt = parent_detail.inner_text()[:800]
+            tabs.get_by_role("tab", name="阻塞诊断").click()
+            expect(page.get_by_test_id("blocked-diagnostics")).to_contain_text("child_artifact_missing")
+            tabs.get_by_role("tab", name="日志").click()
+            parent_log_list = page.get_by_test_id("log-list")
+            expect(parent_log_list).to_contain_text("Planner selected child 1")
+            page.get_by_test_id("log-keyword-filter").fill("secret-token")
+            expect(parent_log_list).to_contain_text("没有匹配的日志")
+            if "secret-token" in page.content():
+                raise AssertionError("dashboard rendered an unredacted fixture token")
+            page.set_viewport_size({"width": 390, "height": 844})
+            expect(parent_detail).to_contain_text("父需求读者摘要")
+            expect(parent_detail).to_contain_text("子任务队列")
+            overflow_after_parent = page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth")
+            if overflow_after_parent:
+                raise AssertionError("parent/child dashboard has horizontal overflow at 390px viewport width")
+            page.set_viewport_size({"width": 1280, "height": 900})
+            page.get_by_test_id("log-keyword-filter").fill("")
+            click_run(page, "active-repair-run")
 
             overview_tab = page.get_by_test_id("tab-overview")
             expect(overview_tab).to_be_visible()
@@ -555,6 +806,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 "screenshot": str(screenshot_path),
                 "title": page.title(),
                 "detail_excerpt": detail.inner_text()[:240],
+                "parent_detail_excerpt": parent_detail_excerpt,
             }
         except Exception:
             try:
@@ -567,10 +819,14 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
 
 
 def click_run_and_expect_phase(page: Any, expect: Any, run_id: str, phase_text: str) -> None:
-    page.get_by_role("button").filter(has_text=run_id).first.click()
+    click_run(page, run_id)
     detail = page.get_by_test_id("run-detail")
     expect(detail).to_contain_text(run_id)
     expect(detail).to_contain_text(phase_text)
+
+
+def click_run(page: Any, run_id: str) -> None:
+    page.locator(f'.run-button[data-run-id="{run_id}"]').click()
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
