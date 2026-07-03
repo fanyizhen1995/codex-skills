@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-03",
-  "current_focus": "Domain Channel Management secrets/probes are complete; next loop task is Domain Channels frontend.",
+  "current_focus": "Domain Channel Management UI is complete; next loop task is isolated live e2e validation.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -51,7 +51,7 @@
       "id": "crawler-domain-channels-ui-01",
       "title": "Add crawler workbench Domain Channels UI",
       "description": "Implement the Domain Channels frontend page for channel CRUD, secret replacement, access probes, probe history, child source CRUD, and compatibility with existing Sources and Queue pages.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "crawler-domain-channels-probe-secrets-01",
       "verify": "cd personal-wiki/apps/crawler_workbench/frontend && npm test -- src/App.test.tsx && npm run build && npm run test:ui && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json >/dev/null && git diff --check",
@@ -69,7 +69,7 @@
       "id": "crawler-domain-channels-live-e2e-01",
       "title": "Validate crawler workbench domain channels end to end",
       "description": "Run integrated backend/frontend validation for Domain Channel Management against an isolated workbench state directory, including API visibility, UI flow, source-run continuity, and artifact hygiene for access diagnostics.",
-      "status": "pending",
+      "status": "in_progress",
       "priority": "high",
       "blocked_by": "crawler-domain-channels-ui-01",
       "verify": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01 && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json >/dev/null && git diff --check",

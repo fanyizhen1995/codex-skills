@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-03 Domain Channel Management UI
+
+- Completed `crawler-domain-channels-ui-01`: added the Domain Channels frontend navigation and management page for domain filtering, channel creation, selected-channel notes editing, synthetic secret replacement, access probing, probe history, and child source creation.
+- Added channel/source/probe/secret TypeScript API client functions and response types, including channel auth states needed by the UI.
+- Updated Playwright UI config to use an isolated frontend port and avoid reusing the long-running dev server during evaluator-style UI tests.
+- Evidence:
+  - `cd personal-wiki/apps/crawler_workbench/frontend && npm test -- src/App.test.tsx` -> 25 passed
+  - `cd personal-wiki/apps/crawler_workbench/frontend && npm run build` -> pass
+  - `cd personal-wiki/apps/crawler_workbench/frontend && npm run test:ui` -> 3 passed
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-03 Domain Channel Management Secrets And Probes
 
 - Completed `crawler-domain-channels-probe-secrets-01`: added encrypted local channel secrets using the existing cryptography dependency, key-file lifecycle under the isolated workbench state directory, HTTP probe execution/history, channel readiness states, and source-run blocking with persisted failed run reasons.

@@ -7,18 +7,26 @@ import type { AcceleratorCandidate, AcceleratorSpecRecord } from "./types";
 import {
   acceptAcceleratorCandidate,
   createManualIngest,
+  createChannel,
+  createSource,
   extractAcceleratorSpecs,
   getAcceleratorCandidates,
   getAcceleratorSpecs,
+  getChannelProbeRuns,
+  getChannels,
   getQueue,
   getRuns,
   getSources,
+  getSourcesForChannel,
   getJob,
   getLatestJob,
   getWikiPage,
   getWikiPages,
   getWikiMetrics,
+  probeChannel,
   rejectAcceleratorCandidate,
+  setChannelSecret,
+  updateChannel,
   trustAcceleratorCandidateSource,
   trustQueueSource,
   validateWiki
@@ -180,10 +188,14 @@ vi.mock("./api", () => ({
     task_id: 7,
     commit_sha: "abc1234"
   }),
+  createChannel: vi.fn(),
+  createSource: vi.fn(),
   extractAcceleratorSpecs: vi.fn().mockResolvedValue({ skus: 1, observations: 1, resolved: 1 }),
   getDomains: vi.fn().mockResolvedValue([{ id: "ai_infra", name: "ai_infra" }]),
   getAcceleratorCandidates: vi.fn().mockResolvedValue([]),
   getAcceleratorSpecs: vi.fn().mockResolvedValue([]),
+  getChannelProbeRuns: vi.fn().mockResolvedValue([]),
+  getChannels: vi.fn().mockResolvedValue([]),
   getGraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   getHealth: vi.fn().mockResolvedValue({
     status: "ok",
@@ -197,6 +209,7 @@ vi.mock("./api", () => ({
   getQueue: vi.fn().mockResolvedValue([]),
   getRuns: vi.fn().mockResolvedValue([]),
   getSources: vi.fn().mockResolvedValue([]),
+  getSourcesForChannel: vi.fn().mockResolvedValue([]),
   getWikiPage: vi.fn().mockResolvedValue({
     domain: "ai_infra",
     path: "projects/nccl.md",
@@ -268,6 +281,9 @@ vi.mock("./api", () => ({
   rejectTask: vi.fn(),
   runSource: vi.fn(),
   searchWiki: vi.fn(),
+  probeChannel: vi.fn(),
+  setChannelSecret: vi.fn(),
+  updateChannel: vi.fn(),
   trustQueueSource: vi.fn().mockResolvedValue({ domain: "vllm.ai", approved_count: 1 }),
   trustAcceleratorCandidateSource: vi.fn().mockResolvedValue({
     domain: "nvidia.com",
@@ -295,10 +311,100 @@ afterEach(() => {
     task_id: 7,
     commit_sha: "abc1234"
   });
+  vi.mocked(createChannel).mockResolvedValue({
+    id: "arxiv-org",
+    target_domain: "ai_infra",
+    name: "arXiv",
+    base_url: "https://arxiv.org",
+    base_url_normalized: "https://arxiv.org",
+    probe_url: "https://arxiv.org",
+    probe_method: "GET",
+    probe_config_json: "{}",
+    kind: "web",
+    connector: "arxiv",
+    trust_level: "trusted",
+    enabled: true,
+    auth_required: false,
+    auth_mode: "none",
+    auth_state: "ready",
+    last_probe_status: null,
+    last_probe_at: null,
+    last_probe_summary: null,
+    secret_configured: false,
+    notes: "Public paper source",
+    source_count: 0,
+    created_at: "2026-07-03 10:00:00",
+    updated_at: "2026-07-03 10:00:00"
+  });
+  vi.mocked(createSource).mockResolvedValue({
+    id: "nccl-github-releases",
+    name: "NCCL GitHub releases",
+    type: "github",
+    fetcher_type: "github_releases",
+    target_domain: "ai_infra",
+    url: "https://github.com/NVIDIA/nccl/releases",
+    channel_id: "github-com",
+    channel_name: "GitHub",
+    channel_base_url: "https://github.com",
+    channel_auth_state: "ready",
+    trust_level: "trusted",
+    schedule: "weekly",
+    run_policy: "scheduled",
+    auto_ingest: true,
+    auth_required: false,
+    auth_state: "ready",
+    topic: "NCCL releases",
+    enabled: true
+  });
+  vi.mocked(getChannelProbeRuns).mockResolvedValue([]);
+  vi.mocked(getChannels).mockResolvedValue([]);
+  vi.mocked(probeChannel).mockResolvedValue({
+    id: 8,
+    channel_id: "github-com",
+    status: "ready",
+    started_at: "2026-07-03 10:05:00",
+    finished_at: "2026-07-03 10:05:01",
+    http_status: 200,
+    final_url: "https://api.github.com/user",
+    summary: "HTTP 200 from api.github.com",
+    error: null
+  });
+  vi.mocked(setChannelSecret).mockResolvedValue({
+    channel_id: "github-com",
+    secret_kind: "synthetic_token",
+    secret_configured: true,
+    auth_state: "ready"
+  });
+  vi.mocked(updateChannel).mockImplementation(async (_id, payload) => ({
+    id: "github-com",
+    target_domain: "ai_infra",
+    name: "GitHub",
+    base_url: "https://github.com",
+    base_url_normalized: "https://github.com",
+    probe_url: "https://api.github.com/user",
+    probe_method: "GET",
+    probe_config_json: "{}",
+    kind: "web",
+    connector: "github",
+    trust_level: "trusted",
+    enabled: true,
+    auth_required: true,
+    auth_mode: "token",
+    auth_state: "ready",
+    last_probe_status: "ready",
+    last_probe_at: "2026-07-03 10:00:00",
+    last_probe_summary: "HTTP 200 from api.github.com",
+    secret_configured: true,
+    notes: String(payload.notes ?? "GitHub token verified"),
+    source_count: 1,
+    created_at: "2026-07-03 09:00:00",
+    updated_at: "2026-07-03 10:00:00"
+  }));
   vi.mocked(rejectAcceleratorCandidate).mockResolvedValue(mockAcceleratorCandidate("rejected"));
   vi.mocked(getQueue).mockResolvedValue([]);
   vi.mocked(getRuns).mockResolvedValue([]);
   vi.mocked(getSources).mockResolvedValue([]);
+  vi.mocked(getSourcesForChannel).mockResolvedValue([]);
   vi.mocked(getJob).mockResolvedValue({
     id: 42,
     status: "running",
@@ -1096,6 +1202,277 @@ describe("App", () => {
     await waitFor(() => expect(screen.queryByText("GB300")).not.toBeInTheDocument());
     expect(screen.queryByText("GB200")).not.toBeInTheDocument();
     expect(screen.getByText("X900")).toBeInTheDocument();
+  });
+
+  it("manages domain channels, secrets, probes, and child sources", async () => {
+    vi.mocked(getChannels)
+      .mockResolvedValueOnce([
+        {
+          id: "github-com",
+          target_domain: "ai_infra",
+          name: "GitHub",
+          base_url: "https://github.com",
+          base_url_normalized: "https://github.com",
+          probe_url: "https://api.github.com/user",
+          probe_method: "GET",
+          probe_config_json: "{}",
+          kind: "web",
+          connector: "github",
+          trust_level: "trusted",
+          enabled: true,
+          auth_required: true,
+          auth_mode: "token",
+          auth_state: "ready",
+          last_probe_status: "ready",
+          last_probe_at: "2026-07-03 10:00:00",
+          last_probe_summary: "HTTP 200 from api.github.com",
+          secret_configured: true,
+          notes: "GitHub token verified",
+          source_count: 1,
+          created_at: "2026-07-03 09:00:00",
+          updated_at: "2026-07-03 10:00:00"
+        }
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "github-com",
+          target_domain: "ai_infra",
+          name: "GitHub",
+          base_url: "https://github.com",
+          base_url_normalized: "https://github.com",
+          probe_url: "https://api.github.com/user",
+          probe_method: "GET",
+          probe_config_json: "{}",
+          kind: "web",
+          connector: "github",
+          trust_level: "trusted",
+          enabled: true,
+          auth_required: true,
+          auth_mode: "token",
+          auth_state: "ready",
+          last_probe_status: "ready",
+          last_probe_at: "2026-07-03 10:00:00",
+          last_probe_summary: "HTTP 200 from api.github.com",
+          secret_configured: true,
+          notes: "GitHub token verified",
+          source_count: 1,
+          created_at: "2026-07-03 09:00:00",
+          updated_at: "2026-07-03 10:00:00"
+        },
+        {
+          id: "arxiv-org",
+          target_domain: "ai_infra",
+          name: "arXiv",
+          base_url: "https://arxiv.org",
+          base_url_normalized: "https://arxiv.org",
+          probe_url: "https://arxiv.org",
+          probe_method: "GET",
+          probe_config_json: "{}",
+          kind: "web",
+          connector: "arxiv",
+          trust_level: "trusted",
+          enabled: true,
+          auth_required: false,
+          auth_mode: "none",
+          auth_state: "ready",
+          last_probe_status: null,
+          last_probe_at: null,
+          last_probe_summary: null,
+          secret_configured: false,
+          notes: "Public paper source",
+          source_count: 0,
+          created_at: "2026-07-03 10:00:00",
+          updated_at: "2026-07-03 10:00:00"
+        }
+      ]);
+    vi.mocked(getSourcesForChannel)
+      .mockResolvedValueOnce([
+        {
+          id: "nccl-github-issues",
+          name: "NCCL GitHub issues",
+          type: "github",
+          fetcher_type: "github_issues",
+          target_domain: "ai_infra",
+          url: "https://github.com/NVIDIA/nccl/issues",
+          channel_id: "github-com",
+          channel_name: "GitHub",
+          channel_base_url: "https://github.com",
+          channel_auth_state: "ready",
+          trust_level: "trusted",
+          schedule: "daily",
+          run_policy: "scheduled",
+          auto_ingest: true,
+          auth_required: false,
+          auth_state: "ready",
+          topic: "NCCL issues",
+          enabled: true
+        }
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "nccl-github-issues",
+          name: "NCCL GitHub issues",
+          type: "github",
+          fetcher_type: "github_issues",
+          target_domain: "ai_infra",
+          url: "https://github.com/NVIDIA/nccl/issues",
+          channel_id: "github-com",
+          channel_name: "GitHub",
+          channel_base_url: "https://github.com",
+          channel_auth_state: "ready",
+          trust_level: "trusted",
+          schedule: "daily",
+          run_policy: "scheduled",
+          auto_ingest: true,
+          auth_required: false,
+          auth_state: "ready",
+          topic: "NCCL issues",
+          enabled: true
+        },
+        {
+          id: "nccl-github-releases",
+          name: "NCCL GitHub releases",
+          type: "github",
+          fetcher_type: "github_releases",
+          target_domain: "ai_infra",
+          url: "https://github.com/NVIDIA/nccl/releases",
+          channel_id: "github-com",
+          channel_name: "GitHub",
+          channel_base_url: "https://github.com",
+          channel_auth_state: "ready",
+          trust_level: "trusted",
+          schedule: "weekly",
+          run_policy: "scheduled",
+          auto_ingest: true,
+          auth_required: false,
+          auth_state: "ready",
+          topic: "NCCL releases",
+          enabled: true
+        }
+      ]);
+    vi.mocked(getChannelProbeRuns)
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          channel_id: "github-com",
+          status: "ready",
+          started_at: "2026-07-03 10:00:00",
+          finished_at: "2026-07-03 10:00:01",
+          http_status: 200,
+          final_url: "https://api.github.com/user",
+          summary: "HTTP 200 from api.github.com",
+          error: null
+        }
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 8,
+          channel_id: "github-com",
+          status: "ready",
+          started_at: "2026-07-03 10:05:00",
+          finished_at: "2026-07-03 10:05:01",
+          http_status: 200,
+          final_url: "https://api.github.com/user",
+          summary: "HTTP 200 from api.github.com",
+          error: null
+        },
+        {
+          id: 7,
+          channel_id: "github-com",
+          status: "ready",
+          started_at: "2026-07-03 10:00:00",
+          finished_at: "2026-07-03 10:00:01",
+          http_status: 200,
+          final_url: "https://api.github.com/user",
+          summary: "HTTP 200 from api.github.com",
+          error: null
+        }
+      ]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getAllByText("渠道管理")[0]);
+
+    expect(await screen.findByRole("heading", { name: "Domain Channels" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("GitHub").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("https://github.com").length).toBeGreaterThan(0);
+    expect(screen.getByText("GitHub token verified")).toBeInTheDocument();
+    expect(screen.getByText("NCCL GitHub issues")).toBeInTheDocument();
+    expect(screen.getAllByText("HTTP 200 from api.github.com").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByLabelText("Channel name"), { target: { value: "arXiv" } });
+    fireEvent.change(screen.getByLabelText("Base URL"), { target: { value: "https://arxiv.org" } });
+    fireEvent.change(screen.getByLabelText("Connector"), { target: { value: "arxiv" } });
+    fireEvent.change(screen.getByLabelText("Channel notes"), { target: { value: "Public paper source" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add channel" }));
+
+    await waitFor(() =>
+      expect(createChannel).toHaveBeenCalledWith({
+        target_domain: "ai_infra",
+        name: "arXiv",
+        base_url: "https://arxiv.org",
+        probe_url: "",
+        kind: "web",
+        connector: "arxiv",
+        trust_level: "trusted",
+        enabled: true,
+        auth_required: false,
+        auth_mode: "none",
+        notes: "Public paper source"
+      })
+    );
+
+    fireEvent.click(await screen.findByRole("row", { name: "Select channel GitHub" }));
+    fireEvent.change(screen.getByLabelText("Selected notes"), { target: { value: "GitHub token rotated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save channel" }));
+    await waitFor(() => expect(updateChannel).toHaveBeenCalledWith("github-com", { notes: "GitHub token rotated" }));
+
+    fireEvent.change(screen.getByLabelText("Secret value"), { target: { value: "synthetic-secret-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Replace secret" }));
+    await waitFor(() =>
+      expect(setChannelSecret).toHaveBeenCalledWith("github-com", {
+        secret_kind: "synthetic_token",
+        secret: "synthetic-secret-123"
+      })
+    );
+    expect(screen.getByLabelText("Secret value")).toHaveValue("");
+    expect(screen.queryByDisplayValue("synthetic-secret-123")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verify access" }));
+    await waitFor(() => expect(probeChannel).toHaveBeenCalledWith("github-com"));
+    expect(await screen.findByText("Probe #8")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Source id"), { target: { value: "nccl-github-releases" } });
+    fireEvent.change(screen.getByLabelText("Source name"), { target: { value: "NCCL GitHub releases" } });
+    fireEvent.change(screen.getByLabelText("Source URL"), { target: { value: "https://github.com/NVIDIA/nccl/releases" } });
+    fireEvent.change(screen.getByLabelText("Fetcher type"), { target: { value: "github_releases" } });
+    fireEvent.change(screen.getByLabelText("Topic"), { target: { value: "NCCL releases" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add child source" }));
+
+    await waitFor(() =>
+      expect(createSource).toHaveBeenCalledWith({
+        id: "nccl-github-releases",
+        name: "NCCL GitHub releases",
+        type: "github",
+        fetcher_type: "github_releases",
+        target_domain: "ai_infra",
+        url: "https://github.com/NVIDIA/nccl/releases",
+        channel_id: "github-com",
+        trust_level: "trusted",
+        schedule: "weekly",
+        run_policy: "scheduled",
+        auto_ingest: true,
+        auth_required: false,
+        topic: "NCCL releases",
+        enabled: true
+      })
+    );
+    expect(await screen.findByText("NCCL GitHub releases")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText("来源订阅")[0]);
+    expect(await screen.findByRole("heading", { name: "来源订阅" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByText("入库队列")[0]);
+    expect(await screen.findByRole("heading", { name: "入库队列" })).toBeInTheDocument();
   });
 
   it("keeps accepted candidates removed when post-accept refresh fails", async () => {

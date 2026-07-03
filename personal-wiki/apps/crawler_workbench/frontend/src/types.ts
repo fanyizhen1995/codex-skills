@@ -1,6 +1,7 @@
 export type PageKey =
   | "overview"
   | "sources"
+  | "domainChannels"
   | "queue"
   | "knowledge"
   | "wikiBrowser"
@@ -15,6 +16,10 @@ export type Status =
   | "succeeded"
   | "failed"
   | "needs_auth_config"
+  | "auth_failed"
+  | "needs_browser"
+  | "network_failed"
+  | "unsupported"
   | "trusted"
   | "untrusted";
 
@@ -40,8 +45,13 @@ export interface SourceProfile {
   id: string;
   name: string;
   type: string;
+  fetcher_type?: string | null;
   target_domain: string;
   url: string;
+  channel_id?: string | null;
+  channel_name?: string | null;
+  channel_base_url?: string | null;
+  channel_auth_state?: string | null;
   trust_level: string;
   schedule: string;
   run_policy: "scheduled" | "once" | string;
@@ -52,6 +62,101 @@ export interface SourceProfile {
   enabled: boolean;
   last_run_at?: string;
   last_run_status?: string;
+}
+
+export interface Channel {
+  id: string;
+  target_domain: string;
+  name: string;
+  base_url: string;
+  base_url_normalized: string;
+  probe_url?: string | null;
+  probe_method: string;
+  probe_config_json: string;
+  kind: string;
+  connector: string;
+  trust_level: string;
+  enabled: boolean;
+  auth_required: boolean;
+  auth_mode: string;
+  auth_state: string;
+  last_probe_status?: string | null;
+  last_probe_at?: string | null;
+  last_probe_summary?: string | null;
+  secret_configured: boolean;
+  notes: string;
+  source_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChannelPayload {
+  target_domain: string;
+  name: string;
+  base_url: string;
+  probe_url?: string;
+  kind: string;
+  connector: string;
+  trust_level: string;
+  enabled: boolean;
+  auth_required: boolean;
+  auth_mode: string;
+  notes: string;
+}
+
+export interface ChannelUpdatePayload {
+  name?: string;
+  base_url?: string;
+  probe_url?: string;
+  kind?: string;
+  connector?: string;
+  trust_level?: string;
+  enabled?: boolean;
+  auth_required?: boolean;
+  auth_mode?: string;
+  auth_state?: string;
+  notes?: string;
+}
+
+export interface ChannelSecretPayload {
+  secret_kind: string;
+  secret: string;
+}
+
+export interface ChannelSecretResponse {
+  channel_id: string;
+  secret_kind?: string | null;
+  secret_configured: boolean;
+  auth_state: string;
+}
+
+export interface ChannelProbeRun {
+  id: number;
+  channel_id: string;
+  status: string;
+  started_at: string;
+  finished_at?: string | null;
+  http_status?: number | null;
+  final_url?: string | null;
+  summary: string;
+  error?: string | null;
+}
+
+export interface SourcePayload {
+  id: string;
+  name: string;
+  type: string;
+  fetcher_type?: string | null;
+  target_domain: string;
+  url: string;
+  channel_id?: string | null;
+  trust_level: string;
+  schedule: string;
+  run_policy: string;
+  auto_ingest: boolean;
+  auth_required: boolean;
+  topic: string;
+  enabled: boolean;
 }
 
 export interface AcceleratorCandidate {

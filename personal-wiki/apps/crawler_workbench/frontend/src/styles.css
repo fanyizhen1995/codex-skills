@@ -936,6 +936,155 @@ small {
   line-height: 1.35;
 }
 
+.domain-channel-page {
+  max-width: 1360px;
+}
+
+.domain-channel-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 300px) minmax(420px, 1fr) minmax(340px, 420px);
+  align-items: start;
+  gap: 12px;
+}
+
+.channel-rail,
+.channel-detail-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+}
+
+.channel-create-form,
+.secret-form,
+.source-create-form {
+  display: grid;
+  gap: 9px;
+}
+
+.stacked-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.stacked-field span {
+  color: #5f6d73;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stacked-field input,
+.stacked-field select,
+.stacked-field textarea {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #c9d5da;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172026;
+  padding: 7px 9px;
+}
+
+.stacked-field textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.channel-table-panel {
+  min-width: 0;
+}
+
+.channel-row {
+  grid-template-columns: minmax(150px, 1fr) minmax(190px, 1.2fr) minmax(150px, 1fr) minmax(86px, 0.5fr);
+  min-width: 720px;
+}
+
+.channel-select-row {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.channel-select-row:hover,
+.channel-select-row.active {
+  background: #eef8f5;
+}
+
+.channel-select-row strong,
+.channel-select-row small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.detail-title h2 {
+  margin-bottom: 2px;
+}
+
+.channel-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.channel-facts div {
+  min-width: 0;
+  border: 1px solid #edf1f3;
+  border-radius: 6px;
+  background: #f8fafb;
+  padding: 8px;
+}
+
+.channel-facts dt {
+  color: #5f6d73;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.channel-facts dd {
+  margin: 2px 0 0;
+  color: #172026;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.probe-panel,
+.child-source-panel {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #edf1f3;
+  padding-top: 12px;
+}
+
+.probe-list {
+  display: grid;
+  gap: 8px;
+}
+
 .wiki-reader {
   min-width: 0;
   padding: 18px;
@@ -1229,6 +1378,21 @@ small {
   }
 
   .wiki-browser-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .domain-channel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .channel-rail,
+  .channel-detail-panel {
+    max-height: none;
+    position: static;
+  }
+
+  .field-pair,
+  .channel-facts {
     grid-template-columns: 1fr;
   }
 

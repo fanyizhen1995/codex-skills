@@ -4,6 +4,12 @@ import type {
   AcceleratorSpecExtractionResponse,
   AcceleratorSpecRecord,
   AskResponse,
+  Channel,
+  ChannelPayload,
+  ChannelProbeRun,
+  ChannelSecretPayload,
+  ChannelSecretResponse,
+  ChannelUpdatePayload,
   CodexJob,
   Domain,
   FetchRun,
@@ -16,6 +22,7 @@ import type {
   SearchResult,
   SettingsResponse,
   SourceProfile,
+  SourcePayload,
   TrustAcceleratorCandidatesResponse,
   ValidationResponse,
   WikiPageDetail,
@@ -115,6 +122,46 @@ export async function getDomains(): Promise<Domain[]> {
 
 export async function getSources(): Promise<SourceProfile[]> {
   return request<SourceProfile[]>("/sources");
+}
+
+export async function getSourcesForChannel(domain?: string, channelId?: string): Promise<SourceProfile[]> {
+  return request<SourceProfile[]>(withQuery("/sources", { domain, channel_id: channelId }));
+}
+
+export async function createSource(payload: SourcePayload): Promise<SourceProfile> {
+  return request<SourceProfile>("/sources", { method: "POST", body: payload });
+}
+
+export async function updateSource(id: string, payload: Partial<SourcePayload>): Promise<SourceProfile> {
+  return request<SourceProfile>(`/sources/${encodeURIComponent(id)}`, { method: "PATCH", body: payload });
+}
+
+export async function getChannels(domain?: string): Promise<Channel[]> {
+  return request<Channel[]>(withQuery("/channels", { domain }));
+}
+
+export async function createChannel(payload: ChannelPayload): Promise<Channel> {
+  return request<Channel>("/channels", { method: "POST", body: payload });
+}
+
+export async function updateChannel(id: string, payload: ChannelUpdatePayload): Promise<Channel> {
+  return request<Channel>(`/channels/${encodeURIComponent(id)}`, { method: "PATCH", body: payload });
+}
+
+export async function setChannelSecret(id: string, payload: ChannelSecretPayload): Promise<ChannelSecretResponse> {
+  return request<ChannelSecretResponse>(`/channels/${encodeURIComponent(id)}/secret`, { method: "POST", body: payload });
+}
+
+export async function deleteChannelSecret(id: string): Promise<ChannelSecretResponse> {
+  return request<ChannelSecretResponse>(`/channels/${encodeURIComponent(id)}/secret`, { method: "DELETE" });
+}
+
+export async function probeChannel(id: string): Promise<ChannelProbeRun> {
+  return request<ChannelProbeRun>(`/channels/${encodeURIComponent(id)}/probe`, { method: "POST" });
+}
+
+export async function getChannelProbeRuns(id: string): Promise<ChannelProbeRun[]> {
+  return request<ChannelProbeRun[]>(`/channels/${encodeURIComponent(id)}/probe-runs`);
 }
 
 export async function runSource(id: string): Promise<RunSummary> {
@@ -224,6 +271,16 @@ export const api = {
   settings: () => request<SettingsResponse>("/settings"),
   domains: getDomains,
   sources: getSources,
+  sourcesForChannel: getSourcesForChannel,
+  createSource,
+  updateSource,
+  channels: getChannels,
+  createChannel,
+  updateChannel,
+  setChannelSecret,
+  deleteChannelSecret,
+  probeChannel,
+  channelProbeRuns: getChannelProbeRuns,
   runSource,
   createManualIngest,
   acceleratorCandidates: getAcceleratorCandidates,

@@ -1,4 +1,15 @@
-import { BookOpen, DatabaseZap, FileText, Gauge, ListChecks, Microchip, Rss, Settings, Waypoints } from "lucide-react";
+import {
+  BookOpen,
+  DatabaseZap,
+  FileText,
+  Gauge,
+  ListChecks,
+  Microchip,
+  RadioTower,
+  Rss,
+  Settings,
+  Waypoints
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Layout, type NavigationItem } from "./components/Layout";
@@ -8,6 +19,7 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { QueuePage } from "./pages/QueuePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SourcesPage } from "./pages/SourcesPage";
+import { DomainChannelsPage } from "./pages/DomainChannelsPage";
 import { SourceWorkbenchPage } from "./pages/SourceWorkbenchPage";
 import { WikiBrowserPage } from "./pages/WikiBrowserPage";
 import type { PageKey } from "./types";
@@ -21,6 +33,7 @@ function App() {
     () => [
       { key: "overview", label: "运维控制台", icon: Gauge },
       { key: "sources", label: "来源订阅", icon: Rss },
+      { key: "domainChannels", label: "渠道管理", icon: RadioTower },
       { key: "queue", label: "入库队列", icon: ListChecks },
       { key: "knowledge", label: "知识工作台", icon: BookOpen },
       { key: "wikiBrowser", label: "Wiki 浏览", icon: FileText },
@@ -38,6 +51,7 @@ function App() {
       </div>
       {activePage === "overview" && <OverviewPage />}
       {activePage === "sources" && <SourcesPage />}
+      {activePage === "domainChannels" && <DomainChannelsPage />}
       {activePage === "queue" && <QueuePage />}
       {activePage === "knowledge" && <KnowledgePage />}
       {activePage === "wikiBrowser" && <WikiBrowserPage />}
