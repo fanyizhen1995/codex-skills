@@ -2592,6 +2592,109 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertIn("Evaluator failed child", child2_events)
             self.assertIn("max attempts exhausted", parent_events)
 
+    def test_run_demand_multi_exhausted_child_keeps_aggregate_buckets_consistent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "bucket-parent")
+
+            run_demand_multi(
+                repo_root=repo_root,
+                run_id="bucket-parent",
+                planner_driver="fake",
+                generator_driver="fake-fail-child-2-once",
+                evaluator_driver="fake",
+                max_eval_attempts=1,
+                max_children=3,
+            )
+
+            parent = read_json_file(run_dir_for(repo_root, "bucket-parent") / "run.json")
+            aggregate = parent["aggregate_acceptance"]
+            self.assertEqual(aggregate["total"], 3)
+            self.assertEqual(aggregate["passed"], 1)
+            self.assertEqual(aggregate["blocked"], 1)
+            self.assertEqual(aggregate["pending"], 1)
+            self.assertEqual(
+                aggregate["passed"] + aggregate["failed"] + aggregate["blocked"] + aggregate["pending"],
+                aggregate["total"],
+            )
+
+    def test_run_demand_multi_stopped_budget_rerun_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "budget-idempotent-parent")
+            run_demand_multi(
+                repo_root=repo_root,
+                run_id="budget-idempotent-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=0,
+            )
+            parent_before = read_json_file(run_dir_for(repo_root, "budget-idempotent-parent") / "run.json")
+            aggregate_before = dict(parent_before["aggregate_acceptance"])
+            accepted_before = list(parent_before["accepted_changed_paths"])
+            child_ids_before = list(parent_before["child_run_ids"])
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="budget-idempotent-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+
+            parent_after = read_json_file(run_dir_for(repo_root, "budget-idempotent-parent") / "run.json")
+            self.assertEqual(payload["phase"], "stopped_budget")
+            self.assertEqual(parent_after["phase"], "stopped_budget")
+            self.assertEqual(parent_after["child_run_ids"], child_ids_before)
+            self.assertEqual(parent_after["aggregate_acceptance"], aggregate_before)
+            self.assertEqual(parent_after["accepted_changed_paths"], accepted_before)
+
+    def test_run_demand_multi_child_running_waits_for_current_unpassed_child(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "child-running-parent")
+            run_demand_multi(
+                repo_root=repo_root,
+                run_id="child-running-parent",
+                planner_driver="fake",
+                generator_driver="fake-stop-after-child-1",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+            parent_before = read_json_file(run_dir_for(repo_root, "child-running-parent") / "run.json")
+            child_run_id = parent_before["child_run_ids"][0]
+            child = read_json_file(run_dir_for(repo_root, child_run_id) / "run.json")
+            child["phase"] = "repair_needed"
+            child["last_result"] = "fail"
+            child["next_action"] = "repair_child"
+            write_json_file(run_dir_for(repo_root, child_run_id) / "run.json", child)
+            parent_before["phase"] = "child_running"
+            parent_before["next_action"] = "repair_child"
+            write_json_file(run_dir_for(repo_root, "child-running-parent") / "run.json", parent_before)
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="child-running-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+
+            parent_after = read_json_file(run_dir_for(repo_root, "child-running-parent") / "run.json")
+            parent_events = (run_dir_for(repo_root, "child-running-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(payload["phase"], "child_running")
+            self.assertEqual(parent_after["phase"], "child_running")
+            self.assertEqual(parent_after["child_run_ids"], [child_run_id])
+            self.assertEqual(parent_after["current_child_run_id"], child_run_id)
+            self.assertIn("current child", parent_events)
+
     def test_run_demand_multi_terminal_rerun_returns_status_without_new_children(self) -> None:
         for run_id, expected_phase, planner_driver, max_children in [
             ("terminal-blocked", "stopped_blocked", "fake-blocked", 3),

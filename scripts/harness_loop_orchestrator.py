@@ -190,6 +190,16 @@ def _ensure_parent_fields(run: dict[str, Any]) -> dict[str, Any]:
     return run
 
 
+def _aggregate_pending(aggregate: dict[str, Any]) -> int:
+    return max(
+        0,
+        int(aggregate.get("total", 0))
+        - int(aggregate.get("passed", 0))
+        - int(aggregate.get("failed", 0))
+        - int(aggregate.get("blocked", 0)),
+    )
+
+
 def _create_child_run(
     repo_root: Path,
     parent: dict[str, Any],
@@ -1097,10 +1107,7 @@ def _run_fake_demand_child(
             parent["last_result"] = "blocked"
             parent["next_action"] = "inspect_child_evaluator_attempts"
             parent["aggregate_acceptance"]["blocked"] = int(parent["aggregate_acceptance"]["blocked"]) + 1
-            parent["aggregate_acceptance"]["pending"] = max(
-                0,
-                int(parent["aggregate_acceptance"]["total"]) - int(parent["aggregate_acceptance"]["passed"]),
-            )
+            parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
             parent["aggregate_acceptance"]["user_decision_required"] = True
             parent["reader_summary"]["current_progress"] = f"Child {child_index} evaluator failed"
             parent["reader_summary"]["next_step"] = "Inspect child evaluator attempts"
@@ -1151,10 +1158,7 @@ def _run_fake_demand_child(
     parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
     parent["accepted_changed_paths"] = sorted(set(parent["accepted_changed_paths"] + generator_payload["changed_paths"]))
     parent["aggregate_acceptance"]["passed"] = int(parent["aggregate_acceptance"]["passed"]) + 1
-    parent["aggregate_acceptance"]["pending"] = max(
-        0,
-        int(parent["aggregate_acceptance"]["total"]) - int(parent["aggregate_acceptance"]["passed"]),
-    )
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
     parent["current_child_run_id"] = child["run_id"]
     parent["phase"] = "planning"
     parent["next_action"] = "run_parent_planner"
@@ -1182,7 +1186,7 @@ def run_demand_multi(
     parent = _ensure_parent_fields(run)
     if parent["phase"] == "preflight":
         raise RuntimeError("run_demand_multi requires confirmed preflight")
-    if parent["phase"] in {"stopped_blocked", "passed_waiting_human_merge"}:
+    if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
         return status_for_run(root, run_id)
     if planner_driver not in {"fake", "fake-blocked", "fake-failed"}:
         raise ValueError("run_demand_multi initially supports fake planner drivers")
@@ -1193,12 +1197,39 @@ def run_demand_multi(
 
     while True:
         parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] in {"stopped_blocked", "passed_waiting_human_merge"}:
+        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
             return status_for_run(root, run_id)
+        if parent["phase"] == "child_running" and parent.get("current_child_run_id"):
+            current_child = load_run(root, str(parent["current_child_run_id"]))
+            if current_child["phase"] != "passed":
+                append_loop_event(
+                    root,
+                    run_id=run_id,
+                    actor="orchestrator",
+                    event_type="wait",
+                    summary=f"Waiting for current child {current_child['run_id']} in phase {current_child['phase']}",
+                    child_id=f"child-{int(current_child['child_index']):03d}",
+                    details={"child_run_id": current_child["run_id"], "child_phase": current_child["phase"]},
+                )
+                return status_for_run(root, run_id)
+            append_loop_event(
+                root,
+                run_id=run_id,
+                actor="orchestrator",
+                event_type="decision",
+                summary=f"Current child {current_child['run_id']} already passed; resume planning",
+                child_id=f"child-{int(current_child['child_index']):03d}",
+                details={"child_run_id": current_child["run_id"]},
+            )
+            parent["phase"] = "planning"
+            parent["next_action"] = "run_parent_planner"
+            save_run(root, parent)
+            continue
         if max_children < 1:
             parent["phase"] = "stopped_budget"
             parent["last_result"] = "blocked"
             parent["next_action"] = "inspect_budget_limits"
+            parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
             parent["aggregate_acceptance"]["user_decision_required"] = True
             parent["reader_summary"]["current_progress"] = "Budget exhausted"
             parent["reader_summary"]["next_step"] = "Inspect budget limits"
@@ -1278,7 +1309,7 @@ def run_demand_multi(
         parent["phase"] = "child_running"
         parent["next_action"] = "run_child_generator"
         parent["aggregate_acceptance"]["total"] = max_children
-        parent["aggregate_acceptance"]["pending"] = max_children - int(parent["aggregate_acceptance"]["passed"])
+        parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
         save_run(root, parent)
 
         _run_fake_demand_child(
