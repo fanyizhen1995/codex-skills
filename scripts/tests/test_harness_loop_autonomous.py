@@ -283,6 +283,90 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
             )
             self.assertIn("A  staged-other.md", status.stdout)
 
+    def test_run_git_commit_with_directory_pathspec_does_not_commit_unrequested_dirty_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            raw_dir = repo_root / "personal-wiki" / "domains" / "ai_infra" / "raw"
+            raw_dir.mkdir(parents=True)
+            requested = raw_dir / "requested.md"
+            preexisting = raw_dir / "preexisting.md"
+            requested.write_text("requested\n", encoding="utf-8")
+            preexisting.write_text("preexisting\n", encoding="utf-8")
+
+            commit_sha = run_git_commit(
+                repo_root,
+                ["personal-wiki/domains/ai_infra/raw/requested.md"],
+                "test: commit requested raw evidence",
+            )
+
+            self.assertRegex(commit_sha, r"^[0-9a-f]{40}$")
+            committed_files = subprocess.run(
+                ["git", "show", "--name-only", "--format=", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(
+                committed_files.stdout.splitlines(),
+                ["personal-wiki/domains/ai_infra/raw/requested.md"],
+            )
+            status = subprocess.run(
+                ["git", "status", "--short"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertIn("?? personal-wiki/domains/ai_infra/raw/preexisting.md", status.stdout)
+
+    def test_run_git_commit_rejects_directory_pathspec_that_matches_multiple_dirty_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["git", "config", "user.email", "codex@example.invalid"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Codex"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            raw_dir = repo_root / "personal-wiki" / "domains" / "ai_infra" / "raw"
+            raw_dir.mkdir(parents=True)
+            (raw_dir / "requested.md").write_text("requested\n", encoding="utf-8")
+            (raw_dir / "preexisting.md").write_text("preexisting\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "directory pathspec"):
+                run_git_commit(
+                    repo_root,
+                    ["personal-wiki/domains/ai_infra/raw"],
+                    "test: unsafe directory pathspec",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

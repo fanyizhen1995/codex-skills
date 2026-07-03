@@ -199,10 +199,10 @@ def run_git_commit(repo_root: Path | str, paths: Sequence[str], message: str) ->
     if not paths:
         raise ValueError("paths must not be empty")
     repo = Path(repo_root)
-    pathspecs = list(paths)
-    subprocess.run(["git", "add", "--", *pathspecs], cwd=repo, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    resolved_paths = _resolve_commit_pathspecs(repo, paths)
+    subprocess.run(["git", "add", "--", *resolved_paths], cwd=repo, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     subprocess.run(
-        ["git", "commit", "-m", message, "--", *pathspecs],
+        ["git", "commit", "-m", message, "--", *resolved_paths],
         cwd=repo,
         check=True,
         stdout=subprocess.PIPE,
@@ -217,6 +217,54 @@ def run_git_commit(repo_root: Path | str, paths: Sequence[str], message: str) ->
         stderr=subprocess.PIPE,
     )
     return result.stdout.strip()
+
+
+def _resolve_commit_pathspecs(repo: Path, paths: Sequence[str]) -> list[str]:
+    dirty_paths = set(_dirty_files_for_commit(repo))
+    resolved: list[str] = []
+    for raw_path in paths:
+        path = str(raw_path).strip()
+        if not path:
+            raise ValueError("commit pathspec must not be empty")
+        if path.startswith("-") or Path(path).is_absolute() or ".." in Path(path).parts:
+            raise ValueError(f"unsafe commit pathspec: {path}")
+        candidate = repo / path
+        if candidate.exists() and candidate.is_dir():
+            normalized = path.rstrip("/")
+            matches = sorted(item for item in dirty_paths if item == normalized or item.startswith(f"{normalized}/"))
+            if len(matches) != 1:
+                raise ValueError(f"directory pathspec must resolve to exactly one dirty file: {path}")
+            resolved.extend(matches)
+        else:
+            resolved.append(path)
+
+    unique: list[str] = []
+    seen: set[str] = set()
+    for path in resolved:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return unique
+
+
+def _dirty_files_for_commit(repo: Path) -> list[str]:
+    result = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=repo,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    dirty: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        path = line[3:]
+        if " -> " in path:
+            path = path.rsplit(" -> ", 1)[1]
+        dirty.append(path)
+    return dirty
 
 
 def _loop_state_path(repo_root: Path | str, domain: str) -> Path:
