@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
-  "last_updated": "2026-07-02",
-  "current_focus": "Planner Generator Evaluator loop Phase 3 is complete: autonomous-knowledge loop state, no-action detection, allowlisted wiki changes, supply-chain checks, auto-commit, cleanup, policy fixtures, and evaluator smoke are documented.",
+  "last_updated": "2026-07-03",
+  "current_focus": "Loop Dashboard development is in progress: an independent read-only dashboard will visualize current-project loop runs, agents, skills/tools/logs, completed states, and blocked diagnostics, validated through a browser-click evaluator.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -60,6 +60,24 @@
         "task_level_required": true,
         "final_level_required": false,
         "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "loop-dashboard-dev-01",
+      "title": "Build local Planner Generator Evaluator loop dashboard",
+      "description": "Implement an independent read-only local dashboard for monitoring the current project's loop runs, agent status, skills/tools/logs, completed states, and blocked diagnostics; validate it through a browser-click evaluator scenario and use the demand-development loop workflow to reach the human merge gate.",
+      "status": "in_progress",
+      "priority": "high",
+      "blocked_by": "planner-generator-evaluator-loop-phase-3-01",
+      "verify": "python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 -m unittest scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_evaluator_scenarios -v && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-dashboard-dev-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_harness",
         "final_scope": "report_and_artifacts",
         "max_task_eval_attempts": 3,
         "max_final_eval_attempts": 2
