@@ -44,6 +44,8 @@ const state = {
   loadingDetailFor: "",
   lastError: "",
   pollTimer: 0,
+  refreshInFlight: false,
+  detailRequestSeq: 0,
 };
 
 const els = {
@@ -118,6 +120,10 @@ async function fetchJson(path) {
 }
 
 async function refresh() {
+  if (state.refreshInFlight) {
+    return;
+  }
+  state.refreshInFlight = true;
   try {
     const [project, runs] = await Promise.all([fetchJson("/api/projects/current"), fetchJson("/api/runs")]);
     state.project = project;
@@ -147,8 +153,9 @@ async function refresh() {
 
     renderRunLists();
     if (state.selectedRunId && state.loadingDetailFor !== state.selectedRunId) {
-      await selectRun(state.selectedRunId, { silent: true });
-      if (recoverableNotice) {
+      const requestedRunId = state.selectedRunId;
+      await selectRun(requestedRunId, { silent: true });
+      if (recoverableNotice && state.selectedRunId === requestedRunId) {
         state.lastError = recoverableNotice;
         renderAll();
       }
@@ -161,6 +168,8 @@ async function refresh() {
     state.lastError = `读取失败：${error.message}`;
     setPollState("同步失败");
     renderErrorState();
+  } finally {
+    state.refreshInFlight = false;
   }
 }
 
@@ -170,6 +179,7 @@ async function selectRun(runId, options = {}) {
   }
   state.selectedRunId = runId;
   state.loadingDetailFor = runId;
+  const requestSeq = ++state.detailRequestSeq;
   if (!options.silent) {
     renderRunLists();
     setChildren(els.runDetail, [empty("正在读取运行详情...")]);
@@ -181,7 +191,7 @@ async function selectRun(runId, options = {}) {
       fetchJson(`/api/runs/${encodeURIComponent(runId)}/events`),
       fetchJson(`/api/runs/${encodeURIComponent(runId)}/logs`),
     ]);
-    if (state.selectedRunId !== runId) {
+    if (requestSeq !== state.detailRequestSeq || state.selectedRunId !== runId) {
       return;
     }
     state.detail = detail;
@@ -190,6 +200,9 @@ async function selectRun(runId, options = {}) {
     state.lastError = "";
     renderAll();
   } catch (error) {
+    if (requestSeq !== state.detailRequestSeq || state.selectedRunId !== runId) {
+      return;
+    }
     if (error.status === 404) {
       state.lastError = `选中的运行已消失：${runId}`;
       state.detail = null;
@@ -197,14 +210,19 @@ async function selectRun(runId, options = {}) {
       state.logs = [];
       const fallback = state.runs.find((run) => run.run_id !== runId);
       if (fallback) {
-        state.selectedRunId = fallback.run_id;
+        renderRunLists();
+        setChildren(els.runDetail, [empty("正在读取备用运行详情...")]);
+        await selectRun(fallback.run_id, { silent: true });
+        return;
       }
     } else {
       state.lastError = `读取运行失败：${error.message}`;
     }
     renderAll();
   } finally {
-    state.loadingDetailFor = "";
+    if (requestSeq === state.detailRequestSeq) {
+      state.loadingDetailFor = "";
+    }
   }
 }
 
@@ -375,22 +393,15 @@ function renderLogs() {
   const kind = els.kindFilter.value;
   const keyword = els.keywordFilter.value.trim().toLowerCase();
   const allEntries = combinedLogEntries();
-  let entries = allEntries.filter((entry) => {
+  const entries = allEntries.filter((entry) => {
     const entryKind = entry.kind || entry.stream || "log";
     const kindMatches = kind === "all" || entryKind === kind || entry.stream === kind;
     const haystack = `${entryKind} ${entry.source || ""} ${entry.message || ""} ${entry.content || ""}`.toLowerCase();
     return kindMatches && (!keyword || haystack.includes(keyword));
   });
-  if (entries.length === 0 && keyword) {
-    entries = allEntries.filter((entry) => {
-      const entryKind = entry.kind || entry.stream || "log";
-      const haystack = `${entryKind} ${entry.source || ""} ${entry.message || ""} ${entry.content || ""}`.toLowerCase();
-      return haystack.includes(keyword);
-    });
-  }
 
   if (entries.length === 0) {
-    setChildren(els.logList, [empty("没有匹配的日志或事件")]);
+    setChildren(els.logList, [empty("没有匹配的日志")]);
     return;
   }
 
