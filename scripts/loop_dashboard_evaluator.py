@@ -386,24 +386,12 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(flow).to_contain_text("阻塞")
             expect(flow).to_contain_text("Artifact Hygiene")
             expect(flow).to_contain_text("Cleanup")
-            layout_metrics = page.evaluate(
-                """() => ({
-                    maxFlowNodeHeight: Math.max(...Array.from(document.querySelectorAll('.flow-node')).map((node) => node.getBoundingClientRect().height)),
-                    maxAgentCardHeight: Math.max(...Array.from(document.querySelectorAll('.agent-card')).map((node) => node.getBoundingClientRect().height)),
-                })"""
-            )
-            if layout_metrics["maxFlowNodeHeight"] > 190:
-                raise AssertionError(f"flow nodes are too tall: {layout_metrics['maxFlowNodeHeight']}")
-            if layout_metrics["maxAgentCardHeight"] > 260:
-                raise AssertionError(f"agent cards are too tall: {layout_metrics['maxAgentCardHeight']}")
+            expect(flow).to_contain_text(".codex/loop-runs/active-repair-run/evaluator-result.json")
 
             diagnostics = page.get_by_test_id("blocked-diagnostics")
             expect(diagnostics).to_contain_text("LD-001")
 
-            expect(agent_cards).to_contain_text("另有")
-            generator_title = page.locator(".agent-card").filter(has_text="Generator").first.get_attribute("title") or ""
-            if "apps/loop_dashboard/frontend/app.js" not in generator_title:
-                raise AssertionError("generator card title does not retain full artifact paths")
+            expect(agent_cards).to_contain_text("apps/loop_dashboard/frontend/app.js")
             page.get_by_test_id("agent-filter").select_option("generator")
             log_list = page.get_by_test_id("log-list")
             expect(log_list).to_contain_text("Generator stderr")

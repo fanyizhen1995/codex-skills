@@ -486,14 +486,11 @@ function artifactList(paths, className = "artifact-list") {
     return wrapper;
   }
   const list = el("ul", "artifact-items");
-  normalized.slice(0, 2).forEach((path) => {
+  normalized.forEach((path) => {
     const item = el("li", "", path);
     item.title = path;
     list.append(item);
   });
-  if (normalized.length > 2) {
-    list.append(el("li", "artifact-more", `另有 ${normalized.length - 2} 条`));
-  }
   wrapper.append(list);
   return wrapper;
 }
