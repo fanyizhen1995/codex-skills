@@ -638,7 +638,8 @@ def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
         raise AssertionError("parent-run detail should include reader_summary.purpose")
     if "relationship_diagnostics" not in detail:
         raise AssertionError("parent-run detail should include relationship_diagnostics")
-    events = read_json_url(f"{base_url}/api/runs/parent-run/events")["events"]
+    events_payload = read_json_url(f"{base_url}/api/runs/parent-run/events")
+    events = events_payload.get("events")
     if not isinstance(events, list):
         raise AssertionError("parent-run events endpoint should return an events list")
     if not any(isinstance(event, dict) and event.get("kind") == "plan" for event in events):
@@ -657,15 +658,22 @@ def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
     if not conflict_kinds.intersection({"child_parent_conflict", "child_multi_parent_conflict"}):
         raise AssertionError(f"conflict-parent should expose a child conflict diagnostic, got {sorted(conflict_kinds)}")
 
-    checked_unsafe_paths = []
-    for unsafe_path in ["..%2Foutside", "%2E%2E", "%5C..%5Coutside", "..%5Coutside"]:
-        expect_http_404(f"{base_url}/api/runs/{unsafe_path}", f"unsafe run lookup should return 404: {unsafe_path}")
-        checked_unsafe_paths.append(unsafe_path)
+    route_404_cases = [
+        expect_route_404(
+            f"{base_url}/api/runs/..%2Foutside",
+            "..%2Foutside",
+        )
+    ]
+    store_safe_id_cases = [
+        expect_store_safe_id_404(f"{base_url}/api/runs/{unsafe_path}", unsafe_path)
+        for unsafe_path in ["%2E%2E", "%5C..%5Coutside", "..%5Coutside"]
+    ]
     return {
         "parent_children": len(children),
         "events": len(events),
         "conflict_diagnostics": sorted(str(kind) for kind in conflict_kinds),
-        "unsafe_404_cases": checked_unsafe_paths,
+        "route_404_cases": route_404_cases,
+        "store_safe_id_cases": store_safe_id_cases,
     }
 
 
@@ -699,14 +707,40 @@ def diagnostics_from(payload: dict[str, object], key: str) -> list[dict[str, obj
     return [diagnostic for diagnostic in diagnostics if isinstance(diagnostic, dict)]
 
 
-def expect_http_404(url: str, message: str) -> None:
+def expect_route_404(url: str, case: str) -> dict[str, object]:
     try:
         urllib.request.urlopen(url, timeout=5)
     except urllib.error.HTTPError as exc:
         if exc.code != 404:
-            raise AssertionError(f"{message}: expected 404, got {exc.code}") from exc
-        return
-    raise AssertionError(message)
+            raise AssertionError(f"route-level unsafe run lookup should return 404 for {case}: got {exc.code}") from exc
+        return {"case": case, "status": exc.code, "detail": read_error_detail(exc)}
+    raise AssertionError(f"route-level unsafe run lookup should return 404 for {case}")
+
+
+def expect_store_safe_id_404(url: str, case: str) -> dict[str, object]:
+    try:
+        urllib.request.urlopen(url, timeout=5)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise AssertionError(f"store-level unsafe run lookup should return 404 for {case}: got {exc.code}") from exc
+        detail = read_error_detail(exc)
+        if not isinstance(detail, str) or not detail.startswith("run not found: "):
+            raise AssertionError(
+                f"store-level unsafe run lookup should reach run_id handler for {case}: detail={detail!r}"
+            ) from exc
+        return {"case": case, "status": exc.code, "detail": detail}
+    raise AssertionError(f"store-level unsafe run lookup should return 404 for {case}")
+
+
+def read_error_detail(exc: urllib.error.HTTPError) -> object:
+    body = exc.read().decode("utf-8")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return body
+    if isinstance(payload, dict):
+        return payload.get("detail")
+    return payload
 
 
 def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
