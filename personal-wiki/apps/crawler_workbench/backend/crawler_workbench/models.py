@@ -19,6 +19,9 @@ class AuthState(StrEnum):
     READY = "ready"
     NEEDS_AUTH_CONFIG = "needs_auth_config"
     AUTH_FAILED = "auth_failed"
+    NEEDS_BROWSER = "needs_browser"
+    NETWORK_FAILED = "network_failed"
+    UNSUPPORTED = "unsupported"
 
 
 class RunStatus(StrEnum):

@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from .channels import normalize_base_url, upsert_channel
+from .channels import get_channel, normalize_base_url, upsert_channel
 from .models import AuthState
 
 
@@ -34,6 +34,8 @@ PROFILE_STORAGE_KEYS = REQUIRED_PROFILE_KEYS | {
     "fetcher_type",
     "channel_id",
 }
+
+SOURCE_TYPES = {"web", "rss", "github", "arxiv"}
 
 RUN_POLICIES = {"scheduled", "once"}
 ACCELERATOR_SOURCE_RANKS = {"S1", "S2", "S3", "S4", "S5"}
@@ -250,6 +252,148 @@ def list_profiles(
     return profiles
 
 
+def get_profile(connection: sqlite3.Connection, source_id: str) -> dict[str, Any]:
+    rows = list_profiles(connection)
+    for row in rows:
+        if row["id"] == source_id:
+            return row
+    raise ValueError(f"source not found: {source_id}")
+
+
+def create_profile(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
+    source = _normalize_profile_payload(payload, creating=True)
+    validate_profile_source_id(source)
+    validate_profile_domain(source)
+    booleans = validate_profile_booleans(source)
+    run_policy = validate_run_policy(source)
+    validate_accelerator_metadata(source)
+    channel_id = _channel_id_for_source(connection, source)
+    auth_required = booleans["auth_required"]
+    auth_state = (
+        AuthState.READY.value
+        if not auth_required or source.get("auth_method") and source.get("auth_ref")
+        else AuthState.NEEDS_AUTH_CONFIG.value
+    )
+    connection.execute(
+        """
+        insert into source_profiles (
+          id, name, type, target_domain, url, trust_level, schedule,
+          auto_ingest, auth_required, baseline_on_first_run, run_policy,
+          auth_state, auth_method, auth_ref, channel_id, fetcher_type,
+          config_json, topic, enabled, updated_at
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+        """,
+        (
+            source["id"],
+            source["name"],
+            source["type"],
+            source["target_domain"],
+            source["url"],
+            source["trust_level"],
+            source["schedule"],
+            int(booleans["auto_ingest"]),
+            int(auth_required),
+            int(booleans.get("baseline_on_first_run", False)),
+            run_policy,
+            source.get("auth_state") or auth_state,
+            source.get("auth_method"),
+            source.get("auth_ref"),
+            channel_id,
+            source.get("fetcher_type") or infer_fetcher_type({**source, "channel_id": channel_id}),
+            _profile_config_json(source),
+            source["topic"],
+            int(booleans["enabled"]),
+        ),
+    )
+    connection.commit()
+    return get_profile(connection, str(source["id"]))
+
+
+def update_profile(connection: sqlite3.Connection, source_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    existing = get_profile(connection, source_id)
+    merged = {**existing, **{key: value for key, value in payload.items() if value is not None}}
+    merged["id"] = source_id
+    source = _normalize_profile_payload(merged, creating=False)
+    validate_profile_source_id(source)
+    validate_profile_domain(source)
+    booleans = validate_profile_booleans(source)
+    run_policy = validate_run_policy(source)
+    validate_accelerator_metadata(source)
+    channel_id = _channel_id_for_source(connection, source)
+    connection.execute(
+        """
+        update source_profiles
+        set name = ?,
+            type = ?,
+            target_domain = ?,
+            url = ?,
+            trust_level = ?,
+            schedule = ?,
+            auto_ingest = ?,
+            auth_required = ?,
+            baseline_on_first_run = ?,
+            run_policy = ?,
+            auth_state = ?,
+            auth_method = ?,
+            auth_ref = ?,
+            channel_id = ?,
+            fetcher_type = ?,
+            config_json = ?,
+            topic = ?,
+            enabled = ?,
+            updated_at = current_timestamp
+        where id = ?
+        """,
+        (
+            source["name"],
+            source["type"],
+            source["target_domain"],
+            source["url"],
+            source["trust_level"],
+            source["schedule"],
+            int(booleans["auto_ingest"]),
+            int(booleans["auth_required"]),
+            int(booleans.get("baseline_on_first_run", False)),
+            run_policy,
+            source.get("auth_state") or existing.get("auth_state") or AuthState.READY.value,
+            source.get("auth_method"),
+            source.get("auth_ref"),
+            channel_id,
+            source.get("fetcher_type") or infer_fetcher_type({**source, "channel_id": channel_id}),
+            _profile_config_json(source),
+            source["topic"],
+            int(booleans["enabled"]),
+            source_id,
+        ),
+    )
+    connection.commit()
+    return get_profile(connection, source_id)
+
+
+def delete_profile(connection: sqlite3.Connection, source_id: str) -> dict[str, Any]:
+    get_profile(connection, source_id)
+    row = connection.execute(
+        """
+        select
+          (select count(*) from raw_items where source_id = ?) as raw_count,
+          (select count(*) from fetch_runs where source_id = ?) as run_count,
+          (select count(*) from ingest_tasks where source_id = ?) as task_count
+        """,
+        (source_id, source_id, source_id),
+    ).fetchone()
+    if int(row["raw_count"]) or int(row["run_count"]) or int(row["task_count"]):
+        connection.execute(
+            "update source_profiles set enabled = 0, updated_at = current_timestamp where id = ?",
+            (source_id,),
+        )
+        connection.commit()
+        return {"id": source_id, "deleted": False, "disabled": True}
+    connection.execute("delete from source_profiles where id = ?", (source_id,))
+    connection.commit()
+    return {"id": source_id, "deleted": True, "disabled": False}
+
+
 def derive_channel_seed(profile: dict[str, Any]) -> dict[str, Any]:
     base_url = _base_url_for_profile(profile)
     connector = _connector_for_profile(profile, base_url)
@@ -348,6 +492,38 @@ def _parse_config_json(config_json: object) -> dict[str, Any]:
         return {}
     parsed = json.loads(config_json)
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _normalize_profile_payload(payload: dict[str, Any], *, creating: bool) -> dict[str, Any]:
+    source = dict(payload)
+    if creating:
+        missing = sorted(REQUIRED_PROFILE_KEYS - set(source))
+        if missing:
+            raise ValueError(f"profile {source.get('id', '<unknown>')} missing keys: {', '.join(missing)}")
+    for key in ("id", "name", "type", "target_domain", "url", "trust_level", "schedule", "topic"):
+        if key in source and source[key] is not None:
+            source[key] = str(source[key]).strip()
+    if source.get("type") not in SOURCE_TYPES:
+        raise ValueError(f"profile {source.get('id', '<unknown>')} invalid type: {source.get('type')}")
+    if source.get("trust_level") not in {"trusted", "untrusted"}:
+        raise ValueError(f"profile {source.get('id', '<unknown>')} invalid trust_level: {source.get('trust_level')}")
+    source.setdefault("baseline_on_first_run", False)
+    source.setdefault("run_policy", "scheduled")
+    source.setdefault("enabled", True)
+    for key in ("auto_ingest", "auth_required", "baseline_on_first_run", "enabled"):
+        if key in source and isinstance(source[key], int):
+            source[key] = bool(source[key])
+    return source
+
+
+def _channel_id_for_source(connection: sqlite3.Connection, source: dict[str, Any]) -> str:
+    channel_id = source.get("channel_id")
+    if channel_id:
+        channel = get_channel(connection, str(channel_id))
+        if channel["target_domain"] != source["target_domain"]:
+            raise ValueError(f"channel domain mismatch: {channel_id}")
+        return str(channel_id)
+    return upsert_channel(connection, derive_channel_seed(source))
 
 
 def validate_profile_booleans(profile: dict[str, Any]) -> dict[str, bool]:

@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-07-03 Domain Channel Management Secrets And Probes
+
+- Completed `crawler-domain-channels-probe-secrets-01`: added encrypted local channel secrets using the existing cryptography dependency, key-file lifecycle under the isolated workbench state directory, HTTP probe execution/history, channel readiness states, and source-run blocking with persisted failed run reasons.
+- Added channel/source CRUD APIs needed by the upcoming Domain Channels frontend workflow, including conservative source/channel delete behavior.
+- Secret APIs return only configured metadata and tests verify synthetic plaintext is not returned or stored in the SQLite database.
+- Evidence:
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py` -> 18 passed
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py tests/test_fetch_service_policy.py tests/test_api.py` -> 41 passed
+
 ## 2026-07-03 Domain Channel Management Loop Execution Preference
 
 - User confirmed local merge for `crawler-domain-channels-model-01`.

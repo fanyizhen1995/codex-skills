@@ -7,10 +7,24 @@ from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 
 from .accelerator_specs import extract_specs_for_all_raw_items, list_accelerator_specs
 from .codex_worker import create_codex_job, run_existing_codex_job
-from .channels import list_channels
+from .channel_probe import list_probe_runs, run_channel_probe
+from .channel_secrets import (
+    SecretDecryptError,
+    SecretKeyUnavailableError,
+    delete_channel_secret,
+    set_channel_secret,
+)
+from .channels import (
+    ChannelInUseError,
+    ChannelNotFoundError,
+    create_channel,
+    delete_channel,
+    list_channels,
+    update_channel,
+)
 from .db import open_db
 from .discovery import accept_candidate, list_candidates, reject_candidate, trust_candidate_source
-from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
+from .fetch_service import ChannelNotReadyError, SourceDisabledError, SourceNotFoundError, run_source_once
 from .graph_api import domain_graph
 from .ingest import (
     IngestInputError,
@@ -23,7 +37,7 @@ from .ingest import (
     run_approved_task,
 )
 from .manual_ingest import run_manual_url_ingest
-from .profiles import list_profiles
+from .profiles import create_profile, delete_profile, list_profiles, update_profile
 from .search import refresh_search_index_if_stale, rebuild_search_index, search_wiki, validate_domain
 from .schemas import (
     AcceptAcceleratorCandidateRequest,
@@ -31,7 +45,11 @@ from .schemas import (
     AcceleratorSpecExtractionResponse,
     AcceleratorSpecResponse,
     ChannelResponse,
+    ChannelDeleteResponse,
+    ChannelProbeRunResponse,
+    ChannelSecretResponse,
     HealthResponse,
+    SourceDeleteResponse,
     SourceProfileResponse,
     TrustAcceleratorCandidatesResponse,
 )
@@ -98,6 +116,84 @@ class ManualIngestRequest(BaseModel):
         if not stripped:
             raise ValueError("must not be empty")
         return stripped
+
+
+class ChannelCreateRequest(BaseModel):
+    id: StrictStr | None = None
+    target_domain: StrictStr = Field(min_length=1)
+    name: StrictStr | None = None
+    base_url: StrictStr = Field(min_length=1)
+    probe_url: StrictStr | None = None
+    probe_method: StrictStr = "GET"
+    probe_config_json: StrictStr = "{}"
+    kind: StrictStr = "web"
+    connector: StrictStr = "generic"
+    trust_level: StrictStr = "untrusted"
+    enabled: StrictBool = True
+    auth_required: StrictBool = False
+    auth_mode: StrictStr = "none"
+    auth_state: StrictStr | None = None
+    notes: StrictStr = ""
+
+
+class ChannelUpdateRequest(BaseModel):
+    name: StrictStr | None = None
+    base_url: StrictStr | None = None
+    probe_url: StrictStr | None = None
+    probe_method: StrictStr | None = None
+    probe_config_json: StrictStr | None = None
+    kind: StrictStr | None = None
+    connector: StrictStr | None = None
+    trust_level: StrictStr | None = None
+    enabled: StrictBool | None = None
+    auth_required: StrictBool | None = None
+    auth_mode: StrictStr | None = None
+    auth_state: StrictStr | None = None
+    notes: StrictStr | None = None
+
+
+class ChannelSecretRequest(BaseModel):
+    secret_kind: StrictStr = Field(min_length=1)
+    secret: StrictStr = Field(min_length=1)
+
+
+class SourceCreateRequest(BaseModel):
+    id: StrictStr = Field(min_length=1)
+    name: StrictStr = Field(min_length=1)
+    type: StrictStr = Field(min_length=1)
+    target_domain: StrictStr = Field(min_length=1)
+    url: StrictStr = Field(min_length=1)
+    channel_id: StrictStr | None = None
+    trust_level: StrictStr = "untrusted"
+    schedule: StrictStr = "manual"
+    auto_ingest: StrictBool = False
+    auth_required: StrictBool = False
+    baseline_on_first_run: StrictBool = False
+    run_policy: StrictStr = "scheduled"
+    auth_method: StrictStr | None = None
+    auth_ref: StrictStr | None = None
+    fetcher_type: StrictStr | None = None
+    topic: StrictStr = Field(min_length=1)
+    enabled: StrictBool = True
+
+
+class SourceUpdateRequest(BaseModel):
+    name: StrictStr | None = None
+    type: StrictStr | None = None
+    target_domain: StrictStr | None = None
+    url: StrictStr | None = None
+    channel_id: StrictStr | None = None
+    trust_level: StrictStr | None = None
+    schedule: StrictStr | None = None
+    auto_ingest: StrictBool | None = None
+    auth_required: StrictBool | None = None
+    baseline_on_first_run: StrictBool | None = None
+    run_policy: StrictStr | None = None
+    auth_method: StrictStr | None = None
+    auth_ref: StrictStr | None = None
+    fetcher_type: StrictStr | None = None
+    topic: StrictStr | None = None
+    enabled: StrictBool | None = None
 
 
 class TrustSourceRequest(BaseModel):
@@ -189,37 +285,136 @@ def channels(request: Request, domain: str | None = None) -> list[ChannelRespons
     return [ChannelResponse(**row) for row in rows]
 
 
+@router.post("/channels", response_model=ChannelResponse)
+def create_channel_endpoint(payload: ChannelCreateRequest, request: Request) -> ChannelResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return ChannelResponse(**create_channel(db, payload.model_dump(exclude_none=True)))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch("/channels/{channel_id}", response_model=ChannelResponse)
+def update_channel_endpoint(channel_id: str, payload: ChannelUpdateRequest, request: Request) -> ChannelResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return ChannelResponse(**update_channel(db, channel_id, payload.model_dump(exclude_none=True)))
+        except ChannelNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/channels/{channel_id}", response_model=ChannelDeleteResponse)
+def delete_channel_endpoint(channel_id: str, request: Request) -> ChannelDeleteResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return ChannelDeleteResponse(**delete_channel(db, channel_id))
+        except ChannelNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ChannelInUseError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/channels/{channel_id}/secret", response_model=ChannelSecretResponse)
+def set_channel_secret_endpoint(
+    channel_id: str,
+    payload: ChannelSecretRequest,
+    request: Request,
+) -> ChannelSecretResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return ChannelSecretResponse(
+                **set_channel_secret(
+                    request.app.state.settings,
+                    db,
+                    channel_id,
+                    secret_kind=payload.secret_kind,
+                    secret=payload.secret,
+                )
+            )
+        except ChannelNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/channels/{channel_id}/secret", response_model=ChannelSecretResponse)
+def delete_channel_secret_endpoint(channel_id: str, request: Request) -> ChannelSecretResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return ChannelSecretResponse(**delete_channel_secret(request.app.state.settings, db, channel_id))
+        except ChannelNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/channels/{channel_id}/probe", response_model=ChannelProbeRunResponse)
+def probe_channel_endpoint(channel_id: str, request: Request) -> ChannelProbeRunResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return ChannelProbeRunResponse(**run_channel_probe(request.app.state.settings, db, channel_id))
+        except ChannelNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (SecretKeyUnavailableError, SecretDecryptError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/channels/{channel_id}/probe-runs", response_model=list[ChannelProbeRunResponse])
+def channel_probe_runs(channel_id: str, request: Request) -> list[ChannelProbeRunResponse]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return [ChannelProbeRunResponse(**row) for row in list_probe_runs(db, channel_id)]
+        except ChannelNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/sources", response_model=list[SourceProfileResponse])
 def sources(request: Request, domain: str | None = None, channel_id: str | None = None) -> list[SourceProfileResponse]:
     request.app.state.initialize_database(request.app)
     with open_db(request.app.state.settings.database_path) as db:
         rows = list_profiles(db, domain=domain, channel_id=channel_id)
-    return [
-        SourceProfileResponse(
-            id=row["id"],
-            name=row["name"],
-            type=row["type"],
-            fetcher_type=row.get("fetcher_type"),
-            target_domain=row["target_domain"],
-            url=row["url"],
-            channel_id=row.get("channel_id"),
-            channel_name=row.get("channel_name"),
-            channel_base_url=row.get("channel_base_url"),
-            channel_auth_state=row.get("channel_auth_state"),
-            trust_level=row["trust_level"],
-            schedule=row["schedule"],
-            auto_ingest=bool(row["auto_ingest"]),
-            auth_required=bool(row["auth_required"]),
-            baseline_on_first_run=bool(row["baseline_on_first_run"]),
-            run_policy=row["run_policy"],
-            auth_state=row["auth_state"],
-            topic=row["topic"],
-            enabled=bool(row["enabled"]),
-            last_run_at=row.get("last_run_at"),
-            last_run_status=row.get("last_run_status"),
-        )
-        for row in rows
-    ]
+    return [_source_response(row) for row in rows]
+
+
+@router.post("/sources", response_model=SourceProfileResponse)
+def create_source_endpoint(payload: SourceCreateRequest, request: Request) -> SourceProfileResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            row = create_profile(db, payload.model_dump(exclude_none=True))
+            return _source_response(row)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch("/sources/{source_id}", response_model=SourceProfileResponse)
+def update_source_endpoint(source_id: str, payload: SourceUpdateRequest, request: Request) -> SourceProfileResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            row = update_profile(db, source_id, payload.model_dump(exclude_none=True))
+            return _source_response(row)
+        except ValueError as exc:
+            if str(exc).startswith("source not found:"):
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/sources/{source_id}", response_model=SourceDeleteResponse)
+def delete_source_endpoint(source_id: str, request: Request) -> SourceDeleteResponse:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        try:
+            return SourceDeleteResponse(**delete_profile(db, source_id))
+        except ValueError as exc:
+            if str(exc).startswith("source not found:"):
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/sources/{source_id}/run")
@@ -232,6 +427,8 @@ def run_source(source_id: str, request: Request) -> dict[str, object]:
         except SourceNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except SourceDisabledError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ChannelNotReadyError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
@@ -270,6 +467,38 @@ def _fetch_run_response(row) -> dict[str, object]:
     record["failure_reason"] = error if isinstance(error, str) and error.strip() else None
     record["failed_count"] = 1 if record.get("status") == "failed" else 0
     return record
+
+
+def _source_response(row: dict[str, object]) -> SourceProfileResponse:
+    return SourceProfileResponse(
+        id=str(row["id"]),
+        name=str(row["name"]),
+        type=str(row["type"]),
+        fetcher_type=row.get("fetcher_type") if row.get("fetcher_type") is None else str(row.get("fetcher_type")),
+        target_domain=str(row["target_domain"]),
+        url=str(row["url"]),
+        channel_id=row.get("channel_id") if row.get("channel_id") is None else str(row.get("channel_id")),
+        channel_name=row.get("channel_name") if row.get("channel_name") is None else str(row.get("channel_name")),
+        channel_base_url=(
+            row.get("channel_base_url") if row.get("channel_base_url") is None else str(row.get("channel_base_url"))
+        ),
+        channel_auth_state=(
+            row.get("channel_auth_state") if row.get("channel_auth_state") is None else str(row.get("channel_auth_state"))
+        ),
+        trust_level=str(row["trust_level"]),
+        schedule=str(row["schedule"]),
+        auto_ingest=bool(row["auto_ingest"]),
+        auth_required=bool(row["auth_required"]),
+        baseline_on_first_run=bool(row["baseline_on_first_run"]),
+        run_policy=str(row["run_policy"]),
+        auth_state=str(row["auth_state"]),
+        topic=str(row["topic"]),
+        enabled=bool(row["enabled"]),
+        last_run_at=row.get("last_run_at") if row.get("last_run_at") is None else str(row.get("last_run_at")),
+        last_run_status=(
+            row.get("last_run_status") if row.get("last_run_status") is None else str(row.get("last_run_status"))
+        ),
+    )
 
 
 @router.get("/queue")

@@ -51,6 +51,34 @@ create table if not exists channels (
 create unique index if not exists channels_domain_base_url_idx
 on channels(target_domain, base_url_normalized);
 
+create table if not exists channel_secrets (
+  id text primary key,
+  channel_id text not null references channels(id) on delete cascade,
+  secret_kind text not null,
+  ciphertext blob not null,
+  nonce blob not null,
+  created_at text not null default current_timestamp,
+  updated_at text not null default current_timestamp
+);
+
+create unique index if not exists channel_secrets_channel_idx
+on channel_secrets(channel_id);
+
+create table if not exists channel_probe_runs (
+  id integer primary key autoincrement,
+  channel_id text not null references channels(id) on delete cascade,
+  status text not null,
+  started_at text not null default current_timestamp,
+  finished_at text,
+  http_status integer,
+  final_url text,
+  summary text not null default '',
+  error text
+);
+
+create index if not exists channel_probe_runs_channel_started_idx
+on channel_probe_runs(channel_id, started_at desc, id desc);
+
 create table if not exists source_auth_refs (
   source_id text primary key references source_profiles(id) on delete cascade,
   auth_method text not null,

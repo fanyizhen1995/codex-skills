@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-03",
-  "current_focus": "Domain Channel Management model/API compatibility is complete; next loop task is channel secrets and probes.",
+  "current_focus": "Domain Channel Management secrets/probes are complete; next loop task is Domain Channels frontend.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -33,7 +33,7 @@
       "id": "crawler-domain-channels-probe-secrets-01",
       "title": "Add crawler workbench channel secrets and probes",
       "description": "Implement encrypted local channel secret storage, key-file lifecycle, probe APIs, probe history, channel readiness checks, and source-run blocking reasons without returning or persisting plaintext secrets.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "crawler-domain-channels-model-01",
       "verify": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py tests/test_fetch_service_policy.py tests/test_api.py && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-probe-secrets-01.json >/dev/null && git diff --check",
@@ -51,7 +51,7 @@
       "id": "crawler-domain-channels-ui-01",
       "title": "Add crawler workbench Domain Channels UI",
       "description": "Implement the Domain Channels frontend page for channel CRUD, secret replacement, access probes, probe history, child source CRUD, and compatibility with existing Sources and Queue pages.",
-      "status": "pending",
+      "status": "in_progress",
       "priority": "high",
       "blocked_by": "crawler-domain-channels-probe-secrets-01",
       "verify": "cd personal-wiki/apps/crawler_workbench/frontend && npm test -- src/App.test.tsx && npm run build && npm run test:ui && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json >/dev/null && git diff --check",

@@ -34,5 +34,9 @@ class Settings(BaseSettings):
         return self.resolved_state_dir / "sources.yaml"
 
     @property
+    def secrets_key_path(self) -> Path:
+        return self.resolved_state_dir / "secrets.key"
+
+    @property
     def trusted_network_warning(self) -> str:
         return "No login is enabled. Expose this service only on a trusted network."

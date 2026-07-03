@@ -46,10 +46,41 @@ class ChannelResponse(BaseModel):
     last_probe_status: str | None = None
     last_probe_at: str | None = None
     last_probe_summary: str | None = None
+    secret_configured: bool = False
     notes: str
     source_count: int
     created_at: str
     updated_at: str
+
+
+class ChannelSecretResponse(BaseModel):
+    channel_id: str
+    secret_kind: str | None = None
+    secret_configured: bool
+    auth_state: str
+
+
+class ChannelDeleteResponse(BaseModel):
+    id: str
+    deleted: bool
+
+
+class SourceDeleteResponse(BaseModel):
+    id: str
+    deleted: bool
+    disabled: bool
+
+
+class ChannelProbeRunResponse(BaseModel):
+    id: int
+    channel_id: str
+    status: str
+    started_at: str
+    finished_at: str | None = None
+    http_status: int | None = None
+    final_url: str | None = None
+    summary: str
+    error: str | None = None
 
 
 class AcceleratorCandidateResponse(BaseModel):

@@ -5,6 +5,7 @@ import json
 import sqlite3
 from typing import Any
 
+from .channels import ChannelNotReadyError, assert_channel_ready_for_source
 from .fetchers import Fetcher, fetcher_for
 from .policy import ingest_decision
 from .raw_store import raw_capture_hash, write_raw_item
@@ -42,6 +43,7 @@ def run_source_once(
     baseline_only = bool(profile.get("baseline_on_first_run")) and not _source_has_content_versions(db, source_id)
 
     try:
+        assert_channel_ready_for_source(db, profile)
         if runner is None:
             runner = fetcher_for(str(profile["type"]))
         results = runner.fetch(profile)
