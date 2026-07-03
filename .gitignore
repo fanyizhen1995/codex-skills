@@ -10,6 +10,8 @@ personal-wiki/apps/crawler_workbench/frontend/test-results/
 .superpowers/
 .codex/accelerator-crawl/
 .codex/backups/
+.codex/loop-runs/
+.codex/loop-dashboard-eval/
 .codex/evaluator-demo/
 .codex/session-state/
 .codex/tmp/
