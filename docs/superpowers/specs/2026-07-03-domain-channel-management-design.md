@@ -336,15 +336,17 @@ Security constraints:
 
 This feature must be implemented through the repository's `demand_development`
 Planner -> Generator -> Evaluator loop, not as an untracked ad hoc change.
-The design document is preflight input; implementation starts only after a
-registered task or loop task contract names the allowed paths, denylist paths,
-verification commands, evaluator scenario, and stop conditions.
+This design document is preflight input. Implementation starts only after the
+user confirms entry into the loop and the Planner creates registered
+`tasks.json` entries plus evaluator scenarios for the selected phase. Temporary
+task contracts may be used as evaluator input, but they do not replace
+registered demand-development tasks for this feature.
 
 Because the feature crosses schema, backend APIs, frontend UI, scheduler/run
-behavior, and secret handling, it should be split into independently evaluable
+behavior, and secret handling, it must be split into independently evaluable
 loop tasks rather than one large generator pass.
 
-### Suggested Task Split
+### Required Task Split
 
 1. `crawler-domain-channels-model-01`
    - Scope: schema migration, SQLite-as-source-of-truth import rules,
@@ -381,24 +383,279 @@ task contract with bounded paths, clear scenario commands, and meaningful
 repair attempts. It must not merge secret handling and UI work into a task that
 cannot be evaluated independently.
 
-### Loop Contracts
+### Concrete Task Contracts
 
-Each task should be registered in `tasks.json` with all required fields and
-`requires_eval=true`. The task contract must include:
+Each task must be registered in `tasks.json` with all required fields,
+`requires_eval=true`, and the standard task-level eval policy. The Planner must
+generate matching scenario files under
+`docs/harness/evaluator-scenarios/<task-id>.json` before handing work to the
+Generator.
 
-- `allowed_paths`: crawler backend, frontend, docs, tests, and targeted harness
-  scenario files only.
-- `denylist_paths`: `.env`, secret/key files, state DBs, `.personal-wiki-workbench/**`,
-  raw evidence outside explicitly generated test fixtures, and unrelated wiki
-  domain content.
-- `verify_commands`: narrow pytest/Vitest commands for the phase plus
-  `git diff --check`.
-- `scenario_commands`: an isolated API or Playwright scenario that does not use
-  the long-running developer backend state.
-- `required_services`: backend/frontend services only when the scenario needs
-  live UI validation.
-- `artifact_paths`: probe logs, Playwright screenshots/traces, API responses,
-  and evaluator result bundles, with artifact hygiene enabled.
+Common contract fields for all four tasks:
+
+- `priority`: `high`
+- `requires_eval`: `true`
+- `eval_policy.task_level_required`: `true`
+- `eval_policy.final_level_required`: `false`
+- `eval_policy.task_scope`: `local_repo_and_personal_wiki`
+- `eval_policy.final_scope`: `report_and_artifacts`
+- `eval_policy.max_task_eval_attempts`: `3`
+- `eval_policy.max_final_eval_attempts`: `2`
+- Loop limits: `max_generator_attempts_per_task=2`,
+  `max_eval_attempts_per_task=3`, `max_wall_time_minutes=90`
+- Stop conditions: `passed_waiting_human_merge`, `stopped_blocked`,
+  `stopped_budget`
+- Real secret values, runtime state DBs, key files, token dumps, cookies, and
+  unredacted auth artifacts are always denied. Source and test files with names
+  such as `channel_secrets.py` or `test_domain_channel_secrets.py` are allowed
+  only when listed in `allowed_paths` or created under an allowed source/test
+  directory and must contain no real credentials.
+
+#### `crawler-domain-channels-model-01`
+
+Allowed paths:
+
+- `personal-wiki/apps/crawler_workbench/backend/crawler_workbench/**`
+- `personal-wiki/apps/crawler_workbench/backend/tests/**`
+- `personal-wiki/apps/crawler_workbench/config/sources.example.yaml`
+- `docs/harness/evaluator-scenarios/crawler-domain-channels-model-01.json`
+- `tasks.json`
+- `progress.md`
+
+Denylist paths:
+
+- `.env`, `.env.*`
+- `.personal-wiki-workbench/**`
+- runtime credential or key artifacts matching `**/*secret*`, `**/*token*`,
+  `**/*key*`
+- `personal-wiki/domains/**/raw/**`
+- `personal-wiki/domains/**/wiki/**`
+- frontend files, except when the Planner explicitly merges this with the UI
+  task after user confirmation
+
+Verify command:
+
+```bash
+cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channels_model.py tests/test_db_profiles.py tests/test_api.py tests/test_fetch_service_policy.py tests/test_scheduler.py && cd /home/fyz/codex-skills && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-model-01.json >/dev/null && git diff --check
+```
+
+Scenario entrypoint:
+
+```bash
+cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channels_model.py
+```
+
+Scenario must prove:
+
+- Empty isolated DB imports `sources.yaml` once.
+- Non-empty DB is not overwritten by later YAML changes.
+- Existing source IDs and raw evidence references are preserved.
+- Sources receive generated channel IDs.
+- Existing source listing and source run behavior still work.
+
+#### `crawler-domain-channels-probe-secrets-01`
+
+Allowed paths:
+
+- `personal-wiki/apps/crawler_workbench/backend/crawler_workbench/**`
+- `personal-wiki/apps/crawler_workbench/backend/tests/**`
+- `docs/harness/evaluator-scenarios/crawler-domain-channels-probe-secrets-01.json`
+- `tasks.json`
+- `progress.md`
+
+Denylist paths:
+
+- `.env`, `.env.*`
+- `.personal-wiki-workbench/**`
+- runtime credential or key artifacts matching `**/*secret*`, `**/*token*`,
+  `**/*key*`; source/test files for encrypted-secret implementation are allowed
+  only under the allowed backend source/test paths and must contain no real
+  secret values
+- `personal-wiki/domains/**`
+- frontend files, except generated API type updates when the UI task is
+  explicitly merged
+
+Verify command:
+
+```bash
+cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py tests/test_fetch_service_policy.py tests/test_api.py && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-probe-secrets-01.json >/dev/null && git diff --check
+```
+
+Scenario entrypoint:
+
+```bash
+cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py
+```
+
+Scenario must prove:
+
+- Secret plaintext is accepted only on write/replace APIs and is never returned
+  by read APIs.
+- Probe runs persist `ready`, `needs_auth_config`, `auth_failed`,
+  `needs_browser`, `network_failed`, and `unsupported`.
+- Probe summaries do not include secret values, authorization headers, cookies,
+  or raw response bodies.
+- Missing or unreadable key file fails closed when encrypted secrets exist.
+- Source runs are blocked with clear `fetch_runs.error` messages when their
+  channel is disabled, not ready, or `needs_browser`.
+
+#### `crawler-domain-channels-ui-01`
+
+Allowed paths:
+
+- `personal-wiki/apps/crawler_workbench/frontend/src/**`
+- `personal-wiki/apps/crawler_workbench/frontend/tests/**`
+- `personal-wiki/apps/crawler_workbench/frontend/package*.json` only when
+  Planner records dependency necessity and supply-chain evidence
+- `personal-wiki/apps/crawler_workbench/backend/crawler_workbench/schemas.py`
+- `docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json`
+- `tasks.json`
+- `progress.md`
+
+Denylist paths:
+
+- `.env`, `.env.*`
+- `.personal-wiki-workbench/**`
+- runtime credential or key artifacts matching `**/*secret*`, `**/*token*`,
+  `**/*key*`
+- `personal-wiki/domains/**`
+- backend persistence/fetcher code unless the task is explicitly widened by
+  user-approved Planner output
+
+Verify command:
+
+```bash
+cd personal-wiki/apps/crawler_workbench/frontend && npm test -- src/App.test.tsx && npm run build && npm run test:ui && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-ui-01.json >/dev/null && git diff --check
+```
+
+Scenario entrypoint:
+
+```bash
+cd personal-wiki/apps/crawler_workbench/frontend && npm run test:ui
+```
+
+Scenario must prove:
+
+- A user can navigate to the Domain Channels page.
+- The page shows domains, channels, source counts, selected channel details,
+  and probe history.
+- Creating/editing a channel sends the expected API payload.
+- Replacing a secret clears the input and does not render the plaintext secret
+  anywhere after submission.
+- Creating a child source under a selected channel is visible in the UI.
+- Existing Sources and Queue navigation still render.
+
+#### `crawler-domain-channels-live-e2e-01`
+
+Allowed paths:
+
+- `scripts/**`
+- `docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json`
+- `.codex/evaluations/tasks/crawler-domain-channels-live-e2e-01/**` after
+  artifact hygiene
+- `.codex/loop-runs/**` after artifact hygiene
+- `tasks.json`
+- `progress.md`
+
+Denylist paths:
+
+- `.env`, `.env.*`
+- `.personal-wiki-workbench/**`
+- raw state databases, key files, cookies, token dumps, Playwright traces with
+  unredacted form values, and any real credential material
+
+Verify command:
+
+```bash
+python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01 && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json >/dev/null && git diff --check
+```
+
+Scenario entrypoint:
+
+```bash
+python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01
+```
+
+Scenario must prove in an isolated state directory:
+
+- Backend and frontend start without reusing the long-running developer
+  services.
+- API can create a channel, attach a source, write a synthetic test secret,
+  run a probe, and return probe history.
+- UI can view the channel, replace the synthetic secret without echoing it,
+  create a source, and show latest probe status.
+- A source run still produces raw evidence and queue continuity where the
+  fixture expects it.
+- Artifact hygiene either redacts or omits any logs that could contain access
+  diagnostics.
+
+### Evaluator Scenario Draft
+
+Each scenario file must follow the existing `must_simulate` format. The angle
+bracket values below are template variables; the Planner must replace them with
+the concrete task id, scenario id, and entrypoint before writing a scenario file
+or handing the task to a Generator:
+
+```json
+{
+  "task_id": "<task-id>",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "<task-id>-user-flow",
+      "user_goal": "Verify the phase from a workbench user's perspective.",
+      "prerequisites": [
+        "Repository root is writable.",
+        "Scenario uses an isolated state directory.",
+        "No real credentials are required."
+      ],
+      "entrypoint": "<scenario entrypoint command>",
+      "steps": [],
+      "expected_outcomes": [],
+      "failure_signals": [],
+      "cleanup": [
+        "Remove generated .codex scenario output for a clean rerun."
+      ],
+      "automation_hint": "shell or playwright+shell"
+    }
+  ]
+}
+```
+
+### Artifact Policy
+
+Loop and evaluator artifacts are acceptance evidence, but they must pass
+artifact hygiene before commit.
+
+Allowed to commit after hygiene:
+
+- `result.json`, `summary.md`, scenario JSON, redaction manifests, artifact
+  manifests, small sanitized API response summaries.
+
+Local-only by default:
+
+- Raw Playwright traces, screenshots containing form fields, raw probe HTTP
+  responses, raw stdout/stderr that may include headers, state databases,
+  `secrets.key`, cookie files, and any generated secret payload.
+
+If an artifact contains `Authorization`, `Cookie`, token-like strings, secret
+input values, or private response bodies, the loop must redact it or omit it
+from git and keep only a manifest entry with path, size, and hash.
+
+### Completion Records
+
+Each implementation task must update `progress.md` at the top after verify and
+evaluator pass, recording:
+
+- task id and commit hash
+- verify commands and outcome
+- evaluator bundle path
+- loop run path
+- whether backend/frontend services were restarted
+- any blocked credential/browser/CV follow-up
+
+If verification or evaluator is blocked, `progress.md` must record the blocker
+and the task must not be marked `done`.
 
 If a task needs access to real credentials, the loop must stop and request
 human input. Generator agents must not invent, inspect, or commit real tokens,
@@ -450,7 +707,7 @@ cd personal-wiki/apps/crawler_workbench/frontend && npm test && npm run build
 git diff --check
 ```
 
-Because this is a new feature touching backend, frontend, schema, and security-sensitive behavior, every implementation task should set `requires_eval=true` under the repository task rules and run the relevant evaluator gate or document the evidence bundle. Loop artifacts under `.codex/loop-runs/<run-id>/` and evaluator bundles under `.codex/evaluations/tasks/<task-id>/` are part of the acceptance evidence.
+Because this is a new feature touching backend, frontend, schema, and security-sensitive behavior, every implementation task must set `requires_eval=true` under the repository task rules and run the relevant evaluator gate or document the evidence bundle. Loop artifacts under `.codex/loop-runs/<run-id>/` and evaluator bundles under `.codex/evaluations/tasks/<task-id>/` are part of the acceptance evidence.
 
 ## Deployment Validation
 
