@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Loop 看板</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Loop 看板</h1>
+        <p class="subtitle">本地只读运行监控</p>
+      </div>
+      <div class="poll-state" id="poll-state" aria-live="polite">等待同步</div>
+    </header>
+
+    <main class="workbench" id="app">
+      <aside class="column column-left" aria-label="项目和运行列表">
+        <section class="panel project-panel" data-testid="project-status" aria-labelledby="project-status-title">
+          <div class="section-heading">
+            <h2 id="project-status-title">项目状态</h2>
+          </div>
+          <div id="project-status-content" class="kv-list">
+            <div class="muted">正在读取项目状态...</div>
+          </div>
+        </section>
+
+        <section class="panel runs-panel" aria-labelledby="run-list-title">
+          <div class="section-heading">
+            <h2 id="run-list-title">运行列表</h2>
+          </div>
+          <div class="run-list" data-testid="run-list" id="run-list" aria-live="polite">
+            <div class="empty">暂无运行记录</div>
+          </div>
+        </section>
+
+        <section class="panel completed-panel" aria-labelledby="completed-runs-title">
+          <div class="section-heading">
+            <h2 id="completed-runs-title">已完成运行</h2>
+          </div>
+          <div class="completed-runs" data-testid="completed-runs" id="completed-runs">
+            <div class="empty">暂无已完成运行</div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="column column-main" aria-label="运行详情">
+        <section class="panel detail-panel" data-testid="run-detail" id="run-detail" aria-live="polite">
+          <div class="section-heading">
+            <h2>运行详情</h2>
+          </div>
+          <div id="run-detail-content" class="empty">请选择一个运行</div>
+        </section>
+
+        <section class="panel flow-panel" aria-labelledby="flow-title">
+          <div class="section-heading">
+            <h2 id="flow-title">流程图</h2>
+          </div>
+          <div class="flow-diagram" data-testid="flow-diagram" id="flow-diagram">
+            <div class="empty">等待运行数据</div>
+          </div>
+        </section>
+
+        <section class="panel agents-panel" aria-labelledby="agents-title">
+          <div class="section-heading">
+            <h2 id="agents-title">Agent 状态</h2>
+          </div>
+          <div class="agent-cards" data-testid="agent-cards" id="agent-cards">
+            <div class="empty">等待 Agent 数据</div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="column column-right" aria-label="诊断和日志">
+        <section class="panel diagnostics-panel" aria-labelledby="diagnostics-title">
+          <div class="section-heading">
+            <h2 id="diagnostics-title">阻塞诊断</h2>
+          </div>
+          <div class="blocked-diagnostics" data-testid="blocked-diagnostics" id="blocked-diagnostics">
+            <div class="empty">暂无阻塞诊断</div>
+          </div>
+        </section>
+
+        <section class="panel logs-panel" aria-labelledby="logs-title">
+          <div class="section-heading">
+            <h2 id="logs-title">事件与日志</h2>
+            <span class="notice">日志已做基础脱敏</span>
+          </div>
+          <div class="filters" aria-label="日志过滤">
+            <label class="filter-control">
+              <span>类型</span>
+              <select data-testid="log-kind-filter" id="log-kind-filter">
+                <option value="all">全部</option>
+                <option value="stdout">stdout</option>
+                <option value="stderr">stderr</option>
+                <option value="artifact">artifact</option>
+                <option value="log">log</option>
+                <option value="skill">skill</option>
+                <option value="agent">agent</option>
+                <option value="tool">tool</option>
+              </select>
+            </label>
+            <label class="filter-control">
+              <span>关键词</span>
+              <input data-testid="log-keyword-filter" id="log-keyword-filter" type="search" placeholder="输入关键词">
+            </label>
+          </div>
+          <div class="log-list" data-testid="log-list" id="log-list">
+            <div class="empty">暂无日志</div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>
