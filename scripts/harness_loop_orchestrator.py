@@ -200,6 +200,39 @@ def _aggregate_pending(aggregate: dict[str, Any]) -> int:
     )
 
 
+def _dirty_paths_after_baseline(repo_root: Path, parent: dict[str, Any], child: dict[str, Any]) -> list[str]:
+    baseline = {str(path) for path in parent.get("baseline_dirty_paths", [])}
+    accepted = {str(path) for path in parent.get("accepted_changed_paths", [])}
+    allowed = {str(path) for path in child.get("allowed_paths", [])}
+    unexpected: list[str] = []
+    for porcelain in _baseline_dirty_paths(repo_root):
+        path = porcelain[3:] if len(porcelain) > 3 else porcelain
+        if path.startswith(".codex/loop-runs/"):
+            continue
+        if porcelain in baseline or path in baseline or path in accepted or path in allowed:
+            continue
+        unexpected.append(path)
+    return sorted(set(unexpected))
+
+
+def _block_parent(repo_root: Path, parent: dict[str, Any], reason: str, *, actor: str = "orchestrator") -> dict[str, str]:
+    parent = _ensure_parent_fields(parent)
+    aggregate = parent["aggregate_acceptance"]
+    if aggregate.get("total", 0) and not aggregate.get("blocked", 0):
+        aggregate["blocked"] = 1
+    aggregate["pending"] = _aggregate_pending(aggregate)
+    aggregate["user_decision_required"] = True
+    parent["phase"] = "stopped_blocked"
+    parent["last_result"] = "blocked"
+    parent["next_action"] = "inspect_blocked_diagnostics"
+    parent["reader_summary"]["current_progress"] = "Blocked"
+    parent["reader_summary"]["next_step"] = "Inspect blocked diagnostics"
+    parent["reader_summary"]["decision_needed"] = "Yes"
+    save_run(repo_root, parent)
+    append_loop_event(repo_root, run_id=parent["run_id"], actor=actor, event_type="blocked", summary=reason)
+    return status_for_run(repo_root, parent["run_id"])
+
+
 def _create_child_run(
     repo_root: Path,
     parent: dict[str, Any],
@@ -1040,8 +1073,21 @@ def _run_fake_demand_child(
     child_index = int(child["child_index"])
     generated_path = f"generated/child-{child_index:03d}.txt"
     target = repo_root / generated_path
+    if generator_driver in {"fake-timeout", "fake-invalid-json", "fake-missing-artifact"}:
+        reason = {
+            "fake-timeout": "generator timeout",
+            "fake-invalid-json": "generator invalid_json",
+            "fake-missing-artifact": "generator missing artifact",
+        }[generator_driver]
+        append_loop_event(repo_root, run_id=parent["run_id"], actor="generator", event_type="blocked", summary=reason)
+        parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+        _block_parent(repo_root, parent, reason, actor="generator")
+        return
+
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(f"child {child_index}\n", encoding="utf-8")
+    if generator_driver == "fake-dirty-path":
+        (repo_root / "unexpected.txt").write_text("unexpected\n", encoding="utf-8")
     generator_payload = {
         "task_id": child["task_id"],
         "status": "implemented",
@@ -1067,6 +1113,12 @@ def _run_fake_demand_child(
         summary=f"Generator wrote {generated_path}",
         artifact_paths=[generated_path],
     )
+
+    parent_for_dirty = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    unexpected_dirty = _dirty_paths_after_baseline(repo_root, parent_for_dirty, child)
+    if unexpected_dirty:
+        _block_parent(repo_root, parent_for_dirty, f"unexpected dirty path: {', '.join(unexpected_dirty)}")
+        return
 
     should_fail_once = (
         generator_driver == "fake-fail-child-2-once"
@@ -1167,6 +1219,19 @@ def _run_fake_demand_child(
     parent["reader_summary"]["decision_needed"] = "No"
     save_run(repo_root, parent)
 
+    if generator_driver == "fake-stop-after-child-1" and child_index == 1:
+        parent["phase"] = "child_running"
+        parent["next_action"] = "resume_current_child"
+        save_run(repo_root, parent)
+        append_loop_event(
+            repo_root,
+            run_id=parent["run_id"],
+            actor="orchestrator",
+            event_type="decision",
+            summary="resume checkpoint after child 1",
+        )
+        return
+
 
 def run_demand_multi(
     repo_root: Path | str,
@@ -1190,7 +1255,15 @@ def run_demand_multi(
         return status_for_run(root, run_id)
     if planner_driver not in {"fake", "fake-blocked", "fake-failed"}:
         raise ValueError("run_demand_multi initially supports fake planner drivers")
-    if generator_driver not in {"fake", "fake-fail-child-2-once", "fake-stop-after-child-1"}:
+    if generator_driver not in {
+        "fake",
+        "fake-fail-child-2-once",
+        "fake-dirty-path",
+        "fake-timeout",
+        "fake-invalid-json",
+        "fake-missing-artifact",
+        "fake-stop-after-child-1",
+    }:
         raise ValueError("run_demand_multi initially supports fake generator drivers")
     if evaluator_driver != "fake":
         raise ValueError("run_demand_multi initially supports fake evaluator driver")
@@ -1217,7 +1290,7 @@ def run_demand_multi(
                 run_id=run_id,
                 actor="orchestrator",
                 event_type="decision",
-                summary=f"Current child {current_child['run_id']} already passed; resume planning",
+                summary=f"resume from passed child {current_child['run_id']}",
                 child_id=f"child-{int(current_child['child_index']):03d}",
                 details={"child_run_id": current_child["run_id"]},
             )
@@ -1322,7 +1395,7 @@ def run_demand_multi(
         parent_after_child = load_run(root, run_id)
         if parent_after_child["phase"] in {"stopped_blocked", "stopped_budget"}:
             return status_for_run(root, run_id)
-        if generator_driver == "fake-stop-after-child-1" and child_index == 1:
+        if parent_after_child["phase"] == "child_running":
             return status_for_run(root, run_id)
 
 

@@ -2823,6 +2823,91 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertEqual(task_contract["evaluator_driver"], "harness_auto_gate")
             self.assertTrue(task_contract["must_simulate"])
 
+    def test_run_demand_multi_blocks_on_unaccepted_dirty_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            self._create_parent(repo_root, "dirty-parent")
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="dirty-parent",
+                planner_driver="fake",
+                generator_driver="fake-dirty-path",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            parent = read_json_file(run_dir_for(repo_root, "dirty-parent") / "run.json")
+            self.assertEqual(payload["phase"], "stopped_blocked")
+            self.assertEqual(parent["last_result"], "blocked")
+            events = (run_dir_for(repo_root, "dirty-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("unexpected dirty path", events)
+
+    def test_run_demand_multi_blocks_on_agent_timeout_invalid_json_and_missing_artifact(self) -> None:
+        for driver, expected in [
+            ("fake-timeout", "timeout"),
+            ("fake-invalid-json", "invalid_json"),
+            ("fake-missing-artifact", "missing artifact"),
+        ]:
+            with self.subTest(driver=driver), tempfile.TemporaryDirectory() as tmp:
+                repo_root = Path(tmp)
+                self._create_parent(repo_root, f"agent-{driver}")
+
+                payload = run_demand_multi(
+                    repo_root=repo_root,
+                    run_id=f"agent-{driver}",
+                    planner_driver="fake",
+                    generator_driver=driver,
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_children=1,
+                )
+
+                parent = read_json_file(run_dir_for(repo_root, f"agent-{driver}") / "run.json")
+                self.assertEqual(payload["phase"], "stopped_blocked")
+                self.assertTrue(parent["aggregate_acceptance"]["user_decision_required"])
+                events = (run_dir_for(repo_root, f"agent-{driver}") / "events.jsonl").read_text(encoding="utf-8")
+                self.assertIn(expected, events)
+
+    def test_run_demand_multi_resumes_current_child_without_repeating_passed_child(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "resume-parent")
+
+            first = run_demand_multi(
+                repo_root=repo_root,
+                run_id="resume-parent",
+                planner_driver="fake",
+                generator_driver="fake-stop-after-child-1",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+            self.assertEqual(first["phase"], "child_running")
+            parent_before = read_json_file(run_dir_for(repo_root, "resume-parent") / "run.json")
+            first_child = parent_before["child_run_ids"][0]
+            first_child_events_before = (run_dir_for(repo_root, first_child) / "events.jsonl").read_text(encoding="utf-8")
+
+            second = run_demand_multi(
+                repo_root=repo_root,
+                run_id="resume-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+
+            parent_after = read_json_file(run_dir_for(repo_root, "resume-parent") / "run.json")
+            first_child_events_after = (run_dir_for(repo_root, first_child) / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(second["phase"], "passed_waiting_human_merge")
+            self.assertEqual(len(parent_after["child_run_ids"]), 3)
+            self.assertEqual(first_child_events_before, first_child_events_after)
+            parent_events = (run_dir_for(repo_root, "resume-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("resume", parent_events)
+
 
 if __name__ == "__main__":
     unittest.main()
