@@ -771,6 +771,92 @@ def test_parent_child_relationship_rejects_path_traversal(tmp_path: Path) -> Non
     assert any(item["kind"] == "unsafe_child_reference" for item in detail["relationship_diagnostics"])
 
 
+def test_parent_child_relationship_uses_newest_duplicate_child_source(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+    current_child_dir = tmp_path / ".codex" / "loop-runs" / "parent-run-child-001"
+    worktree_root = tmp_path / ".worktrees" / "older-source"
+    worktree_child_dir = worktree_root / ".codex" / "loop-runs" / "parent-run-child-001"
+    child_payload = json.loads((current_child_dir / "run.json").read_text(encoding="utf-8"))
+    stale_payload = {**child_payload, "requirement": "stale duplicate child"}
+    stale_payload["reader_summary"] = {"purpose": "stale child", "acceptance_result": "Stale"}
+    write_json(worktree_child_dir / "run.json", stale_payload)
+    (worktree_child_dir / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-07-03T00:00:00Z",
+                "run_id": "parent-run-child-001",
+                "parent_run_id": "parent-run",
+                "event_type": "plan",
+                "summary": "stale child event",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fresh_payload = json.loads((current_child_dir / "run.json").read_text(encoding="utf-8"))
+    fresh_payload["reader_summary"] = {"purpose": "fresh child", "acceptance_result": "Fresh"}
+    write_json(current_child_dir / "run.json", fresh_payload)
+    (current_child_dir / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-07-03T00:00:01Z",
+                "run_id": "parent-run-child-001",
+                "parent_run_id": "parent-run",
+                "event_type": "plan",
+                "summary": "fresh child event",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    older = 1_700_000_000
+    newer = 1_800_000_000
+    for path in worktree_child_dir.iterdir():
+        os.utime(path, (older, older))
+    for path in current_child_dir.iterdir():
+        os.utime(path, (newer, newer))
+
+    store = LoopDashboardStore(tmp_path)
+    detail = store.get_run("parent-run")
+    events = store.get_events("parent-run")
+
+    child = next(item for item in detail["children"] if item["run_id"] == "parent-run-child-001")
+    assert child["source_kind"] == "current"
+    assert child["reader_summary"]["purpose"] == "fresh child"
+    event_messages = [event["message"] for event in events if event["kind"] == "plan"]
+    assert "fresh child event" in event_messages
+    assert "stale child event" not in event_messages
+
+
+def test_parent_child_structured_events_are_redacted(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+    child_events_path = tmp_path / ".codex" / "loop-runs" / "parent-run-child-001" / "events.jsonl"
+    child_events_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-07-03T00:00:02Z",
+                "run_id": "parent-run-child-001",
+                "parent_run_id": "parent-run",
+                "event_type": "plan",
+                "summary": "Planner used token=structured-secret and Authorization: Bearer child-secret",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    events = LoopDashboardStore(tmp_path).get_events("parent-run")
+
+    messages = "\n".join(event["message"] for event in events)
+    assert "token=[REDACTED]" in messages
+    assert "Authorization: Bearer [REDACTED]" in messages
+    assert "structured-secret" not in messages
+    assert "child-secret" not in messages
+
+
 def test_single_run_without_run_kind_remains_top_level(tmp_path: Path) -> None:
     seed_run(tmp_path, "single-run", "passed_waiting_human_merge", last_result="pass", next_action="await_human_merge_confirmation")
 

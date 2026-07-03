@@ -22,6 +22,17 @@ class RunSource(NamedTuple):
     source_kind: str
 
 
+class RunRecord(NamedTuple):
+    source: RunSource
+    data: dict[str, Any]
+    updated_at: str
+
+
+class ChildRun(NamedTuple):
+    summary: dict[str, Any]
+    source: RunSource
+
+
 def safe_join(root: Path, relative_path: str) -> Path:
     base = root.resolve()
     candidate_path = Path(relative_path)
@@ -87,13 +98,13 @@ class LoopDashboardStore:
             }
         )
         if run_kind == "parent":
-            children, relationship_diagnostics = self._children_for_parent(str(summary.get("run_id") or run_id), run_data)
+            child_runs, relationship_diagnostics = self._children_for_parent(str(summary.get("run_id") or run_id), run_data)
             aggregate_acceptance = run_data.get("aggregate_acceptance")
             summary.update(
                 {
                     "reader_summary": run_data.get("reader_summary") if isinstance(run_data.get("reader_summary"), dict) else {},
                     "aggregate_acceptance": aggregate_acceptance if isinstance(aggregate_acceptance, dict) else {},
-                    "children": children,
+                    "children": [child.summary for child in child_runs],
                     "relationship_diagnostics": relationship_diagnostics,
                     "blocked_diagnostics": [*summary.get("blocked_diagnostics", []), *relationship_diagnostics],
                 }
@@ -126,11 +137,10 @@ class LoopDashboardStore:
                 events.append(Event("tool", log.source, self._summarize_log(log.content), log.updated_at))
         events.extend(self._session_events(run_id))
         if self._run_kind(run_data) == "parent":
-            children, _diagnostics = self._children_for_parent(str(run_data.get("run_id") or run_id), run_data)
-            for child in children:
-                child_source = self._run_source(str(child.get("run_id") or ""))
-                if child_source is not None and child_source.run_dir.is_dir():
-                    events.extend(self._structured_events(child_source.run_dir))
+            child_runs, _diagnostics = self._children_for_parent(str(run_data.get("run_id") or run_id), run_data)
+            for child in child_runs:
+                if child.source.run_dir.is_dir():
+                    events.extend(self._structured_events(child.source.run_dir))
         return [event.to_dict() for event in sorted(events, key=lambda event: event.updated_at)]
 
     def get_logs(self, run_id: str) -> list[dict[str, Any]] | None:
@@ -171,17 +181,25 @@ class LoopDashboardStore:
         return sources_by_id.get(run_id)
 
     def _run_source_index(self) -> dict[str, RunSource]:
-        sources_by_id: dict[str, tuple[RunSource, str]] = {}
+        return {run_id: record.source for run_id, record in self._run_records_by_id().items()}
+
+    def _run_records_by_id(self) -> dict[str, RunRecord]:
+        records_by_id: dict[str, RunRecord] = {}
         for source in self._run_sources():
-            summary = self._load_run_summary(source.run_dir, source.source_kind)
-            run_id = str(summary.get("run_id") or "")
-            updated_at = str(summary.get("updated_at") or "")
+            data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
+            if not isinstance(data, dict):
+                continue
+            run_id = str(data.get("run_id") or source.run_dir.name)
             if not self._safe_run_id(run_id):
                 continue
-            previous = sources_by_id.get(run_id)
-            if previous is None or (updated_at, self._source_path(source.run_dir)) > (previous[1], self._source_path(previous[0].run_dir)):
-                sources_by_id[run_id] = (source, updated_at)
-        return {run_id: source for run_id, (source, _updated_at) in sources_by_id.items()}
+            updated_at = self._updated_at(source.run_dir)
+            previous = records_by_id.get(run_id)
+            if previous is None or (updated_at, self._source_path(source.run_dir)) > (
+                previous.updated_at,
+                self._source_path(previous.source.run_dir),
+            ):
+                records_by_id[run_id] = RunRecord(source, data, updated_at)
+        return records_by_id
 
     def _dedupe_runs(self, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         runs_by_id: dict[str, dict[str, Any]] = {}
@@ -212,15 +230,10 @@ class LoopDashboardStore:
         return self._safe_run_id(run_id)
 
     def _all_run_data_by_id(self) -> dict[str, tuple[RunSource, dict[str, Any]]]:
-        result: dict[str, tuple[RunSource, dict[str, Any]]] = {}
-        for source in self._run_sources():
-            data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
-            if not isinstance(data, dict):
-                continue
-            run_id = str(data.get("run_id") or source.run_dir.name)
-            if self._safe_run_id(run_id):
-                result[run_id] = (source, data)
-        return result
+        return {
+            run_id: (record.source, record.data)
+            for run_id, record in self._run_records_by_id().items()
+        }
 
     def _load_run_summary(self, run_dir: Path, source_kind: str = "current") -> dict[str, Any]:
         run_json = run_dir / "run.json"
@@ -316,7 +329,7 @@ class LoopDashboardStore:
             "source": source,
         }
 
-    def _children_for_parent(self, parent_run_id: str, parent_data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    def _children_for_parent(self, parent_run_id: str, parent_data: dict[str, Any]) -> tuple[list[ChildRun], list[dict[str, Any]]]:
         all_runs = self._all_run_data_by_id()
         parent_source = all_runs.get(parent_run_id, (None, {}))[0]
         parent_source_path = (
@@ -324,7 +337,7 @@ class LoopDashboardStore:
             if isinstance(parent_source, RunSource)
             else f"{parent_run_id}/run.json"
         )
-        children: list[dict[str, Any]] = []
+        children: list[ChildRun] = []
         diagnostics: list[dict[str, Any]] = []
         included: set[str] = set()
         explicit_ids: set[str] = set()
@@ -350,7 +363,12 @@ class LoopDashboardStore:
                 return
             if child_run_id in included:
                 return
-            children.append(self._load_run_summary(child_source.run_dir, child_source.source_kind))
+            children.append(
+                ChildRun(
+                    self._load_run_summary(child_source.run_dir, child_source.source_kind),
+                    child_source,
+                )
+            )
             included.add(child_run_id)
 
         explicit_value = parent_data.get("child_run_ids")
@@ -399,9 +417,9 @@ class LoopDashboardStore:
             sorted(
                 children,
                 key=lambda child: (
-                    self._child_sort_index(child.get("child_index")),
-                    str(child.get("updated_at") or ""),
-                    str(child.get("run_id") or ""),
+                    self._child_sort_index(child.summary.get("child_index")),
+                    str(child.summary.get("updated_at") or ""),
+                    str(child.summary.get("run_id") or ""),
                 ),
             ),
             diagnostics,
