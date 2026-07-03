@@ -285,7 +285,9 @@ button {
 }
 
 .reader-summary,
-.acceptance-summary {
+.acceptance-summary,
+.detail-overview,
+.detail-fields-panel {
   padding: 10px;
   display: grid;
   gap: 9px;
@@ -369,12 +371,25 @@ button {
 
 .detail-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 0.95fr) minmax(0, 1.05fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 0.95fr) minmax(0, 1.1fr);
   gap: 10px;
   align-items: start;
 }
 
+.detail-overview {
+  grid-column: 2 / -1;
+}
+
+.detail-overview-value {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .detail-summary-column,
+.detail-acceptance-column,
 .detail-fields-column {
   min-width: 0;
   display: grid;
@@ -384,8 +399,14 @@ button {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
+}
+
+.detail-section-title {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .detail-item {
@@ -709,6 +730,14 @@ button {
 @media (max-width: 1100px) {
   .workbench {
     grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1.25fr) minmax(260px, 0.95fr);
+  }
+
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-overview {
+    grid-column: auto;
   }
 
   .agent-cards {

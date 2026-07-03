@@ -356,16 +356,21 @@ function renderDetail() {
   }
 
   const layout = el("div", "detail-layout");
+  const overview = el("section", "detail-overview");
   const summaryColumn = el("div", "detail-summary-column");
+  const acceptanceColumn = el("div", "detail-acceptance-column");
   const fieldsColumn = el("div", "detail-fields-column");
-  summaryColumn.append(
-    renderReaderSummary(detail),
-    renderAcceptanceSummary(detail.acceptance_summary || {}),
+  overview.append(
+    el("div", "detail-label", "任务描述"),
+    el("div", "detail-overview-value", text(detail.task_description || detail.task_summary)),
   );
+  summaryColumn.append(renderReaderSummary(detail));
+  acceptanceColumn.append(renderAcceptanceSummary(detail.acceptance_summary || {}));
 
+  const fieldsPanel = el("section", "detail-fields-panel");
+  fieldsPanel.append(el("div", "detail-section-title", "运行字段详情"));
   const grid = el("div", "detail-grid");
   [
-    ["任务描述", detail.task_description || detail.task_summary, "long"],
     ["运行 ID", detail.run_id, "compact"],
     ["策略", policyLabel(detail.policy), "compact"],
     ["阶段", phaseLabel(detail.phase), "compact"],
@@ -380,8 +385,9 @@ function renderDetail() {
     item.append(el("div", "detail-label", label), el("div", valueClass, text(value)));
     grid.append(item);
   });
-  fieldsColumn.append(grid);
-  layout.append(summaryColumn, fieldsColumn);
+  fieldsPanel.append(grid);
+  fieldsColumn.append(fieldsPanel);
+  layout.append(overview, summaryColumn, acceptanceColumn, fieldsColumn);
   nodes.push(layout);
   setChildren(els.runDetail, nodes);
 }

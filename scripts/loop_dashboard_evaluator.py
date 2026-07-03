@@ -426,12 +426,14 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(detail).to_contain_text("查看阻塞诊断中的 evaluator finding")
             expect(detail).to_contain_text("修复日志过滤")
             expect(detail.locator(".detail-layout")).to_have_count(1)
-            expect(detail.locator(".detail-summary-column .reader-summary")).to_have_count(1)
-            expect(detail.locator(".detail-summary-column .acceptance-summary")).to_have_count(1)
-            expect(detail.locator(".detail-fields-column .detail-grid")).to_have_count(1)
+            expect(detail.locator(".detail-overview")).to_have_count(1)
+            expect(detail.locator(".detail-overview")).to_contain_text("任务描述")
+            expect(detail.locator(".detail-summary-column > .reader-summary")).to_have_count(1)
+            expect(detail.locator(".detail-acceptance-column > .acceptance-summary")).to_have_count(1)
+            expect(detail.locator(".detail-fields-column .detail-fields-panel .detail-grid")).to_have_count(1)
             expect(detail.locator(".detail-item.detail-compact")).to_have_count(4)
-            expect(detail.locator(".detail-item.detail-long")).to_have_count(5)
-            expect(detail.locator(".detail-long .detail-value").first).to_contain_text("实现独立本地 Loop Dashboard")
+            expect(detail.locator(".detail-item.detail-long")).to_have_count(4)
+            expect(detail.locator(".detail-fields-column")).to_contain_text("运行字段详情")
 
             agent_cards = page.get_by_test_id("agent-cards")
             expect(agent_cards).to_contain_text("Planner")
@@ -440,6 +442,35 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(agent_cards.locator(".agent-card-layout")).to_have_count(3)
             expect(agent_cards.locator(".agent-main")).to_have_count(3)
             expect(agent_cards.locator(".agent-long-fields")).to_have_count(3)
+
+            page.set_viewport_size({"width": 1440, "height": 950})
+            expect(detail.locator(".detail-layout")).to_have_count(1)
+            layout_metrics = page.evaluate(
+                """() => {
+                    const content = document.querySelector("#run-detail-content");
+                    const layout = document.querySelector(".detail-layout");
+                    const diagnostics = document.querySelector("[data-testid='blocked-diagnostics']");
+                    const rightPanel = diagnostics ? diagnostics.closest(".panel") : null;
+                    const rect = (node) => {
+                        const bounds = node.getBoundingClientRect();
+                        return { left: bounds.left, right: bounds.right, width: bounds.width };
+                    };
+                    return {
+                        content: rect(content),
+                        layout: rect(layout),
+                        rightPanel: rect(rightPanel),
+                    };
+                }"""
+            )
+            if layout_metrics["layout"]["right"] > layout_metrics["content"]["right"] + 1:
+                raise AssertionError(f"detail layout overflows its content column: {layout_metrics!r}")
+            if layout_metrics["layout"]["right"] > layout_metrics["rightPanel"]["left"] - 1:
+                raise AssertionError(f"detail layout overlaps the right dashboard column: {layout_metrics!r}")
+            overview_grid_column = detail.locator(".detail-overview").evaluate(
+                "el => `${getComputedStyle(el).gridColumnStart} / ${getComputedStyle(el).gridColumnEnd}`"
+            )
+            if overview_grid_column not in {"2 / -1", "2 / 4"}:
+                raise AssertionError(f"detail overview should span the right two columns, got {overview_grid_column!r}")
 
             flow = page.get_by_test_id("flow-diagram")
             expect(flow).to_contain_text("Evaluator")
