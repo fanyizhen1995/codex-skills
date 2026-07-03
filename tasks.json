@@ -69,7 +69,7 @@
       "id": "crawler-domain-channels-live-e2e-01",
       "title": "Validate crawler workbench domain channels end to end",
       "description": "Run integrated backend/frontend validation for Domain Channel Management against an isolated workbench state directory, including API visibility, UI flow, source-run continuity, and artifact hygiene for access diagnostics.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "crawler-domain-channels-ui-01",
       "verify": "python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01 && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json >/dev/null && git diff --check",

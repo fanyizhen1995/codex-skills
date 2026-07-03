@@ -8,6 +8,51 @@ from scripts import wiki_crawler_e2e_evaluator
 
 
 class WikiCrawlerE2EEvaluatorTests(unittest.TestCase):
+    def test_domain_channel_secret_literal_is_deterministic_and_unique(self) -> None:
+        self.assertEqual(
+            wiki_crawler_e2e_evaluator.DOMAIN_CHANNEL_SECRET,
+            "domain-channel-e2e-synthetic-token-7c0f6a",
+        )
+        self.assertNotIn(
+            wiki_crawler_e2e_evaluator.DOMAIN_CHANNEL_SECRET,
+            wiki_crawler_e2e_evaluator.DOMAIN_CHANNEL_REPLACEMENT_SECRET,
+        )
+
+    def test_domain_channel_ui_env_allocates_isolated_ports_and_ignores_ambient_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = wiki_crawler_e2e_evaluator._domain_channel_ui_env(
+                Path(tmp),
+                base_env={
+                    "PW_WORKBENCH_E2E_BACKEND_PORT": "19333",
+                    "PW_WORKBENCH_E2E_BACKEND_URL": "http://127.0.0.1:8765",
+                },
+            )
+
+            self.assertEqual(env["PW_WORKBENCH_E2E_BACKEND_URL"], "http://127.0.0.1:19333")
+            self.assertNotEqual(env["PW_WORKBENCH_E2E_FRONTEND_PORT"], "5174")
+            self.assertEqual(env["PW_WORKBENCH_E2E_DOMAIN_CHANNELS"], "1")
+            self.assertEqual(
+                env["PW_WORKBENCH_E2E_DOMAIN_CHANNEL_SECRET"],
+                wiki_crawler_e2e_evaluator.DOMAIN_CHANNEL_REPLACEMENT_SECRET,
+            )
+
+    def test_secret_plaintext_scan_reports_retained_artifact_leaks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp) / "out"
+            output_dir.mkdir()
+            (output_dir / "leak.json").write_text(
+                wiki_crawler_e2e_evaluator.DOMAIN_CHANNEL_SECRET,
+                encoding="utf-8",
+            )
+
+            result = wiki_crawler_e2e_evaluator._scan_for_forbidden_plaintext(
+                output_dir,
+                [wiki_crawler_e2e_evaluator.DOMAIN_CHANNEL_SECRET],
+            )
+
+            self.assertFalse(result["passed"])
+            self.assertEqual(result["leaks"][0]["path"], "leak.json")
+
     def test_source_subscription_ui_env_allocates_isolated_ports_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env = wiki_crawler_e2e_evaluator._source_subscription_ui_env(
@@ -101,6 +146,7 @@ class WikiCrawlerE2EEvaluatorTests(unittest.TestCase):
             }
             self.assertEqual(scenario_results["wiki-crawler-e2e-user-flow"]["status"], "pass")
             self.assertEqual(scenario_results["source-subscriptions-user-flow"]["status"], "pass")
+            self.assertEqual(scenario_results["domain-channels-live-user-flow"]["status"], "pass")
             self.assertTrue((output_dir / "summary.md").exists())
             self.assertTrue((output_dir / "evidence.json").exists())
 
@@ -112,8 +158,14 @@ class WikiCrawlerE2EEvaluatorTests(unittest.TestCase):
             self.assertEqual(evidence["domain_validate"]["returncode"], 0)
             self.assertEqual(evidence["full_validate"]["returncode"], 0)
             self.assertEqual(evidence["source_subscription_ui"]["playwright"]["returncode"], 0)
+            self.assertEqual(evidence["domain_channel_api"]["secret_configured"], True)
+            self.assertEqual(evidence["domain_channel_api"]["probe_history_count"], 1)
+            self.assertEqual(evidence["domain_channel_ui"]["playwright"]["returncode"], 0)
+            self.assertTrue(evidence["secret_plaintext_scan"]["passed"])
             self.assertTrue((output_dir / evidence["source_subscription_ui"]["json_report"]).exists())
             self.assertTrue((output_dir / evidence["source_subscription_ui"]["report_dir"]).exists())
+            self.assertTrue((output_dir / evidence["domain_channel_ui"]["json_report"]).exists())
+            self.assertTrue((output_dir / evidence["domain_channel_ui"]["report_dir"]).exists())
             for evidence_path in [*evidence["raw_paths"], *evidence["wiki_pages"]]:
                 self.assertTrue((output_dir / evidence_path).exists(), evidence_path)
 

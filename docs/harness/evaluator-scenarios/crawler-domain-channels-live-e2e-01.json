@@ -16,11 +16,11 @@
       "steps": [
         "Start an isolated crawler workbench backend with a temporary state directory and scheduler disabled.",
         "Start an isolated Vite frontend bound to 0.0.0.0 or a safe local test host as required by the evaluator.",
-        "Use the API to create a channel, attach a source, write a synthetic secret, run a probe, and fetch probe history.",
-        "Use the UI to open Domain Channels, view the created channel, replace the synthetic secret, create a source, and inspect latest probe status.",
+        "Use the API to create a channel, attach a source, write a synthetic secret, run a local HTTP probe, and fetch probe history.",
+        "Use Playwright against the real Vite UI to open Domain Channels, view the created channel, replace a synthetic secret, create a source, and inspect latest probe status.",
         "Run an existing source-flow fixture to confirm raw evidence and queue continuity still work.",
         "Write evaluator result, summary, and browser evidence under the output directory.",
-        "Scan retained artifacts for secret-like content and redact or omit sensitive diagnostics."
+        "Redact Playwright JSON/report diagnostics that include synthetic secret environment values, then scan retained artifacts for forbidden plaintext."
       ],
       "expected_outcomes": [
         "Backend and frontend start from isolated state and do not reuse long-running services.",
@@ -28,7 +28,7 @@
         "The UI shows the created channel and source.",
         "Synthetic secret plaintext is not present in retained artifacts.",
         "Source run, raw item, and queue continuity remain intact for the fixture.",
-        "Evaluator writes a pass result with evidence paths."
+        "Evaluator writes pass results for wiki crawler continuity, source subscriptions UI, and Domain Channels live UI."
       ],
       "failure_signals": [
         "The evaluator connects to an old backend or frontend service.",

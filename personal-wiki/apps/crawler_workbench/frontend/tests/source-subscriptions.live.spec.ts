@@ -8,6 +8,8 @@ const backendPort = Number(process.env.PW_WORKBENCH_E2E_BACKEND_PORT ?? "18765")
 const backendUrl = process.env.PW_WORKBENCH_E2E_BACKEND_URL ?? `http://127.0.0.1:${backendPort}`;
 const repoRoot = path.resolve(__dirname, "../../../../..");
 const backendDir = path.join(repoRoot, "personal-wiki/apps/crawler_workbench/backend");
+const runDomainChannels = process.env.PW_WORKBENCH_E2E_DOMAIN_CHANNELS === "1";
+const domainChannelSecret = process.env.PW_WORKBENCH_E2E_DOMAIN_CHANNEL_SECRET ?? "domain-channel-live-ui-secret";
 
 let stateDir = "";
 let backendProcess: ChildProcessWithoutNullStreams | undefined;
@@ -75,6 +77,68 @@ test("user trusts same-site accelerator candidates from the source subscription 
       accepted_source_id: "compute-accelerators-e2evendor-e2eg901"
     }
   ]);
+});
+
+test("user manages domain channel access and child sources", async ({ page }) => {
+  test.skip(!runDomainChannels, "Domain Channels flow is enabled by the evaluator helper.");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /渠道管理/ }).click();
+  await expect(page.getByRole("heading", { name: "Domain Channels" })).toBeVisible();
+  await expect(page.getByText("https://e2e.example.com").first()).toBeVisible();
+
+  await page.getByLabel("Channel name").fill("Live GitHub");
+  await page.getByLabel("Base URL").fill("https://github.com");
+  await page.getByLabel("Probe URL").fill(`${backendUrl}/api/health`);
+  await page.getByLabel("Connector").selectOption("github");
+  await page.getByLabel("Auth mode").selectOption("token");
+  await page.getByLabel("Channel notes").fill("Live evaluator synthetic channel");
+  await page.getByText("Auth required").click();
+  await page.getByRole("button", { name: "Add channel" }).click();
+  await expect(page.getByRole("row", { name: "Select channel Live GitHub" })).toBeVisible();
+
+  await page.getByRole("row", { name: "Select channel Live GitHub" }).click();
+  await page.getByLabel("Secret value").fill(domainChannelSecret);
+  await page.getByRole("button", { name: "Replace secret" }).click();
+  await expect(page.getByLabel("Secret value")).toHaveValue("");
+  await expect(page.locator(`input[value="${domainChannelSecret}"]`)).toHaveCount(0);
+  await expect(page.getByText(/token · secret configured/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Verify access" }).click();
+  await expect(page.getByText("Probe #")).toBeVisible();
+
+  await page.getByLabel("Source id").fill("domain-channel-live-nccl");
+  await page.getByLabel("Source name").fill("Domain Channel Live NCCL");
+  await page.getByLabel("Source URL").fill("https://github.com/NVIDIA/nccl");
+  await page.getByLabel("Fetcher type").selectOption("github_repo");
+  await page.getByLabel("Topic").fill("NCCL repository through live channel");
+  await page.getByRole("button", { name: "Add child source" }).click();
+  await expect(page.getByLabel("Channel details").getByText("Domain Channel Live NCCL", { exact: true })).toBeVisible();
+
+  const channelsResponse = await fetch(`${backendUrl}/api/channels?domain=ai_infra`);
+  expect(channelsResponse.ok).toBe(true);
+  const channels = (await channelsResponse.json()) as Array<{
+    id: string;
+    name: string;
+    auth_state: string;
+    secret_configured: boolean;
+    source_count: number;
+  }>;
+  const channel = channels.find((candidate) => candidate.name === "Live GitHub");
+  expect(channel).toBeTruthy();
+  expect(channel?.secret_configured).toBe(true);
+  expect(channel?.auth_state).not.toBe("needs_auth_config");
+
+  const sourcesResponse = await fetch(`${backendUrl}/api/sources?domain=ai_infra&channel_id=${channel?.id}`);
+  expect(sourcesResponse.ok).toBe(true);
+  const sources = (await sourcesResponse.json()) as Array<{ id: string; channel_id: string; fetcher_type: string }>;
+  expect(sources).toContainEqual(
+    expect.objectContaining({
+      id: "domain-channel-live-nccl",
+      channel_id: channel?.id,
+      fetcher_type: "github_repo"
+    })
+  );
 });
 
 function seedBackendState(nextStateDir: string) {

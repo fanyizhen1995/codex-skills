@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-07-03 Domain Channel Management Live E2E
+
+- Completed `crawler-domain-channels-live-e2e-01` through the harness loop in `.worktrees/crawler-domain-channels-live-e2e-01`.
+- Extended the isolated wiki crawler evaluator to cover Domain Channels API workflow, real Playwright UI clicks, child source creation, source-run continuity, and retained-artifact synthetic secret hygiene.
+- Harness run `.codex/loop-runs/crawler-domain-channels-live-e2e-01/run.json` reached `passed_waiting_human_merge` after evaluator, artifact hygiene, and cleanup.
+- Evidence:
+  - `python3 -m unittest scripts.tests.test_wiki_crawler_e2e_evaluator -v` -> 8 passed
+  - `python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01` -> pass, with `domain-channels-live-user-flow: pass`
+  - `.codex/wiki-crawler-e2e/crawler-domain-channels-live-e2e-01/evidence.json` -> `secret_plaintext_scan.passed=true`
+  - `.codex/loop-runs/crawler-domain-channels-live-e2e-01/artifact-manifest.json` -> `status=pass`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-live-e2e-01.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-03 Domain Channel Management UI
 
 - Completed `crawler-domain-channels-ui-01`: added the Domain Channels frontend navigation and management page for domain filtering, channel creation, selected-channel notes editing, synthetic secret replacement, access probing, probe history, and child source creation.
