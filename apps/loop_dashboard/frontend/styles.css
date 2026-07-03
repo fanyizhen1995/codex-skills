@@ -370,12 +370,12 @@ button {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
 .detail-item {
-  min-height: 58px;
+  min-height: 54px;
   padding: 8px 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -386,8 +386,8 @@ button {
   grid-column: 1 / -1;
 }
 
-.detail-item.detail-short {
-  grid-column: span 6;
+.detail-item.detail-compact {
+  min-height: 48px;
 }
 
 .detail-label {
@@ -728,10 +728,6 @@ button {
   .reader-facts,
   .filters {
     grid-template-columns: 1fr;
-  }
-
-  .detail-item.detail-short {
-    grid-column: 1 / -1;
   }
 
   .flow-diagram {

@@ -359,10 +359,10 @@ function renderDetail() {
   const grid = el("div", "detail-grid");
   [
     ["任务描述", detail.task_description || detail.task_summary, "long"],
-    ["运行 ID", detail.run_id, "short"],
-    ["策略", policyLabel(detail.policy), "short"],
-    ["阶段", phaseLabel(detail.phase), "short"],
-    ["健康状态", healthLabel(detail.health), "short"],
+    ["运行 ID", detail.run_id, "compact"],
+    ["策略", policyLabel(detail.policy), "compact"],
+    ["阶段", phaseLabel(detail.phase), "compact"],
+    ["健康状态", healthLabel(detail.health), "compact"],
     ["下一动作", actionLabel(detail.next_action), "long"],
     ["最后结果", resultLabel(detail.last_result), "long"],
     ["停止条件", listText(detail.stop_conditions), "long"],
