@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-07-03 Domain Channel Management Model
+
+- Completed `crawler-domain-channels-model-01`: added backend channel schema, migration compatibility, generated channel assignment for source profiles, one-time `sources.yaml` seed import, source `fetcher_type` compatibility fields, channel list API, and channel fields on source list responses.
+- Updated startup initialization so SQLite remains the runtime source of truth after the first seed import.
+- Preserved existing `mirror_profiles()` behavior for direct tests and manual tools while adding channel backfill.
+- Evidence:
+  - `cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channels_model.py tests/test_db_profiles.py tests/test_api.py tests/test_fetch_service_policy.py tests/test_scheduler.py` -> 77 passed
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-model-01.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-03 Domain Channel Management Planner Loop
 
 - Started demand-development loop `crawler-domain-channels-dev-01` for Domain Channel Management.

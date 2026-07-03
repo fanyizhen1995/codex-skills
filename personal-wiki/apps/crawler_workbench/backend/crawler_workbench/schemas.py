@@ -7,8 +7,13 @@ class SourceProfileResponse(BaseModel):
     id: str
     name: str
     type: str
+    fetcher_type: str | None = None
     target_domain: str
     url: str
+    channel_id: str | None = None
+    channel_name: str | None = None
+    channel_base_url: str | None = None
+    channel_auth_state: str | None = None
     trust_level: str
     schedule: str
     auto_ingest: bool
@@ -20,6 +25,31 @@ class SourceProfileResponse(BaseModel):
     enabled: bool
     last_run_at: str | None = None
     last_run_status: str | None = None
+
+
+class ChannelResponse(BaseModel):
+    id: str
+    target_domain: str
+    name: str
+    base_url: str
+    base_url_normalized: str
+    probe_url: str | None = None
+    probe_method: str
+    probe_config_json: str
+    kind: str
+    connector: str
+    trust_level: str
+    enabled: bool
+    auth_required: bool
+    auth_mode: str
+    auth_state: str
+    last_probe_status: str | None = None
+    last_probe_at: str | None = None
+    last_probe_summary: str | None = None
+    notes: str
+    source_count: int
+    created_at: str
+    updated_at: str
 
 
 class AcceleratorCandidateResponse(BaseModel):

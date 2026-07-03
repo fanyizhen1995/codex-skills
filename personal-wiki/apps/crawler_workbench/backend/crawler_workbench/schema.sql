@@ -13,6 +13,8 @@ create table if not exists source_profiles (
   auth_state text not null default 'ready',
   auth_method text,
   auth_ref text,
+  channel_id text references channels(id) on delete restrict,
+  fetcher_type text,
   config_json text not null default '{}',
   topic text not null,
   enabled integer not null default 1,
@@ -21,6 +23,33 @@ create table if not exists source_profiles (
   created_at text not null default current_timestamp,
   updated_at text not null default current_timestamp
 );
+
+create table if not exists channels (
+  id text primary key,
+  target_domain text not null,
+  name text not null,
+  base_url text not null,
+  base_url_normalized text not null,
+  probe_url text,
+  probe_method text not null default 'GET',
+  probe_config_json text not null default '{}',
+  kind text not null,
+  connector text not null default 'generic',
+  trust_level text not null default 'untrusted',
+  enabled integer not null default 1,
+  auth_required integer not null default 0,
+  auth_mode text not null default 'none',
+  auth_state text not null default 'ready',
+  last_probe_status text,
+  last_probe_at text,
+  last_probe_summary text,
+  notes text not null default '',
+  created_at text not null default current_timestamp,
+  updated_at text not null default current_timestamp
+);
+
+create unique index if not exists channels_domain_base_url_idx
+on channels(target_domain, base_url_normalized);
 
 create table if not exists source_auth_refs (
   source_id text primary key references source_profiles(id) on delete cascade,

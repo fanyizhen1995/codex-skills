@@ -4,9 +4,11 @@ from pathlib import Path
 import json
 import sqlite3
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 
+from .channels import normalize_base_url, upsert_channel
 from .models import AuthState
 
 
@@ -29,6 +31,8 @@ PROFILE_STORAGE_KEYS = REQUIRED_PROFILE_KEYS | {
     "auth_method",
     "auth_ref",
     "run_policy",
+    "fetcher_type",
+    "channel_id",
 }
 
 RUN_POLICIES = {"scheduled", "once"}
@@ -104,9 +108,11 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
             """
             insert into source_profiles (
               id, name, type, target_domain, url, trust_level, schedule,
-              auto_ingest, auth_required, baseline_on_first_run, run_policy, auth_state, auth_method, auth_ref, config_json, topic, enabled, updated_at
+              auto_ingest, auth_required, baseline_on_first_run, run_policy,
+              auth_state, auth_method, auth_ref, channel_id, fetcher_type,
+              config_json, topic, enabled, updated_at
             )
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
             on conflict(id) do update set
               name = excluded.name,
               type = excluded.type,
@@ -121,6 +127,8 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
               auth_state = excluded.auth_state,
               auth_method = excluded.auth_method,
               auth_ref = excluded.auth_ref,
+              channel_id = excluded.channel_id,
+              fetcher_type = excluded.fetcher_type,
               config_json = excluded.config_json,
               topic = excluded.topic,
               enabled = excluded.enabled,
@@ -141,6 +149,8 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
                 auth_state,
                 auth_method,
                 auth_ref,
+                None,
+                profile.get("fetcher_type") or infer_fetcher_type(profile),
                 _profile_config_json(profile),
                 profile["topic"],
                 int(enabled),
@@ -161,17 +171,62 @@ def mirror_profiles(connection: sqlite3.Connection, profiles: list[dict[str, Any
             )
         else:
             connection.execute("delete from source_auth_refs where source_id = ?", (profile["id"],))
+    ensure_source_channels(connection)
 
 
-def list_profiles(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+def initialize_profiles_from_seed(connection: sqlite3.Connection, yaml_path: Path) -> None:
+    row = connection.execute("select count(*) as count from source_profiles").fetchone()
+    if int(row["count"]) == 0:
+        mirror_profiles(connection, load_profiles_from_yaml(yaml_path))
+    else:
+        ensure_source_channels(connection)
+    connection.commit()
+
+
+def ensure_source_channels(connection: sqlite3.Connection) -> None:
+    rows = connection.execute("select * from source_profiles order by id").fetchall()
+    for row in rows:
+        profile = dict(row)
+        updates: dict[str, Any] = {}
+        if not profile.get("fetcher_type"):
+            updates["fetcher_type"] = infer_fetcher_type(profile)
+        if not profile.get("channel_id"):
+            updates["channel_id"] = upsert_channel(connection, derive_channel_seed(profile))
+        if updates:
+            assignments = ", ".join(f"{key} = ?" for key in updates)
+            connection.execute(
+                f"update source_profiles set {assignments}, updated_at = current_timestamp where id = ?",
+                (*updates.values(), profile["id"]),
+            )
+
+
+def list_profiles(
+    connection: sqlite3.Connection,
+    *,
+    domain: str | None = None,
+    channel_id: str | None = None,
+) -> list[dict[str, Any]]:
+    filters: list[str] = []
+    params: list[Any] = []
+    if domain:
+        filters.append("source_profiles.target_domain = ?")
+        params.append(domain)
+    if channel_id:
+        filters.append("source_profiles.channel_id = ?")
+        params.append(channel_id)
+    where = f"where {' and '.join(filters)}" if filters else ""
     rows = connection.execute(
-        """
+        f"""
         select
           source_profiles.*,
+          channels.name as channel_name,
+          channels.base_url as channel_base_url,
+          channels.auth_state as channel_auth_state,
           latest_run.finished_at as latest_run_finished_at,
           latest_run.started_at as latest_run_started_at,
           latest_run.status as latest_run_status
         from source_profiles
+        left join channels on channels.id = source_profiles.channel_id
         left join fetch_runs latest_run on latest_run.id = (
           select fetch_runs.id
           from fetch_runs
@@ -179,8 +234,10 @@ def list_profiles(connection: sqlite3.Connection) -> list[dict[str, Any]]:
           order by coalesce(fetch_runs.finished_at, fetch_runs.started_at) desc, fetch_runs.id desc
           limit 1
         )
+        {where}
         order by source_profiles.id
-        """
+        """,
+        tuple(params),
     ).fetchall()
     profiles: list[dict[str, Any]] = []
     for row in rows:
@@ -191,6 +248,106 @@ def list_profiles(connection: sqlite3.Connection) -> list[dict[str, Any]]:
         profile["last_run_at"] = latest_run_finished_at or latest_run_started_at
         profiles.append(profile)
     return profiles
+
+
+def derive_channel_seed(profile: dict[str, Any]) -> dict[str, Any]:
+    base_url = _base_url_for_profile(profile)
+    connector = _connector_for_profile(profile, base_url)
+    kind = _kind_for_profile(profile, base_url)
+    auth_required = bool(profile.get("auth_required", False))
+    auth_mode = _auth_mode_for_profile(profile)
+    return {
+        "target_domain": profile["target_domain"],
+        "id": profile.get("channel_id"),
+        "name": _channel_name(base_url),
+        "base_url": base_url,
+        "base_url_normalized": normalize_base_url(base_url),
+        "kind": kind,
+        "connector": connector,
+        "trust_level": profile.get("trust_level", "untrusted"),
+        "enabled": True,
+        "auth_required": auth_required,
+        "auth_mode": auth_mode,
+        "auth_state": AuthState.NEEDS_AUTH_CONFIG.value if auth_required else AuthState.READY.value,
+    }
+
+
+def infer_fetcher_type(profile: dict[str, Any]) -> str:
+    configured = profile.get("fetcher_type")
+    if configured:
+        return str(configured)
+    source_type = str(profile.get("type", "web"))
+    url = str(profile.get("url", ""))
+    config_json = profile.get("config_json")
+    config = _parse_config_json(config_json)
+    if source_type == "web":
+        return "web_page"
+    if source_type == "rss":
+        return "rss_feed"
+    if source_type == "arxiv":
+        return "arxiv_query"
+    if source_type == "github":
+        if "releases" in url or url.endswith(".atom") or "/releases" in url:
+            return "github_releases"
+        if "/issues" in url or "issues" in config.get("endpoint", ""):
+            return "github_issues"
+        return "github_repo"
+    return source_type
+
+
+def _base_url_for_profile(profile: dict[str, Any]) -> str:
+    url = str(profile.get("url", "")).strip()
+    parsed = urlparse(url)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+    return url.rstrip("/")
+
+
+def _connector_for_profile(profile: dict[str, Any], base_url: str) -> str:
+    source_type = str(profile.get("type", "web"))
+    host = urlparse(base_url).netloc.lower()
+    if source_type == "github" or host.endswith("github.com"):
+        return "github"
+    if source_type == "arxiv" or "arxiv.org" in host:
+        return "arxiv"
+    if source_type == "rss":
+        return "rss"
+    return "generic"
+
+
+def _kind_for_profile(profile: dict[str, Any], base_url: str) -> str:
+    source_type = str(profile.get("type", "web"))
+    host = urlparse(base_url).netloc.lower()
+    if source_type in {"github", "arxiv"} or host.startswith("api.") or host == "api.github.com":
+        return "api"
+    return "web"
+
+
+def _auth_mode_for_profile(profile: dict[str, Any]) -> str:
+    if not bool(profile.get("auth_required", False)):
+        return "none"
+    auth_method = str(profile.get("auth_method") or "")
+    if "token" in auth_method:
+        return "token"
+    if "cookie" in auth_method:
+        return "cookie"
+    if "header" in auth_method:
+        return "header"
+    if "basic" in auth_method:
+        return "basic"
+    return "token"
+
+
+def _channel_name(base_url: str) -> str:
+    parsed = urlparse(base_url)
+    return parsed.netloc or base_url
+
+
+def _parse_config_json(config_json: object) -> dict[str, Any]:
+    if not config_json or not isinstance(config_json, str):
+        return {}
+    parsed = json.loads(config_json)
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def validate_profile_booleans(profile: dict[str, Any]) -> dict[str, bool]:
