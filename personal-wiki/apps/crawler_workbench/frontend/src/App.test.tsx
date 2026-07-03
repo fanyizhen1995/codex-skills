@@ -1396,7 +1396,7 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Domain Channels" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByText("GitHub").length).toBeGreaterThan(0));
     expect(screen.getAllByText("https://github.com").length).toBeGreaterThan(0);
-    expect(screen.getByText("GitHub token verified")).toBeInTheDocument();
+    expect(screen.getByLabelText("Selected notes")).toHaveValue("GitHub token verified");
     expect(screen.getByText("NCCL GitHub issues")).toBeInTheDocument();
     expect(screen.getAllByText("HTTP 200 from api.github.com").length).toBeGreaterThan(0);
 
