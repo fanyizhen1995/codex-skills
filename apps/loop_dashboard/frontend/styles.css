@@ -370,7 +370,7 @@ button {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -382,8 +382,12 @@ button {
   background: var(--panel-alt);
 }
 
-.detail-item.wide {
+.detail-item.detail-long {
   grid-column: 1 / -1;
+}
+
+.detail-item.detail-short {
+  grid-column: span 6;
 }
 
 .detail-label {
@@ -401,19 +405,27 @@ button {
 .flow-diagram {
   min-height: 128px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
 }
 
 .flow-node {
-  min-height: 132px;
-  padding: 8px;
+  min-height: 156px;
+  padding: 10px;
   display: grid;
-  grid-template-rows: auto auto 1fr;
-  gap: 5px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-alt);
+}
+
+.flow-node-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
 }
 
 .flow-node-title {
@@ -427,11 +439,17 @@ button {
   overflow-wrap: anywhere;
 }
 
-.flow-node-meta {
+.flow-node-body,
+.flow-node-long {
   min-width: 0;
   display: grid;
   gap: 6px;
   align-content: start;
+}
+
+.flow-node-long {
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
 }
 
 .flow-detail {
@@ -443,16 +461,14 @@ button {
 .agent-cards {
   min-height: 156px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
 .agent-card {
-  min-height: 214px;
-  padding: 9px;
-  display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
-  gap: 6px;
+  min-height: 118px;
+  padding: 10px;
+  display: block;
   text-align: left;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -471,6 +487,26 @@ button {
 .agent-card.is-selected {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.agent-card-layout {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.agent-main,
+.agent-long-fields {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.agent-main {
+  padding-right: 12px;
+  border-right: 1px solid var(--line);
 }
 
 .agent-title {
@@ -664,6 +700,17 @@ button {
   .agent-cards {
     grid-template-columns: 1fr;
   }
+
+  .agent-card-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-main {
+    padding-right: 0;
+    padding-bottom: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
 }
 
 @media (max-width: 899px) {
@@ -680,6 +727,14 @@ button {
   .detail-grid,
   .reader-facts,
   .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-item.detail-short {
+    grid-column: 1 / -1;
+  }
+
+  .flow-diagram {
     grid-template-columns: 1fr;
   }
 

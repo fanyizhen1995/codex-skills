@@ -358,18 +358,18 @@ function renderDetail() {
   nodes.push(renderAcceptanceSummary(detail.acceptance_summary || {}));
   const grid = el("div", "detail-grid");
   [
-    ["任务描述", detail.task_description || detail.task_summary, "wide"],
-    ["运行 ID", detail.run_id, ""],
-    ["策略", policyLabel(detail.policy), ""],
-    ["阶段", phaseLabel(detail.phase), ""],
-    ["健康状态", healthLabel(detail.health), ""],
-    ["下一动作", actionLabel(detail.next_action), "wide"],
-    ["最后结果", resultLabel(detail.last_result), "wide"],
-    ["停止条件", listText(detail.stop_conditions), "wide"],
-    ["允许路径", listText(detail.allowed_paths || detail.artifact_paths), "wide"],
-  ].forEach(([label, value, extra]) => {
-    const item = el("div", `detail-item${extra ? ` ${extra}` : ""}`);
-    const valueClass = label === "任务描述" ? "detail-value full" : "detail-value";
+    ["任务描述", detail.task_description || detail.task_summary, "long"],
+    ["运行 ID", detail.run_id, "short"],
+    ["策略", policyLabel(detail.policy), "short"],
+    ["阶段", phaseLabel(detail.phase), "short"],
+    ["健康状态", healthLabel(detail.health), "short"],
+    ["下一动作", actionLabel(detail.next_action), "long"],
+    ["最后结果", resultLabel(detail.last_result), "long"],
+    ["停止条件", listText(detail.stop_conditions), "long"],
+    ["允许路径", listText(detail.allowed_paths || detail.artifact_paths), "long"],
+  ].forEach(([label, value, kind]) => {
+    const item = el("div", `detail-item detail-${kind}`);
+    const valueClass = kind === "long" ? "detail-value full" : "detail-value";
     item.append(el("div", "detail-label", label), el("div", valueClass, text(value)));
     grid.append(item);
   });
@@ -451,12 +451,16 @@ function renderFlow() {
     const status = text(node.status, "waiting");
     const block = el("div", `flow-node status-${status}`);
     block.title = flowNodeTitle(node);
-    const meta = el("div", "flow-node-meta");
-    meta.append(
-      el("div", "flow-hint", flowHint(node, state.detail)),
-      ...flowDetailRows(node),
+    const header = el("div", "flow-node-header");
+    header.append(
+      el("div", "flow-node-title", text(node.label)),
+      el("div", `status-pill status-${status}`, statusLabel(status)),
     );
-    block.append(el("div", "flow-node-title", text(node.label)), el("div", `status-pill status-${status}`, statusLabel(status)), meta);
+    const body = el("div", "flow-node-body");
+    body.append(el("div", "flow-hint", flowHint(node, state.detail)), ...flowDetailRows(node, { includeArtifacts: false }));
+    const long = el("div", "flow-node-long");
+    long.append(artifactList(normalizeList(node.artifact_paths), "flow-artifacts"));
+    block.append(header, body, long);
     return block;
   }));
 }
@@ -476,16 +480,22 @@ function renderAgents() {
     card.dataset.agent = name;
     card.setAttribute("aria-pressed", state.agentFilter === name ? "true" : "false");
     card.addEventListener("click", () => setAgentFilter(name));
+    const layout = el("div", "agent-card-layout");
+    const main = el("div", "agent-main");
     const title = el("div", "agent-title");
     title.append(el("span", "", agentLabel(name)), el("span", "badge", `尝试 ${agent.attempt || 0}`));
-    const artifacts = artifactList(agentArtifactPaths(agent));
-    card.append(
+    main.append(
       title,
       el("div", "agent-field", `状态：${agentStatusLabel(agent.status)}`),
       el("div", "agent-field", `当前动作：${actionLabel(agent.current_action)}`),
-      el("div", "agent-result", `最后结果：${text(agent.last_result)}`),
-      artifacts,
     );
+    const longFields = el("div", "agent-long-fields");
+    longFields.append(
+      el("div", "agent-result", `最后结果：${text(agent.last_result)}`),
+      artifactList(agentArtifactPaths(agent)),
+    );
+    layout.append(main, longFields);
+    card.append(layout);
     return card;
   }));
 }
@@ -554,7 +564,8 @@ function combinedLogEntries() {
   return [...events, ...logs].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
 }
 
-function flowDetailRows(node) {
+function flowDetailRows(node, options = {}) {
+  const includeArtifacts = options.includeArtifacts !== false;
   const rows = [];
   if (node.current_action) {
     rows.push(el("div", "flow-detail", `动作：${actionLabel(node.current_action)}`));
@@ -563,7 +574,7 @@ function flowDetailRows(node) {
     rows.push(el("div", "flow-detail", `结果：${resultLabel(node.recent_result)}`));
   }
   const paths = normalizeList(node.artifact_paths);
-  if (paths.length) {
+  if (includeArtifacts && paths.length) {
     rows.push(artifactList(paths, "flow-artifacts"));
   }
   return rows;

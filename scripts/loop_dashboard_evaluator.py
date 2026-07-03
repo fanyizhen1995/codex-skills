@@ -425,11 +425,16 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(detail).to_contain_text("选择日志类型 stderr")
             expect(detail).to_contain_text("查看阻塞诊断中的 evaluator finding")
             expect(detail).to_contain_text("修复日志过滤")
+            expect(detail.locator(".detail-item.detail-long")).to_have_count(5)
+            expect(detail.locator(".detail-long .detail-value").first).to_contain_text("实现独立本地 Loop Dashboard")
 
             agent_cards = page.get_by_test_id("agent-cards")
             expect(agent_cards).to_contain_text("Planner")
             expect(agent_cards).to_contain_text("Generator")
             expect(agent_cards).to_contain_text("Evaluator")
+            expect(agent_cards.locator(".agent-card-layout")).to_have_count(3)
+            expect(agent_cards.locator(".agent-main")).to_have_count(3)
+            expect(agent_cards.locator(".agent-long-fields")).to_have_count(3)
 
             flow = page.get_by_test_id("flow-diagram")
             expect(flow).to_contain_text("Evaluator")
@@ -437,6 +442,9 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(flow).to_contain_text("Artifact Hygiene")
             expect(flow).to_contain_text("Cleanup")
             expect(flow).to_contain_text(".codex/loop-runs/active-repair-run/evaluator-result.json")
+            expect(flow.locator(".flow-node-header")).to_have_count(8)
+            expect(flow.locator(".flow-node-body")).to_have_count(8)
+            expect(flow.locator(".flow-node-long")).to_have_count(8)
 
             diagnostics = page.get_by_test_id("blocked-diagnostics")
             expect(diagnostics).to_contain_text("LD-001")
