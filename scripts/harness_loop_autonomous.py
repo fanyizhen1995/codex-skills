@@ -59,6 +59,12 @@ class SupplyChainCheckResult:
     findings: list[str]
 
 
+@dataclass(frozen=True)
+class GitDirtyRecord:
+    path: str
+    is_rename: bool = False
+
+
 def create_default_loop_state(domain: str, domain_goal: str, scan_ttl_days: int = 30) -> dict[str, Any]:
     now = _utc_now_iso()
     state: dict[str, Any] = {
@@ -220,21 +226,26 @@ def run_git_commit(repo_root: Path | str, paths: Sequence[str], message: str) ->
 
 
 def _resolve_commit_pathspecs(repo: Path, paths: Sequence[str]) -> list[str]:
-    dirty_paths = set(_dirty_files_for_commit(repo))
+    dirty_records = _dirty_files_for_commit(repo)
     resolved: list[str] = []
     for raw_path in paths:
         path = str(raw_path).strip()
         if not path:
             raise ValueError("commit pathspec must not be empty")
-        if path.startswith("-") or Path(path).is_absolute() or ".." in Path(path).parts:
+        if path.startswith(":") or path.startswith("-") or Path(path).is_absolute() or ".." in Path(path).parts:
             raise ValueError(f"unsafe commit pathspec: {path}")
         candidate = repo / path
         if candidate.exists() and candidate.is_dir():
             normalized = path.rstrip("/")
-            matches = sorted(item for item in dirty_paths if item == normalized or item.startswith(f"{normalized}/"))
+            matches = sorted(
+                (record for record in dirty_records if record.path == normalized or record.path.startswith(f"{normalized}/")),
+                key=lambda record: record.path,
+            )
+            if any(record.is_rename for record in matches):
+                raise ValueError(f"directory pathspec cannot expand rename record: {path}")
             if len(matches) != 1:
                 raise ValueError(f"directory pathspec must resolve to exactly one dirty file: {path}")
-            resolved.extend(matches)
+            resolved.append(matches[0].path)
         else:
             resolved.append(path)
 
@@ -247,23 +258,31 @@ def _resolve_commit_pathspecs(repo: Path, paths: Sequence[str]) -> list[str]:
     return unique
 
 
-def _dirty_files_for_commit(repo: Path) -> list[str]:
+def _dirty_files_for_commit(repo: Path) -> list[GitDirtyRecord]:
     result = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
         cwd=repo,
         check=True,
-        text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    dirty: list[str] = []
-    for line in result.stdout.splitlines():
-        if not line.strip():
+    dirty: list[GitDirtyRecord] = []
+    records = result.stdout.decode("utf-8", errors="surrogateescape").split("\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
             continue
-        path = line[3:]
-        if " -> " in path:
-            path = path.rsplit(" -> ", 1)[1]
-        dirty.append(path)
+        status = record[:2]
+        path = record[3:]
+        is_rename = "R" in status or "C" in status
+        if is_rename:
+            if index < len(records):
+                index += 1
+            dirty.append(GitDirtyRecord(path, is_rename=True))
+        else:
+            dirty.append(GitDirtyRecord(path))
     return dirty
 
 
