@@ -62,6 +62,7 @@ class LoopDashboardStore:
     def list_runs(self) -> list[dict[str, Any]]:
         runs = [self._load_run_summary(source.run_dir, source.source_kind) for source in self._run_sources()]
         runs = self._dedupe_runs(runs)
+        runs = self._filter_top_level_runs(runs)
         return sorted(runs, key=lambda run: (run.get("updated_at", ""), run.get("run_id", "")), reverse=True)
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
@@ -84,6 +85,11 @@ class LoopDashboardStore:
             rich_evaluator = {}
         scenario_contract = self._scenario_contract(evaluator)
         run_kind = self._run_kind(run_data)
+        decision_summary = (
+            summary.get("decision_summary")
+            if summary.get("phase") == "invalid_artifact" and isinstance(summary.get("decision_summary"), dict)
+            else self._decision_summary(run_data, evaluator, rich_evaluator)
+        )
         summary.update(
             {
                 "constraints": run_data.get("constraints", []),
@@ -92,7 +98,7 @@ class LoopDashboardStore:
                 "limits": run_data.get("limits", {}),
                 "allowed_paths": planner.get("allowed_paths", run_data.get("allowed_paths", [])),
                 "denylist_paths": planner.get("denylist_paths", run_data.get("denylist_paths", [])),
-                "decision_summary": self._decision_summary(run_data, evaluator, rich_evaluator),
+                "decision_summary": decision_summary,
                 "acceptance_summary": self._acceptance_summary(evaluator, rich_evaluator, scenario_contract),
                 "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
             }
@@ -121,9 +127,7 @@ class LoopDashboardStore:
         if not isinstance(run_data, dict):
             run_data = {}
         events.extend(self._structured_events(run_dir))
-        for path in sorted(run_dir.iterdir(), key=lambda item: item.stat().st_mtime):
-            if not path.is_file():
-                continue
+        for path in self._direct_artifact_files(run_dir):
             events.append(Event("artifact", self._relative_artifact(path), f"updated {path.name}", self._mtime_iso(path)))
         for log in self._collect_logs(run_dir):
             events.append(Event("log", log.source, self._summarize_log(log.content), log.updated_at))
@@ -216,6 +220,48 @@ class LoopDashboardStore:
                 runs_by_id[run_id] = run
         return list(runs_by_id.values())
 
+    def _filter_top_level_runs(self, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        parent_ids = {
+            str(run.get("run_id") or "")
+            for run in runs
+            if run.get("run_kind") == "parent" and self._safe_run_id(str(run.get("run_id") or ""))
+        }
+        if not parent_ids:
+            return runs
+        aggregated_child_ids: set[str] = set()
+        for run in runs:
+            if run.get("run_kind") == "child" and str(run.get("parent_run_id") or "") in parent_ids:
+                run_id = str(run.get("run_id") or "")
+                if self._safe_run_id(run_id):
+                    aggregated_child_ids.add(run_id)
+            if run.get("run_kind") != "parent":
+                continue
+            child_run_ids = self._run_child_ids_from_source(str(run.get("run_id") or ""))
+            aggregated_child_ids.update(child_run_ids)
+        top_level: list[dict[str, Any]] = []
+        for run in runs:
+            run_id = str(run.get("run_id") or "")
+            if run.get("run_kind") == "child" and run_id in aggregated_child_ids:
+                continue
+            top_level.append(run)
+        return top_level
+
+    def _run_child_ids_from_source(self, run_id: str) -> set[str]:
+        source = self._run_source(run_id)
+        if source is None:
+            return set()
+        data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
+        if not isinstance(data, dict):
+            return set()
+        child_run_ids = data.get("child_run_ids")
+        if not isinstance(child_run_ids, list):
+            return set()
+        return {
+            child_run_id
+            for item in child_run_ids
+            if self._safe_child_run_id(child_run_id := str(item))
+        }
+
     def _safe_run_id(self, run_id: str) -> bool:
         candidate_path = Path(run_id)
         return bool(run_id) and not candidate_path.is_absolute() and ".." not in candidate_path.parts and "/" not in run_id and "\\" not in run_id
@@ -307,8 +353,17 @@ class LoopDashboardStore:
             "updated_at": self._updated_at(run_dir),
             "completed": False,
             "agents": self._empty_agents(),
+            "decision_summary": self._invalid_decision_summary(),
             "blocked_diagnostics": [diagnostic],
             "artifact_paths": self._artifact_paths(run_dir),
+        }
+
+    def _invalid_decision_summary(self) -> dict[str, Any]:
+        return {
+            "requires_user_decision": True,
+            "decision_label": "需要检查无效产物",
+            "next_action": "inspect_invalid_artifact",
+            "reason": "run.json could not be parsed",
         }
 
     def _children_summary(self, aggregate_acceptance: Any) -> dict[str, int]:
@@ -1294,6 +1349,14 @@ class LoopDashboardStore:
             if self._safe_file_under(path, run_dir) is not None
         ]
         return [self._relative_artifact(path) for path in sorted(paths)]
+
+    def _direct_artifact_files(self, run_dir: Path) -> list[Path]:
+        safe_paths = [
+            safe_path
+            for path in run_dir.iterdir()
+            if (safe_path := self._safe_file_under(path, run_dir)) is not None
+        ]
+        return sorted(safe_paths, key=lambda path: path.stat().st_mtime)
 
     def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
         safe_path = self._safe_file_under(path, allowed_root or self.project_root)

@@ -740,6 +740,112 @@ def test_parent_child_runs_are_aggregated_with_children_and_events(tmp_path: Pat
     assert any(item["kind"] == "child_artifact_missing" for item in detail["relationship_diagnostics"])
 
 
+def test_top_level_list_runs_hides_children_that_have_existing_parent(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+
+    runs = LoopDashboardStore(tmp_path).list_runs()
+
+    run_ids = [run["run_id"] for run in runs]
+    assert "parent-run" in run_ids
+    assert "parent-run-child-001" not in run_ids
+    assert "parent-run-child-002" not in run_ids
+
+
+def test_list_runs_keeps_orphan_child_top_level(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "orphan-child" / "run.json",
+        {
+            "run_id": "orphan-child",
+            "run_kind": "child",
+            "parent_run_id": "missing-parent",
+            "child_index": 1,
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "orphan-child-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Orphan child should remain visible",
+            "constraints": [],
+            "stop_conditions": ["passed"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_child_generator",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+
+    runs = LoopDashboardStore(tmp_path).list_runs()
+
+    assert [run["run_id"] for run in runs] == ["orphan-child"]
+
+
+def test_top_level_list_runs_hides_explicit_orphan_child_when_parent_exists(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "parent-run" / "run.json",
+        {
+            "run_id": "parent-run",
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": "",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Parent with explicit orphan child",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_parent_planner",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": ["explicit-orphan-child"],
+            "current_child_run_id": "explicit-orphan-child",
+            "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
+        },
+    )
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "explicit-orphan-child" / "run.json",
+        {
+            "run_id": "explicit-orphan-child",
+            "run_kind": "child",
+            "child_index": 1,
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "explicit-orphan-child-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Explicit orphan child should be hidden by parent",
+            "constraints": [],
+            "stop_conditions": ["passed"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_child_generator",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+
+    runs = LoopDashboardStore(tmp_path).list_runs()
+
+    assert [run["run_id"] for run in runs] == ["parent-run"]
+
+
 def test_parent_child_relationship_conflicts_are_deduped_sorted_and_diagnosed(tmp_path: Path) -> None:
     seed_parent_child_runs(tmp_path)
     other_parent = tmp_path / ".codex" / "loop-runs" / "other-parent" / "run.json"
@@ -855,6 +961,18 @@ def test_parent_child_structured_events_are_redacted(tmp_path: Path) -> None:
     assert "Authorization: Bearer [REDACTED]" in messages
     assert "structured-secret" not in messages
     assert "child-secret" not in messages
+
+
+def test_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:
+    seed_run(tmp_path, "dangling-events-run", "generating")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "dangling-events-run"
+    (run_dir / "dangling.log").symlink_to(run_dir / "missing-target.log")
+
+    events = LoopDashboardStore(tmp_path).get_events("dangling-events-run")
+
+    assert events is not None
+    assert any(event["kind"] == "artifact" and event["source"].endswith("run.json") for event in events)
+    assert all("dangling.log" not in event["source"] for event in events)
 
 
 def test_multi_parent_explicit_orphan_child_has_single_owner_and_diagnostic(tmp_path: Path) -> None:
@@ -1236,6 +1354,9 @@ def test_invalid_run_json_detail_is_available_from_listed_run(tmp_path: Path) ->
     assert detail["run_id"] == "broken-run"
     assert detail["phase"] == "invalid_artifact"
     assert detail["blocked_diagnostics"][0]["kind"] == "invalid_artifact"
+    assert detail["decision_summary"]["requires_user_decision"] is True
+    assert detail["decision_summary"]["decision_label"] == "需要检查无效产物"
+    assert detail["decision_summary"]["next_action"] == "inspect_invalid_artifact"
 
 
 def test_empty_run_directory_detail_is_available_from_listed_run(tmp_path: Path) -> None:
@@ -1250,6 +1371,9 @@ def test_empty_run_directory_detail_is_available_from_listed_run(tmp_path: Path)
     assert detail["run_id"] == "empty-run"
     assert detail["phase"] == "invalid_artifact"
     assert detail["blocked_diagnostics"][0]["kind"] == "invalid_artifact"
+    assert detail["decision_summary"]["requires_user_decision"] is True
+    assert detail["decision_summary"]["decision_label"] == "需要检查无效产物"
+    assert detail["decision_summary"]["next_action"] == "inspect_invalid_artifact"
 
 
 def test_weird_run_kind_falls_back_to_single_without_crashing(tmp_path: Path) -> None:

@@ -53,6 +53,20 @@ def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
     assert client.get("/api/runs/demo-run/logs").json()["run_id"] == "demo-run"
 
 
+def test_api_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    (run_dir / "dangling.log").symlink_to(run_dir / "missing-target.log")
+    client = TestClient(create_app(project_root=tmp_path))
+
+    response = client.get("/api/runs/demo-run/events")
+
+    assert response.status_code == 200
+    sources = [event["source"] for event in response.json()["events"]]
+    assert any(source.endswith("run.json") for source in sources)
+    assert all("dangling.log" not in source for source in sources)
+
+
 def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
     worktree_root = tmp_path / ".worktrees" / "loop-dashboard"
     seed_minimal_run(worktree_root)
