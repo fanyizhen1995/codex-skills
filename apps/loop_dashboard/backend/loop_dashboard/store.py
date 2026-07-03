@@ -186,7 +186,11 @@ class LoopDashboardStore:
     ) -> AgentSummary:
         artifact_paths = [self._relative_artifact(path) for path in self._agent_artifacts(run_dir, name)]
         data = payload if isinstance(payload, dict) else {}
-        attempt = int(data.get("attempt") or attempts.get(name) or self._attempt_from_logs(run_dir, name) or 0)
+        attempt = (
+            self._safe_int(data.get("attempt"))
+            or self._safe_int(attempts.get(name))
+            or self._attempt_from_logs(run_dir, name)
+        )
         status = str(data.get("status") or ("ready" if data else "missing"))
         current_action = next_action if name in next_action else ""
         last_result = self._structured_summary(name, data) or self._log_summary(run_dir, name) or FALLBACK_SUMMARY
@@ -209,6 +213,8 @@ class LoopDashboardStore:
     def _attempt_from_logs(self, run_dir: Path, name: str) -> int:
         attempts: list[int] = []
         for path in run_dir.glob(f"{name}-attempt-*.*.log"):
+            if self._safe_file_under(path, run_dir) is None:
+                continue
             parts = path.name.split("-attempt-", 1)[-1].split(".", 1)[0]
             if parts.isdigit():
                 attempts.append(int(parts))
@@ -217,7 +223,10 @@ class LoopDashboardStore:
     def _log_summary(self, run_dir: Path, name: str) -> str:
         for path in self._agent_artifacts(run_dir, name):
             if path.suffix == ".log":
-                text = path.read_text(encoding="utf-8", errors="replace").strip()
+                safe_path = self._safe_file_under(path, run_dir)
+                if safe_path is None:
+                    continue
+                text = safe_path.read_text(encoding="utf-8", errors="replace").strip()
                 if text:
                     return self._trim(redact_text(text), 96)
         return ""
@@ -355,8 +364,18 @@ class LoopDashboardStore:
         logs: list[LogEntry] = []
         for pattern in LOG_GLOBS:
             for path in sorted(run_dir.glob(pattern)):
+                safe_path = self._safe_file_under(path, run_dir)
+                if safe_path is None:
+                    continue
                 stream = "stderr" if path.name.endswith(".stderr.log") else "stdout"
-                logs.append(LogEntry(self._relative_artifact(path), stream, redact_text(path.read_text(encoding="utf-8", errors="replace")), self._mtime_iso(path)))
+                logs.append(
+                    LogEntry(
+                        self._relative_artifact(path),
+                        stream,
+                        redact_text(safe_path.read_text(encoding="utf-8", errors="replace")),
+                        self._mtime_iso(safe_path),
+                    )
+                )
         evaluator_path = run_dir / "evaluator-result.json"
         evaluator = self._read_json(evaluator_path)
         if isinstance(evaluator, dict):
@@ -366,11 +385,8 @@ class LoopDashboardStore:
                 logs.extend(self._inline_logs(rich_evaluator, rich_path, rich_path.parent))
             scenario_path = evaluator.get("scenario_command_results_path")
             if isinstance(scenario_path, str) and scenario_path:
-                try:
-                    scenario_result = safe_join(run_dir, scenario_path)
-                except ValueError:
-                    scenario_result = None
-                if scenario_result is not None and scenario_result.exists():
+                scenario_result = self._resolve_artifact_reference(scenario_path, run_dir)
+                if scenario_result is not None:
                     scenario_payload = self._read_json(scenario_result)
                     if isinstance(scenario_payload, dict):
                         logs.extend(self._inline_logs(scenario_payload, scenario_result, run_dir))
@@ -387,12 +403,16 @@ class LoopDashboardStore:
                         logs.append(LogEntry(f"{source_path.name}:{lowered}", lowered, redact_text(child), self._mtime_iso(source_path)))
                     elif lowered in {"stdout_path", "stderr_path"} and isinstance(child, str) and child:
                         stream = lowered.split("_", 1)[0]
-                        try:
-                            path = safe_join(run_dir, child)
-                        except ValueError:
-                            continue
-                        if path.exists() and path.is_file():
-                            logs.append(LogEntry(f"{self._relative_artifact(path)}", stream, redact_text(path.read_text(encoding="utf-8", errors="replace")), self._mtime_iso(path)))
+                        path = self._resolve_artifact_reference(child, run_dir)
+                        if path is not None:
+                            logs.append(
+                                LogEntry(
+                                    f"{self._relative_artifact(path)}",
+                                    stream,
+                                    redact_text(path.read_text(encoding="utf-8", errors="replace")),
+                                    self._mtime_iso(path),
+                                )
+                            )
                     else:
                         visit(child, lowered)
             elif isinstance(value, list):
@@ -415,11 +435,16 @@ class LoopDashboardStore:
                 final_result = safe_join(task_dir, f"{final_bundle_id}/result.json")
             except ValueError:
                 final_result = None
-            if final_result is not None and final_result.exists():
-                payload = self._read_json(final_result)
+            safe_final_result = self._safe_file_under(final_result, task_dir) if final_result is not None else None
+            if safe_final_result is not None:
+                payload = self._read_json(safe_final_result)
                 if isinstance(payload, dict):
-                    return final_result, payload
-        candidates = [path for path in task_dir.glob("**/result.json") if path.is_file()]
+                    return safe_final_result, payload
+        candidates = [
+            safe_path
+            for path in task_dir.glob("**/result.json")
+            if (safe_path := self._safe_file_under(path, task_dir)) is not None
+        ]
         if not candidates:
             return None, None
         latest = max(candidates, key=lambda path: path.stat().st_mtime)
@@ -435,13 +460,19 @@ class LoopDashboardStore:
             return None
 
     def _artifact_paths(self, run_dir: Path) -> list[str]:
-        return [self._relative_artifact(path) for path in sorted(run_dir.iterdir()) if path.is_file()]
+        paths = [
+            path
+            for path in run_dir.rglob("*")
+            if self._safe_file_under(path, run_dir) is not None
+        ]
+        return [self._relative_artifact(path) for path in sorted(paths)]
 
     def _read_json(self, path: Path) -> Any:
-        if not path.exists():
+        safe_path = self._safe_file_under(path, self.project_root)
+        if safe_path is None:
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(safe_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
 
@@ -469,6 +500,36 @@ class LoopDashboardStore:
             return str(path.resolve().relative_to(self.project_root))
         except ValueError:
             return path.name
+
+    def _resolve_artifact_reference(self, reference: str, base_dir: Path) -> Path | None:
+        ref_path = Path(reference)
+        candidates = [ref_path] if ref_path.is_absolute() else [base_dir / ref_path, self.project_root / ref_path]
+        for candidate in candidates:
+            safe_path = self._safe_file_under(candidate, self.project_root)
+            if safe_path is not None:
+                return safe_path
+        return None
+
+    def _safe_file_under(self, path: Path, root: Path) -> Path | None:
+        try:
+            resolved_root = root.resolve()
+            resolved_path = path.resolve()
+            resolved_path.relative_to(resolved_root)
+            resolved_path.relative_to(self.project_root)
+        except (OSError, ValueError):
+            return None
+        if not resolved_path.is_file():
+            return None
+        return resolved_path
+
+    def _safe_int(self, value: Any) -> int:
+        if isinstance(value, bool):
+            return 0
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return 0
 
     def _trim(self, text: str, limit: int = 96) -> str:
         compact = " ".join(text.split())

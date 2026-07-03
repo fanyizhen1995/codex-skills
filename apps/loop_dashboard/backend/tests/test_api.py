@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from loop_dashboard import main
 from loop_dashboard.main import create_app
 
 
@@ -61,3 +62,24 @@ def test_api_returns_404_for_missing_run_and_traversal_run_id(tmp_path: Path) ->
     assert missing.status_code == 404
     assert missing.json()["detail"] == "run not found: missing"
     assert traversal.status_code == 404
+
+
+def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monkeypatch) -> None:
+    frontend_dir = tmp_path / "frontend"
+    dist_dir = frontend_dir / "dist"
+    (dist_dir / "assets").mkdir(parents=True)
+    (dist_dir / "index.html").write_text('<script src="/assets/app-built.js"></script>', encoding="utf-8")
+    (dist_dir / "assets" / "app-built.js").write_text("console.log('built')", encoding="utf-8")
+    (frontend_dir / "index.html").write_text('<script src="/src/main.tsx"></script>', encoding="utf-8")
+    monkeypatch.setattr(main, "_frontend_root", lambda: frontend_dir)
+
+    client = TestClient(create_app(project_root=tmp_path))
+
+    index = client.get("/")
+    asset = client.get("/assets/app-built.js")
+
+    assert index.status_code == 200
+    assert "/assets/app-built.js" in index.text
+    assert "/src/main.tsx" not in index.text
+    assert asset.status_code == 200
+    assert "built" in asset.text

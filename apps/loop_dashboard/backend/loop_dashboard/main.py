@@ -57,17 +57,29 @@ def create_app(project_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
         return {"run_id": run_id, "logs": logs}
 
-    frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
-    index_path = frontend_dir / "index.html"
+    frontend_dir = _frontend_root()
+    index_path, assets_dir = _frontend_paths(frontend_dir)
     if index_path.exists():
-        assets_dir = frontend_dir
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="loop-dashboard-assets")
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="loop-dashboard-assets")
 
         @app.get("/")
         def index() -> FileResponse:
             return FileResponse(index_path)
 
     return app
+
+
+def _frontend_root() -> Path:
+    return Path(__file__).resolve().parents[2] / "frontend"
+
+
+def _frontend_paths(frontend_dir: Path) -> tuple[Path, Path]:
+    dist_dir = frontend_dir / "dist"
+    dist_index = dist_dir / "index.html"
+    if dist_index.exists():
+        return dist_index, dist_dir / "assets"
+    return frontend_dir / "index.html", frontend_dir
 
 
 def _discover_project_root() -> Path:

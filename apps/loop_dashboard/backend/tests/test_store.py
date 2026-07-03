@@ -217,6 +217,171 @@ def test_simplified_evaluator_result_adds_blocked_diagnostic_and_inline_logs(tmp
     assert "from-scenario" not in joined
 
 
+def test_scenario_result_and_log_paths_accept_absolute_repo_relative_and_run_relative_paths(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "paths-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "paths-run"
+    nested_dir = run_dir / "scenario-commands"
+    nested_dir.mkdir(parents=True)
+    (nested_dir / "stdout.log").write_text("api_key=run-relative-secret\n", encoding="utf-8")
+    (nested_dir / "stderr.log").write_text("token=repo-relative-secret\n", encoding="utf-8")
+    (nested_dir / "absolute.log").write_text("Authorization: Bearer absolute-secret\n", encoding="utf-8")
+    write_json(
+        nested_dir / "scenario-results.json",
+        {
+            "commands": [
+                {
+                    "command": "pytest",
+                    "stdout_path": "scenario-commands/stdout.log",
+                    "stderr_path": ".codex/loop-runs/paths-run/scenario-commands/stderr.log",
+                },
+                {
+                    "command": "pytest -q",
+                    "stdout_path": str(nested_dir / "absolute.log"),
+                },
+            ]
+        },
+    )
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["scenario_command_results_path"] = ".codex/loop-runs/paths-run/scenario-commands/scenario-results.json"
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+
+    store = LoopDashboardStore(tmp_path)
+    logs = store.get_logs("paths-run")
+    detail = store.get_run("paths-run")
+
+    sources = {log["source"] for log in logs}
+    assert ".codex/loop-runs/paths-run/scenario-commands/stdout.log" in sources
+    assert ".codex/loop-runs/paths-run/scenario-commands/stderr.log" in sources
+    assert ".codex/loop-runs/paths-run/scenario-commands/absolute.log" in sources
+    joined = "\n".join(log["content"] for log in logs)
+    assert "api_key=[REDACTED]" in joined
+    assert "token=[REDACTED]" in joined
+    assert "Authorization: Bearer [REDACTED]" in joined
+    assert "run-relative-secret" not in joined
+    assert "repo-relative-secret" not in joined
+    assert "absolute-secret" not in joined
+    assert ".codex/loop-runs/paths-run/scenario-commands/scenario-results.json" in detail["artifact_paths"]
+    assert ".codex/loop-runs/paths-run/scenario-commands/stdout.log" in detail["artifact_paths"]
+
+
+def test_scenario_result_and_log_paths_ignore_absolute_paths_outside_project_root(tmp_path: Path) -> None:
+    outside_dir = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside_dir.mkdir()
+    outside_result = outside_dir / "scenario-results.json"
+    outside_log = outside_dir / "stdout.log"
+    write_json(outside_result, {"commands": [{"stdout": "outside result leaked"}]})
+    outside_log.write_text("outside absolute log leaked\n", encoding="utf-8")
+    seed_run(
+        tmp_path,
+        "outside-paths-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "outside-paths-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["scenario_command_results_path"] = str(outside_result)
+    evaluator_result["scenario_results"] = [{"stdout_path": str(outside_log)}]
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+    try:
+        logs = LoopDashboardStore(tmp_path).get_logs("outside-paths-run")
+    finally:
+        outside_result.unlink(missing_ok=True)
+        outside_log.unlink(missing_ok=True)
+        outside_dir.rmdir()
+
+    joined = "\n".join(log["content"] for log in logs)
+    sources = {log["source"] for log in logs}
+    assert "outside result leaked" not in joined
+    assert "outside absolute log leaked" not in joined
+    assert all(str(outside_dir) not in source for source in sources)
+
+
+def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "malformed-attempt-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "malformed-attempt-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["attempt"] = "n/a"
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+    (run_dir / "evaluator-attempt-4.stderr.log").write_text("evaluator attempt log\n", encoding="utf-8")
+
+    detail = LoopDashboardStore(tmp_path).get_run("malformed-attempt-run")
+
+    assert detail["agents"]["evaluator"]["attempt"] == 1
+
+    evaluator_result["attempt"] = {}
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["attempts"]["evaluator"] = "n/a"
+    write_json(run_dir / "run.json", run_data)
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+
+    detail = LoopDashboardStore(tmp_path).get_run("malformed-attempt-run")
+
+    assert detail["agents"]["evaluator"]["attempt"] == 4
+
+
+def test_symlinked_log_and_rich_evaluator_result_outside_project_root_are_not_exposed(tmp_path: Path) -> None:
+    outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-rich"
+    outside_dir.mkdir()
+    outside_log = outside_dir / "planner-attempt-9.stdout.log"
+    outside_result = outside_dir / "result.json"
+    outside_log.write_text("outside symlink log leaked\n", encoding="utf-8")
+    write_json(
+        outside_result,
+        {
+            "status": "fail",
+            "stdout": "token=outside-rich-result",
+            "findings": [{"id": "OUTSIDE", "recommended_action": "outside finding"}],
+        },
+    )
+    seed_run(
+        tmp_path,
+        "symlink-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "symlink-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["final_bundle_id"] = "bundle-outside"
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+    task_dir = tmp_path / ".codex" / "evaluations" / "tasks" / "loop-dashboard-dev-01"
+    task_dir.mkdir(parents=True)
+    (task_dir / "bundle-outside").symlink_to(outside_dir, target_is_directory=True)
+    (run_dir / "planner-attempt-9.stdout.log").symlink_to(outside_log)
+    try:
+        store = LoopDashboardStore(tmp_path)
+        detail = store.get_run("symlink-run")
+        logs = store.get_logs("symlink-run")
+    finally:
+        (run_dir / "planner-attempt-9.stdout.log").unlink(missing_ok=True)
+        (task_dir / "bundle-outside").unlink(missing_ok=True)
+        outside_log.unlink(missing_ok=True)
+        outside_result.unlink(missing_ok=True)
+        outside_dir.rmdir()
+
+    joined = "\n".join(log["content"] for log in logs)
+    assert "outside symlink log leaked" not in joined
+    assert "outside-rich-result" not in joined
+    assert all(item.get("title") != "OUTSIDE" for item in detail["blocked_diagnostics"])
+
+
 def test_rich_evaluator_bundle_result_is_merged_into_blocked_diagnostics_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,
