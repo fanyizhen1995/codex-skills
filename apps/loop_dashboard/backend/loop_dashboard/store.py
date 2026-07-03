@@ -53,8 +53,8 @@ class LoopDashboardStore:
         if run_dir is None or not run_dir.is_dir() or not (run_dir / "run.json").exists():
             return None
         summary = self._load_run_summary(run_dir)
-        run_data = self._read_json(run_dir / "run.json")
-        planner = self._read_json(run_dir / "planner-output.json")
+        run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
+        planner = self._read_json(run_dir / "planner-output.json", allowed_root=run_dir)
         if not isinstance(run_data, dict):
             run_data = {}
         if not isinstance(planner, dict):
@@ -108,10 +108,10 @@ class LoopDashboardStore:
 
     def _load_run_summary(self, run_dir: Path) -> dict[str, Any]:
         run_json = run_dir / "run.json"
-        run_data = self._read_json(run_json)
+        run_data = self._read_json(run_json, allowed_root=run_dir)
         if not isinstance(run_data, dict):
             return self._invalid_summary(run_dir)
-        planner = self._read_json(run_dir / "planner-output.json")
+        planner = self._read_json(run_dir / "planner-output.json", allowed_root=run_dir)
         if not isinstance(planner, dict):
             planner = {}
         phase = str(run_data.get("phase") or "unknown")
@@ -164,9 +164,9 @@ class LoopDashboardStore:
     def _agents(self, run_dir: Path, run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         attempts = run_data.get("attempts") if isinstance(run_data.get("attempts"), dict) else {}
         next_action = str(run_data.get("next_action") or "")
-        planner = self._read_json(run_dir / "planner-output.json")
-        generator = self._read_json(run_dir / "generator-result.json")
-        evaluator = self._read_json(run_dir / "evaluator-result.json")
+        planner = self._read_json(run_dir / "planner-output.json", allowed_root=run_dir)
+        generator = self._read_json(run_dir / "generator-result.json", allowed_root=run_dir)
+        evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         return {
             "planner": self._agent("planner", attempts, next_action, planner, run_dir).to_dict(),
             "generator": self._agent("generator", attempts, next_action, generator, run_dir).to_dict(),
@@ -307,7 +307,7 @@ class LoopDashboardStore:
         return "running" if node_id in next_action else "waiting"
 
     def _flow_node_status(self, node_id: str, phase: str, next_action: str, run_dir: Path) -> str:
-        evaluator = self._read_json(run_dir / "evaluator-result.json")
+        evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         evaluator_status = evaluator.get("status") if isinstance(evaluator, dict) else ""
         if node_id == "preflight":
             return "done"
@@ -353,22 +353,22 @@ class LoopDashboardStore:
         if node_id == "preflight":
             return str(run_data.get("phase") or "")
         if node_id == "planner":
-            payload = self._read_json(run_dir / "planner-output.json")
+            payload = self._read_json(run_dir / "planner-output.json", allowed_root=run_dir)
             return self._structured_summary("planner", payload if isinstance(payload, dict) else {})
         if node_id == "generator":
-            payload = self._read_json(run_dir / "generator-result.json")
+            payload = self._read_json(run_dir / "generator-result.json", allowed_root=run_dir)
             return self._structured_summary("generator", payload if isinstance(payload, dict) else {})
         if node_id in {"evaluator", "repair_needed"}:
-            payload = self._read_json(run_dir / "evaluator-result.json")
+            payload = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
             return self._structured_summary("evaluator", payload if isinstance(payload, dict) else {})
         if node_id == "artifact_hygiene":
-            payload = self._read_json(run_dir / "artifact-manifest.json")
+            payload = self._read_json(run_dir / "artifact-manifest.json", allowed_root=run_dir)
             return str(payload.get("status") if isinstance(payload, dict) else "")
         if node_id == "cleanup":
-            payload = self._read_json(run_dir / "cleanup-result.json")
+            payload = self._read_json(run_dir / "cleanup-result.json", allowed_root=run_dir)
             return str(payload.get("status") if isinstance(payload, dict) else "")
         if node_id == "commit":
-            payload = self._read_json(run_dir / "commit-result.json")
+            payload = self._read_json(run_dir / "commit-result.json", allowed_root=run_dir)
             if isinstance(payload, dict):
                 return str(payload.get("commit") or payload.get("status") or "")
         if node_id == "human_merge":
@@ -390,7 +390,7 @@ class LoopDashboardStore:
 
     def _blocked_diagnostics(self, run_dir: Path, run_data: dict[str, Any]) -> list[dict[str, Any]]:
         diagnostics: list[dict[str, Any]] = []
-        evaluator = self._read_json(run_dir / "evaluator-result.json")
+        evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if isinstance(evaluator, dict):
             diagnostics.extend(self._evaluator_diagnostics(evaluator, run_dir / "evaluator-result.json"))
             rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
@@ -404,7 +404,7 @@ class LoopDashboardStore:
             ("commit-result.json", "commit"),
         ):
             path = run_dir / filename
-            payload = self._read_json(path)
+            payload = self._read_json(path, allowed_root=run_dir)
             if isinstance(payload, dict):
                 diagnostics.extend(self._generic_diagnostics(kind, payload, path))
         if str(run_data.get("phase") or "") in BLOCKED_PHASES and not diagnostics:
@@ -431,8 +431,8 @@ class LoopDashboardStore:
                         "kind": "evaluator_finding",
                         "severity": str(finding.get("severity") or "major"),
                         "title": str(finding.get("id") or finding.get("category") or "evaluator finding"),
-                        "message": str(finding.get("recommended_action") or finding.get("summary") or ""),
-                        "evidence": finding.get("evidence", []),
+                        "message": redact_text(str(finding.get("recommended_action") or finding.get("summary") or "")),
+                        "evidence": self._redacted_evidence(finding.get("evidence", [])),
                         "source": self._relative_artifact(path),
                     }
                 )
@@ -450,6 +450,17 @@ class LoopDashboardStore:
                 }
             )
         return diagnostics
+
+    def _redacted_evidence(self, evidence: Any) -> list[str]:
+        if not isinstance(evidence, list):
+            return []
+        redacted: list[str] = []
+        for item in evidence:
+            if isinstance(item, str):
+                redacted.append(redact_text(item))
+            elif item is not None:
+                redacted.append(redact_text(json.dumps(item, ensure_ascii=False)))
+        return redacted
 
     def _generic_diagnostics(self, kind: str, payload: dict[str, Any], path: Path) -> list[dict[str, Any]]:
         diagnostics: list[dict[str, Any]] = []
@@ -495,7 +506,7 @@ class LoopDashboardStore:
                     )
                 )
         evaluator_path = run_dir / "evaluator-result.json"
-        evaluator = self._read_json(evaluator_path)
+        evaluator = self._read_json(evaluator_path, allowed_root=run_dir)
         if isinstance(evaluator, dict):
             logs.extend(self._inline_logs(evaluator, evaluator_path, run_dir))
             rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
@@ -505,7 +516,7 @@ class LoopDashboardStore:
             if isinstance(scenario_path, str) and scenario_path:
                 scenario_result = self._resolve_artifact_reference(scenario_path, run_dir, allowed_roots=[run_dir])
                 if scenario_result is not None:
-                    scenario_payload = self._read_json(scenario_result)
+                    scenario_payload = self._read_json(scenario_result, allowed_root=run_dir)
                     if isinstance(scenario_payload, dict):
                         logs.extend(self._inline_logs(scenario_payload, scenario_result, run_dir))
         return sorted(logs, key=lambda log: (log.updated_at, log.source, log.stream))
@@ -596,7 +607,7 @@ class LoopDashboardStore:
             else:
                 token_message = str(tokens)
             prefix = f"{agent}: " if agent else ""
-            return Event("token", source, self._trim(prefix + token_message, 180), timestamp)
+            return Event("token", source, self._trim(redact_text(prefix + token_message), 180), timestamp)
         if raw_type in {"tool_call", "tool"}:
             name = str(payload.get("name") or payload.get("tool") or "")
             return Event("tool", source, self._trim(redact_text(name or json.dumps(payload, ensure_ascii=False)), 180), timestamp)
@@ -620,7 +631,7 @@ class LoopDashboardStore:
                 final_result = None
             safe_final_result = self._safe_file_under(final_result, task_dir) if final_result is not None else None
             if safe_final_result is not None:
-                payload = self._read_json(safe_final_result)
+                payload = self._read_json(safe_final_result, allowed_root=safe_final_result.parent)
                 if isinstance(payload, dict):
                     return safe_final_result, payload
         candidates = [
@@ -631,7 +642,7 @@ class LoopDashboardStore:
         if not candidates:
             return None, None
         latest = max(candidates, key=lambda path: path.stat().st_mtime)
-        payload = self._read_json(latest)
+        payload = self._read_json(latest, allowed_root=latest.parent)
         if not isinstance(payload, dict):
             return None, None
         return latest, payload
@@ -650,8 +661,8 @@ class LoopDashboardStore:
         ]
         return [self._relative_artifact(path) for path in sorted(paths)]
 
-    def _read_json(self, path: Path) -> Any:
-        safe_path = self._safe_file_under(path, self.project_root)
+    def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
+        safe_path = self._safe_file_under(path, allowed_root or self.project_root)
         if safe_path is None:
             return None
         try:

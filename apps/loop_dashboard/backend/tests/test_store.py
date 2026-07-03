@@ -408,6 +408,39 @@ def test_symlinked_log_and_rich_evaluator_result_outside_project_root_are_not_ex
     assert all(item.get("title") != "OUTSIDE" for item in detail["blocked_diagnostics"])
 
 
+def test_fixed_run_json_symlink_outside_run_dir_is_not_loaded(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "fixed-symlink-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    unrelated = tmp_path / "unrelated-evaluator-result.json"
+    write_json(
+        unrelated,
+        {
+            "status": "fail",
+            "findings": [{"id": "LEAKED", "recommended_action": "outside run dir"}],
+            "stdout": "token=outside-run-secret",
+        },
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "fixed-symlink-run"
+    (run_dir / "evaluator-result.json").unlink()
+    (run_dir / "evaluator-result.json").symlink_to(unrelated)
+    try:
+        store = LoopDashboardStore(tmp_path)
+        detail = store.get_run("fixed-symlink-run")
+        logs = store.get_logs("fixed-symlink-run")
+    finally:
+        (run_dir / "evaluator-result.json").unlink(missing_ok=True)
+        unrelated.unlink(missing_ok=True)
+
+    assert all(item.get("title") != "LEAKED" for item in detail["blocked_diagnostics"])
+    assert "outside-run-secret" not in "\n".join(log["content"] for log in logs)
+
+
 def test_rich_evaluator_bundle_result_is_merged_into_blocked_diagnostics_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,
@@ -466,6 +499,29 @@ def test_rich_evaluator_bundle_result_is_merged_into_blocked_diagnostics_and_log
     assert all(item["title"] != "OLD" for item in detail["blocked_diagnostics"])
     assert any(log["source"] == "result.json:stdout" and "bundle-secret" not in log["content"] for log in logs)
     assert any(event["kind"] == "log" and event["source"] == "result.json:stdout" for event in events)
+
+
+def test_evaluator_finding_diagnostics_are_redacted(tmp_path: Path) -> None:
+    seed_run(tmp_path, "finding-secret-run", "repair_needed", last_result="fail")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "finding-secret-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["findings"] = [
+        {
+            "id": "SECRET-FINDING",
+            "severity": "major",
+            "recommended_action": "rotate apiKey=diagnostic-secret",
+            "evidence": ["Authorization: Basic evidence-secret"],
+        }
+    ]
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+
+    detail = LoopDashboardStore(tmp_path).get_run("finding-secret-run")
+    diagnostic = next(item for item in detail["blocked_diagnostics"] if item["title"] == "SECRET-FINDING")
+
+    assert diagnostic["message"] == "rotate apiKey=[REDACTED]"
+    assert diagnostic["evidence"] == ["Authorization: [REDACTED]"]
+    assert "diagnostic-secret" not in json.dumps(diagnostic, ensure_ascii=False)
+    assert "evidence-secret" not in json.dumps(diagnostic, ensure_ascii=False)
 
 
 def test_flow_nodes_include_required_loop_steps_and_node_details(tmp_path: Path) -> None:
@@ -546,7 +602,7 @@ def test_codex_session_jsonl_events_are_included_with_token_counts(tmp_path: Pat
                         "run_id": "session-run",
                         "type": "token_usage",
                         "agent": "generator",
-                        "tokens": {"input": 11, "output": 7},
+                        "tokens": {"input": 11, "output": 7, "accessToken": "token-usage-secret"},
                         "timestamp": "2026-07-03T00:00:01Z",
                     },
                     ensure_ascii=False,
@@ -561,7 +617,9 @@ def test_codex_session_jsonl_events_are_included_with_token_counts(tmp_path: Pat
 
     assert any(event["kind"] == "agent" and "Planner saw Authorization: [REDACTED]" in event["message"] for event in events)
     assert any(event["kind"] == "token" and "input=11" in event["message"] and "output=7" in event["message"] for event in events)
+    assert any(event["kind"] == "token" and "accessToken=[REDACTED]" in event["message"] for event in events)
     assert all("session-secret" not in event["message"] for event in events)
+    assert all("token-usage-secret" not in event["message"] for event in events)
 
 
 def test_missing_loop_runs_directory_returns_empty_list(tmp_path: Path) -> None:

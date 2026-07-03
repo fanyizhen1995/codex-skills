@@ -868,7 +868,7 @@
   ```bash
   PYTHONPATH=apps/loop_dashboard/backend \
   LOOP_DASHBOARD_PROJECT_ROOT=/home/fyz/codex-skills \
-  python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+  python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766
   ```
 
   Open `http://127.0.0.1:8766`. The backend only reads loop and evaluator
