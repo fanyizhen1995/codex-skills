@@ -14,9 +14,12 @@
 
 import json
 import shutil
+import socket
 import subprocess
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from scripts.harness_evaluator_scenarios import load_task_scenarios
@@ -31,6 +34,89 @@ def copy_worktree_files(repo_root: Path, fixture: Path, paths: list[str]) -> Non
 
 
 class HarnessEvaluatorScenarioTests(unittest.TestCase):
+    def test_loop_dashboard_find_free_port_returns_bindable_port(self) -> None:
+        from scripts.loop_dashboard_evaluator import find_free_port
+
+        port = find_free_port()
+
+        self.assertIsInstance(port, int)
+        self.assertGreater(port, 0)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", port))
+
+    def test_loop_dashboard_wait_rejects_mismatched_project_root(self) -> None:
+        from scripts.loop_dashboard_evaluator import wait_for_dashboard
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                if self.path == "/api/health":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"status":"ok"}')
+                    return
+                if self.path == "/api/projects/current":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"project_root":"/wrong/root"}')
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                expected_root = Path(tmp).resolve()
+                with self.assertRaisesRegex(RuntimeError, "project root mismatch"):
+                    wait_for_dashboard(
+                        f"http://127.0.0.1:{server.server_port}",
+                        expected_root,
+                        timeout_seconds=0.1,
+                    )
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_loop_dashboard_failure_result_includes_server_output(self) -> None:
+        from scripts.loop_dashboard_evaluator import collect_server_output, failure_payload
+
+        process = subprocess.Popen(
+            [
+                "python3",
+                "-c",
+                "import sys; print('server stdout marker'); print('server stderr marker', file=sys.stderr)",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        process.wait(timeout=5)
+
+        from scripts.loop_dashboard_evaluator import write_json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result_path = Path(tmp) / "result.json"
+            write_json(
+                result_path,
+                failure_payload(
+                    RuntimeError("startup failed"),
+                    "http://127.0.0.1:1",
+                    Path("/tmp/fixture-root"),
+                    collect_server_output(process),
+                ),
+            )
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["status"], "fail")
+        self.assertEqual(payload["server_stdout"].strip(), "server stdout marker")
+        self.assertEqual(payload["server_stderr"].strip(), "server stderr marker")
+
     def test_load_task_scenarios_reads_expected_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

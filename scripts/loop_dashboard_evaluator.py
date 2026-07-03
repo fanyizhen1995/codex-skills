@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
@@ -24,16 +25,21 @@ def main() -> int:
     repo_root = args.repo_root.resolve()
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    dashboard_url = f"http://127.0.0.1:{args.port}"
+    port = args.port if args.port is not None else find_free_port()
+    dashboard_url = f"http://127.0.0.1:{port}"
     server: subprocess.Popen[str] | None = None
+    fixture_root: Path | None = None
 
     try:
         with tempfile.TemporaryDirectory(prefix="loop-dashboard-fixture-") as tmp:
             fixture_root = Path(tmp)
             seed_fixture_project(fixture_root)
-            server = start_dashboard(repo_root, fixture_root, args.port)
-            wait_for_health(dashboard_url, server)
-            run_browser_checks(dashboard_url, output_dir)
+            server = start_dashboard(repo_root, fixture_root, port)
+            wait_for_dashboard(dashboard_url, fixture_root, server=server)
+            browser_evidence = run_browser_checks(dashboard_url, output_dir)
+            terminate_process(server)
+            server_output = collect_server_output(server)
+            server = None
             write_json(
                 output_dir / "result.json",
                 {
@@ -41,18 +47,20 @@ def main() -> int:
                     "scenario_id": SCENARIO_ID,
                     "checked": CHECKED,
                     "dashboard_url": dashboard_url,
+                    "project_root": str(fixture_root.resolve()),
+                    "browser_evidence": browser_evidence,
+                    "server_stdout": server_output["stdout"],
+                    "server_stderr": server_output["stderr"],
                 },
             )
         return 0
     except Exception as exc:
+        if server is not None:
+            terminate_process(server)
+        server_output = collect_server_output(server)
         write_json(
             output_dir / "result.json",
-            {
-                "status": "fail",
-                "scenario_id": SCENARIO_ID,
-                "error": str(exc),
-                "dashboard_url": dashboard_url,
-            },
+            failure_payload(exc, dashboard_url, fixture_root, server_output),
         )
         print(f"loop dashboard evaluator failed: {exc}", file=sys.stderr)
         return 1
@@ -65,8 +73,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the Loop Dashboard browser-click evaluator.")
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--port", type=int, default=8767)
+    parser.add_argument("--port", type=int, default=None)
     return parser.parse_args()
+
+
+def find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 def seed_fixture_project(project_root: Path) -> None:
@@ -303,30 +317,46 @@ def start_dashboard(repo_root: Path, fixture_root: Path, port: int) -> subproces
     )
 
 
-def wait_for_health(dashboard_url: str, server: subprocess.Popen[str], timeout_seconds: float = 20.0) -> None:
+def wait_for_dashboard(
+    dashboard_url: str,
+    expected_project_root: Path,
+    server: subprocess.Popen[str] | None = None,
+    timeout_seconds: float = 20.0,
+) -> None:
     health_url = f"{dashboard_url}/api/health"
+    project_url = f"{dashboard_url}/api/projects/current"
+    expected_root = str(expected_project_root.resolve())
     deadline = time.monotonic() + timeout_seconds
     last_error = ""
     while time.monotonic() < deadline:
-        if server.poll() is not None:
-            stdout, stderr = server.communicate(timeout=1)
-            raise RuntimeError(
-                f"dashboard server exited before health check; returncode={server.returncode}; "
-                f"stdout={stdout.strip()!r}; stderr={stderr.strip()!r}"
-            )
+        if server is not None and server.poll() is not None:
+            raise RuntimeError(f"dashboard server exited before readiness check; returncode={server.returncode}")
         try:
-            with urllib.request.urlopen(health_url, timeout=1) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            if payload.get("status") == "ok":
+            health_payload = read_json_url(health_url)
+            if health_payload.get("status") != "ok":
+                last_error = f"unexpected health payload: {health_payload!r}"
+                time.sleep(0.25)
+                continue
+            project_payload = read_json_url(project_url)
+            actual_root = project_payload.get("project_root")
+            if actual_root == expected_root:
                 return
-            last_error = f"unexpected health payload: {payload!r}"
+            raise RuntimeError(f"dashboard project root mismatch: expected {expected_root!r}, got {actual_root!r}")
         except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
             last_error = str(exc)
         time.sleep(0.25)
-    raise RuntimeError(f"dashboard did not become healthy at {health_url}: {last_error}")
+    raise RuntimeError(f"dashboard did not become ready at {dashboard_url}: {last_error}")
 
 
-def run_browser_checks(dashboard_url: str, output_dir: Path) -> None:
+def read_json_url(url: str) -> dict[str, Any]:
+    with urllib.request.urlopen(url, timeout=1) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"unexpected JSON payload from {url}: {payload!r}")
+    return payload
+
+
+def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
     try:
         from playwright.sync_api import expect, sync_playwright
     except ImportError as exc:
@@ -384,6 +414,13 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> None:
             overflow = page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth")
             if overflow:
                 raise AssertionError("dashboard has horizontal overflow at 390px viewport width")
+            screenshot_path = output_dir / "success.png"
+            page.screenshot(path=str(screenshot_path), full_page=True)
+            return {
+                "screenshot": str(screenshot_path),
+                "title": page.title(),
+                "detail_excerpt": detail.inner_text()[:240],
+            }
         except Exception:
             try:
                 page.screenshot(path=str(output_dir / "failure.png"), full_page=True)
@@ -407,6 +444,41 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     if "generated_at" not in payload_with_timestamp:
         payload_with_timestamp["generated_at"] = datetime.now(timezone.utc).isoformat()
     path.write_text(json.dumps(payload_with_timestamp, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def failure_payload(
+    exc: Exception,
+    dashboard_url: str,
+    fixture_root: Path | None,
+    server_output: dict[str, str] | None,
+) -> dict[str, Any]:
+    output = server_output or {"stdout": "", "stderr": ""}
+    payload: dict[str, Any] = {
+        "status": "fail",
+        "scenario_id": SCENARIO_ID,
+        "error": str(exc),
+        "dashboard_url": dashboard_url,
+        "server_stdout": output["stdout"],
+        "server_stderr": output["stderr"],
+    }
+    if fixture_root is not None:
+        payload["project_root"] = str(fixture_root.resolve())
+    return payload
+
+
+def collect_server_output(process: subprocess.Popen[str] | None) -> dict[str, str]:
+    if process is None:
+        return {"stdout": "", "stderr": ""}
+    stdout = ""
+    stderr = ""
+    if process.poll() is None:
+        return {"stdout": "", "stderr": ""}
+    try:
+        stdout, stderr = process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, stderr = process.communicate(timeout=5)
+    return {"stdout": stdout or "", "stderr": stderr or ""}
 
 
 def terminate_process(process: subprocess.Popen[str]) -> None:

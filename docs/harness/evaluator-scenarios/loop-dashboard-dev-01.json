@@ -6,7 +6,8 @@
       "scenario_id": "LOOP-DASHBOARD-CLICK-SMOKE",
       "user_goal": "As an operator, open the local Loop Dashboard, select loop runs, inspect task and agent summaries, view the visual flow, filter logs, and confirm completed runs are visible.",
       "prerequisites": [
-        "FastAPI and Playwright for Python are available.",
+        "FastAPI, uvicorn, and Playwright for Python are available.",
+        "The Playwright Chromium browser has been installed.",
         "The evaluator creates temporary loop-run fixture data and does not mutate real project artifacts."
       ],
       "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01",
@@ -25,7 +26,8 @@
         "Completed runs are visible.",
         "Log text is redacted before display.",
         "A 390px-wide viewport has no horizontal document overflow.",
-        "The evaluator writes result.json with status pass."
+        "The evaluator writes result.json with status pass and compact browser evidence.",
+        "The evaluator saves success.png as passing browser evidence."
       ],
       "failure_signals": [
         "The frontend reports failed to fetch.",
