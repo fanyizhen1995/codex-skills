@@ -509,6 +509,170 @@ class HarnessLoopContractsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "autonomous_implementation_task"):
             validate_planner_output_payload(payload)
 
+    def test_validate_run_payload_accepts_parent_and_child_run_kinds(self) -> None:
+        parent = self._run_payload()
+        parent.update(
+            {
+                "run_kind": "parent",
+                "phase": "planning",
+                "child_run_ids": ["demo-child-001"],
+                "current_child_run_id": "demo-child-001",
+                "backlog": [
+                    {
+                        "child_id": "child-001",
+                        "title": "Child",
+                        "description": "Do child work",
+                        "status": "running",
+                        "priority": 10,
+                        "depends_on": [],
+                        "evidence": [],
+                    }
+                ],
+                "aggregate_acceptance": {
+                    "total": 1,
+                    "passed": 0,
+                    "failed": 0,
+                    "blocked": 0,
+                    "pending": 1,
+                    "user_decision_required": False,
+                },
+                "reader_summary": {
+                    "purpose": "Build feature",
+                    "current_progress": "Planning",
+                    "next_step": "Run child",
+                    "decision_needed": "No",
+                },
+                "accepted_changed_paths": [],
+            }
+        )
+        validate_run_payload(parent)
+
+        child = self._run_payload()
+        child.update(
+            {
+                "run_kind": "child",
+                "parent_run_id": "demo-parent",
+                "child_index": 1,
+                "phase": "passed",
+                "reader_summary": {
+                    "purpose": "Child",
+                    "planner_action": "Planned child",
+                    "generator_action": "Implemented child",
+                    "evaluator_action": "Evaluated child",
+                    "acceptance_result": "Passed",
+                },
+            }
+        )
+        validate_run_payload(child)
+
+    def test_validate_run_payload_rejects_parent_child_phase_mismatch(self) -> None:
+        parent = self._run_payload()
+        parent.update(
+            {
+                "run_kind": "parent",
+                "phase": "generating",
+                "child_run_ids": [],
+                "current_child_run_id": "",
+                "backlog": [],
+                "aggregate_acceptance": {
+                    "total": 0,
+                    "passed": 0,
+                    "failed": 0,
+                    "blocked": 0,
+                    "pending": 0,
+                    "user_decision_required": False,
+                },
+                "reader_summary": {
+                    "purpose": "",
+                    "current_progress": "",
+                    "next_step": "",
+                    "decision_needed": "",
+                },
+                "accepted_changed_paths": [],
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "parent phase"):
+            validate_run_payload(parent)
+
+        child = self._run_payload()
+        child.update(
+            {
+                "run_kind": "child",
+                "parent_run_id": "demo-parent",
+                "child_index": 1,
+                "phase": "passed_waiting_human_merge",
+                "reader_summary": {
+                    "purpose": "",
+                    "planner_action": "",
+                    "generator_action": "",
+                    "evaluator_action": "",
+                    "acceptance_result": "",
+                },
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "child phase"):
+            validate_run_payload(child)
+
+    def test_validate_planner_output_payload_accepts_demand_parent_decisions(self) -> None:
+        payload = self._planner_payload()
+        payload.update(
+            {
+                "planner_decision": "next_child",
+                "next_child_task": {
+                    "child_id": "child-001",
+                    "title": "Child one",
+                    "description": "Implement child one",
+                    "allowed_paths": ["scripts/"],
+                    "denylist_paths": [".env"],
+                    "verify_commands": ["python3 -m unittest scripts.tests.test_harness_loop_contracts -v"],
+                    "scenario_commands": [],
+                    "done_criteria": ["contract tests pass"],
+                },
+                "backlog": [],
+                "blocked_reason": "",
+                "done_criteria": [],
+                "reader_summary": {
+                    "purpose": "Build",
+                    "current_progress": "Planning",
+                    "next_step": "Run child",
+                    "decision_needed": "No",
+                },
+                "decision_required": False,
+            }
+        )
+        validate_planner_output_payload(payload)
+
+        payload["planner_decision"] = "parent_done"
+        payload["next_child_task"] = {}
+        payload["done_criteria"] = ["all children passed"]
+        validate_planner_output_payload(payload)
+
+    def test_validate_planner_output_payload_rejects_invalid_decision_combinations(self) -> None:
+        payload = self._planner_payload()
+        payload.update(
+            {
+                "planner_decision": "next_child",
+                "next_child_task": {},
+                "backlog": [],
+                "blocked_reason": "",
+                "done_criteria": [],
+                "reader_summary": {
+                    "purpose": "",
+                    "current_progress": "",
+                    "next_step": "",
+                    "decision_needed": "",
+                },
+                "decision_required": False,
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "next_child_task"):
+            validate_planner_output_payload(payload)
+
+        payload["planner_decision"] = "blocked"
+        payload["blocked_reason"] = ""
+        with self.assertRaisesRegex(ValueError, "blocked_reason"):
+            validate_planner_output_payload(payload)
+
     def test_validate_loop_state_payload_accepts_no_action_shape(self) -> None:
         validate_loop_state_payload(self._loop_state_payload())
 

@@ -30,6 +30,11 @@ ALLOWED_PHASES = frozenset(
         "stopped_blocked",
     }
 )
+ALLOWED_RUN_KINDS = frozenset({"single", "parent", "child"})
+PARENT_ONLY_PHASES = frozenset({"planning", "child_running", "passed_waiting_human_merge"})
+CHILD_ONLY_PHASES = frozenset({"planned", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
+SHARED_PARENT_CHILD_PHASES = frozenset({"repair_needed", "stopped_budget", "stopped_blocked"})
+ALLOWED_PHASES = ALLOWED_PHASES | frozenset({"child_running", "passed"})
 ALLOWED_TASK_KINDS = frozenset(
     {
         "registered_task",
@@ -51,6 +56,7 @@ ALLOWED_LAST_RESULTS = frozenset({"pass", "fail", "blocked", "none"})
 ALLOWED_SCENARIO_COMMAND_STATUSES = frozenset({"pass", "fail", "timeout"})
 ALLOWED_ARTIFACT_HYGIENE_STATUSES = frozenset({"pass", "redacted", "blocked"})
 ALLOWED_PLANNER_DECISIONS = frozenset({"planned", "no_action", "blocked", "failed"})
+ALLOWED_DEMAND_PARENT_PLANNER_DECISIONS = frozenset({"next_child", "parent_done", "blocked", "failed"})
 REQUIRED_USER_SCENARIO_KEYS = frozenset(
     {
         "scenario_id",
@@ -135,6 +141,51 @@ def write_json_file(path: Path | str, payload: Mapping[str, Any]) -> Path:
     return json_path
 
 
+def _optional_run_kind(payload: dict[str, Any]) -> str:
+    run_kind = payload.get("run_kind", "single")
+    if not isinstance(run_kind, str):
+        raise ValueError("run_kind must be a string")
+    if run_kind not in ALLOWED_RUN_KINDS:
+        raise ValueError(f"unknown run_kind: {run_kind}")
+    return run_kind
+
+
+def _validate_run_kind_phase(run_kind: str, phase: str) -> None:
+    if run_kind == "parent" and phase not in (PARENT_ONLY_PHASES | SHARED_PARENT_CHILD_PHASES):
+        raise ValueError(f"parent phase is not allowed: {phase}")
+    if run_kind == "child" and phase not in (CHILD_ONLY_PHASES | SHARED_PARENT_CHILD_PHASES):
+        raise ValueError(f"child phase is not allowed: {phase}")
+
+
+def _require_reader_summary(payload: dict[str, Any], keys: set[str]) -> None:
+    summary = _require_object(payload.get("reader_summary"), "reader_summary")
+    _require_keys(summary, keys, "reader_summary")
+    for key in keys:
+        _require_string(summary, key)
+
+
+def _validate_parent_run_payload(payload: dict[str, Any]) -> None:
+    for key in ("child_run_ids", "backlog", "accepted_changed_paths"):
+        _require_list(payload, key)
+    _require_string(payload, "current_child_run_id")
+    aggregate = _require_object(payload.get("aggregate_acceptance"), "aggregate_acceptance")
+    for key in ("total", "passed", "failed", "blocked", "pending"):
+        _require_int(aggregate, key)
+    _require_bool(aggregate, "user_decision_required")
+    _require_reader_summary(payload, {"purpose", "current_progress", "next_step", "decision_needed"})
+
+
+def _validate_child_run_payload(payload: dict[str, Any]) -> None:
+    _require_string(payload, "parent_run_id")
+    if not payload["parent_run_id"]:
+        raise ValueError("child run requires parent_run_id")
+    _require_int(payload, "child_index")
+    _require_reader_summary(
+        payload,
+        {"purpose", "planner_action", "generator_action", "evaluator_action", "acceptance_result"},
+    )
+
+
 def validate_run_payload(payload: dict[str, Any]) -> None:
     _require_object(payload, "run payload")
     _require_keys(
@@ -166,6 +217,8 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
     validate_run_id(payload["run_id"])
     normalize_policy_id(payload["policy"])
     _require_enum(payload, "phase", ALLOWED_PHASES)
+    run_kind = _optional_run_kind(payload)
+    _validate_run_kind_phase(run_kind, payload["phase"])
     for key in ("task_id", "domain", "branch", "worktree", "requirement", "last_result", "next_action"):
         _require_string(payload, key)
     _require_enum(payload, "last_result", ALLOWED_LAST_RESULTS)
@@ -185,6 +238,10 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
     cleanup = _require_object(payload["cleanup"], "cleanup")
     for key in ("worktrees_removed", "processes_stopped", "retained_artifacts"):
         _require_list(cleanup, key)
+    if run_kind == "parent":
+        _validate_parent_run_payload(payload)
+    elif run_kind == "child":
+        _validate_child_run_payload(payload)
 
 
 def validate_planner_output_payload(payload: dict[str, Any]) -> None:
@@ -215,6 +272,67 @@ def validate_planner_output_payload(payload: dict[str, Any]) -> None:
         _require_string(payload, key)
     for key in ("non_goals", "allowed_paths", "denylist_paths", "verify_commands", "stop_conditions"):
         _require_list(payload, key)
+    if _has_multi_task_planner_fields(payload):
+        _validate_multi_task_planner_fields(payload)
+
+
+def _has_multi_task_planner_fields(payload: dict[str, Any]) -> bool:
+    return any(
+        key in payload
+        for key in (
+            "planner_decision",
+            "next_child_task",
+            "backlog",
+            "blocked_reason",
+            "done_criteria",
+            "reader_summary",
+            "decision_required",
+        )
+    )
+
+
+def _validate_next_child_task(payload: dict[str, Any]) -> None:
+    task = _require_object(payload, "next_child_task")
+    _require_keys(
+        task,
+        {
+            "child_id",
+            "title",
+            "description",
+            "allowed_paths",
+            "denylist_paths",
+            "verify_commands",
+            "scenario_commands",
+            "done_criteria",
+        },
+        "next_child_task",
+    )
+    for key in ("child_id", "title", "description"):
+        _require_string(task, key)
+        if not task[key]:
+            raise ValueError(f"next_child_task.{key} must not be empty")
+    for key in ("allowed_paths", "denylist_paths", "verify_commands", "scenario_commands", "done_criteria"):
+        _require_list(task, key)
+
+
+def _validate_multi_task_planner_fields(payload: dict[str, Any]) -> None:
+    _require_enum(payload, "planner_decision", ALLOWED_DEMAND_PARENT_PLANNER_DECISIONS)
+    _require_list(payload, "backlog")
+    _require_string(payload, "blocked_reason")
+    _require_list(payload, "done_criteria")
+    _require_reader_summary(payload, {"purpose", "current_progress", "next_step", "decision_needed"})
+    _require_bool(payload, "decision_required")
+    decision = payload["planner_decision"]
+    next_child_task = payload.get("next_child_task")
+    if decision == "next_child":
+        _validate_next_child_task(next_child_task)
+    else:
+        if isinstance(next_child_task, dict) and next_child_task:
+            raise ValueError("next_child_task must be empty unless planner_decision is next_child")
+        if decision == "parent_done" and not payload["done_criteria"]:
+            raise ValueError("done_criteria must not be empty for parent_done")
+        if decision in {"blocked", "failed"} and not payload["blocked_reason"]:
+            raise ValueError("blocked_reason must not be empty for blocked or failed")
 
 
 def validate_generator_result_payload(payload: dict[str, Any]) -> None:
