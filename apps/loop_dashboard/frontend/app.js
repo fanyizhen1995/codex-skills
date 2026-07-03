@@ -358,6 +358,7 @@ function renderFlow() {
   setChildren(els.flowDiagram, nodes.map((node) => {
     const status = text(node.status, "waiting");
     const block = el("div", `flow-node status-${status}`);
+    block.title = flowNodeTitle(node);
     const meta = el("div", "flow-node-meta");
     meta.append(
       el("div", "flow-hint", flowHint(node, state.detail)),
@@ -378,6 +379,7 @@ function renderAgents() {
   setChildren(els.agentCards, names.map((name) => {
     const agent = agents[name] || {};
     const card = el("button", `agent-card${state.agentFilter === name ? " is-selected" : ""}`);
+    card.title = `${agentLabel(name)}\n${text(agent.last_result)}\n${agentArtifactPaths(agent).join("\n")}`;
     card.type = "button";
     card.dataset.agent = name;
     card.setAttribute("aria-pressed", state.agentFilter === name ? "true" : "false");
@@ -484,11 +486,28 @@ function artifactList(paths, className = "artifact-list") {
     return wrapper;
   }
   const list = el("ul", "artifact-items");
-  normalized.forEach((path) => {
-    list.append(el("li", "", path));
+  normalized.slice(0, 2).forEach((path) => {
+    const item = el("li", "", path);
+    item.title = path;
+    list.append(item);
   });
+  if (normalized.length > 2) {
+    list.append(el("li", "artifact-more", `另有 ${normalized.length - 2} 条`));
+  }
   wrapper.append(list);
   return wrapper;
+}
+
+function flowNodeTitle(node) {
+  const lines = [text(node.label), statusLabel(node.status)];
+  if (node.current_action) {
+    lines.push(`动作：${actionLabel(node.current_action)}`);
+  }
+  if (node.recent_result) {
+    lines.push(`结果：${resultLabel(node.recent_result)}`);
+  }
+  lines.push(...normalizeList(node.artifact_paths));
+  return lines.join("\n");
 }
 
 function agentArtifactPaths(agent) {
