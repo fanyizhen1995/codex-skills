@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-07-03 Domain Channel Management Loop Execution Preference
+
+- User confirmed local merge for `crawler-domain-channels-model-01`.
+- For the remaining Domain Channel Management loop tasks, continue execution without stopping at each task's human merge gate unless a real blocker is encountered.
+- Report the final consolidated outcome after all registered loop tasks complete, or earlier only if the loop becomes blocked.
+
 ## 2026-07-03 Domain Channel Management Model
 
 - Completed `crawler-domain-channels-model-01`: added backend channel schema, migration compatibility, generated channel assignment for source profiles, one-time `sources.yaml` seed import, source `fetcher_type` compatibility fields, channel list API, and channel fields on source list responses.
