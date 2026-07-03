@@ -294,7 +294,7 @@ def _block_child(repo_root: Path, child: dict[str, Any], reason: str, *, actor: 
     return status_for_run(repo_root, child["run_id"])
 
 
-def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> dict[str, Any]:
+def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> tuple[dict[str, Any], str]:
     parent = _ensure_parent_fields(parent)
     accepted: set[str] = set()
     passed_count = 0
@@ -303,17 +303,24 @@ def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -
         if child.get("phase") != "passed":
             continue
         passed_count += 1
-        generator_result = read_json_file(run_dir_for(repo_root, child["run_id"]) / "generator-result.json")
-        validate_generator_result_payload(generator_result)
+        try:
+            generator_result = read_json_file(run_dir_for(repo_root, child["run_id"]) / "generator-result.json")
+            validate_generator_result_payload(generator_result)
+        except (OSError, RuntimeError, ValueError) as exc:
+            reason = f"passed child artifact invalid for {child['run_id']}: {exc}"
+            _block_parent(repo_root, parent, reason)
+            return parent, "blocked"
         accepted.update(str(path) for path in generator_result["changed_paths"])
     parent["accepted_changed_paths"] = sorted(accepted)
     parent["aggregate_acceptance"]["passed"] = passed_count
     parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
-    return parent
+    return parent, "ok"
 
 
 def _reconcile_demand_parent_children(repo_root: Path, parent: dict[str, Any]) -> str:
-    parent = _reconcile_passed_demand_children(repo_root, parent)
+    parent, status = _reconcile_passed_demand_children(repo_root, parent)
+    if status == "blocked":
+        return "blocked"
     for child_run_id in parent["child_run_ids"]:
         child = load_run(repo_root, str(child_run_id))
         if child.get("phase") == "passed":
@@ -1432,7 +1439,9 @@ def run_demand_multi(
                 child_id=f"child-{int(current_child['child_index']):03d}",
                 details={"child_run_id": current_child["run_id"]},
             )
-            parent = _reconcile_passed_demand_children(root, parent)
+            parent, reconcile_status = _reconcile_passed_demand_children(root, parent)
+            if reconcile_status == "blocked":
+                return status_for_run(root, run_id)
             parent["phase"] = "planning"
             parent["next_action"] = "run_parent_planner"
             parent["reader_summary"]["current_progress"] = f"{parent['aggregate_acceptance']['passed']} children passed"

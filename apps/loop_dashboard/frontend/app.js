@@ -45,6 +45,20 @@ const AGENT_LABELS = {
   evaluator: "Evaluator",
 };
 
+const ACTION_LABELS = {
+  run_parent_planner: "运行父 Planner",
+  run_child_generator: "运行子任务 Generator",
+  resume_current_child: "继续当前子任务",
+  repair_child: "修复子任务",
+  return_to_parent_planner: "返回父 Planner",
+  run_generator: "运行 Generator",
+  run_generator_repair: "Generator 修复",
+  repair_and_reevaluate: "修复后回到 Evaluator",
+  run_evaluator: "运行 Evaluator",
+  await_human_merge_confirmation: "等待人工合并确认",
+  proceed_to_user_acceptance: "进入用户验收",
+};
+
 const state = {
   project: null,
   runs: [],
@@ -861,18 +875,13 @@ function policyLabel(policy) {
 }
 
 function actionLabel(action) {
-  const labels = {
-    run_generator: "运行 Generator",
-    run_generator_repair: "Generator 修复",
-    repair_and_reevaluate: "修复后回到 Evaluator",
-    run_evaluator: "运行 Evaluator",
-    await_human_merge_confirmation: "等待人工合并确认",
-    proceed_to_user_acceptance: "进入用户验收",
-  };
-  return labels[action] || text(action);
+  return ACTION_LABELS[action] || text(action);
 }
 
 function resultLabel(result) {
+  if (ACTION_LABELS[result]) {
+    return ACTION_LABELS[result];
+  }
   const labels = {
     pass: "通过",
     fail: "失败",

@@ -806,6 +806,15 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(parent_detail).to_contain_text("Planner 选择了这个子任务")
             expect(parent_detail).to_contain_text("Evaluator 模拟用户检查")
             parent_detail_excerpt = parent_detail.inner_text()[:800]
+            for internal_action in [
+                "run_parent_planner",
+                "run_child_generator",
+                "resume_current_child",
+                "repair_child",
+                "return_to_parent_planner",
+            ]:
+                if internal_action in parent_detail.inner_text():
+                    raise AssertionError(f"dashboard should translate internal action id: {internal_action}")
             tabs.get_by_role("tab", name="阻塞诊断").click()
             expect(page.get_by_test_id("blocked-diagnostics")).to_contain_text("child_artifact_missing")
             tabs.get_by_role("tab", name="日志").click()

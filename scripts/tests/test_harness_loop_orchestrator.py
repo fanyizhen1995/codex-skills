@@ -3066,6 +3066,52 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertIn("resume", parent_events)
             self.assertNotIn("unexpected dirty path", parent_events)
 
+    def test_run_demand_multi_blocks_when_passed_child_generator_result_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "missing-child-artifact-parent")
+            first = run_demand_multi(
+                repo_root=repo_root,
+                run_id="missing-child-artifact-parent",
+                planner_driver="fake",
+                generator_driver="fake-stop-after-child-1",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+            self.assertEqual(first["phase"], "child_running")
+            parent_before = read_json_file(run_dir_for(repo_root, "missing-child-artifact-parent") / "run.json")
+            first_child = parent_before["child_run_ids"][0]
+            (run_dir_for(repo_root, first_child) / "generator-result.json").unlink()
+            parent_before["aggregate_acceptance"]["passed"] = 0
+            parent_before["aggregate_acceptance"]["pending"] = parent_before["aggregate_acceptance"]["total"]
+            parent_before["accepted_changed_paths"] = []
+            parent_before["phase"] = "child_running"
+            parent_before["current_child_run_id"] = first_child
+            parent_before["next_action"] = "resume_current_child"
+            write_json_file(run_dir_for(repo_root, "missing-child-artifact-parent") / "run.json", parent_before)
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="missing-child-artifact-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+
+            parent_after = read_json_file(run_dir_for(repo_root, "missing-child-artifact-parent") / "run.json")
+            parent_events = (run_dir_for(repo_root, "missing-child-artifact-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(payload["phase"], "stopped_blocked")
+            self.assertEqual(parent_after["phase"], "stopped_blocked")
+            self.assertEqual(parent_after["last_result"], "blocked")
+            self.assertEqual(parent_after["next_action"], "inspect_blocked_diagnostics")
+            self.assertTrue(parent_after["aggregate_acceptance"]["user_decision_required"])
+            self.assertNotIn("generated/child-001.txt", parent_after["accepted_changed_paths"])
+            self.assertIn("passed child artifact invalid", parent_events)
+            self.assertIn(first_child, parent_events)
+
     def test_run_demand_multi_reconciles_existing_unpassed_child_before_planning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
