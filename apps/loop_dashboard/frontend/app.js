@@ -491,8 +491,9 @@ function renderChildQueue(children) {
   children.forEach((child) => {
     const card = el("article", "child-card");
     const reader = child.reader_summary || {};
+    const titlePrefix = childIndexPrefix(child.child_index);
     card.append(
-      el("div", "child-card-title", `${child.child_index || ""}. ${text(child.task_description || child.task_summary || child.run_id)}`),
+      el("div", "child-card-title", `${titlePrefix}${text(child.task_description || child.task_summary || child.run_id)}`),
       el("div", "child-card-meta", `${phaseLabel(child.phase)} · ${text(child.run_id)}`),
       childReaderRow("Planner", reader.planner_action),
       childReaderRow("Generator", reader.generator_action),
@@ -502,6 +503,11 @@ function renderChildQueue(children) {
     section.append(card);
   });
   return section;
+}
+
+function childIndexPrefix(childIndex) {
+  const normalized = Number(childIndex);
+  return Number.isFinite(normalized) && normalized !== 0 ? `${normalized}. ` : "";
 }
 
 function childReaderRow(label, value) {
@@ -705,6 +711,7 @@ function dedupeDiagnostics(diagnostics) {
       diagnostic.message,
       diagnostic.source,
       evidence,
+      diagnostic.severity,
     ].map((value) => text(value, "")).join("|");
     if (seen.has(key)) {
       return false;
