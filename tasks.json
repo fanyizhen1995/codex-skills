@@ -72,7 +72,7 @@
       "status": "in_progress",
       "priority": "high",
       "blocked_by": "planner-generator-evaluator-loop-phase-3-01",
-      "verify": "python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 -m unittest scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_evaluator_scenarios -v && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-dashboard-dev-01.json >/dev/null && git diff --check",
+      "verify": "PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 -m unittest scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_evaluator_scenarios -v && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-dashboard-dev-01.json >/dev/null && git diff --check",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,

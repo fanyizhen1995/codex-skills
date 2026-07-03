@@ -260,6 +260,16 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         self.assertNotIn(".worktrees", entrypoint)
         self.assertIn("personal-wiki/apps/crawler_workbench/backend", entrypoint)
 
+    def test_loop_dashboard_dev_entrypoint_is_registered(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+
+        contract = load_task_scenarios(repo_root, "loop-dashboard-dev-01")
+
+        self.assertEqual(contract["task_id"], "loop-dashboard-dev-01")
+        self.assertTrue(contract["must_simulate"])
+        self.assertEqual(contract["user_scenarios"][0]["automation_hint"], "playwright")
+        self.assertIn("scripts/loop_dashboard_evaluator.py", contract["user_scenarios"][0]["entrypoint"])
+
     def test_compute_accelerator_spec_extraction_contract_is_registered(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         contract = load_task_scenarios(repo_root, "compute-accelerator-spec-extraction-01")

@@ -1,0 +1,45 @@
+{
+  "task_id": "loop-dashboard-dev-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "LOOP-DASHBOARD-CLICK-SMOKE",
+      "user_goal": "As an operator, open the local Loop Dashboard, select loop runs, inspect task and agent summaries, view the visual flow, filter logs, and confirm completed runs are visible.",
+      "prerequisites": [
+        "FastAPI and Playwright for Python are available.",
+        "The evaluator creates temporary loop-run fixture data and does not mutate real project artifacts."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01",
+      "steps": [
+        "Create fixture loop runs covering active repair, passed_waiting_human_merge, stopped_no_action, stopped_budget, and stopped_blocked states.",
+        "Start the dashboard backend against the temporary fixture project root.",
+        "Open the dashboard in a browser.",
+        "Click the active run and verify task description, phase, next action, agent cards, blocked diagnostics, and flow diagram.",
+        "Filter logs by stderr and by keyword.",
+        "Click completed runs and verify their terminal states remain visible.",
+        "Check a mobile-width viewport for horizontal overflow."
+      ],
+      "expected_outcomes": [
+        "The dashboard page renders in Chinese.",
+        "Run selection updates detail, flow diagram, agent cards, logs, and diagnostics.",
+        "Completed runs are visible.",
+        "Log text is redacted before display.",
+        "A 390px-wide viewport has no horizontal document overflow.",
+        "The evaluator writes result.json with status pass."
+      ],
+      "failure_signals": [
+        "The frontend reports failed to fetch.",
+        "Clicking a run does not update detail.",
+        "Planner, Generator, or Evaluator summaries are missing.",
+        "Log filtering does not change visible entries.",
+        "Completed run states are hidden.",
+        "The mobile-width viewport overflows horizontally."
+      ],
+      "cleanup": [
+        "Stop the temporary dashboard server.",
+        "Remove temporary fixture directories after writing evaluator evidence."
+      ],
+      "automation_hint": "playwright"
+    }
+  ]
+}
