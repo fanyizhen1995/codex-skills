@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-07-03 Loop Dashboard
+
+- Completed `loop-dashboard-dev-01`: added an independent read-only Loop Dashboard for current-project loop runs, agent summaries, visual flow, logs/events, completed states, and blocked diagnostics.
+- Added a Chinese frontend and browser-click evaluator that starts the dashboard against temporary fixture loop artifacts and validates run selection, agent cards, flow diagram, log filtering, redaction, and completed states with Playwright.
+- Documented the dashboard startup command, `LOOP_DASHBOARD_PROJECT_ROOT` override for other projects, read-only backend boundary, and evaluator command in `docs/harness/planner-generator-evaluator-loop.md`.
+- Marked `loop-dashboard-dev-01` done in `tasks.json`; the feature is waiting for human merge confirmation and is ready to use locally.
+- Evidence:
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests`
+  - `python3 -m unittest scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_evaluator_scenarios -v`
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01`
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-02 Planner Generator Evaluator Loop Phase 3
 
 - Completed `planner-generator-evaluator-loop-phase-3-01`: added the Phase 3 autonomous smoke helper, evaluator scenario, and loop policy fixtures for demand-development and autonomous-knowledge.

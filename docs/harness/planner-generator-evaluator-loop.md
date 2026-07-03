@@ -230,6 +230,44 @@ at `stopped_no_action`. It prints JSON containing `phase`, `next_action`,
 `--isolate-clone` is intended only for disposable clones; the helper refuses to
 overwrite dirty smoke loop-state or generated raw paths.
 
+## Loop Dashboard
+
+The local read-only Loop Dashboard lives under `apps/loop_dashboard/`. Start it
+from a project checkout to monitor that current project by default:
+
+```bash
+PYTHONPATH=apps/loop_dashboard/backend \
+python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+```
+
+Open `http://127.0.0.1:8766`. The frontend is Chinese and polls the backend for
+loop runs, agent summaries, flow state, events, logs, completed states, and
+blocked diagnostics. The backend only reads loop/evaluator artifacts from the
+configured project root; it does not execute, delete, restart, merge, or roll
+back loop runs.
+
+To inspect a different project, point `LOOP_DASHBOARD_PROJECT_ROOT` at that
+checkout:
+
+```bash
+PYTHONPATH=apps/loop_dashboard/backend \
+LOOP_DASHBOARD_PROJECT_ROOT=/path/to/other/project \
+python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+```
+
+Browser-click evaluator:
+
+```bash
+python3 scripts/loop_dashboard_evaluator.py \
+  --repo-root . \
+  --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01
+```
+
+The evaluator starts the dashboard against a temporary fixture project, opens
+the page with Playwright, clicks through run selection, agent cards, flow state,
+log filtering, redaction, and completed states, then writes the result bundle
+under the requested output directory.
+
 ## Human Merge Gate
 
 Evaluator pass does not mean the loop is merged. A passing evaluator result

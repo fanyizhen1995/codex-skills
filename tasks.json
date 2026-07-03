@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-03",
-  "current_focus": "Loop Dashboard development is in progress: an independent read-only dashboard will visualize current-project loop runs, agents, skills/tools/logs, completed states, and blocked diagnostics, validated through a browser-click evaluator.",
+  "current_focus": "Loop Dashboard is complete and waiting for human merge confirmation; the read-only dashboard is ready to use for current-project loop monitoring.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -69,7 +69,7 @@
       "id": "loop-dashboard-dev-01",
       "title": "Build local Planner Generator Evaluator loop dashboard",
       "description": "Implement an independent read-only local dashboard for monitoring the current project's loop runs, agent status, skills/tools/logs, completed states, and blocked diagnostics; validate it through a browser-click evaluator scenario and use the demand-development loop workflow to reach the human merge gate.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "planner-generator-evaluator-loop-phase-3-01",
       "verify": "PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 -m unittest scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_evaluator_scenarios -v && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-dashboard-dev-01.json >/dev/null && git diff --check",
