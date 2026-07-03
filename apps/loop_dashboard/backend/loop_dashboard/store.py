@@ -66,7 +66,7 @@ class LoopDashboardStore:
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
         source = self._run_source(run_id)
-        if source is None or not source.run_dir.is_dir() or not (source.run_dir / "run.json").exists():
+        if source is None or not source.run_dir.is_dir():
             return None
         run_dir = source.run_dir
         summary = self._load_run_summary(run_dir, source.source_kind)
@@ -222,7 +222,7 @@ class LoopDashboardStore:
 
     def _run_kind(self, run_data: dict[str, Any]) -> str:
         value = run_data.get("run_kind")
-        return str(value) if value in {"parent", "child"} else "single"
+        return value if isinstance(value, str) and value in {"parent", "child"} else "single"
 
     def _safe_child_run_id(self, run_id: str) -> bool:
         return self._safe_run_id(run_id)
@@ -439,8 +439,8 @@ class LoopDashboardStore:
         self,
         all_runs: dict[str, tuple[RunSource, dict[str, Any]]],
     ) -> dict[str, list[str]]:
-        parents_by_child: dict[str, set[str]] = {}
-        for parent_run_id, (_parent_source, parent_data) in all_runs.items():
+        parents_by_child: dict[str, dict[str, str]] = {}
+        for parent_run_id, (parent_source, parent_data) in all_runs.items():
             if self._run_kind(parent_data) != "parent":
                 continue
             child_run_ids = parent_data.get("child_run_ids")
@@ -450,10 +450,14 @@ class LoopDashboardStore:
                 child_run_id = str(item)
                 if not self._safe_child_run_id(child_run_id):
                     continue
-                parents_by_child.setdefault(child_run_id, set()).add(parent_run_id)
+                parents_by_child.setdefault(child_run_id, {})[parent_run_id] = self._updated_at(parent_source.run_dir)
         return {
-            child_run_id: sorted(parent_ids)
-            for child_run_id, parent_ids in parents_by_child.items()
+            child_run_id: sorted(
+                parent_updated_at,
+                key=lambda parent_id: (parent_updated_at[parent_id], parent_id),
+                reverse=True,
+            )
+            for child_run_id, parent_updated_at in parents_by_child.items()
         }
 
     def _child_sort_index(self, value: Any) -> int:

@@ -84,18 +84,60 @@ def test_api_returns_404_for_missing_run_and_traversal_run_id(tmp_path: Path) ->
     assert traversal.status_code == 404
 
 
-def test_api_returns_invalid_run_detail_for_listed_malformed_run(tmp_path: Path) -> None:
+def test_api_returns_invalid_run_detail_for_listed_malformed_and_empty_runs(tmp_path: Path) -> None:
     broken = tmp_path / ".codex" / "loop-runs" / "broken-run"
     broken.mkdir(parents=True)
     (broken / "run.json").write_text("{bad json", encoding="utf-8")
+    (tmp_path / ".codex" / "loop-runs" / "empty-run").mkdir(parents=True)
     client = TestClient(create_app(project_root=tmp_path))
 
     runs = client.get("/api/runs").json()
-    detail = client.get("/api/runs/broken-run")
+    broken_detail = client.get("/api/runs/broken-run")
+    empty_detail = client.get("/api/runs/empty-run")
 
     assert any(run["run_id"] == "broken-run" and run["phase"] == "invalid_artifact" for run in runs)
+    assert any(run["run_id"] == "empty-run" and run["phase"] == "invalid_artifact" for run in runs)
+    assert broken_detail.status_code == 200
+    assert broken_detail.json()["phase"] == "invalid_artifact"
+    assert empty_detail.status_code == 200
+    assert empty_detail.json()["blocked_diagnostics"][0]["kind"] == "invalid_artifact"
+
+
+def test_api_handles_non_string_run_kind(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "weird-run" / "run.json",
+        {
+            "run_id": "weird-run",
+            "run_kind": [],
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "weird-run-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "API should tolerate malformed run_kind",
+            "constraints": [],
+            "stop_conditions": ["passed"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 0, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    runs = client.get("/api/runs")
+    detail = client.get("/api/runs/weird-run")
+
+    assert runs.status_code == 200
+    assert next(run for run in runs.json() if run["run_id"] == "weird-run")["run_kind"] == "single"
     assert detail.status_code == 200
-    assert detail.json()["phase"] == "invalid_artifact"
+    assert detail.json()["run_kind"] == "single"
 
 
 def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monkeypatch) -> None:

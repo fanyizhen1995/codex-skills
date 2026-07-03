@@ -888,6 +888,10 @@ def test_multi_parent_explicit_orphan_child_has_single_owner_and_diagnostic(tmp_
                 "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
             },
         )
+    older = 1_700_000_000
+    newer = 1_800_000_000
+    os.utime(tmp_path / ".codex" / "loop-runs" / "parent-a" / "run.json", (older, older))
+    os.utime(tmp_path / ".codex" / "loop-runs" / "parent-b" / "run.json", (newer, newer))
     write_json(
         tmp_path / ".codex" / "loop-runs" / "shared-child" / "run.json",
         {
@@ -918,9 +922,9 @@ def test_multi_parent_explicit_orphan_child_has_single_owner_and_diagnostic(tmp_
     detail_a = LoopDashboardStore(tmp_path).get_run("parent-a")
     detail_b = LoopDashboardStore(tmp_path).get_run("parent-b")
 
-    assert [child["run_id"] for child in detail_a["children"]] == ["shared-child"]
-    assert [child["run_id"] for child in detail_b["children"]] == []
-    assert any(item["kind"] == "child_multi_parent_conflict" for item in detail_b["relationship_diagnostics"])
+    assert [child["run_id"] for child in detail_a["children"]] == []
+    assert [child["run_id"] for child in detail_b["children"]] == ["shared-child"]
+    assert any(item["kind"] == "child_multi_parent_conflict" for item in detail_a["relationship_diagnostics"])
 
 
 def test_single_run_without_run_kind_remains_top_level(tmp_path: Path) -> None:
@@ -1232,3 +1236,53 @@ def test_invalid_run_json_detail_is_available_from_listed_run(tmp_path: Path) ->
     assert detail["run_id"] == "broken-run"
     assert detail["phase"] == "invalid_artifact"
     assert detail["blocked_diagnostics"][0]["kind"] == "invalid_artifact"
+
+
+def test_empty_run_directory_detail_is_available_from_listed_run(tmp_path: Path) -> None:
+    (tmp_path / ".codex" / "loop-runs" / "empty-run").mkdir(parents=True)
+
+    store = LoopDashboardStore(tmp_path)
+    runs = store.list_runs()
+    detail = store.get_run("empty-run")
+
+    assert any(run["run_id"] == "empty-run" and run["phase"] == "invalid_artifact" for run in runs)
+    assert detail is not None
+    assert detail["run_id"] == "empty-run"
+    assert detail["phase"] == "invalid_artifact"
+    assert detail["blocked_diagnostics"][0]["kind"] == "invalid_artifact"
+
+
+def test_weird_run_kind_falls_back_to_single_without_crashing(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "weird-run" / "run.json",
+        {
+            "run_id": "weird-run",
+            "run_kind": [],
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "weird-run-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Weird run kind should not crash",
+            "constraints": [],
+            "stop_conditions": ["passed"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 0, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+
+    store = LoopDashboardStore(tmp_path)
+    runs = store.list_runs()
+    detail = store.get_run("weird-run")
+
+    listed = next(run for run in runs if run["run_id"] == "weird-run")
+    assert listed["run_kind"] == "single"
+    assert detail["run_kind"] == "single"
