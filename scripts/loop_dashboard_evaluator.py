@@ -21,13 +21,16 @@ CHECKED = [
     "打开 Loop Dashboard 并确认标题、项目路径和运行目录可见",
     "选择运行记录并查看完整任务摘要",
     "确认页面为左侧选运行、右侧看结论的两栏结构",
+    "通过 API 验证父需求、子任务顺序、旧单任务兼容和冲突诊断",
+    "通过 API 验证 unsafe run_id 返回 404 且不绕过 store safe-id",
     "通过 tabs 查看概览、Agent 结果、验收、日志、阻塞诊断和产物",
     "查看流程图中的当前阶段、跳过节点和人工合并节点",
     "查看 Planner、Generator、Evaluator 的状态说明",
     "查看验收 tab 中的模拟用户验收场景",
     "查看阻塞诊断 tab 中的 evaluator finding",
+    "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
     "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
-    "确认敏感 token 在日志中被脱敏",
+    "确认父子任务事件和日志中的敏感 token 已脱敏",
     "切换查看已完成、无需操作、预算耗尽和阻塞运行",
     "查看项目 worktree 中的已完成历史运行，并确认详情展示来源路径",
     "在 390px 移动端宽度确认页面没有横向溢出",
@@ -613,23 +616,97 @@ def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
         runs = json.loads(response.read().decode("utf-8"))
     if not isinstance(runs, list):
         raise AssertionError("/api/runs should return a JSON list")
-    parent = next(run for run in runs if run["run_id"] == "parent-run")
-    assert parent["run_kind"] == "parent"
-    assert parent["children_summary"]["total"] >= 2
+    parent = find_run_summary(runs, "parent-run")
+    expect_equal(parent.get("run_kind"), "parent", "parent-run should be listed as run_kind=parent")
+    expect_children_summary(parent, "parent-run list summary")
+    run_ids = [run.get("run_id") for run in runs if isinstance(run, dict)]
+    for child_id in ["parent-run-child-001", "parent-run-child-002"]:
+        if child_id in run_ids:
+            raise AssertionError(f"owned child run should not appear as a top-level run: {child_id}")
+    legacy = find_run_summary(runs, "legacy-single")
+    expect_equal(legacy.get("run_kind"), "single", "legacy-single should remain visible as run_kind=single")
+
     detail = read_json_url(f"{base_url}/api/runs/parent-run")
-    assert detail["children"]
-    assert detail["reader_summary"]["purpose"]
-    assert "relationship_diagnostics" in detail
+    children = detail.get("children")
+    if not isinstance(children, list) or not children:
+        raise AssertionError("parent-run detail should include child summaries")
+    child_ids = [child.get("run_id") for child in children if isinstance(child, dict)]
+    expect_equal(child_ids, ["parent-run-child-001", "parent-run-child-002"], "parent-run children should be sorted by child_index")
+    expect_children_summary(detail, "parent-run detail summary")
+    reader_summary = detail.get("reader_summary")
+    if not isinstance(reader_summary, dict) or not reader_summary.get("purpose"):
+        raise AssertionError("parent-run detail should include reader_summary.purpose")
+    if "relationship_diagnostics" not in detail:
+        raise AssertionError("parent-run detail should include relationship_diagnostics")
     events = read_json_url(f"{base_url}/api/runs/parent-run/events")["events"]
-    assert any(event["kind"] == "plan" for event in events)
-    assert all("secret-token" not in str(event) for event in events)
+    if not isinstance(events, list):
+        raise AssertionError("parent-run events endpoint should return an events list")
+    if not any(isinstance(event, dict) and event.get("kind") == "plan" for event in events):
+        raise AssertionError("parent-run events should include child plan events")
+    if any("secret-token" in str(event) for event in events):
+        raise AssertionError("parent-run events should redact fixture secret-token")
+
+    conflict = read_json_url(f"{base_url}/api/runs/conflict-parent")
+    conflict_children = conflict.get("children")
+    if not isinstance(conflict_children, list):
+        raise AssertionError("conflict-parent detail should include a children list")
+    if any(isinstance(child, dict) and child.get("run_id") == "parent-run-child-001" for child in conflict_children):
+        raise AssertionError("conflict-parent should not silently include parent-run-child-001")
+    conflict_diagnostics = diagnostics_from(conflict, "relationship_diagnostics") + diagnostics_from(conflict, "blocked_diagnostics")
+    conflict_kinds = {diagnostic.get("kind") for diagnostic in conflict_diagnostics if isinstance(diagnostic, dict)}
+    if not conflict_kinds.intersection({"child_parent_conflict", "child_multi_parent_conflict"}):
+        raise AssertionError(f"conflict-parent should expose a child conflict diagnostic, got {sorted(conflict_kinds)}")
+
+    checked_unsafe_paths = []
+    for unsafe_path in ["..%2Foutside", "%2E%2E", "%5C..%5Coutside", "..%5Coutside"]:
+        expect_http_404(f"{base_url}/api/runs/{unsafe_path}", f"unsafe run lookup should return 404: {unsafe_path}")
+        checked_unsafe_paths.append(unsafe_path)
+    return {
+        "parent_children": len(children),
+        "events": len(events),
+        "conflict_diagnostics": sorted(str(kind) for kind in conflict_kinds),
+        "unsafe_404_cases": checked_unsafe_paths,
+    }
+
+
+def find_run_summary(runs: list[object], run_id: str) -> dict[str, object]:
+    for run in runs:
+        if isinstance(run, dict) and run.get("run_id") == run_id:
+            return run
+    available = sorted(str(run.get("run_id")) for run in runs if isinstance(run, dict) and run.get("run_id"))
+    raise AssertionError(f"/api/runs should include {run_id}; available run ids: {available}")
+
+
+def expect_equal(actual: object, expected: object, message: str) -> None:
+    if actual != expected:
+        raise AssertionError(f"{message}: expected {expected!r}, got {actual!r}")
+
+
+def expect_children_summary(payload: dict[str, object], context: str) -> None:
+    summary = payload.get("children_summary")
+    if not isinstance(summary, dict):
+        raise AssertionError(f"{context} should include children_summary")
+    expected = {"total": 2, "passed": 1, "pending": 1}
+    for key, value in expected.items():
+        if summary.get(key) != value:
+            raise AssertionError(f"{context} children_summary.{key} should be {value}, got {summary.get(key)!r}")
+
+
+def diagnostics_from(payload: dict[str, object], key: str) -> list[dict[str, object]]:
+    diagnostics = payload.get(key)
+    if not isinstance(diagnostics, list):
+        raise AssertionError(f"{key} should be a list")
+    return [diagnostic for diagnostic in diagnostics if isinstance(diagnostic, dict)]
+
+
+def expect_http_404(url: str, message: str) -> None:
     try:
-        urllib.request.urlopen(f"{base_url}/api/runs/..%2Foutside", timeout=5)
+        urllib.request.urlopen(url, timeout=5)
     except urllib.error.HTTPError as exc:
-        assert exc.code == 404
-    else:
-        raise AssertionError("path traversal run lookup should return 404")
-    return {"parent_children": len(detail["children"]), "events": len(events)}
+        if exc.code != 404:
+            raise AssertionError(f"{message}: expected 404, got {exc.code}") from exc
+        return
+    raise AssertionError(message)
 
 
 def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
@@ -707,6 +784,13 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 raise AssertionError("parent/child dashboard has horizontal overflow at 390px viewport width")
             page.set_viewport_size({"width": 1280, "height": 900})
             page.get_by_test_id("log-keyword-filter").fill("")
+            click_run(page, "conflict-parent")
+            conflict_detail = page.get_by_test_id("run-detail")
+            expect(conflict_detail).to_contain_text("验证冲突父需求诊断")
+            expect(conflict_detail.locator(".child-queue")).to_contain_text("暂无子任务")
+            expect(conflict_detail.locator(".child-queue")).not_to_contain_text("parent-run-child-001")
+            tabs.get_by_role("tab", name="阻塞诊断").click()
+            expect(page.get_by_test_id("blocked-diagnostics")).to_contain_text("child parent conflict")
             click_run(page, "active-repair-run")
 
             overview_tab = page.get_by_test_id("tab-overview")
