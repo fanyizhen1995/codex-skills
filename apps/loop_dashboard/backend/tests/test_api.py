@@ -84,6 +84,20 @@ def test_api_returns_404_for_missing_run_and_traversal_run_id(tmp_path: Path) ->
     assert traversal.status_code == 404
 
 
+def test_api_returns_invalid_run_detail_for_listed_malformed_run(tmp_path: Path) -> None:
+    broken = tmp_path / ".codex" / "loop-runs" / "broken-run"
+    broken.mkdir(parents=True)
+    (broken / "run.json").write_text("{bad json", encoding="utf-8")
+    client = TestClient(create_app(project_root=tmp_path))
+
+    runs = client.get("/api/runs").json()
+    detail = client.get("/api/runs/broken-run")
+
+    assert any(run["run_id"] == "broken-run" and run["phase"] == "invalid_artifact" for run in runs)
+    assert detail.status_code == 200
+    assert detail.json()["phase"] == "invalid_artifact"
+
+
 def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monkeypatch) -> None:
     frontend_dir = tmp_path / "frontend"
     dist_dir = frontend_dir / "dist"

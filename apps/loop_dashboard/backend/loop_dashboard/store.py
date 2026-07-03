@@ -24,7 +24,7 @@ class RunSource(NamedTuple):
 
 class RunRecord(NamedTuple):
     source: RunSource
-    data: dict[str, Any]
+    data: dict[str, Any] | None
     updated_at: str
 
 
@@ -187,9 +187,7 @@ class LoopDashboardStore:
         records_by_id: dict[str, RunRecord] = {}
         for source in self._run_sources():
             data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
-            if not isinstance(data, dict):
-                continue
-            run_id = str(data.get("run_id") or source.run_dir.name)
+            run_id = str(data.get("run_id") or source.run_dir.name) if isinstance(data, dict) else source.run_dir.name
             if not self._safe_run_id(run_id):
                 continue
             updated_at = self._updated_at(source.run_dir)
@@ -198,7 +196,7 @@ class LoopDashboardStore:
                 previous.updated_at,
                 self._source_path(previous.source.run_dir),
             ):
-                records_by_id[run_id] = RunRecord(source, data, updated_at)
+                records_by_id[run_id] = RunRecord(source, data if isinstance(data, dict) else None, updated_at)
         return records_by_id
 
     def _dedupe_runs(self, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -233,6 +231,7 @@ class LoopDashboardStore:
         return {
             run_id: (record.source, record.data)
             for run_id, record in self._run_records_by_id().items()
+            if record.data is not None
         }
 
     def _load_run_summary(self, run_dir: Path, source_kind: str = "current") -> dict[str, Any]:
@@ -331,6 +330,7 @@ class LoopDashboardStore:
 
     def _children_for_parent(self, parent_run_id: str, parent_data: dict[str, Any]) -> tuple[list[ChildRun], list[dict[str, Any]]]:
         all_runs = self._all_run_data_by_id()
+        explicit_parents_by_child = self._explicit_parents_by_child(all_runs)
         parent_source = all_runs.get(parent_run_id, (None, {}))[0]
         parent_source_path = (
             self._relative_artifact(parent_source.run_dir / "run.json")
@@ -361,6 +361,16 @@ class LoopDashboardStore:
                     child_source_path,
                 )
                 return
+            explicit_parent_ids = explicit_parents_by_child.get(child_run_id, [])
+            if not child_parent_run_id and len(explicit_parent_ids) > 1:
+                owner_parent_id = explicit_parent_ids[0]
+                if parent_run_id != owner_parent_id:
+                    add_diagnostic(
+                        "child_multi_parent_conflict",
+                        f"child {child_run_id} is explicitly referenced by {', '.join(explicit_parent_ids)}; owner is {owner_parent_id}",
+                        child_source_path,
+                    )
+                    return
             if child_run_id in included:
                 return
             children.append(
@@ -424,6 +434,27 @@ class LoopDashboardStore:
             ),
             diagnostics,
         )
+
+    def _explicit_parents_by_child(
+        self,
+        all_runs: dict[str, tuple[RunSource, dict[str, Any]]],
+    ) -> dict[str, list[str]]:
+        parents_by_child: dict[str, set[str]] = {}
+        for parent_run_id, (_parent_source, parent_data) in all_runs.items():
+            if self._run_kind(parent_data) != "parent":
+                continue
+            child_run_ids = parent_data.get("child_run_ids")
+            if not isinstance(child_run_ids, list):
+                continue
+            for item in child_run_ids:
+                child_run_id = str(item)
+                if not self._safe_child_run_id(child_run_id):
+                    continue
+                parents_by_child.setdefault(child_run_id, set()).add(parent_run_id)
+        return {
+            child_run_id: sorted(parent_ids)
+            for child_run_id, parent_ids in parents_by_child.items()
+        }
 
     def _child_sort_index(self, value: Any) -> int:
         index = self._safe_int(value)

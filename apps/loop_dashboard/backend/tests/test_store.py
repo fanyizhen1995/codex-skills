@@ -857,6 +857,72 @@ def test_parent_child_structured_events_are_redacted(tmp_path: Path) -> None:
     assert "child-secret" not in messages
 
 
+def test_multi_parent_explicit_orphan_child_has_single_owner_and_diagnostic(tmp_path: Path) -> None:
+    for parent_id in ("parent-b", "parent-a"):
+        parent_dir = tmp_path / ".codex" / "loop-runs" / parent_id
+        write_json(
+            parent_dir / "run.json",
+            {
+                "run_id": parent_id,
+                "run_kind": "parent",
+                "policy": "demand_development",
+                "phase": "child_running",
+                "task_id": "",
+                "domain": "",
+                "branch": "main",
+                "worktree": str(tmp_path),
+                "requirement": f"{parent_id} requirement",
+                "constraints": [],
+                "stop_conditions": ["passed_waiting_human_merge"],
+                "baseline_dirty_paths": [],
+                "allowed_paths": [],
+                "denylist_paths": [],
+                "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+                "limits": {},
+                "last_result": "none",
+                "next_action": "run_parent_planner",
+                "attempt_history": [],
+                "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+                "child_run_ids": ["shared-child"],
+                "current_child_run_id": "shared-child",
+                "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 0, "blocked": 0, "pending": 1, "user_decision_required": False},
+            },
+        )
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "shared-child" / "run.json",
+        {
+            "run_id": "shared-child",
+            "run_kind": "child",
+            "child_index": 1,
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "shared-child-task",
+            "domain": "",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Shared child without parent_run_id",
+            "constraints": [],
+            "stop_conditions": ["passed"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_child_generator",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+        },
+    )
+
+    detail_a = LoopDashboardStore(tmp_path).get_run("parent-a")
+    detail_b = LoopDashboardStore(tmp_path).get_run("parent-b")
+
+    assert [child["run_id"] for child in detail_a["children"]] == ["shared-child"]
+    assert [child["run_id"] for child in detail_b["children"]] == []
+    assert any(item["kind"] == "child_multi_parent_conflict" for item in detail_b["relationship_diagnostics"])
+
+
 def test_single_run_without_run_kind_remains_top_level(tmp_path: Path) -> None:
     seed_run(tmp_path, "single-run", "passed_waiting_human_merge", last_result="pass", next_action="await_human_merge_confirmation")
 
@@ -1150,3 +1216,19 @@ def test_invalid_run_json_is_reported_without_breaking_other_runs(tmp_path: Path
     invalid = next(run for run in runs if run["run_id"] == "broken-run")
     assert invalid["phase"] == "invalid_artifact"
     assert invalid["health"] == "blocked"
+
+
+def test_invalid_run_json_detail_is_available_from_listed_run(tmp_path: Path) -> None:
+    broken = tmp_path / ".codex" / "loop-runs" / "broken-run"
+    broken.mkdir(parents=True)
+    (broken / "run.json").write_text("{bad json", encoding="utf-8")
+
+    store = LoopDashboardStore(tmp_path)
+    runs = store.list_runs()
+    detail = store.get_run("broken-run")
+
+    assert any(run["run_id"] == "broken-run" and run["phase"] == "invalid_artifact" for run in runs)
+    assert detail is not None
+    assert detail["run_id"] == "broken-run"
+    assert detail["phase"] == "invalid_artifact"
+    assert detail["blocked_diagnostics"][0]["kind"] == "invalid_artifact"
