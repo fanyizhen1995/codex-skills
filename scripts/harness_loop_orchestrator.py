@@ -223,18 +223,26 @@ def _dirty_paths_after_baseline(repo_root: Path, parent: dict[str, Any], child: 
 
 def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dict[str, Any]) -> bool:
     parent_run_id = str(parent["run_id"])
-    child_run_id = str(child["run_id"])
-    return path in {
+    child_run_ids = {str(run_id) for run_id in parent.get("child_run_ids", [])}
+    child_run_ids.add(str(child["run_id"]))
+    expected_paths = {
         f".codex/loop-runs/{parent_run_id}/events.jsonl",
         f".codex/loop-runs/{parent_run_id}/planner-output.json",
         f".codex/loop-runs/{parent_run_id}/preflight.md",
         f".codex/loop-runs/{parent_run_id}/run.json",
-        f".codex/loop-runs/{child_run_id}/events.jsonl",
-        f".codex/loop-runs/{child_run_id}/generator-result.json",
-        f".codex/loop-runs/{child_run_id}/planner-output.json",
-        f".codex/loop-runs/{child_run_id}/run.json",
-        f".codex/loop-runs/{child_run_id}/task-contract.json",
     }
+    for child_run_id in child_run_ids:
+        expected_paths.update(
+            {
+                f".codex/loop-runs/{child_run_id}/events.jsonl",
+                f".codex/loop-runs/{child_run_id}/evaluator-result.json",
+                f".codex/loop-runs/{child_run_id}/generator-result.json",
+                f".codex/loop-runs/{child_run_id}/planner-output.json",
+                f".codex/loop-runs/{child_run_id}/run.json",
+                f".codex/loop-runs/{child_run_id}/task-contract.json",
+            }
+        )
+    return path in expected_paths
 
 
 def _block_parent(repo_root: Path, parent: dict[str, Any], reason: str, *, actor: str = "orchestrator") -> dict[str, str]:
@@ -1121,6 +1129,7 @@ def _run_fake_demand_child(
             "fake-missing-artifact": "generator missing artifact",
         }[generator_driver]
         parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+        _block_child(repo_root, child, reason, actor="generator")
         _block_parent(repo_root, parent, reason, actor="generator")
         return
 

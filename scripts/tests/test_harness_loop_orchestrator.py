@@ -2539,6 +2539,30 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 self.assertEqual(child["phase"], "passed")
                 self.assertEqual(child["parent_run_id"], "parent-run")
 
+    def test_run_demand_multi_fake_in_git_repo_ignores_previous_child_internal_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            self._create_parent(repo_root, "git-parent")
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="git-parent",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+            )
+
+            parent = read_json_file(run_dir_for(repo_root, "git-parent") / "run.json")
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
+            self.assertEqual(parent["phase"], "passed_waiting_human_merge")
+            self.assertEqual(len(parent["child_run_ids"]), 3)
+            self.assertEqual(parent["aggregate_acceptance"]["passed"], 3)
+            parent_events = (run_dir_for(repo_root, "git-parent") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn("unexpected dirty path", parent_events)
+
     def test_run_demand_multi_repairs_same_failed_child_before_next_child(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -2905,6 +2929,11 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 parent = read_json_file(run_dir_for(repo_root, f"agent-{driver}") / "run.json")
                 self.assertEqual(payload["phase"], "stopped_blocked")
                 self.assertTrue(parent["aggregate_acceptance"]["user_decision_required"])
+                child = read_json_file(run_dir_for(repo_root, parent["child_run_ids"][0]) / "run.json")
+                self.assertEqual(child["phase"], "stopped_blocked")
+                self.assertEqual(child["last_result"], "blocked")
+                self.assertEqual(child["next_action"], "inspect_blocked_diagnostics")
+                self.assertFalse((run_dir_for(repo_root, child["run_id"]) / "evaluator-result.json").exists())
                 events = (run_dir_for(repo_root, f"agent-{driver}") / "events.jsonl").read_text(encoding="utf-8")
                 self.assertIn(expected, events)
                 reason = {
