@@ -80,6 +80,7 @@ class LoopDashboardStore:
                 continue
             events.append(Event("artifact", self._relative_artifact(path), f"updated {path.name}", self._mtime_iso(path)))
         for log in self._collect_logs(run_dir):
+            events.append(Event("log", log.source, self._summarize_log(log.content), log.updated_at))
             events.append(Event(log.stream, log.source, self._summarize_log(log.content), log.updated_at))
             lowered = log.content.lower()
             if "skill" in lowered:
@@ -107,6 +108,9 @@ class LoopDashboardStore:
         run_data = self._read_json(run_json)
         if not isinstance(run_data, dict):
             return self._invalid_summary(run_dir)
+        planner = self._read_json(run_dir / "planner-output.json")
+        if not isinstance(planner, dict):
+            planner = {}
         phase = str(run_data.get("phase") or "unknown")
         completed = phase in COMPLETED_PHASES
         artifacts = self._artifact_paths(run_dir)
@@ -124,6 +128,10 @@ class LoopDashboardStore:
             "agents": self._agents(run_dir, run_data),
             "blocked_diagnostics": self._blocked_diagnostics(run_dir, run_data),
             "artifact_paths": artifacts,
+            "constraints": run_data.get("constraints", []),
+            "stop_conditions": run_data.get("stop_conditions") or planner.get("stop_conditions", []),
+            "attempts": run_data.get("attempts", {}),
+            "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
         }
 
     def _invalid_summary(self, run_dir: Path) -> dict[str, Any]:
@@ -258,6 +266,9 @@ class LoopDashboardStore:
         evaluator = self._read_json(run_dir / "evaluator-result.json")
         if isinstance(evaluator, dict):
             diagnostics.extend(self._evaluator_diagnostics(evaluator, run_dir / "evaluator-result.json"))
+            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            if rich_path is not None and rich_evaluator is not None:
+                diagnostics.extend(self._evaluator_diagnostics(rich_evaluator, rich_path))
         for filename, kind in (
             ("dirty-paths-result.json", "dirty_paths"),
             ("supply-chain-result.json", "supply_chain"),
@@ -350,6 +361,9 @@ class LoopDashboardStore:
         evaluator = self._read_json(evaluator_path)
         if isinstance(evaluator, dict):
             logs.extend(self._inline_logs(evaluator, evaluator_path, run_dir))
+            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            if rich_path is not None and rich_evaluator is not None:
+                logs.extend(self._inline_logs(rich_evaluator, rich_path, rich_path.parent))
             scenario_path = evaluator.get("scenario_command_results_path")
             if isinstance(scenario_path, str) and scenario_path:
                 try:
@@ -387,6 +401,38 @@ class LoopDashboardStore:
 
         visit(payload)
         return logs
+
+    def _rich_evaluator_result(self, evaluator: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
+        task_id = evaluator.get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            return None, None
+        task_dir = self._safe_task_evaluation_dir(task_id)
+        if task_dir is None or not task_dir.exists():
+            return None, None
+        final_bundle_id = evaluator.get("final_bundle_id")
+        if isinstance(final_bundle_id, str) and final_bundle_id:
+            try:
+                final_result = safe_join(task_dir, f"{final_bundle_id}/result.json")
+            except ValueError:
+                final_result = None
+            if final_result is not None and final_result.exists():
+                payload = self._read_json(final_result)
+                if isinstance(payload, dict):
+                    return final_result, payload
+        candidates = [path for path in task_dir.glob("**/result.json") if path.is_file()]
+        if not candidates:
+            return None, None
+        latest = max(candidates, key=lambda path: path.stat().st_mtime)
+        payload = self._read_json(latest)
+        if not isinstance(payload, dict):
+            return None, None
+        return latest, payload
+
+    def _safe_task_evaluation_dir(self, task_id: str) -> Path | None:
+        try:
+            return safe_join(self.project_root / ".codex" / "evaluations" / "tasks", task_id)
+        except ValueError:
+            return None
 
     def _artifact_paths(self, run_dir: Path) -> list[str]:
         return [self._relative_artifact(path) for path in sorted(run_dir.iterdir()) if path.is_file()]

@@ -167,6 +167,10 @@ def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path
     assert active["agents"]["generator"]["last_result"] == "完成只读 API"
     assert active["agents"]["evaluator"]["status"] == "fail"
     assert active["blocked_diagnostics"][0]["kind"] == "evaluator_finding"
+    assert active["constraints"] == ["只读后端", "中文 UI"]
+    assert active["stop_conditions"] == ["passed_waiting_human_merge"]
+    assert active["attempts"]["generator"] == 1
+    assert active["flow_nodes"][0]["label"] == "Preflight"
     assert next(run for run in runs if run["run_id"] == "complete-run")["completed"] is True
 
 
@@ -181,6 +185,7 @@ def test_detail_includes_flow_nodes_events_and_redacted_logs(tmp_path: Path) -> 
     assert detail["flow_nodes"][0]["label"] == "Preflight"
     assert any(node["status"] == "running" for node in detail["flow_nodes"])
     assert any(event["kind"] == "artifact" for event in events)
+    assert any(event["kind"] == "log" and event["source"].endswith("planner-attempt-1.stdout.log") for event in events)
     assert any(event["kind"] == "skill" for event in events)
     assert any(log["stream"] == "stdout" for log in logs)
     joined = "\n".join(log["content"] for log in logs)
@@ -210,6 +215,66 @@ def test_simplified_evaluator_result_adds_blocked_diagnostic_and_inline_logs(tmp
     assert "api_key=[REDACTED]" in joined
     assert "inline-secret" not in joined
     assert "from-scenario" not in joined
+
+
+def test_rich_evaluator_bundle_result_is_merged_into_blocked_diagnostics_and_logs(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "bundle-run",
+        "repair_needed",
+        last_result="blocked",
+        next_action="repair_from_evaluator_findings",
+        evaluator_shape="simplified",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "bundle-run"
+    evaluator_result = json.loads((run_dir / "evaluator-result.json").read_text(encoding="utf-8"))
+    evaluator_result["final_bundle_id"] = "bundle-b"
+    write_json(run_dir / "evaluator-result.json", evaluator_result)
+    write_json(
+        tmp_path / ".codex" / "evaluations" / "tasks" / "loop-dashboard-dev-01" / "bundle-a" / "result.json",
+        {
+            "status": "fail",
+            "summary": "older result",
+            "findings": [
+                {
+                    "id": "OLD",
+                    "severity": "minor",
+                    "summary": "old finding",
+                }
+            ],
+        },
+    )
+    write_json(
+        tmp_path / ".codex" / "evaluations" / "tasks" / "loop-dashboard-dev-01" / "bundle-b" / "result.json",
+        {
+            "status": "fail",
+            "summary": "rich bundle found blocked diagnostics",
+            "stdout": "bundle stdout token=bundle-secret",
+            "findings": [
+                {
+                    "id": "BUNDLE-001",
+                    "severity": "critical",
+                    "category": "spec",
+                    "summary": "summary fallback",
+                    "evidence": ["rich bundle evidence"],
+                    "recommended_action": "include rich finding",
+                }
+            ],
+        },
+    )
+
+    store = LoopDashboardStore(tmp_path)
+    detail = store.get_run("bundle-run")
+    logs = store.get_logs("bundle-run")
+    events = store.get_events("bundle-run")
+
+    diagnostic = next(item for item in detail["blocked_diagnostics"] if item["title"] == "BUNDLE-001")
+    assert diagnostic["severity"] == "critical"
+    assert diagnostic["message"] == "include rich finding"
+    assert diagnostic["source"].endswith(".codex/evaluations/tasks/loop-dashboard-dev-01/bundle-b/result.json")
+    assert all(item["title"] != "OLD" for item in detail["blocked_diagnostics"])
+    assert any(log["source"] == "result.json:stdout" and "bundle-secret" not in log["content"] for log in logs)
+    assert any(event["kind"] == "log" and event["source"] == "result.json:stdout" for event in events)
 
 
 def test_missing_loop_runs_directory_returns_empty_list(tmp_path: Path) -> None:
