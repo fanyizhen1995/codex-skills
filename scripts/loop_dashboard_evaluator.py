@@ -118,7 +118,10 @@ def seed_run(
     index: int,
 ) -> None:
     run_dir = project_root / ".codex" / "loop-runs" / run_id
-    requirement = "实现独立本地 Loop Dashboard，监控 loop、agent、skill 和日志。"
+    requirement = (
+        "实现独立本地 Loop Dashboard，用于中文可视化监控当前项目 Planner Generator Evaluator loop、"
+        "agent、skill、日志、完成态和阻塞诊断；本次还需要验证开发流程并修复流程 bug。"
+    )
     write_json(
         run_dir / "run.json",
         {
@@ -413,6 +416,13 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             page.get_by_test_id("log-kind-filter").select_option("all")
             page.get_by_test_id("log-keyword-filter").fill("")
             click_run_and_expect_phase(page, expect, "passed-run", "通过，等待人工合并")
+            expect(detail).to_contain_text(
+                "实现独立本地 Loop Dashboard，用于中文可视化监控当前项目 Planner Generator Evaluator loop、"
+                "agent、skill、日志、完成态和阻塞诊断；本次还需要验证开发流程并修复流程 bug。"
+            )
+            expect(flow).to_contain_text("Repair Needed")
+            expect(flow).to_contain_text("跳过")
+            expect(flow).to_contain_text("本次未触发")
             click_run_and_expect_phase(page, expect, "no-action-run", "停止：无需操作")
             click_run_and_expect_phase(page, expect, "budget-run", "停止：预算耗尽")
             click_run_and_expect_phase(page, expect, "blocked-run", "停止：阻塞")

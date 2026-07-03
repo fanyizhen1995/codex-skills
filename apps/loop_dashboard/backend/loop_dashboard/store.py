@@ -117,10 +117,12 @@ class LoopDashboardStore:
         phase = str(run_data.get("phase") or "unknown")
         completed = phase in COMPLETED_PHASES
         artifacts = self._artifact_paths(run_dir)
+        task_description = self._task_description(run_data)
         return {
             "run_id": str(run_data.get("run_id") or run_dir.name),
             "project_root": str(self.project_root),
-            "task_summary": self._trim(str(run_data.get("requirement") or run_data.get("task_id") or FALLBACK_SUMMARY)),
+            "task_summary": self._trim(task_description),
+            "task_description": task_description,
             "policy": str(run_data.get("policy") or ""),
             "phase": phase,
             "last_result": str(run_data.get("last_result") or ""),
@@ -328,15 +330,19 @@ class LoopDashboardStore:
                 return "running"
             if evaluator_status in {"fail", "failed", "blocked"}:
                 return "done"
-            return "waiting"
+            return "skipped" if phase in COMPLETED_PHASES else "waiting"
         if node_id == "artifact_hygiene":
             if "artifact_hygiene" in next_action or phase == "artifact_hygiene":
                 return "running"
-            return "done" if (run_dir / "artifact-manifest.json").exists() else "waiting"
+            if (run_dir / "artifact-manifest.json").exists():
+                return "done"
+            return "skipped" if phase in COMPLETED_PHASES else "waiting"
         if node_id == "cleanup":
             if "cleanup" in next_action or phase == "cleanup":
                 return "running"
-            return "done" if (run_dir / "cleanup-result.json").exists() else "waiting"
+            if (run_dir / "cleanup-result.json").exists():
+                return "done"
+            return "skipped" if phase in COMPLETED_PHASES else "waiting"
         if node_id == "commit":
             if "commit" in next_action or phase == "commit":
                 return "running"
@@ -749,6 +755,9 @@ class LoopDashboardStore:
         if len(compact) <= limit:
             return compact
         return compact[: limit - 1] + "…"
+
+    def _task_description(self, run_data: dict[str, Any]) -> str:
+        return " ".join(str(run_data.get("requirement") or run_data.get("task_id") or FALLBACK_SUMMARY).split())
 
     def _summarize_log(self, content: str) -> str:
         first_line = next((line.strip() for line in content.splitlines() if line.strip()), "")

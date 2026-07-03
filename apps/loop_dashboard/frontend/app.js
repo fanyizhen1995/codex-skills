@@ -26,6 +26,7 @@ const STATUS_LABELS = {
   running: "运行中",
   waiting: "等待",
   blocked: "阻塞",
+  skipped: "跳过",
 };
 
 const AGENT_LABELS = {
@@ -331,7 +332,7 @@ function renderDetail() {
   }
   const grid = el("div", "detail-grid");
   [
-    ["任务描述", detail.task_summary, "wide"],
+    ["任务描述", detail.task_description || detail.task_summary, "wide"],
     ["运行 ID", detail.run_id, ""],
     ["策略", policyLabel(detail.policy), ""],
     ["阶段", phaseLabel(detail.phase), ""],
@@ -342,7 +343,8 @@ function renderDetail() {
     ["允许路径", listText(detail.allowed_paths || detail.artifact_paths), "wide"],
   ].forEach(([label, value, extra]) => {
     const item = el("div", `detail-item${extra ? ` ${extra}` : ""}`);
-    item.append(el("div", "detail-label", label), el("div", "detail-value", text(value)));
+    const valueClass = label === "任务描述" ? "detail-value full" : "detail-value";
+    item.append(el("div", "detail-label", label), el("div", valueClass, text(value)));
     grid.append(item);
   });
   nodes.push(grid);
@@ -605,6 +607,9 @@ function flowHint(node, detail) {
   const id = node.id || "";
   if (status === "blocked") {
     return id === "evaluator" ? "Evaluator 阻塞，修复后回到 Planner 或 Generator" : "需要处理阻塞后继续";
+  }
+  if (status === "skipped") {
+    return "本次未触发";
   }
   if (status === "running") {
     return `当前动作：${actionLabel(detail && detail.next_action)}`;

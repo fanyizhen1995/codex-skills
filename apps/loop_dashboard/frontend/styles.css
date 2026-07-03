@@ -271,6 +271,12 @@ button {
   background: var(--waiting-bg);
 }
 
+.status-skipped {
+  color: #5f6b7a;
+  background: #f5f7fa;
+  border-color: #ccd5df;
+}
+
 .status-blocked,
 .health-blocked {
   color: var(--blocked);

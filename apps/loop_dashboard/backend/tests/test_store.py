@@ -175,6 +175,26 @@ def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path
     assert next(run for run in runs if run["run_id"] == "complete-run")["completed"] is True
 
 
+def test_detail_keeps_full_task_description_while_list_uses_short_summary(tmp_path: Path) -> None:
+    seed_run(tmp_path, "long-run", "passed_waiting_human_merge", last_result="pass", next_action="await_human_merge_confirmation")
+    full_requirement = (
+        "实现独立本地 Loop Dashboard，用于中文可视化监控当前项目 Planner Generator Evaluator loop、"
+        "agent、skill、日志、完成态和阻塞诊断；本次还需要验证开发流程并修复流程 bug。"
+    )
+    run_json = tmp_path / ".codex" / "loop-runs" / "long-run" / "run.json"
+    run_data = json.loads(run_json.read_text(encoding="utf-8"))
+    run_data["requirement"] = full_requirement
+    write_json(run_json, run_data)
+
+    store = LoopDashboardStore(tmp_path)
+    listed = store.list_runs()[0]
+    detail = store.get_run("long-run")
+
+    assert listed["task_summary"].endswith("…")
+    assert listed["task_summary"] != full_requirement
+    assert detail["task_description"] == full_requirement
+
+
 def test_detail_includes_flow_nodes_events_and_redacted_logs(tmp_path: Path) -> None:
     seed_run(tmp_path, "active-run", "repair_needed", last_result="fail", next_action="run_generator_repair")
 
