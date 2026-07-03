@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-03",
-  "current_focus": "Domain Channel Management is in demand-development loop planning; first generator task is crawler-domain-channels-model-01.",
+  "current_focus": "Domain Channel Management model/API compatibility is complete; next loop task is channel secrets and probes.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -15,7 +15,7 @@
       "id": "crawler-domain-channels-model-01",
       "title": "Add crawler workbench domain channel model",
       "description": "Implement the backend schema migration, SQLite-as-source-of-truth import rules, generated channels, source channel_id and fetcher_type compatibility fields, and source/channel listing APIs for Domain Channel Management.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "",
       "verify": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channels_model.py tests/test_db_profiles.py tests/test_api.py tests/test_fetch_service_policy.py tests/test_scheduler.py && cd /home/fyz/codex-skills && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-model-01.json >/dev/null && git diff --check",
@@ -33,7 +33,7 @@
       "id": "crawler-domain-channels-probe-secrets-01",
       "title": "Add crawler workbench channel secrets and probes",
       "description": "Implement encrypted local channel secret storage, key-file lifecycle, probe APIs, probe history, channel readiness checks, and source-run blocking reasons without returning or persisting plaintext secrets.",
-      "status": "pending",
+      "status": "in_progress",
       "priority": "high",
       "blocked_by": "crawler-domain-channels-model-01",
       "verify": "cd personal-wiki/apps/crawler_workbench/backend && PYTHONPATH=. pytest -q tests/test_domain_channel_secrets.py tests/test_domain_channel_probes.py tests/test_fetch_service_policy.py tests/test_api.py && cd /home/fyz/codex-skills && python3 -m json.tool docs/harness/evaluator-scenarios/crawler-domain-channels-probe-secrets-01.json >/dev/null && git diff --check",

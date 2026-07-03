@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, StrictBool, StrictStr, field_validator
 
 from .accelerator_specs import extract_specs_for_all_raw_items, list_accelerator_specs
 from .codex_worker import create_codex_job, run_existing_codex_job
+from .channels import list_channels
 from .db import open_db
 from .discovery import accept_candidate, list_candidates, reject_candidate, trust_candidate_source
 from .fetch_service import SourceDisabledError, SourceNotFoundError, run_source_once
@@ -29,6 +30,7 @@ from .schemas import (
     AcceleratorCandidateResponse,
     AcceleratorSpecExtractionResponse,
     AcceleratorSpecResponse,
+    ChannelResponse,
     HealthResponse,
     SourceProfileResponse,
     TrustAcceleratorCandidatesResponse,
@@ -179,18 +181,31 @@ def domains(request: Request) -> list[dict[str, str]]:
     ]
 
 
-@router.get("/sources", response_model=list[SourceProfileResponse])
-def sources(request: Request) -> list[SourceProfileResponse]:
+@router.get("/channels", response_model=list[ChannelResponse])
+def channels(request: Request, domain: str | None = None) -> list[ChannelResponse]:
     request.app.state.initialize_database(request.app)
     with open_db(request.app.state.settings.database_path) as db:
-        rows = list_profiles(db)
+        rows = list_channels(db, domain=domain)
+    return [ChannelResponse(**row) for row in rows]
+
+
+@router.get("/sources", response_model=list[SourceProfileResponse])
+def sources(request: Request, domain: str | None = None, channel_id: str | None = None) -> list[SourceProfileResponse]:
+    request.app.state.initialize_database(request.app)
+    with open_db(request.app.state.settings.database_path) as db:
+        rows = list_profiles(db, domain=domain, channel_id=channel_id)
     return [
         SourceProfileResponse(
             id=row["id"],
             name=row["name"],
             type=row["type"],
+            fetcher_type=row.get("fetcher_type"),
             target_domain=row["target_domain"],
             url=row["url"],
+            channel_id=row.get("channel_id"),
+            channel_name=row.get("channel_name"),
+            channel_base_url=row.get("channel_base_url"),
+            channel_auth_state=row.get("channel_auth_state"),
             trust_level=row["trust_level"],
             schedule=row["schedule"],
             auto_ingest=bool(row["auto_ingest"]),

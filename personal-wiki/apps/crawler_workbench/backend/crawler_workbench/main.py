@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .api import router
-from .db import migrate, open_db, transaction
-from .profiles import load_profiles_from_yaml, mirror_profiles
+from .db import migrate, open_db
+from .profiles import initialize_profiles_from_seed
 from .scheduler import Scheduler
 from .settings import Settings
 
@@ -67,8 +67,7 @@ def initialize_database(app: FastAPI) -> None:
     settings.resolved_state_dir.mkdir(parents=True, exist_ok=True)
     with open_db(settings.database_path) as db:
         migrate(db)
-        with transaction(db):
-            mirror_profiles(db, load_profiles_from_yaml(settings.sources_yaml_path))
+        initialize_profiles_from_seed(db, settings.sources_yaml_path)
     app.state.db_path = settings.database_path
     app.state.db_initialized = True
 
