@@ -4,6 +4,7 @@
 
 - [ ] `raw/crawler/compute-accelerators-intel-dsa/20260629T055534032914Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md` -> `raw/crawler/compute-accelerators-intel-dsa/20260629T055534032914Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.ingest-plan.md` (pending)
 - [ ] `raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md` -> `raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.ingest-plan.md` (pending)
+- [ ] `raw/crawler/compute-accelerator-discovery-huawei-ascend/20260628T055950888440Z-e-huawei-com-cn-products-computing-ascend-7c96297956.md` -> `raw/crawler/compute-accelerator-discovery-huawei-ascend/20260628T055950888440Z-e-huawei-com-cn-products-computing-ascend-7c96297956.ingest-plan.md` (pending)
 
 ## In Progress
 

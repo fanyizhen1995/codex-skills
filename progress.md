@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-07-04 Wiki Crawler Capture Artifacts
+
+- Organized the current uncommitted wiki/crawler capture artifacts for the `ai_infra` domain into a dedicated commit scope.
+- Added a standing `AGENTS.md` rule: every wiki/crawler crawl or ingest must be validated, staged without local runtime artifacts, and committed as an independent change.
+- Kept local runtime files out of scope: `.codex/loop-dashboard-8766.log`, `.codex/loop-dashboard-8766.pid`, and `generated/`.
+- Evidence:
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> no validation issues
+  - Precise credential scan for `ghp_`, `github_pat_`, `Authorization: Bearer/token`, and bearer-like tokens across the new crawler raw paths -> no matches
+  - Staged path check limited to `AGENTS.md`, `progress.md`, and `personal-wiki/domains/ai_infra/`
+
 ## 2026-07-03 Domain Channel Management Live E2E
 
 - Completed `crawler-domain-channels-live-e2e-01` through the harness loop in `.worktrees/crawler-domain-channels-live-e2e-01`.

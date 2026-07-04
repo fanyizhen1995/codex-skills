@@ -53,6 +53,14 @@ curl --noproxy '*' -X POST http://127.0.0.1:8765/api/accelerator-candidates/9999
 3. 前端：通过 Vite 代理或 Playwright 模拟用户操作，验证页面能看到新入库内容。知识工作台至少搜索一个新资料关键词；Wiki 浏览至少确认新页面标题或正文可见。
 4. 证据：最终汇报必须包含验证命令或页面级验证结果，以及是否重启了 backend/frontend。
 
+### Wiki / Crawler 入库提交规则
+每次 wiki/crawler 完成抓取、整理或入库后，都必须把本次新增 raw、ingest-plan、curated wiki、索引和 ingest log 作为独立 commit 提交：
+
+1. 先运行相关 wiki 验证，至少包含 `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain <domain>`；跨 domain 或共享文件变更时再运行全仓库 validate。
+2. 只 stage 本次入库相关路径，不能混入 `.codex/*.log`、pid、临时 `generated/`、本地服务状态或无关工作树改动。
+3. 提交信息使用 `chore(wiki): ...` 或 `docs(wiki): ...`，并在最终汇报中列出 commit hash、入库来源范围和验证命令。
+4. 如果入库后还需要前后端刷新验证，按上一节完成搜索、Wiki 浏览或相关 API 的可见性检查后再提交或补交。
+
 ### 隔离验证
 ```bash
 cd /home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/backend
