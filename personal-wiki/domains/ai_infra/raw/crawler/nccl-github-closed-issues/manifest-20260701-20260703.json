@@ -1,0 +1,38 @@
+{
+  "type": "raw_manifest",
+  "title": "NCCL GitHub closed issues crawler daily supplement manifest",
+  "source_id": "nccl-github-closed-issues",
+  "captured_range": "2026-07-01 and 2026-07-03",
+  "repository": "NVIDIA/nccl",
+  "scope_note": "Daily scheduled crawler Markdown page snapshots after the 2026-06-24 API corpus; this is page-level evidence, not a full API corpus refresh with comments.",
+  "counts": {
+    "raw_files": 2,
+    "issues": 2,
+    "by_capture_day": {
+      "20260701": 1,
+      "20260703": 1
+    }
+  },
+  "items": [
+    {
+      "number": 2226,
+      "kind": "issue",
+      "title": "[Question]: [GIN] GPI vs GDAKI: who selects the QP, and what NIC support does",
+      "closed_at": "2026-06-29T08:43:16Z",
+      "labels": [
+        "question"
+      ],
+      "canonical_url": "https://github.com/NVIDIA/nccl/issues/2226",
+      "raw_path": "raw/crawler/nccl-github-closed-issues/20260701T021206174206Z-github-com-nvidia-nccl-issues-2226-fed84ef18a.md"
+    },
+    {
+      "number": 2024,
+      "kind": "issue",
+      "title": "Ring Broadcast hangs at >16M elements with cudaIpcMemLazyEnablePeerAccess on",
+      "closed_at": "2026-07-02T15:46:46Z",
+      "labels": [],
+      "canonical_url": "https://github.com/NVIDIA/nccl/issues/2024",
+      "raw_path": "raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md"
+    }
+  ]
+}

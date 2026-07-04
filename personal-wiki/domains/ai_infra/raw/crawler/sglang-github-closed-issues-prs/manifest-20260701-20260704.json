@@ -1,0 +1,4022 @@
+{
+  "type": "raw_manifest",
+  "title": "SGLang GitHub closed issues and PRs crawler daily supplement manifest",
+  "source_id": "sglang-github-closed-issues-prs",
+  "captured_range": "2026-07-01 through 2026-07-04",
+  "repository": "sgl-project/sglang",
+  "scope_note": "Daily scheduled crawler Markdown page snapshots after the 2026-06-29 selective supplement; this is page-level evidence, not a full API corpus refresh with comments and review comments.",
+  "counts": {
+    "raw_files": 318,
+    "issues": 41,
+    "pull_requests": 277,
+    "merged_pull_requests": 198,
+    "by_capture_day": {
+      "20260701": 110,
+      "20260702": 77,
+      "20260703": 73,
+      "20260704": 58
+    }
+  },
+  "top_labels": [
+    {
+      "label": "run-ci",
+      "count": 144
+    },
+    {
+      "label": "documentation",
+      "count": 38
+    },
+    {
+      "label": "run-ci-extra",
+      "count": 37
+    },
+    {
+      "label": "deepseek",
+      "count": 35
+    },
+    {
+      "label": "diffusion",
+      "count": 30
+    },
+    {
+      "label": "amd",
+      "count": 25
+    },
+    {
+      "label": "jit-kernel",
+      "count": 22
+    },
+    {
+      "label": "inactive",
+      "count": 19
+    },
+    {
+      "label": "bypass-fastfail",
+      "count": 19
+    },
+    {
+      "label": "npu",
+      "count": 19
+    },
+    {
+      "label": "quant",
+      "count": 15
+    },
+    {
+      "label": "dependencies",
+      "count": 13
+    },
+    {
+      "label": "high priority",
+      "count": 12
+    },
+    {
+      "label": "sgl-kernel",
+      "count": 12
+    },
+    {
+      "label": "intel",
+      "count": 10
+    },
+    {
+      "label": "release-highlight",
+      "count": 7
+    },
+    {
+      "label": "blackwell",
+      "count": 7
+    },
+    {
+      "label": "xpu",
+      "count": 6
+    },
+    {
+      "label": "Multi-modal",
+      "count": 4
+    },
+    {
+      "label": "hicache",
+      "count": 4
+    }
+  ],
+  "items": [
+    {
+      "number": 23342,
+      "kind": "issue",
+      "title": "[Bug] PD disaggregation (ROCm MI300x) + Mooncake(TCP): /v1/chat/completions",
+      "closed_at": "2026-07-01T00:51:32Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23342",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md"
+    },
+    {
+      "number": 24206,
+      "kind": "issue",
+      "title": "[Feature] Support weightless RMSNorm (for FlashNorm weight folding trick)",
+      "closed_at": "2026-07-01T00:51:30Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24206",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208948821Z-github-com-sgl-project-sglang-issues-24206-717aee1d31.md"
+    },
+    {
+      "number": 23036,
+      "kind": "issue",
+      "title": "[Roadmap] Multimodal LLM (26 Q2)",
+      "closed_at": "2026-07-01T00:51:29Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23036",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208949151Z-github-com-sgl-project-sglang-issues-23036-7c6218c932.md"
+    },
+    {
+      "number": 24220,
+      "kind": "issue",
+      "title": "[Feature] Trace a request by a unified request id through router, prefill",
+      "closed_at": "2026-07-01T00:51:28Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24220",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md"
+    },
+    {
+      "number": 29697,
+      "kind": "issue",
+      "title": "[Apple Silicon] [CI] Fix 3 stale model-free unit tests deselected in pr-test-mlx",
+      "closed_at": "2026-06-30T22:15:08Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29697",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208949717Z-github-com-sgl-project-sglang-issues-29697-738d86c7ce.md"
+    },
+    {
+      "number": 17926,
+      "kind": "issue",
+      "title": "[Feature] Integrate tencent/hpc-ops into sglang",
+      "closed_at": "2026-04-04T00:30:03Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/17926",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208949980Z-github-com-sgl-project-sglang-issues-17926-692faf3044.md"
+    },
+    {
+      "number": 29425,
+      "kind": "issue",
+      "title": "[Bug] CUDA 12 installation instructions pull in CUDA 13 packages",
+      "closed_at": "2026-06-30T05:04:28Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29425",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208950226Z-github-com-sgl-project-sglang-issues-29425-f83cec2b69.md"
+    },
+    {
+      "number": 23392,
+      "kind": "issue",
+      "title": "[Bug] shared-prefix load corrupts unrelated requests in SGLang speculative",
+      "closed_at": "2026-06-30T00:48:52Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23392",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208950514Z-github-com-sgl-project-sglang-issues-23392-bdfc37c7a7.md"
+    },
+    {
+      "number": 23272,
+      "kind": "issue",
+      "title": "[Bug] PD disaggregation + Mooncake: sustained load causes KV transfer failures",
+      "closed_at": "2026-06-30T00:48:51Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23272",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md"
+    },
+    {
+      "number": 24157,
+      "kind": "issue",
+      "title": "[Feature] Thread endpoint_url through S3Connector for S3-compatible providers",
+      "closed_at": "2026-06-30T00:48:49Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24157",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208951037Z-github-com-sgl-project-sglang-issues-24157-e4bffa9d56.md"
+    },
+    {
+      "number": 23580,
+      "kind": "issue",
+      "title": "[Bug] Hy3-preview cuda-graph crash on AMD MI300X/MI355X due to AITER custom",
+      "closed_at": "2026-06-30T00:48:48Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23580",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208951313Z-github-com-sgl-project-sglang-issues-23580-29635681b0.md"
+    },
+    {
+      "number": 24011,
+      "kind": "issue",
+      "title": "[Bug] qwen3-235b-mxfp4 nightly CI on MI35x crashes with hipErrorCapturedEvent",
+      "closed_at": "2026-06-30T00:48:46Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24011",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208951622Z-github-com-sgl-project-sglang-issues-24011-032b72f3d8.md"
+    },
+    {
+      "number": 28612,
+      "kind": "pull_request",
+      "title": "Optimize C128 state pool allocation using request state pool",
+      "closed_at": "2026-07-01T02:11:30Z",
+      "merged_at": "2026-07-01T02:11:30Z",
+      "labels": [
+        "high priority",
+        "deepseek",
+        "run-ci",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28612",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208951913Z-github-com-sgl-project-sglang-pull-28612-1a839152c4.md"
+    },
+    {
+      "number": 29721,
+      "kind": "pull_request",
+      "title": "[CP] Fix FP8 MLA RoPE for CP prefill on Blackwell",
+      "closed_at": "2026-07-01T02:01:46Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29721",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208952176Z-github-com-sgl-project-sglang-pull-29721-325e3fab50.md"
+    },
+    {
+      "number": 22502,
+      "kind": "pull_request",
+      "title": "[AMD][Qwen3.5] use a8w8 blockscale ck gemm for gfx942",
+      "closed_at": "2026-07-01T01:31:03Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/22502",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208952458Z-github-com-sgl-project-sglang-pull-22502-3619dd50e0.md"
+    },
+    {
+      "number": 29540,
+      "kind": "pull_request",
+      "title": "[MLX] Restore prefill_aware_swa on MlxModelRunnerStub",
+      "closed_at": "2026-07-01T01:21:17Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29540",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208952719Z-github-com-sgl-project-sglang-pull-29540-0c25a3949f.md"
+    },
+    {
+      "number": 29166,
+      "kind": "pull_request",
+      "title": "[Fix]: Inline H2D during CUDA graph capture to avoid stream isolation in Offloader",
+      "closed_at": "2026-07-01T00:49:58Z",
+      "merged_at": "2026-07-01T00:49:58Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29166",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208952969Z-github-com-sgl-project-sglang-pull-29166-ecdba771c6.md"
+    },
+    {
+      "number": 29645,
+      "kind": "pull_request",
+      "title": "Support real draft tokens to simulated acceptance",
+      "closed_at": "2026-07-01T00:22:06Z",
+      "merged_at": "2026-07-01T00:22:05Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29645",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208953224Z-github-com-sgl-project-sglang-pull-29645-ba7595f2fc.md"
+    },
+    {
+      "number": 2,
+      "kind": "pull_request",
+      "title": "Add SRT json decode example",
+      "closed_at": "2024-01-09T20:35:45Z",
+      "merged_at": "2024-01-09T20:35:44Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/2",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208953474Z-github-com-sgl-project-sglang-pull-2-84b83bd6d0.md"
+    },
+    {
+      "number": 29352,
+      "kind": "pull_request",
+      "title": "[bug2] skip swa recovery on locked full kv",
+      "closed_at": "2026-06-30T23:07:07Z",
+      "merged_at": "2026-06-30T23:07:07Z",
+      "labels": [
+        "high priority",
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29352",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208953712Z-github-com-sgl-project-sglang-pull-29352-7441dc6ebe.md"
+    },
+    {
+      "number": 27750,
+      "kind": "pull_request",
+      "title": "feat: extend weight checker to speculative draft worker(s)",
+      "closed_at": "2026-06-30T22:05:01Z",
+      "merged_at": "2026-06-30T22:05:01Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27750",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208953963Z-github-com-sgl-project-sglang-pull-27750-7b6aaa9920.md"
+    },
+    {
+      "number": 29769,
+      "kind": "pull_request",
+      "title": "[Model] Support Qwen3.5 NVFP4 V2 mixed quantization",
+      "closed_at": "2026-06-30T21:57:05Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29769",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208954207Z-github-com-sgl-project-sglang-pull-29769-38e4303284.md"
+    },
+    {
+      "number": 27948,
+      "kind": "pull_request",
+      "title": "Skip custom all-reduce v2 CUDA graph capture with torch memory saver.",
+      "closed_at": "2026-06-30T21:53:30Z",
+      "merged_at": "2026-06-30T21:53:30Z",
+      "labels": [
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27948",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208954456Z-github-com-sgl-project-sglang-pull-27948-746f7154ad.md"
+    },
+    {
+      "number": 28743,
+      "kind": "pull_request",
+      "title": "fix(dsa): guard cuda_runtime.h include so fused_metadata_copy builds on ROCm",
+      "closed_at": "2026-06-30T21:22:39Z",
+      "merged_at": "",
+      "labels": [
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28743",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208954700Z-github-com-sgl-project-sglang-pull-28743-91d25f23d2.md"
+    },
+    {
+      "number": 28471,
+      "kind": "pull_request",
+      "title": "docs(cookbook): add AMD MI300X/MI325X/MI355X support for GLM-5.2",
+      "closed_at": "2026-06-30T21:08:52Z",
+      "merged_at": "2026-06-30T21:08:52Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28471",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208954952Z-github-com-sgl-project-sglang-pull-28471-d486f9faec.md"
+    },
+    {
+      "number": 29307,
+      "kind": "pull_request",
+      "title": "docs: sync LMSYS SGLang blog cards",
+      "closed_at": "2026-06-30T20:48:11Z",
+      "merged_at": "2026-06-30T20:48:11Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29307",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208955201Z-github-com-sgl-project-sglang-pull-29307-75ea8d0bb2.md"
+    },
+    {
+      "number": 25153,
+      "kind": "pull_request",
+      "title": "typo-fix: correct mooncake package name to \"mooncake-transfer-engine\"",
+      "closed_at": "2026-06-30T18:54:36Z",
+      "merged_at": "2026-06-30T18:54:36Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25153",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208955444Z-github-com-sgl-project-sglang-pull-25153-371500327f.md"
+    },
+    {
+      "number": 20153,
+      "kind": "pull_request",
+      "title": "Refactor: fix symmetric memory pool isolation per communication group",
+      "closed_at": "2026-06-30T17:56:15Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/20153",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208955688Z-github-com-sgl-project-sglang-pull-20153-4ac8e53897.md"
+    },
+    {
+      "number": 28586,
+      "kind": "pull_request",
+      "title": "[Doc]Checking and modifying Markdown formatting issues and link validity",
+      "closed_at": "2026-06-30T17:27:39Z",
+      "merged_at": "2026-06-30T17:27:39Z",
+      "labels": [
+        "documentation",
+        "quant",
+        "deepseek",
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28586",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208955929Z-github-com-sgl-project-sglang-pull-28586-af4a76713a.md"
+    },
+    {
+      "number": 25177,
+      "kind": "pull_request",
+      "title": "[minor fix] fix mamba not initialized error while run bench_one_batchon models",
+      "closed_at": "2026-06-30T17:24:18Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25177",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208956168Z-github-com-sgl-project-sglang-pull-25177-135e042162.md"
+    },
+    {
+      "number": 29351,
+      "kind": "pull_request",
+      "title": "[bug1] keep full kv when swa skips leaf data",
+      "closed_at": "2026-06-30T16:51:19Z",
+      "merged_at": "2026-06-30T16:51:18Z",
+      "labels": [
+        "documentation",
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29351",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208956425Z-github-com-sgl-project-sglang-pull-29351-3b85386db7.md"
+    },
+    {
+      "number": 29768,
+      "kind": "pull_request",
+      "title": "[AMD] Stop rocm720 pr auto-runs",
+      "closed_at": "2026-06-30T15:58:25Z",
+      "merged_at": "2026-06-30T15:58:25Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29768",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208956659Z-github-com-sgl-project-sglang-pull-29768-53658d07fd.md"
+    },
+    {
+      "number": 29766,
+      "kind": "pull_request",
+      "title": "ci: stop automatic ROCm 7.2 PR runs",
+      "closed_at": "2026-06-30T15:57:52Z",
+      "merged_at": "",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29766",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208956890Z-github-com-sgl-project-sglang-pull-29766-0e1fd1b8b3.md"
+    },
+    {
+      "number": 29765,
+      "kind": "pull_request",
+      "title": "[AMD] Update AMD local registry address",
+      "closed_at": "2026-06-30T15:40:01Z",
+      "merged_at": "2026-06-30T15:40:01Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29765",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208957119Z-github-com-sgl-project-sglang-pull-29765-6f29412f92.md"
+    },
+    {
+      "number": 29763,
+      "kind": "pull_request",
+      "title": "Update AMD local registry address",
+      "closed_at": "2026-06-30T15:35:14Z",
+      "merged_at": "",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29763",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208957356Z-github-com-sgl-project-sglang-pull-29763-f6672216be.md"
+    },
+    {
+      "number": 25835,
+      "kind": "pull_request",
+      "title": "[JIT Kernel] Triton moe fused gate",
+      "closed_at": "2026-06-30T15:26:18Z",
+      "merged_at": "2026-06-30T15:26:18Z",
+      "labels": [
+        "run-ci",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25835",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208957591Z-github-com-sgl-project-sglang-pull-25835-78b5288215.md"
+    },
+    {
+      "number": 29688,
+      "kind": "pull_request",
+      "title": "[diffusion][cache-dit] support Krea-2 + run-driven `has_separate_cfg`",
+      "closed_at": "2026-06-30T15:22:06Z",
+      "merged_at": "2026-06-30T15:22:06Z",
+      "labels": [
+        "documentation",
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29688",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208957849Z-github-com-sgl-project-sglang-pull-29688-dbe2fc034f.md"
+    },
+    {
+      "number": 28440,
+      "kind": "pull_request",
+      "title": "[Mooncake] Add try/except guard to decode status thread",
+      "closed_at": "2026-06-30T11:58:12Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28440",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208958119Z-github-com-sgl-project-sglang-pull-28440-d67a17989b.md"
+    },
+    {
+      "number": 23925,
+      "kind": "pull_request",
+      "title": "[NPU]use triton split_qkvgate_gemma_rmsnorm_rope for Qwen3.5 and Qwen3_next",
+      "closed_at": "2026-05-20T12:22:11Z",
+      "merged_at": "2026-05-20T12:22:11Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/23925",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208958363Z-github-com-sgl-project-sglang-pull-23925-01848eff09.md"
+    },
+    {
+      "number": 29509,
+      "kind": "pull_request",
+      "title": "[NPU]GLM-4.7-Flash optimize with fused kernels",
+      "closed_at": "2026-06-30T11:22:20Z",
+      "merged_at": "2026-06-30T11:22:20Z",
+      "labels": [
+        "deepseek",
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29509",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208958611Z-github-com-sgl-project-sglang-pull-29509-480ea9e1c3.md"
+    },
+    {
+      "number": 28053,
+      "kind": "pull_request",
+      "title": "Disable dsr1 prefill cudagraphs by default",
+      "closed_at": "2026-06-30T08:34:45Z",
+      "merged_at": "2026-06-30T08:34:45Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28053",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208958853Z-github-com-sgl-project-sglang-pull-28053-25913a344f.md"
+    },
+    {
+      "number": 28946,
+      "kind": "pull_request",
+      "title": "docs(cookbook): document GB300 trtllm allreduce fusion backend tuning for",
+      "closed_at": "2026-06-30T10:45:59Z",
+      "merged_at": "",
+      "labels": [
+        "documentation",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28946",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208959092Z-github-com-sgl-project-sglang-pull-28946-9d90ab2124.md"
+    },
+    {
+      "number": 28865,
+      "kind": "pull_request",
+      "title": "[NPU] Support chunked prefill for DeepSeek-V4",
+      "closed_at": "2026-06-30T08:33:39Z",
+      "merged_at": "",
+      "labels": [
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28865",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208959381Z-github-com-sgl-project-sglang-pull-28865-1ae0fe51d8.md"
+    },
+    {
+      "number": 27204,
+      "kind": "pull_request",
+      "title": "[AMD] Implement QuarkW4A8MXFp4MoE to support amd/gpt-oss-120b-w-mxfp4-a-fp8",
+      "closed_at": "2026-06-30T08:24:23Z",
+      "merged_at": "2026-06-30T08:24:23Z",
+      "labels": [
+        "amd",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27204",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208959636Z-github-com-sgl-project-sglang-pull-27204-caabbbf539.md"
+    },
+    {
+      "number": 28980,
+      "kind": "pull_request",
+      "title": "[NPU] Support DeepSeek V4 Flash MTP on Ascend",
+      "closed_at": "2026-06-30T08:22:14Z",
+      "merged_at": "2026-06-30T08:22:14Z",
+      "labels": [
+        "deepseek",
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28980",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208959882Z-github-com-sgl-project-sglang-pull-28980-a0b0e97874.md"
+    },
+    {
+      "number": 29728,
+      "kind": "pull_request",
+      "title": "[codex] Add VLM image DP scheduling research note",
+      "closed_at": "2026-06-30T08:15:30Z",
+      "merged_at": "",
+      "labels": [
+        "documentation",
+        "Multi-modal"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29728",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208960116Z-github-com-sgl-project-sglang-pull-29728-e5af9c0f7c.md"
+    },
+    {
+      "number": 29342,
+      "kind": "pull_request",
+      "title": "Add native Exa-backed web_search support",
+      "closed_at": "2026-06-27T13:41:10Z",
+      "merged_at": "2026-06-27T13:41:10Z",
+      "labels": [
+        "documentation",
+        "high priority",
+        "run-ci",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29342",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208960361Z-github-com-sgl-project-sglang-pull-29342-a31167c1eb.md"
+    },
+    {
+      "number": 29295,
+      "kind": "pull_request",
+      "title": "Bumped transformers version",
+      "closed_at": "2026-06-30T08:02:57Z",
+      "merged_at": "",
+      "labels": [
+        "dependencies",
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29295",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208960593Z-github-com-sgl-project-sglang-pull-29295-caa8d55373.md"
+    },
+    {
+      "number": 29393,
+      "kind": "pull_request",
+      "title": "[Deps] Bump transformers to 5.12.1",
+      "closed_at": "2026-06-30T07:54:02Z",
+      "merged_at": "2026-06-30T07:54:02Z",
+      "labels": [
+        "dependencies",
+        "npu",
+        "run-ci",
+        "diffusion",
+        "run-ci-extra",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29393",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208960821Z-github-com-sgl-project-sglang-pull-29393-74be683040.md"
+    },
+    {
+      "number": 16495,
+      "kind": "pull_request",
+      "title": "[hicache-ci] Add accuracy evaluation support for caches loaded from memory",
+      "closed_at": "2026-06-30T07:59:09Z",
+      "merged_at": "",
+      "labels": [
+        "hicache",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/16495",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208961051Z-github-com-sgl-project-sglang-pull-16495-c58c8b05b9.md"
+    },
+    {
+      "number": 11191,
+      "kind": "pull_request",
+      "title": "[Feature] Support Sparse Attention and KV cache scheduling between CPU and",
+      "closed_at": "2026-06-30T07:58:41Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/11191",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208961334Z-github-com-sgl-project-sglang-pull-11191-7fb76f7c0d.md"
+    },
+    {
+      "number": 29622,
+      "kind": "pull_request",
+      "title": "Budget EAGLE/STANDALONE draft KV pool in SWA pool configurators",
+      "closed_at": "2026-06-30T07:58:33Z",
+      "merged_at": "2026-06-30T07:58:33Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29622",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208961589Z-github-com-sgl-project-sglang-pull-29622-404b47a450.md"
+    },
+    {
+      "number": 27121,
+      "kind": "pull_request",
+      "title": "[diffusion] Shard QwenImage cross-attention and FFN across TP ranks",
+      "closed_at": "2026-06-22T01:52:12Z",
+      "merged_at": "",
+      "labels": [
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27121",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208961835Z-github-com-sgl-project-sglang-pull-27121-bf46b3414a.md"
+    },
+    {
+      "number": 29627,
+      "kind": "pull_request",
+      "title": "[NPU] Qwen3-VL-8B use split_qkv_rmsnorm_rope for extend",
+      "closed_at": "2026-06-30T07:55:51Z",
+      "merged_at": "2026-06-30T07:55:51Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29627",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208962095Z-github-com-sgl-project-sglang-pull-29627-1f224bc32a.md"
+    },
+    {
+      "number": 29470,
+      "kind": "pull_request",
+      "title": "[GLM-5] Tune the threshold of router GEMM",
+      "closed_at": "2026-06-29T21:19:25Z",
+      "merged_at": "2026-06-29T21:19:25Z",
+      "labels": [
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29470",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208962338Z-github-com-sgl-project-sglang-pull-29470-98fe484f97.md"
+    },
+    {
+      "number": 26288,
+      "kind": "pull_request",
+      "title": "[PD][AMD]: incremental KV transfer with decode radix cache",
+      "closed_at": "2026-06-13T07:06:44Z",
+      "merged_at": "2026-06-13T07:06:44Z",
+      "labels": [
+        "amd",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26288",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208962583Z-github-com-sgl-project-sglang-pull-26288-4070a59e99.md"
+    },
+    {
+      "number": 29642,
+      "kind": "pull_request",
+      "title": "[AMD] Copy decode result on forward_stream instead of copy_stream",
+      "closed_at": "2026-06-30T06:53:49Z",
+      "merged_at": "2026-06-30T06:53:49Z",
+      "labels": [
+        "amd",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29642",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208962833Z-github-com-sgl-project-sglang-pull-29642-0c5e8515b3.md"
+    },
+    {
+      "number": 29613,
+      "kind": "pull_request",
+      "title": "[DSA] Use cos_sin_cache for DSA indexer fusion",
+      "closed_at": "2026-06-30T06:49:01Z",
+      "merged_at": "2026-06-30T06:49:01Z",
+      "labels": [
+        "run-ci",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29613",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208963085Z-github-com-sgl-project-sglang-pull-29613-bb5d709c31.md"
+    },
+    {
+      "number": 26099,
+      "kind": "pull_request",
+      "title": "[VLM] Use multimodal offsets for embedding placement",
+      "closed_at": "2026-06-30T06:30:50Z",
+      "merged_at": "",
+      "labels": [
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26099",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208963321Z-github-com-sgl-project-sglang-pull-26099-e6b11a822f.md"
+    },
+    {
+      "number": 29713,
+      "kind": "pull_request",
+      "title": "[CI] Migrate more JIT configs",
+      "closed_at": "2026-06-30T05:56:29Z",
+      "merged_at": "",
+      "labels": [
+        "quant",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29713",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208963560Z-github-com-sgl-project-sglang-pull-29713-021daec7f3.md"
+    },
+    {
+      "number": 29715,
+      "kind": "pull_request",
+      "title": "[CI] Migrate JIT tests missed by #29066 to runner_config registration",
+      "closed_at": "2026-06-30T06:21:15Z",
+      "merged_at": "2026-06-30T06:21:15Z",
+      "labels": [
+        "quant"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29715",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208963792Z-github-com-sgl-project-sglang-pull-29715-e1f3be1f2b.md"
+    },
+    {
+      "number": 28561,
+      "kind": "pull_request",
+      "title": "Revert deepseek_weight_loader.py changes from #25141",
+      "closed_at": "2026-06-30T06:12:41Z",
+      "merged_at": "2026-06-30T06:12:41Z",
+      "labels": [
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28561",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208964046Z-github-com-sgl-project-sglang-pull-28561-76129e8f52.md"
+    },
+    {
+      "number": 29710,
+      "kind": "pull_request",
+      "title": "[HiSparse]: Skip flaky hisparse-nixl ci",
+      "closed_at": "2026-06-30T06:04:35Z",
+      "merged_at": "2026-06-30T06:04:34Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29710",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208964289Z-github-com-sgl-project-sglang-pull-29710-718f2ba3a4.md"
+    },
+    {
+      "number": 29686,
+      "kind": "pull_request",
+      "title": "Update GLM tests to 5.2 and delete redundant tests",
+      "closed_at": "2026-06-30T06:04:27Z",
+      "merged_at": "2026-06-30T06:04:27Z",
+      "labels": [
+        "deepseek",
+        "blackwell"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29686",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208964527Z-github-com-sgl-project-sglang-pull-29686-b418fa03f5.md"
+    },
+    {
+      "number": 29634,
+      "kind": "pull_request",
+      "title": "docker: install dynamo nightly in the dev image for rapid iteration/testing",
+      "closed_at": "2026-06-30T05:58:20Z",
+      "merged_at": "2026-06-30T05:58:20Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29634",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208964758Z-github-com-sgl-project-sglang-pull-29634-7160fb7795.md"
+    },
+    {
+      "number": 29420,
+      "kind": "pull_request",
+      "title": "[AMD][DSV4] Remove per-batch D2H syncs in MTP to avoid bubbles between 2 batches",
+      "closed_at": "2026-06-30T05:40:00Z",
+      "merged_at": "2026-06-30T05:40:00Z",
+      "labels": [
+        "amd",
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29420",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208965000Z-github-com-sgl-project-sglang-pull-29420-5d095add58.md"
+    },
+    {
+      "number": 27887,
+      "kind": "pull_request",
+      "title": "[Model] Add HrmTextForCausalLM (Hierarchical Reasoning Model - Text)",
+      "closed_at": "2026-06-30T05:32:33Z",
+      "merged_at": "2026-06-30T05:32:33Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27887",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208965255Z-github-com-sgl-project-sglang-pull-27887-9d29fac8bf.md"
+    },
+    {
+      "number": 23838,
+      "kind": "pull_request",
+      "title": "[Speculative Decoding] Validate vocabulary compatibility in STANDALONE mode",
+      "closed_at": "2026-06-29T21:45:13Z",
+      "merged_at": "2026-06-29T21:45:13Z",
+      "labels": [
+        "documentation",
+        "speculative-decoding",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/23838",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208965509Z-github-com-sgl-project-sglang-pull-23838-2ecd88f422.md"
+    },
+    {
+      "number": 29376,
+      "kind": "pull_request",
+      "title": "Fix test_type_based_dispatcher after TokenizedGenerateReqInput field changes",
+      "closed_at": "2026-06-30T05:22:22Z",
+      "merged_at": "2026-06-30T05:22:22Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29376",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208965774Z-github-com-sgl-project-sglang-pull-29376-d4765e8768.md"
+    },
+    {
+      "number": 29714,
+      "kind": "pull_request",
+      "title": "[CI] Fix invalid JIT kernel suite registrations",
+      "closed_at": "2026-06-30T05:08:41Z",
+      "merged_at": "",
+      "labels": [
+        "quant"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29714",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208966016Z-github-com-sgl-project-sglang-pull-29714-5b197de4ca.md"
+    },
+    {
+      "number": 29654,
+      "kind": "pull_request",
+      "title": "[spec] Fix index_share_for_mtp_iteration being a no-op in EAGLE MTP draft",
+      "closed_at": "2026-06-29T21:52:24Z",
+      "merged_at": "2026-06-29T21:52:24Z",
+      "labels": [
+        "deepseek",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29654",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208966254Z-github-com-sgl-project-sglang-pull-29654-0e15611b71.md"
+    },
+    {
+      "number": 28554,
+      "kind": "pull_request",
+      "title": "[AMD]: CI add NIXL PD disaggregation tests",
+      "closed_at": "2026-06-30T04:49:00Z",
+      "merged_at": "",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28554",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208966508Z-github-com-sgl-project-sglang-pull-28554-8a5c8dfd29.md"
+    },
+    {
+      "number": 29671,
+      "kind": "pull_request",
+      "title": "[AMD] Register fused_metadata_copy JIT kernel test for AMD nightly CI",
+      "closed_at": "2026-06-30T04:26:12Z",
+      "merged_at": "2026-06-30T04:26:12Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29671",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208966745Z-github-com-sgl-project-sglang-pull-29671-9bb0ad54dc.md"
+    },
+    {
+      "number": 28348,
+      "kind": "pull_request",
+      "title": "[AMD]: Enable NIXL PD disaggregation for ROCm(1/n) ",
+      "closed_at": "2026-06-30T04:23:10Z",
+      "merged_at": "2026-06-30T04:23:10Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28348",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208966992Z-github-com-sgl-project-sglang-pull-28348-8402fff8ad.md"
+    },
+    {
+      "number": 29364,
+      "kind": "pull_request",
+      "title": "[diffusion] Document VAE decode parallel group axes",
+      "closed_at": "2026-06-30T04:14:55Z",
+      "merged_at": "2026-06-30T04:14:55Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29364",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208967239Z-github-com-sgl-project-sglang-pull-29364-e928965570.md"
+    },
+    {
+      "number": 29580,
+      "kind": "pull_request",
+      "title": "[SM120] Support GLM DSA serving on RTX PRO 6000",
+      "closed_at": "2026-06-29T23:45:58Z",
+      "merged_at": "",
+      "labels": [
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29580",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208967484Z-github-com-sgl-project-sglang-pull-29580-d08d73b515.md"
+    },
+    {
+      "number": 29664,
+      "kind": "pull_request",
+      "title": "[Diffusion] Reuse shared AlignedVector and tidy jit_kernel/diffusion",
+      "closed_at": "2026-06-30T03:38:23Z",
+      "merged_at": "2026-06-30T03:38:23Z",
+      "labels": [
+        "run-ci",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29664",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208967733Z-github-com-sgl-project-sglang-pull-29664-bfd6a11f95.md"
+    },
+    {
+      "number": 29700,
+      "kind": "pull_request",
+      "title": "Add new Intel SGLang members into CI_permission list",
+      "closed_at": "2026-06-30T03:06:29Z",
+      "merged_at": "2026-06-30T03:06:29Z",
+      "labels": [
+        "intel",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29700",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208967985Z-github-com-sgl-project-sglang-pull-29700-025ec846bb.md"
+    },
+    {
+      "number": 29499,
+      "kind": "pull_request",
+      "title": "[DSA] Optimize DSA CUDA graph replay metadata generation",
+      "closed_at": "2026-06-30T02:53:24Z",
+      "merged_at": "2026-06-30T02:53:24Z",
+      "labels": [
+        "run-ci",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29499",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208968223Z-github-com-sgl-project-sglang-pull-29499-322cbbcebf.md"
+    },
+    {
+      "number": 29519,
+      "kind": "pull_request",
+      "title": "[diffusion] warmup: default to model sampling resolution (declare Z-Image",
+      "closed_at": "2026-06-30T02:32:12Z",
+      "merged_at": "2026-06-30T02:32:12Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29519",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208968473Z-github-com-sgl-project-sglang-pull-29519-437b1b671c.md"
+    },
+    {
+      "number": 26925,
+      "kind": "pull_request",
+      "title": "[multimodal_gen] Allow --dit-cpu-offload with --dit-layerwise-offload",
+      "closed_at": "2026-06-01T15:17:54Z",
+      "merged_at": "2026-06-01T15:17:54Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26925",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208968728Z-github-com-sgl-project-sglang-pull-26925-e80df312ee.md"
+    },
+    {
+      "number": 29066,
+      "kind": "pull_request",
+      "title": "[CI] Migrate JIT tests to runner config registration",
+      "closed_at": "2026-06-30T02:12:15Z",
+      "merged_at": "2026-06-30T02:12:15Z",
+      "labels": [
+        "documentation",
+        "quant",
+        "amd",
+        "lora",
+        "deepseek",
+        "hicache",
+        "blackwell",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29066",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208968978Z-github-com-sgl-project-sglang-pull-29066-56520c0b7e.md"
+    },
+    {
+      "number": 25751,
+      "kind": "pull_request",
+      "title": "[Kernel] Add SM90 Q8KV8 FP8 Sparse MLA Prefill JIT Kernel with Tests and Benchmark",
+      "closed_at": "2026-06-30T01:00:11Z",
+      "merged_at": "2026-06-30T01:00:11Z",
+      "labels": [
+        "run-ci",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25751",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208969222Z-github-com-sgl-project-sglang-pull-25751-0512ee634c.md"
+    },
+    {
+      "number": 29698,
+      "kind": "pull_request",
+      "title": "[AMD] Register quant/test_int8_kernel.py for AMD nightly CI",
+      "closed_at": "2026-06-30T00:38:49Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29698",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208969499Z-github-com-sgl-project-sglang-pull-29698-e9cac1dc7f.md"
+    },
+    {
+      "number": 29618,
+      "kind": "pull_request",
+      "title": "Fix arm64 CI test dependencies",
+      "closed_at": "2026-06-30T00:04:30Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29618",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208969739Z-github-com-sgl-project-sglang-pull-29618-f5faae4d5f.md"
+    },
+    {
+      "number": 29478,
+      "kind": "pull_request",
+      "title": "[Doc] Fix CUDA 12 install instructions",
+      "closed_at": "2026-06-30T00:04:28Z",
+      "merged_at": "",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29478",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208969967Z-github-com-sgl-project-sglang-pull-29478-3690593022.md"
+    },
+    {
+      "number": 29561,
+      "kind": "pull_request",
+      "title": "Move easydict to optional remote-models extra",
+      "closed_at": "2026-06-30T00:04:25Z",
+      "merged_at": "",
+      "labels": [
+        "documentation",
+        "dependencies",
+        "deepseek",
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29561",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208970202Z-github-com-sgl-project-sglang-pull-29561-0d976f28c4.md"
+    },
+    {
+      "number": 29612,
+      "kind": "pull_request",
+      "title": "Fix Nunchaku FP4 validation and image save output",
+      "closed_at": "2026-06-30T00:04:23Z",
+      "merged_at": "",
+      "labels": [
+        "quant",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29612",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208970442Z-github-com-sgl-project-sglang-pull-29612-b5c66d0ae2.md"
+    },
+    {
+      "number": 29558,
+      "kind": "pull_request",
+      "title": "Fix pythonic signed literal parsing",
+      "closed_at": "2026-06-30T00:04:21Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29558",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208970676Z-github-com-sgl-project-sglang-pull-29558-7f01cf9b5a.md"
+    },
+    {
+      "number": 29563,
+      "kind": "pull_request",
+      "title": "Delay Frozen-KV MTP target pool binding",
+      "closed_at": "2026-06-30T00:04:18Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29563",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208970904Z-github-com-sgl-project-sglang-pull-29563-2d7bad6114.md"
+    },
+    {
+      "number": 29614,
+      "kind": "pull_request",
+      "title": "Fix large index overflow in topk and concat MLA",
+      "closed_at": "2026-06-30T00:04:16Z",
+      "merged_at": "",
+      "labels": [
+        "sgl-kernel",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29614",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208971136Z-github-com-sgl-project-sglang-pull-29614-fa2aa72453.md"
+    },
+    {
+      "number": 18612,
+      "kind": "pull_request",
+      "title": "[Perf][Kernel] Fuse SiLU+Mul into NVFP4 Expert Quantization for CUTLASS MoE",
+      "closed_at": "2026-06-29T23:51:02Z",
+      "merged_at": "2026-06-29T23:51:02Z",
+      "labels": [
+        "quant",
+        "sgl-kernel",
+        "blackwell",
+        "run-ci",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/18612",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208971389Z-github-com-sgl-project-sglang-pull-18612-7bb3bf6a1b.md"
+    },
+    {
+      "number": 29608,
+      "kind": "pull_request",
+      "title": "Fix large tensor index overflow in CUDA kernels",
+      "closed_at": "2026-06-29T23:44:50Z",
+      "merged_at": "",
+      "labels": [
+        "sgl-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29608",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208971668Z-github-com-sgl-project-sglang-pull-29608-183cde4f26.md"
+    },
+    {
+      "number": 27455,
+      "kind": "pull_request",
+      "title": "[SM120] Add FlashInfer sparse MLA decode for DSv4-Flash",
+      "closed_at": "2026-06-29T23:27:16Z",
+      "merged_at": "2026-06-29T23:27:16Z",
+      "labels": [
+        "deepseek",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27455",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208971905Z-github-com-sgl-project-sglang-pull-27455-89d943d2f6.md"
+    },
+    {
+      "number": 22394,
+      "kind": "pull_request",
+      "title": "[NVIDIA] Support flashinfer a2a with flashinfer_trtllm_routed moe",
+      "closed_at": "2026-06-29T23:23:58Z",
+      "merged_at": "2026-06-29T23:23:58Z",
+      "labels": [
+        "documentation",
+        "run-ci",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/22394",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208972157Z-github-com-sgl-project-sglang-pull-22394-469698680a.md"
+    },
+    {
+      "number": 29685,
+      "kind": "pull_request",
+      "title": "[sglang-miles] Cherry-pick #26980: Skip routed expert capture for draft model",
+      "closed_at": "2026-06-29T23:00:59Z",
+      "merged_at": "2026-06-29T23:00:59Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29685",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208972412Z-github-com-sgl-project-sglang-pull-29685-0adeb0a758.md"
+    },
+    {
+      "number": 28672,
+      "kind": "pull_request",
+      "title": "Skip custom all-reduce v2 CUDA graph capture with torch memory saver",
+      "closed_at": "2026-06-29T22:44:31Z",
+      "merged_at": "",
+      "labels": [
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28672",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208972661Z-github-com-sgl-project-sglang-pull-28672-07af08af96.md"
+    },
+    {
+      "number": 19198,
+      "kind": "pull_request",
+      "title": "feat: add server-wide default thinking budget ceiling API",
+      "closed_at": "2026-06-29T22:43:36Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/19198",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208972909Z-github-com-sgl-project-sglang-pull-19198-598bb849ae.md"
+    },
+    {
+      "number": 27975,
+      "kind": "pull_request",
+      "title": "Add --mamba-ssm-enable-stochastic-rounding for GDN and Mamba1/2 decode",
+      "closed_at": "2026-06-29T22:32:18Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27975",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208973158Z-github-com-sgl-project-sglang-pull-27975-23ae823e74.md"
+    },
+    {
+      "number": 29675,
+      "kind": "pull_request",
+      "title": "[sglang-miles] Cherry-pick pause-aware post-process weight locking",
+      "closed_at": "2026-06-29T22:22:32Z",
+      "merged_at": "2026-06-29T22:22:32Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29675",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208973397Z-github-com-sgl-project-sglang-pull-29675-a5f7a6c20e.md"
+    },
+    {
+      "number": 29463,
+      "kind": "pull_request",
+      "title": "[DeepSeek V3] Reland: run routed experts on main stream in dual-stream MoE",
+      "closed_at": "2026-06-29T22:05:02Z",
+      "merged_at": "2026-06-29T22:05:02Z",
+      "labels": [
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29463",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208973641Z-github-com-sgl-project-sglang-pull-29463-f6727ba994.md"
+    },
+    {
+      "number": 29533,
+      "kind": "pull_request",
+      "title": "feat(mem_cache): page-major (layer-major within a page) KV/state layout",
+      "closed_at": "2026-06-29T21:49:55Z",
+      "merged_at": "2026-06-29T21:49:55Z",
+      "labels": [
+        "documentation",
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29533",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208973902Z-github-com-sgl-project-sglang-pull-29533-9368d0e65c.md"
+    },
+    {
+      "number": 29156,
+      "kind": "pull_request",
+      "title": "Fix bounded checkpoint prefetching and buffered drop-cache handling",
+      "closed_at": "2026-06-29T21:49:17Z",
+      "merged_at": "2026-06-29T21:49:17Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29156",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208974155Z-github-com-sgl-project-sglang-pull-29156-cf4329854f.md"
+    },
+    {
+      "number": 29557,
+      "kind": "pull_request",
+      "title": "[cookbook] GLM-5.2 NVFP4 B300: TP8 recipe + 3 strategies",
+      "closed_at": "2026-06-29T21:42:20Z",
+      "merged_at": "2026-06-29T21:42:20Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29557",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208974399Z-github-com-sgl-project-sglang-pull-29557-19a8e6e3be.md"
+    },
+    {
+      "number": 29676,
+      "kind": "pull_request",
+      "title": "[Docs] Add --prerelease=allow so uv installs the latest sglang",
+      "closed_at": "2026-06-29T21:13:35Z",
+      "merged_at": "2026-06-29T21:13:35Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29676",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208974643Z-github-com-sgl-project-sglang-pull-29676-df6d6bf03b.md"
+    },
+    {
+      "number": 29674,
+      "kind": "pull_request",
+      "title": "docs: add B200 NVFP4 recipes + benchmarks to GLM-5.2 cookbook",
+      "closed_at": "2026-06-29T21:06:30Z",
+      "merged_at": "2026-06-29T21:06:30Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29674",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208974901Z-github-com-sgl-project-sglang-pull-29674-cac77fb026.md"
+    },
+    {
+      "number": 29625,
+      "kind": "pull_request",
+      "title": "CUDA graph executable dedup via cudaGraphExecUpdate",
+      "closed_at": "2026-06-29T20:56:34Z",
+      "merged_at": "2026-06-29T20:56:34Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29625",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208975146Z-github-com-sgl-project-sglang-pull-29625-e8d3ac2ae3.md"
+    },
+    {
+      "number": 29670,
+      "kind": "pull_request",
+      "title": "[sglang-miles] Fix post_process_weights deadlock in RL in-place mode",
+      "closed_at": "2026-06-29T19:40:41Z",
+      "merged_at": "2026-06-29T19:40:41Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29670",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208975388Z-github-com-sgl-project-sglang-pull-29670-33abdf29aa.md"
+    },
+    {
+      "number": 29616,
+      "kind": "pull_request",
+      "title": "[Spec] Frozen-KV MTP: delay target KV binding to pool init + reset stale draft",
+      "closed_at": "2026-06-29T18:57:10Z",
+      "merged_at": "2026-06-29T18:57:10Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29616",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208975632Z-github-com-sgl-project-sglang-pull-29616-304017c197.md"
+    },
+    {
+      "number": 29649,
+      "kind": "pull_request",
+      "title": "[diffusion] keep image-model auxiliary components resident under auto memory",
+      "closed_at": "2026-06-29T17:25:38Z",
+      "merged_at": "2026-06-29T17:25:38Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29649",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260701T021208975895Z-github-com-sgl-project-sglang-pull-29649-8a1cc6d429.md"
+    },
+    {
+      "number": 28866,
+      "kind": "issue",
+      "title": "[Parity with CUDA SGLang] DeepSeekv4 Pro not be spamming dozen of env vars",
+      "closed_at": "2026-07-02T02:06:11Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/28866",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227245017Z-github-com-sgl-project-sglang-issues-28866-f3aab25bb7.md"
+    },
+    {
+      "number": 23251,
+      "kind": "issue",
+      "title": "[Bug] Missing module in tuning_fused_moe_triton",
+      "closed_at": "2026-07-02T00:48:14Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23251",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227247119Z-github-com-sgl-project-sglang-issues-23251-591e06a47a.md"
+    },
+    {
+      "number": 23739,
+      "kind": "issue",
+      "title": "[Bug] Qwen3.5-35B-A3B-GPTQ-Int4 on RTX 5090 fails on first generation request",
+      "closed_at": "2026-07-02T00:48:13Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23739",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227247731Z-github-com-sgl-project-sglang-issues-23739-be2ac149c6.md"
+    },
+    {
+      "number": 24254,
+      "kind": "issue",
+      "title": "[Bug] bench_serving sglang-oai reports wrong output_len (stuck at requested",
+      "closed_at": "2026-07-02T00:48:12Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24254",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227248146Z-github-com-sgl-project-sglang-issues-24254-cb3c8f1b79.md"
+    },
+    {
+      "number": 21814,
+      "kind": "issue",
+      "title": "[Bug] Prefill disaggregation warmup fails with \"''SamplingParams'' object",
+      "closed_at": "2026-04-09T05:52:55Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/21814",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227248537Z-github-com-sgl-project-sglang-issues-21814-da6083757e.md"
+    },
+    {
+      "number": 29679,
+      "kind": "issue",
+      "title": "[Bug] sglang.launch_server crashes on Apple OSX / MLX with AttributeError:",
+      "closed_at": "2026-07-01T05:55:45Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29679",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227248903Z-github-com-sgl-project-sglang-issues-29679-5fd6ba61ce.md"
+    },
+    {
+      "number": 29747,
+      "kind": "issue",
+      "title": "[Bug] I''d like to know if it''s possible to deploy Deepseek-v4-flash on a",
+      "closed_at": "2026-07-01T08:45:15Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29747",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227249234Z-github-com-sgl-project-sglang-issues-29747-abc8743044.md"
+    },
+    {
+      "number": 26734,
+      "kind": "issue",
+      "title": "[Bug] MiMo V2.5 + HiCache crashes with full/SWA KV geometry mismatch",
+      "closed_at": "2026-07-01T07:59:29Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/26734",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227249563Z-github-com-sgl-project-sglang-issues-26734-e4ad516b31.md"
+    },
+    {
+      "number": 29812,
+      "kind": "issue",
+      "title": "[Bug] Decode server hangs at warmup with UnifiedRadixCache + HiCache + enable",
+      "closed_at": "2026-07-01T07:36:38Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29812",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md"
+    },
+    {
+      "number": 26849,
+      "kind": "issue",
+      "title": "[Feature] HiSparse support status for DeepSeek-V4-Pro",
+      "closed_at": "2026-07-01T06:02:15Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/26849",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227250177Z-github-com-sgl-project-sglang-issues-26849-75bb63a2ee.md"
+    },
+    {
+      "number": 2,
+      "kind": "pull_request",
+      "title": "Add SRT json decode example",
+      "closed_at": "2024-01-09T20:35:45Z",
+      "merged_at": "2024-01-09T20:35:44Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/2",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227250487Z-github-com-sgl-project-sglang-pull-2-fc452eec15.md"
+    },
+    {
+      "number": 28109,
+      "kind": "pull_request",
+      "title": "Relax apache-tvm-ffi dependency constraints",
+      "closed_at": "2026-07-02T01:55:53Z",
+      "merged_at": "",
+      "labels": [
+        "dependencies"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28109",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227250766Z-github-com-sgl-project-sglang-pull-28109-193e48cc63.md"
+    },
+    {
+      "number": 27923,
+      "kind": "pull_request",
+      "title": "Fix MambaPool.clear_slots OOM by replacing expand-based tensor allocation with",
+      "closed_at": "2026-07-02T01:26:56Z",
+      "merged_at": "2026-07-02T01:26:56Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27923",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227251081Z-github-com-sgl-project-sglang-pull-27923-54b0fd9278.md"
+    },
+    {
+      "number": 28190,
+      "kind": "pull_request",
+      "title": "fix(precision): do not promote failed runs to the comparison baseline",
+      "closed_at": "2026-07-02T01:19:16Z",
+      "merged_at": "2026-07-02T01:19:16Z",
+      "labels": [
+        "high priority",
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28190",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227251393Z-github-com-sgl-project-sglang-pull-28190-36820891dc.md"
+    },
+    {
+      "number": 27730,
+      "kind": "pull_request",
+      "title": "[AMD]: docker(rocm) bump Mooncake to latest main + enable multi-protocol",
+      "closed_at": "2026-07-02T00:41:46Z",
+      "merged_at": "2026-07-02T00:41:46Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27730",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227251701Z-github-com-sgl-project-sglang-pull-27730-3b19789b30.md"
+    },
+    {
+      "number": 28925,
+      "kind": "pull_request",
+      "title": "fix(nightly-precision): pin flashinfer allreduce-fusion backend for TP-partial",
+      "closed_at": "2026-07-02T00:26:19Z",
+      "merged_at": "2026-07-02T00:26:19Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28925",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227251989Z-github-com-sgl-project-sglang-pull-28925-ecf35751b8.md"
+    },
+    {
+      "number": 29871,
+      "kind": "pull_request",
+      "title": "[chore] Add no-getattr rule; refine no-dataclasses rule",
+      "closed_at": "2026-07-01T22:31:35Z",
+      "merged_at": "2026-07-01T22:31:35Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29871",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227252291Z-github-com-sgl-project-sglang-pull-29871-f54b7ae96b.md"
+    },
+    {
+      "number": 29872,
+      "kind": "pull_request",
+      "title": "[sglang-miles] Cherry-pick #28371: [LoRA] Fix chunked SGMV (csgmv) CUDA graph",
+      "closed_at": "2026-07-01T22:09:32Z",
+      "merged_at": "2026-07-01T22:09:32Z",
+      "labels": [
+        "lora"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29872",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227252599Z-github-com-sgl-project-sglang-pull-29872-5d43d9a9b1.md"
+    },
+    {
+      "number": 29870,
+      "kind": "pull_request",
+      "title": "Add pranjalssh to CI_PERMISSIONS.json",
+      "closed_at": "2026-07-01T21:52:02Z",
+      "merged_at": "2026-07-01T21:52:02Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29870",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227252883Z-github-com-sgl-project-sglang-pull-29870-2f3318d3d8.md"
+    },
+    {
+      "number": 29621,
+      "kind": "pull_request",
+      "title": "Extract reusable VMM shareable-handle helpers from register_graph_inputs",
+      "closed_at": "2026-07-01T21:02:01Z",
+      "merged_at": "2026-07-01T21:02:01Z",
+      "labels": [
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29621",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227253154Z-github-com-sgl-project-sglang-pull-29621-d159aca011.md"
+    },
+    {
+      "number": 28612,
+      "kind": "pull_request",
+      "title": "Optimize C128 state pool allocation using request state pool",
+      "closed_at": "2026-07-01T02:11:30Z",
+      "merged_at": "2026-07-01T02:11:30Z",
+      "labels": [
+        "high priority",
+        "deepseek",
+        "run-ci",
+        "jit-kernel",
+        "run-ci-extra",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28612",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227253445Z-github-com-sgl-project-sglang-pull-28612-7a926f2b6e.md"
+    },
+    {
+      "number": 29775,
+      "kind": "pull_request",
+      "title": "[DeepSeek V4] Enable FlashMLA sparse prefill by default",
+      "closed_at": "2026-07-01T20:50:05Z",
+      "merged_at": "2026-07-01T20:50:05Z",
+      "labels": [
+        "deepseek",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29775",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227253733Z-github-com-sgl-project-sglang-pull-29775-7facec9823.md"
+    },
+    {
+      "number": 29595,
+      "kind": "pull_request",
+      "title": "[Spec] Enable FlashInfer autotune for spec draft",
+      "closed_at": "2026-07-01T20:36:08Z",
+      "merged_at": "2026-07-01T20:36:08Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29595",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227254009Z-github-com-sgl-project-sglang-pull-29595-9b91ccb65f.md"
+    },
+    {
+      "number": 29678,
+      "kind": "pull_request",
+      "title": "feat(mem_cache): unified memory pool for hybrid Mamba / SWA models",
+      "closed_at": "2026-07-01T20:21:59Z",
+      "merged_at": "2026-07-01T20:21:59Z",
+      "labels": [
+        "documentation",
+        "npu",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29678",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227254337Z-github-com-sgl-project-sglang-pull-29678-b349e8db6e.md"
+    },
+    {
+      "number": 29782,
+      "kind": "pull_request",
+      "title": "[AMD] Register 3 unit mem_cache + utils tests for stage-b-test-1-gpu-small-amd",
+      "closed_at": "2026-07-01T19:57:48Z",
+      "merged_at": "2026-07-01T19:57:48Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29782",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227254629Z-github-com-sgl-project-sglang-pull-29782-925865751e.md"
+    },
+    {
+      "number": 29694,
+      "kind": "pull_request",
+      "title": "[AMD] Fix int8 per-token quant Triton portability + register test for AMD",
+      "closed_at": "2026-07-01T19:56:34Z",
+      "merged_at": "2026-07-01T19:56:34Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29694",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227254991Z-github-com-sgl-project-sglang-pull-29694-ec6e331d25.md"
+    },
+    {
+      "number": 29554,
+      "kind": "pull_request",
+      "title": "Upgrading tvm-ffi/sgl-deep-gemm/tilelang",
+      "closed_at": "2026-07-01T19:32:18Z",
+      "merged_at": "2026-07-01T19:32:18Z",
+      "labels": [
+        "dependencies",
+        "deepseek",
+        "run-ci",
+        "run-ci-extra",
+        "release-highlight"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29554",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227255298Z-github-com-sgl-project-sglang-pull-29554-df5e0552c1.md"
+    },
+    {
+      "number": 28676,
+      "kind": "pull_request",
+      "title": "[RL] fix deepseek v4 MXFP8 flashinfer_trtllm_routed MoE weight update",
+      "closed_at": "2026-07-01T19:29:09Z",
+      "merged_at": "2026-07-01T19:29:09Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28676",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227255565Z-github-com-sgl-project-sglang-pull-28676-acd7a8793c.md"
+    },
+    {
+      "number": 29761,
+      "kind": "pull_request",
+      "title": "[Bugfix] compressed-tensors WNA16 MoE: don''t assume a \"Linear\" config group",
+      "closed_at": "2026-07-01T18:08:10Z",
+      "merged_at": "2026-07-01T18:08:10Z",
+      "labels": [
+        "high priority",
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29761",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227255887Z-github-com-sgl-project-sglang-pull-29761-45ef437c34.md"
+    },
+    {
+      "number": 29784,
+      "kind": "pull_request",
+      "title": "[AMD][DI][CI] 2/N Add DSV4 DP8/EP8 and MTP MI355X 1P1D nightly recipes",
+      "closed_at": "2026-07-01T15:46:48Z",
+      "merged_at": "2026-07-01T15:46:48Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29784",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227256151Z-github-com-sgl-project-sglang-pull-29784-84490306af.md"
+    },
+    {
+      "number": 29861,
+      "kind": "pull_request",
+      "title": "[diffusion] Fix CI GT generation import",
+      "closed_at": "2026-07-01T17:59:33Z",
+      "merged_at": "",
+      "labels": [
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29861",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227256413Z-github-com-sgl-project-sglang-pull-29861-35379473c6.md"
+    },
+    {
+      "number": 29693,
+      "kind": "pull_request",
+      "title": "[AMD] Register ltx2_ada_values JIT kernel test for AMD nightly CI",
+      "closed_at": "2026-07-01T08:13:56Z",
+      "merged_at": "2026-07-01T08:13:56Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29693",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227256665Z-github-com-sgl-project-sglang-pull-29693-d9143e4f99.md"
+    },
+    {
+      "number": 29211,
+      "kind": "pull_request",
+      "title": "[disagg] Fix KV-event publisher port collision under pure data parallelism",
+      "closed_at": "2026-07-01T17:57:35Z",
+      "merged_at": "2026-07-01T17:57:35Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29211",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md"
+    },
+    {
+      "number": 29824,
+      "kind": "pull_request",
+      "title": "[diffusion] CI: tighten multimodal-gen consistency thresholds",
+      "closed_at": "2026-07-01T17:32:51Z",
+      "merged_at": "2026-07-01T17:32:51Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29824",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227257224Z-github-com-sgl-project-sglang-pull-29824-06eef080d5.md"
+    },
+    {
+      "number": 29773,
+      "kind": "pull_request",
+      "title": "Add class-level defaults on ModelRunner for attributes set in load_model()",
+      "closed_at": "2026-07-01T15:45:18Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29773",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227257501Z-github-com-sgl-project-sglang-pull-29773-fccf58932d.md"
+    },
+    {
+      "number": 29726,
+      "kind": "pull_request",
+      "title": "[AMD] Rebalance stage-c-large-8-gpu-mi35x partitions to fix 60-min timeout",
+      "closed_at": "2026-07-01T15:17:00Z",
+      "merged_at": "2026-07-01T15:17:00Z",
+      "labels": [
+        "amd",
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29726",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227257795Z-github-com-sgl-project-sglang-pull-29726-e52c635921.md"
+    },
+    {
+      "number": 29803,
+      "kind": "pull_request",
+      "title": "[multimodal] Add SM120 Triton attention backend",
+      "closed_at": "2026-07-01T15:15:03Z",
+      "merged_at": "",
+      "labels": [
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29803",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227258072Z-github-com-sgl-project-sglang-pull-29803-4914f16e3a.md"
+    },
+    {
+      "number": 25903,
+      "kind": "pull_request",
+      "title": "[diffusion] Async output finalization",
+      "closed_at": "2026-07-01T14:44:34Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25903",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227258356Z-github-com-sgl-project-sglang-pull-25903-6325a3ce09.md"
+    },
+    {
+      "number": 25377,
+      "kind": "pull_request",
+      "title": "[HiCache][AMD] Add UMBP tiered DRAM + SSD L3 storage backend with hugepage",
+      "closed_at": "2026-07-01T14:21:38Z",
+      "merged_at": "2026-07-01T14:21:38Z",
+      "labels": [
+        "amd",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/25377",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
+    },
+    {
+      "number": 29845,
+      "kind": "pull_request",
+      "title": "[CI] Fix fused EH norm CI registration",
+      "closed_at": "2026-07-01T13:27:07Z",
+      "merged_at": "2026-07-01T13:27:07Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29845",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227258925Z-github-com-sgl-project-sglang-pull-29845-9d7fbaf6ec.md"
+    },
+    {
+      "number": 29208,
+      "kind": "pull_request",
+      "title": "Revert DeepSeek-V4 Online Compress support MTP",
+      "closed_at": "2026-06-24T21:52:37Z",
+      "merged_at": "",
+      "labels": [
+        "deepseek",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29208",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227259186Z-github-com-sgl-project-sglang-pull-29208-ab77062d7d.md"
+    },
+    {
+      "number": 29846,
+      "kind": "pull_request",
+      "title": "Fix fused EH norm CI registration",
+      "closed_at": "2026-07-01T12:12:57Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29846",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227259447Z-github-com-sgl-project-sglang-pull-29846-717d174a01.md"
+    },
+    {
+      "number": 28637,
+      "kind": "pull_request",
+      "title": "XPU: Support head_dim=80 via padding for  flash attention SYCL kernel",
+      "closed_at": "2026-07-01T11:47:35Z",
+      "merged_at": "",
+      "labels": [
+        "Multi-modal"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28637",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227259707Z-github-com-sgl-project-sglang-pull-28637-5144dc2136.md"
+    },
+    {
+      "number": 29840,
+      "kind": "pull_request",
+      "title": "Fix OpenAI serving benchmark input token accounting",
+      "closed_at": "2026-07-01T11:47:21Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29840",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227259976Z-github-com-sgl-project-sglang-pull-29840-67fd8e7eda.md"
+    },
+    {
+      "number": 29841,
+      "kind": "pull_request",
+      "title": "[trtllm_mha] raise on unsupported forward mode in cuda-graph metadata build",
+      "closed_at": "2026-07-01T11:37:13Z",
+      "merged_at": "",
+      "labels": [
+        "blackwell"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29841",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227260232Z-github-com-sgl-project-sglang-pull-29841-72a134285c.md"
+    },
+    {
+      "number": 29823,
+      "kind": "pull_request",
+      "title": "[HiCache]fix draft host pool allocator type",
+      "closed_at": "2026-07-01T11:31:17Z",
+      "merged_at": "2026-07-01T11:31:17Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29823",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227260512Z-github-com-sgl-project-sglang-pull-29823-99b61728bf.md"
+    },
+    {
+      "number": 29791,
+      "kind": "pull_request",
+      "title": "[diffusion] Add 5090 diffusion consumer GPU guard",
+      "closed_at": "2026-07-01T11:09:43Z",
+      "merged_at": "2026-07-01T11:09:43Z",
+      "labels": [
+        "Multi-modal",
+        "DO NOT MERGE",
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29791",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227260777Z-github-com-sgl-project-sglang-pull-29791-42ca35bcbb.md"
+    },
+    {
+      "number": 29169,
+      "kind": "pull_request",
+      "title": "Strip x-anthropic-billing-header from Anthropic API system prompt",
+      "closed_at": "2026-07-01T10:16:08Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29169",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227261045Z-github-com-sgl-project-sglang-pull-29169-57b70a4167.md"
+    },
+    {
+      "number": 27060,
+      "kind": "pull_request",
+      "title": "feat(hicache): Use NIXL path-mode",
+      "closed_at": "2026-07-01T09:59:46Z",
+      "merged_at": "2026-07-01T09:59:46Z",
+      "labels": [
+        "hicache",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27060",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227261334Z-github-com-sgl-project-sglang-pull-27060-53ba12d0f2.md"
+    },
+    {
+      "number": 29667,
+      "kind": "pull_request",
+      "title": "Add fused EH norm for DeepSeek NextN",
+      "closed_at": "2026-07-01T09:46:22Z",
+      "merged_at": "2026-07-01T09:46:22Z",
+      "labels": [
+        "deepseek",
+        "run-ci",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29667",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227261610Z-github-com-sgl-project-sglang-pull-29667-ad7b2a359a.md"
+    },
+    {
+      "number": 17676,
+      "kind": "pull_request",
+      "title": "[NPU]fix eplb with nz",
+      "closed_at": "2026-07-01T09:07:26Z",
+      "merged_at": "",
+      "labels": [
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/17676",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227261879Z-github-com-sgl-project-sglang-pull-17676-1af69a54a8.md"
+    },
+    {
+      "number": 26255,
+      "kind": "pull_request",
+      "title": "[fix] Add support for flashinfer MOE A2A to Qwen3 BF16 model path",
+      "closed_at": "2026-07-01T08:59:55Z",
+      "merged_at": "2026-07-01T08:59:55Z",
+      "labels": [
+        "quant",
+        "sgl-kernel",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26255",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227262144Z-github-com-sgl-project-sglang-pull-26255-0079c35ec3.md"
+    },
+    {
+      "number": 29827,
+      "kind": "pull_request",
+      "title": "[Doc] Tiny update dsv4 doc",
+      "closed_at": "2026-07-01T08:47:35Z",
+      "merged_at": "2026-07-01T08:47:35Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29827",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227262422Z-github-com-sgl-project-sglang-pull-29827-3592c68595.md"
+    },
+    {
+      "number": 28908,
+      "kind": "pull_request",
+      "title": "[Intel XPU] Initially add nightly GSM8K accuracy tests for Llama-3.1-8B (TP=2)",
+      "closed_at": "2026-07-01T08:27:25Z",
+      "merged_at": "2026-07-01T08:27:25Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28908",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227262689Z-github-com-sgl-project-sglang-pull-28908-3f2599326d.md"
+    },
+    {
+      "number": 29290,
+      "kind": "pull_request",
+      "title": "[AMD] Cover DeepSeek-R1 MXFP4 TP4 MTP nightly CI",
+      "closed_at": "2026-07-01T08:21:18Z",
+      "merged_at": "2026-07-01T08:21:18Z",
+      "labels": [
+        "amd",
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29290",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227262991Z-github-com-sgl-project-sglang-pull-29290-4f7b34b2eb.md"
+    },
+    {
+      "number": 29816,
+      "kind": "pull_request",
+      "title": "[AMD] Update ROCm AITER pin to 9127c94",
+      "closed_at": "2026-07-01T08:09:12Z",
+      "merged_at": "2026-07-01T08:09:12Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29816",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227263272Z-github-com-sgl-project-sglang-pull-29816-0141e2151d.md"
+    },
+    {
+      "number": 28287,
+      "kind": "pull_request",
+      "title": "[HiCache] Optimize HiCache hash generation with bulk token byte conversion",
+      "closed_at": "2026-07-01T07:44:24Z",
+      "merged_at": "2026-07-01T07:44:24Z",
+      "labels": [
+        "high priority",
+        "hicache",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28287",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227263540Z-github-com-sgl-project-sglang-pull-28287-2513063725.md"
+    },
+    {
+      "number": 29636,
+      "kind": "pull_request",
+      "title": "[Kernel] Strengthen kernel shape coverage",
+      "closed_at": "2026-07-01T07:44:21Z",
+      "merged_at": "2026-07-01T07:44:21Z",
+      "labels": [
+        "quant",
+        "sgl-kernel",
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29636",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227263819Z-github-com-sgl-project-sglang-pull-29636-76b482c734.md"
+    },
+    {
+      "number": 29789,
+      "kind": "pull_request",
+      "title": "chore: clean diffusion dead code",
+      "closed_at": "2026-07-01T07:42:17Z",
+      "merged_at": "2026-07-01T07:42:17Z",
+      "labels": [
+        "quant",
+        "run-ci",
+        "diffusion",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29789",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227264093Z-github-com-sgl-project-sglang-pull-29789-14910ee509.md"
+    },
+    {
+      "number": 29409,
+      "kind": "pull_request",
+      "title": "[AMD] Split qwen3.5 triton DCP test into its own nightly job",
+      "closed_at": "2026-07-01T07:39:40Z",
+      "merged_at": "2026-07-01T07:39:40Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29409",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227264364Z-github-com-sgl-project-sglang-pull-29409-24a7ff26a8.md"
+    },
+    {
+      "number": 29806,
+      "kind": "pull_request",
+      "title": "chore: bump apache-tvm-ffi 0.1.11 / tilelang 0.1.11 / sgl-deep-gemm 0.1.4",
+      "closed_at": "2026-07-01T07:34:53Z",
+      "merged_at": "",
+      "labels": [
+        "dependencies"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29806",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227264638Z-github-com-sgl-project-sglang-pull-29806-566166d054.md"
+    },
+    {
+      "number": 29161,
+      "kind": "pull_request",
+      "title": "[Fix]: Defer DSA MLA CP KV gather for fp8 trtllm prefill in PD mode",
+      "closed_at": "2026-07-01T07:20:12Z",
+      "merged_at": "2026-07-01T07:20:12Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29161",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227264925Z-github-com-sgl-project-sglang-pull-29161-50399c149e.md"
+    },
+    {
+      "number": 29381,
+      "kind": "pull_request",
+      "title": "[NPU] Fix glm 4.6v",
+      "closed_at": "2026-07-01T07:13:48Z",
+      "merged_at": "2026-07-01T07:13:48Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29381",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227265203Z-github-com-sgl-project-sglang-pull-29381-cca816e761.md"
+    },
+    {
+      "number": 26058,
+      "kind": "pull_request",
+      "title": "Preserve unacked DP dispatch load",
+      "closed_at": "2026-07-01T07:10:32Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26058",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227265482Z-github-com-sgl-project-sglang-pull-26058-4230f01967.md"
+    },
+    {
+      "number": 29805,
+      "kind": "pull_request",
+      "title": "Split diffusion perf baselines by GPU platform",
+      "closed_at": "2026-07-01T06:50:50Z",
+      "merged_at": "",
+      "labels": [
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29805",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227265748Z-github-com-sgl-project-sglang-pull-29805-58c475f0f9.md"
+    },
+    {
+      "number": 29684,
+      "kind": "pull_request",
+      "title": "[passthrough] engine: zstd request-body decompression + header overrides",
+      "closed_at": "2026-07-01T06:48:57Z",
+      "merged_at": "2026-07-01T06:48:57Z",
+      "labels": [
+        "dependencies",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29684",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227266026Z-github-com-sgl-project-sglang-pull-29684-6c22c36b80.md"
+    },
+    {
+      "number": 29767,
+      "kind": "pull_request",
+      "title": "[CI] Relax ModelOpt NVFP4 diffusion consistency thresholds",
+      "closed_at": "2026-07-01T06:45:09Z",
+      "merged_at": "2026-07-01T06:45:09Z",
+      "labels": [
+        "run-ci",
+        "diffusion",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29767",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227266318Z-github-com-sgl-project-sglang-pull-29767-ba32334fdf.md"
+    },
+    {
+      "number": 29708,
+      "kind": "pull_request",
+      "title": "[KDA-Pilot] Add LTX2 QKNorm split-RoPE CUDA fast path",
+      "closed_at": "2026-07-01T06:42:07Z",
+      "merged_at": "2026-07-01T06:42:07Z",
+      "labels": [
+        "run-ci",
+        "diffusion",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29708",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227266585Z-github-com-sgl-project-sglang-pull-29708-2f3ab900ab.md"
+    },
+    {
+      "number": 29271,
+      "kind": "pull_request",
+      "title": "fix: make write_token dynamic",
+      "closed_at": "2026-07-01T05:55:58Z",
+      "merged_at": "2026-07-01T05:55:58Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29271",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227266869Z-github-com-sgl-project-sglang-pull-29271-831d6f373e.md"
+    },
+    {
+      "number": 29681,
+      "kind": "pull_request",
+      "title": "fix(mlx): default prefill_aware_swa=False on MlxModelRunnerStub",
+      "closed_at": "2026-07-01T05:55:44Z",
+      "merged_at": "2026-07-01T05:55:44Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29681",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227267189Z-github-com-sgl-project-sglang-pull-29681-643e9e0298.md"
+    },
+    {
+      "number": 29217,
+      "kind": "pull_request",
+      "title": "[MLX] Fix step-bounded profiling for bench tools on Apple Silicon",
+      "closed_at": "2026-07-01T05:55:30Z",
+      "merged_at": "2026-07-01T05:55:30Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29217",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227267471Z-github-com-sgl-project-sglang-pull-29217-380ac7ae58.md"
+    },
+    {
+      "number": 29809,
+      "kind": "pull_request",
+      "title": "Add OpenAI-compatible tokenize endpoints",
+      "closed_at": "2026-07-01T05:52:12Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29809",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227267750Z-github-com-sgl-project-sglang-pull-29809-b1f9959f3d.md"
+    },
+    {
+      "number": 26579,
+      "kind": "pull_request",
+      "title": "Add SWA-aware KV event metadata",
+      "closed_at": "2026-07-01T05:10:46Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26579",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227268013Z-github-com-sgl-project-sglang-pull-26579-ef77123507.md"
+    },
+    {
+      "number": 27280,
+      "kind": "pull_request",
+      "title": " [Test] Add GQA correctness tests for context_attention_fwd",
+      "closed_at": "2026-07-01T05:09:15Z",
+      "merged_at": "",
+      "labels": [
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27280",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227268280Z-github-com-sgl-project-sglang-pull-27280-d7d2159e16.md"
+    },
+    {
+      "number": 14802,
+      "kind": "pull_request",
+      "title": "[Feature] Add pyproject_rocm.toml for end-to-end ROCm pip installation support",
+      "closed_at": "2026-07-01T03:23:37Z",
+      "merged_at": "",
+      "labels": [
+        "documentation",
+        "amd",
+        "dependencies"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/14802",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227268565Z-github-com-sgl-project-sglang-pull-14802-ae67c43f0f.md"
+    },
+    {
+      "number": 29793,
+      "kind": "pull_request",
+      "title": "[NPU]Modify --lora-backend & --moe-runner-backend description.",
+      "closed_at": "2026-07-01T03:15:46Z",
+      "merged_at": "2026-07-01T03:15:46Z",
+      "labels": [
+        "documentation",
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29793",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227268847Z-github-com-sgl-project-sglang-pull-29793-4c55dd9485.md"
+    },
+    {
+      "number": 29296,
+      "kind": "pull_request",
+      "title": "[EPD][BugFix] Fix encoder health check with global cache TP",
+      "closed_at": "2026-07-01T03:04:04Z",
+      "merged_at": "2026-07-01T03:04:04Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29296",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260702T021227269119Z-github-com-sgl-project-sglang-pull-29296-070986e83f.md"
+    },
+    {
+      "number": 29993,
+      "kind": "issue",
+      "title": "GLM-5.2-FP8 crashes at weight load on 8×B200 since sgl-deep-gemm 0.1.4 (UE8M0",
+      "closed_at": "2026-07-03T01:17:28Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29993",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321688012Z-github-com-sgl-project-sglang-issues-29993-a014f93f5b.md"
+    },
+    {
+      "number": 20609,
+      "kind": "issue",
+      "title": "[Tracking][Diffusion] Inference Batching Support",
+      "closed_at": "2026-07-03T00:39:36Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/20609",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321688720Z-github-com-sgl-project-sglang-issues-20609-937d1f9d2c.md"
+    },
+    {
+      "number": 24212,
+      "kind": "issue",
+      "title": "[Feature][AMD] Address the specv2 + moriep tbo compatibility",
+      "closed_at": "2026-07-03T00:39:34Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24212",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321689052Z-github-com-sgl-project-sglang-issues-24212-c772af21fe.md"
+    },
+    {
+      "number": 29897,
+      "kind": "issue",
+      "title": "[Bug] dsv3_fused_a_gemm crashes on SM120: pipeline sized against a hardcoded",
+      "closed_at": "2026-07-03T00:12:46Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29897",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321689339Z-github-com-sgl-project-sglang-issues-29897-2d7e6db4d8.md"
+    },
+    {
+      "number": 29976,
+      "kind": "issue",
+      "title": "[Bug] dataclass field should not put in the msgpack.Struct",
+      "closed_at": "2026-07-02T21:14:04Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29976",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321689653Z-github-com-sgl-project-sglang-issues-29976-13b991b3bb.md"
+    },
+    {
+      "number": 29954,
+      "kind": "issue",
+      "title": "Regression: DeepGEMM 0.1.4 UE8M0 scale assert loading GLM-5.2-FP8 with fp8_gemm_runner_backend=auto",
+      "closed_at": "2026-07-02T20:42:18Z",
+      "merged_at": "",
+      "labels": [
+        "high priority"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29954",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md"
+    },
+    {
+      "number": 29054,
+      "kind": "issue",
+      "title": "[Bug] PP disagg prefill can mismatch PP1 ForwardBatch with PP proxy tensor",
+      "closed_at": "2026-07-02T09:13:36Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29054",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321690183Z-github-com-sgl-project-sglang-issues-29054-09d4f3f064.md"
+    },
+    {
+      "number": 25887,
+      "kind": "issue",
+      "title": "[Bug] CP+PP Occur RuntimeError: The size of tensor a (4) must match the size",
+      "closed_at": "2026-07-02T08:13:48Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/25887",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321690467Z-github-com-sgl-project-sglang-issues-25887-b8b4be924d.md"
+    },
+    {
+      "number": 26754,
+      "kind": "issue",
+      "title": "[Bug] ValueError: deepseek_v4_c4_state state_pools must not contain None",
+      "closed_at": "2026-07-02T08:07:43Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/26754",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321690740Z-github-com-sgl-project-sglang-issues-26754-5bf39a998e.md"
+    },
+    {
+      "number": 29851,
+      "kind": "issue",
+      "title": "[Bug] AssertionError:, model load glm5.2 startup error",
+      "closed_at": "2026-07-02T08:06:25Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29851",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321690987Z-github-com-sgl-project-sglang-issues-29851-6a0e5c98d4.md"
+    },
+    {
+      "number": 23020,
+      "kind": "issue",
+      "title": "[Bug] PD Disaggregation: Gradual KV cache corruption causes model output to",
+      "closed_at": "2026-04-22T09:04:44Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23020",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321691248Z-github-com-sgl-project-sglang-issues-23020-616c5030ef.md"
+    },
+    {
+      "number": 29849,
+      "kind": "issue",
+      "title": "[Bug] `flashinfer_mxfp4` MoE runner crashes with `''DeepEPLLDispatchOutput",
+      "closed_at": "2026-07-02T06:05:06Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29849",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321691558Z-github-com-sgl-project-sglang-issues-29849-b3f6e18476.md"
+    },
+    {
+      "number": 29014,
+      "kind": "issue",
+      "title": "[Bug] pp>1 GLM5.2 report RuntimeError: batch_size must be equal to batch_size_k",
+      "closed_at": "2026-07-02T05:40:58Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29014",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321691883Z-github-com-sgl-project-sglang-issues-29014-57830f0030.md"
+    },
+    {
+      "number": 2,
+      "kind": "pull_request",
+      "title": "Add SRT json decode example",
+      "closed_at": "2024-01-09T20:35:45Z",
+      "merged_at": "2024-01-09T20:35:44Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/2",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321692167Z-github-com-sgl-project-sglang-pull-2-a41251919c.md"
+    },
+    {
+      "number": 29837,
+      "kind": "pull_request",
+      "title": "Fix GLM-DSA raw config restoration",
+      "closed_at": "2026-07-03T01:21:43Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29837",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321692424Z-github-com-sgl-project-sglang-pull-29837-4f563a1e01.md"
+    },
+    {
+      "number": 29918,
+      "kind": "pull_request",
+      "title": "[AMD] Gate broken CK block-FP8 GEMM shapes to aiter-triton-GEMM to fix ROCm",
+      "closed_at": "2026-07-03T01:18:37Z",
+      "merged_at": "2026-07-03T01:18:37Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29918",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321692682Z-github-com-sgl-project-sglang-pull-29918-c2db31c39f.md"
+    },
+    {
+      "number": 29990,
+      "kind": "pull_request",
+      "title": "docs: sync LMSYS SGLang blog cards",
+      "closed_at": "2026-07-03T01:01:33Z",
+      "merged_at": "2026-07-03T01:01:33Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29990",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321692959Z-github-com-sgl-project-sglang-pull-29990-066ce7cc1e.md"
+    },
+    {
+      "number": 29807,
+      "kind": "pull_request",
+      "title": "Add XPU CI job monitor workflow",
+      "closed_at": "2026-07-03T00:30:17Z",
+      "merged_at": "2026-07-03T00:30:17Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29807",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321693226Z-github-com-sgl-project-sglang-pull-29807-4eef7fc6be.md"
+    },
+    {
+      "number": 29919,
+      "kind": "pull_request",
+      "title": "[Kernel]Fix and Fuse DeepSeek-V4 FP8 wo_a quantization",
+      "closed_at": "2026-07-03T00:21:57Z",
+      "merged_at": "",
+      "labels": [
+        "quant",
+        "deepseek",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29919",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321693477Z-github-com-sgl-project-sglang-pull-29919-72607389a3.md"
+    },
+    {
+      "number": 29899,
+      "kind": "pull_request",
+      "title": "fix(sgl-kernel): fail dsv3_fused_a_gemm loudly when the device smem budget",
+      "closed_at": "2026-07-03T00:12:43Z",
+      "merged_at": "",
+      "labels": [
+        "sgl-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29899",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321693721Z-github-com-sgl-project-sglang-pull-29899-29a276a497.md"
+    },
+    {
+      "number": 29017,
+      "kind": "pull_request",
+      "title": "[model-gateway] PD router: cancel paired decode when prefill fails",
+      "closed_at": "2026-07-03T00:03:14Z",
+      "merged_at": "2026-07-03T00:03:14Z",
+      "labels": [
+        "model-gateway"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29017",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md"
+    },
+    {
+      "number": 29943,
+      "kind": "pull_request",
+      "title": "Fix shared logits buffer for reduced-vocab draft models",
+      "closed_at": "2026-07-02T23:08:57Z",
+      "merged_at": "2026-07-02T23:08:57Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29943",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321694238Z-github-com-sgl-project-sglang-pull-29943-13961406e2.md"
+    },
+    {
+      "number": 29982,
+      "kind": "pull_request",
+      "title": "[AMD][DeepSeek V4] Fix default FlashMLA sparse prefill off on ROCm/HIP",
+      "closed_at": "2026-07-02T23:00:09Z",
+      "merged_at": "2026-07-02T23:00:09Z",
+      "labels": [
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29982",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321694488Z-github-com-sgl-project-sglang-pull-29982-15905e82bb.md"
+    },
+    {
+      "number": 27835,
+      "kind": "pull_request",
+      "title": "[bugfix][AMD] Disable aiter allreduce+RMSNorm fusion under DP attention /",
+      "closed_at": "2026-07-02T22:31:25Z",
+      "merged_at": "2026-07-02T22:31:25Z",
+      "labels": [
+        "amd",
+        "deepseek",
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27835",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321694744Z-github-com-sgl-project-sglang-pull-27835-b5c5386c81.md"
+    },
+    {
+      "number": 29680,
+      "kind": "pull_request",
+      "title": "[AMD] Register 2 CPU/ROCm-safe tests for AMD 1-GPU PR CI",
+      "closed_at": "2026-07-02T07:25:33Z",
+      "merged_at": "2026-07-02T07:25:33Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29680",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321695010Z-github-com-sgl-project-sglang-pull-29680-e383020549.md"
+    },
+    {
+      "number": 29756,
+      "kind": "pull_request",
+      "title": "[AMD] Fix MiniMax M3 state transfer in Mori PD",
+      "closed_at": "2026-07-02T22:02:11Z",
+      "merged_at": "2026-07-02T22:02:11Z",
+      "labels": [
+        "amd",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29756",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321695260Z-github-com-sgl-project-sglang-pull-29756-7ed9a54e1d.md"
+    },
+    {
+      "number": 29977,
+      "kind": "pull_request",
+      "title": "`session_id` dataclass field should not put in msgpack struct",
+      "closed_at": "2026-07-02T21:10:13Z",
+      "merged_at": "2026-07-02T21:10:13Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29977",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321695501Z-github-com-sgl-project-sglang-pull-29977-9b92cc06da.md"
+    },
+    {
+      "number": 29956,
+      "kind": "pull_request",
+      "title": "Fix UE8M0 scale rounding for DeepGEMM",
+      "closed_at": "2026-07-02T20:42:17Z",
+      "merged_at": "2026-07-02T20:42:17Z",
+      "labels": [
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29956",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321695739Z-github-com-sgl-project-sglang-pull-29956-ceef797a2a.md"
+    },
+    {
+      "number": 29921,
+      "kind": "pull_request",
+      "title": "perf(triton): avoid per-step D2H .item() sync in cuda-graph loc translate",
+      "closed_at": "2026-07-02T20:20:00Z",
+      "merged_at": "2026-07-02T20:20:00Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29921",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321695975Z-github-com-sgl-project-sglang-pull-29921-738701711e.md"
+    },
+    {
+      "number": 29974,
+      "kind": "pull_request",
+      "title": "[Doc] Cookbook Laguna-XS-2.1: add AIME25 accuracy (B300 + GB300)",
+      "closed_at": "2026-07-02T20:15:01Z",
+      "merged_at": "2026-07-02T20:15:01Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29974",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321696219Z-github-com-sgl-project-sglang-pull-29974-5ff3a9d9cc.md"
+    },
+    {
+      "number": 29458,
+      "kind": "pull_request",
+      "title": "Enable Breakable Cuda Graph as Default",
+      "closed_at": "2026-07-02T05:04:45Z",
+      "merged_at": "2026-07-02T05:04:45Z",
+      "labels": [
+        "high priority",
+        "blackwell",
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29458",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321696489Z-github-com-sgl-project-sglang-pull-29458-251e9b44a3.md"
+    },
+    {
+      "number": 29817,
+      "kind": "pull_request",
+      "title": "[HiCache] write_back policy refinement",
+      "closed_at": "2026-07-02T19:16:04Z",
+      "merged_at": "2026-07-02T19:16:04Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29817",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321696742Z-github-com-sgl-project-sglang-pull-29817-77494d1e1a.md"
+    },
+    {
+      "number": 29503,
+      "kind": "pull_request",
+      "title": "NPU case rl update weights for tensor load_format == None and flatten bucket",
+      "closed_at": "2026-07-02T14:12:05Z",
+      "merged_at": "2026-07-02T14:12:05Z",
+      "labels": [
+        "quant",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29503",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321697086Z-github-com-sgl-project-sglang-pull-29503-9cd45aa893.md"
+    },
+    {
+      "number": 29544,
+      "kind": "pull_request",
+      "title": "docs: add PD disaggregation to GLM-5.2 cookbook playground",
+      "closed_at": "2026-07-02T16:57:39Z",
+      "merged_at": "2026-07-02T16:57:39Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29544",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321697582Z-github-com-sgl-project-sglang-pull-29544-6bb7701cbf.md"
+    },
+    {
+      "number": 29702,
+      "kind": "pull_request",
+      "title": "Fix wrong RMSNorm fallback to old Flashinfer CUDA kernel when in PCG",
+      "closed_at": "2026-07-02T16:49:50Z",
+      "merged_at": "2026-07-02T16:49:50Z",
+      "labels": [
+        "sgl-kernel",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29702",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321697856Z-github-com-sgl-project-sglang-pull-29702-791714b6a1.md"
+    },
+    {
+      "number": 10692,
+      "kind": "pull_request",
+      "title": "[PoC] PD-Multiplexing Support",
+      "closed_at": "2025-11-13T19:37:21Z",
+      "merged_at": "",
+      "labels": [
+        "high priority",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/10692",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321698107Z-github-com-sgl-project-sglang-pull-10692-c405656f3e.md"
+    },
+    {
+      "number": 29758,
+      "kind": "pull_request",
+      "title": "Remove transformers 5.12.1 dead-code workarounds",
+      "closed_at": "2026-07-02T16:03:06Z",
+      "merged_at": "2026-07-02T16:03:06Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29758",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321698350Z-github-com-sgl-project-sglang-pull-29758-b1d2833eb1.md"
+    },
+    {
+      "number": 29950,
+      "kind": "pull_request",
+      "title": "[DO NOT MERGE] Try unpin fa4",
+      "closed_at": "2026-07-02T15:10:21Z",
+      "merged_at": "",
+      "labels": [
+        "dependencies",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29950",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321698589Z-github-com-sgl-project-sglang-pull-29950-dfe9934c03.md"
+    },
+    {
+      "number": 29853,
+      "kind": "pull_request",
+      "title": "bugfix for npu Grok2 model --detokenizer without all special ids",
+      "closed_at": "2026-07-02T14:12:48Z",
+      "merged_at": "2026-07-02T14:12:48Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29853",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321698957Z-github-com-sgl-project-sglang-pull-29853-5425def017.md"
+    },
+    {
+      "number": 26280,
+      "kind": "pull_request",
+      "title": "[fix] qwen image tp support",
+      "closed_at": "2026-07-02T13:50:47Z",
+      "merged_at": "",
+      "labels": [
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/26280",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321699561Z-github-com-sgl-project-sglang-pull-26280-dc74258364.md"
+    },
+    {
+      "number": 29860,
+      "kind": "pull_request",
+      "title": "Fix SWA eviction tombstoning the last leaf",
+      "closed_at": "2026-07-02T13:42:30Z",
+      "merged_at": "2026-07-02T13:42:30Z",
+      "labels": [
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29860",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321699808Z-github-com-sgl-project-sglang-pull-29860-df57816e44.md"
+    },
+    {
+      "number": 29852,
+      "kind": "pull_request",
+      "title": "[diffusion] refactor: refactor cuda attention backend resolver",
+      "closed_at": "2026-07-02T13:34:54Z",
+      "merged_at": "2026-07-02T13:34:54Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29852",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321700042Z-github-com-sgl-project-sglang-pull-29852-4ba87ad965.md"
+    },
+    {
+      "number": 29652,
+      "kind": "pull_request",
+      "title": "Add H200 FP8 MoE config for GLM",
+      "closed_at": "2026-07-02T12:40:51Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29652",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321700277Z-github-com-sgl-project-sglang-pull-29652-6ca880b8d0.md"
+    },
+    {
+      "number": 29924,
+      "kind": "pull_request",
+      "title": "[Deps] Bump FlashInfer to 0.6.14",
+      "closed_at": "2026-07-02T12:17:18Z",
+      "merged_at": "",
+      "labels": [
+        "dependencies"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29924",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321700514Z-github-com-sgl-project-sglang-pull-29924-30c549babf.md"
+    },
+    {
+      "number": 29884,
+      "kind": "pull_request",
+      "title": "[Doc] Cookbook: Laguna-XS-2.1 (DFlash low-latency + high-throughput)",
+      "closed_at": "2026-07-02T12:05:34Z",
+      "merged_at": "2026-07-02T12:05:34Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29884",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321700744Z-github-com-sgl-project-sglang-pull-29884-3b6787d53d.md"
+    },
+    {
+      "number": 29922,
+      "kind": "pull_request",
+      "title": "[MoE] Add DeepSeek-V3 grouped routing to the unified Triton router (stacked",
+      "closed_at": "2026-07-02T11:52:59Z",
+      "merged_at": "",
+      "labels": [
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29922",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321700991Z-github-com-sgl-project-sglang-pull-29922-abbfd7f8ba.md"
+    },
+    {
+      "number": 29862,
+      "kind": "pull_request",
+      "title": "[diffusion] Add --offload-during-compile to fit max-autotune on tight-memory",
+      "closed_at": "2026-07-02T11:39:20Z",
+      "merged_at": "2026-07-02T11:39:20Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29862",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321701246Z-github-com-sgl-project-sglang-pull-29862-752dfe6db8.md"
+    },
+    {
+      "number": 29276,
+      "kind": "pull_request",
+      "title": "add mimo-v2-flash best practice",
+      "closed_at": "2026-07-02T10:51:12Z",
+      "merged_at": "",
+      "labels": [
+        "documentation",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29276",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321701507Z-github-com-sgl-project-sglang-pull-29276-7e728b383d.md"
+    },
+    {
+      "number": 18338,
+      "kind": "pull_request",
+      "title": "[CPU] Support non-dividable TP num for vision models",
+      "closed_at": "2026-03-06T03:30:43Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/18338",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321701743Z-github-com-sgl-project-sglang-pull-18338-e4b5560023.md"
+    },
+    {
+      "number": 29659,
+      "kind": "pull_request",
+      "title": "[LFM2-MoE] Support Transformers v5 packed MoE expert weights",
+      "closed_at": "2026-07-02T09:13:02Z",
+      "merged_at": "2026-07-02T09:13:02Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29659",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321701977Z-github-com-sgl-project-sglang-pull-29659-c1fb63dd76.md"
+    },
+    {
+      "number": 29770,
+      "kind": "pull_request",
+      "title": "chore: cleanup garbage code",
+      "closed_at": "2026-07-02T08:14:01Z",
+      "merged_at": "2026-07-02T08:14:01Z",
+      "labels": [
+        "documentation",
+        "quant",
+        "amd",
+        "dependencies",
+        "Multi-modal",
+        "sgl-kernel",
+        "npu",
+        "run-ci",
+        "diffusion",
+        "model-gateway",
+        "mthreads",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29770",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321702222Z-github-com-sgl-project-sglang-pull-29770-cef540b3c3.md"
+    },
+    {
+      "number": 29905,
+      "kind": "pull_request",
+      "title": "docs: add Qwen3.6-27B-NVFP4 variant to cookbook",
+      "closed_at": "2026-07-02T07:05:30Z",
+      "merged_at": "2026-07-02T07:05:30Z",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29905",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321702459Z-github-com-sgl-project-sglang-pull-29905-ca85d1de96.md"
+    },
+    {
+      "number": 29779,
+      "kind": "pull_request",
+      "title": "Share one logits output buffer across prefill/decode/draft cuda-graph runners",
+      "closed_at": "2026-07-02T06:30:56Z",
+      "merged_at": "2026-07-02T06:30:56Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29779",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321702697Z-github-com-sgl-project-sglang-pull-29779-b67c6aeb3b.md"
+    },
+    {
+      "number": 20072,
+      "kind": "pull_request",
+      "title": "[CPU] Padding for dim divisibility in TP3/6 cases",
+      "closed_at": "2026-07-02T05:14:40Z",
+      "merged_at": "2026-07-02T05:14:40Z",
+      "labels": [
+        "sgl-kernel",
+        "intel",
+        "cpu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/20072",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321702952Z-github-com-sgl-project-sglang-pull-20072-d969dae446.md"
+    },
+    {
+      "number": 29497,
+      "kind": "pull_request",
+      "title": "[CPU] Fix model failures on Xeon",
+      "closed_at": "2026-07-02T05:20:19Z",
+      "merged_at": "2026-07-02T05:20:19Z",
+      "labels": [
+        "documentation",
+        "dependencies",
+        "intel",
+        "cpu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29497",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321703190Z-github-com-sgl-project-sglang-pull-29497-65835eeee5.md"
+    },
+    {
+      "number": 29053,
+      "kind": "pull_request",
+      "title": "[XPU] Enable XPU graph support (decode full-graph + prefill tc_piecewise)",
+      "closed_at": "2026-07-02T05:24:36Z",
+      "merged_at": "2026-07-02T05:24:35Z",
+      "labels": [
+        "documentation",
+        "deepseek",
+        "intel",
+        "xpu",
+        "run-ci",
+        "piecewise-cuda-graph",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29053",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321703429Z-github-com-sgl-project-sglang-pull-29053-36bc5f93cf.md"
+    },
+    {
+      "number": 23180,
+      "kind": "pull_request",
+      "title": "Speculative decoding support on XPU",
+      "closed_at": "2026-07-02T05:23:24Z",
+      "merged_at": "2026-07-02T05:23:24Z",
+      "labels": [
+        "intel",
+        "xpu",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/23180",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321703671Z-github-com-sgl-project-sglang-pull-23180-e9471cec91.md"
+    },
+    {
+      "number": 27915,
+      "kind": "pull_request",
+      "title": "[Intel GPU] DeepSeek V4 7/N: Support fused_rope_inplace on XPU using triton",
+      "closed_at": "2026-07-02T05:22:21Z",
+      "merged_at": "2026-07-02T05:22:20Z",
+      "labels": [
+        "intel",
+        "xpu",
+        "run-ci",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27915",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321703900Z-github-com-sgl-project-sglang-pull-27915-2e08f255a4.md"
+    },
+    {
+      "number": 29866,
+      "kind": "pull_request",
+      "title": "Fix capture-mode detection during breakable CUDA graph capture",
+      "closed_at": "2026-07-02T05:12:57Z",
+      "merged_at": "2026-07-02T05:12:57Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29866",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321704139Z-github-com-sgl-project-sglang-pull-29866-2d1b812fb3.md"
+    },
+    {
+      "number": 29672,
+      "kind": "pull_request",
+      "title": "[amd][diffusion] Fix causal Conv3D cat/pad fusion crashes for wan2.2 t2v",
+      "closed_at": "2026-07-02T05:11:30Z",
+      "merged_at": "2026-07-02T05:11:30Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29672",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321704380Z-github-com-sgl-project-sglang-pull-29672-ba027e6eff.md"
+    },
+    {
+      "number": 29354,
+      "kind": "pull_request",
+      "title": "[bug6] clear stale mamba cow source on rematch",
+      "closed_at": "2026-07-02T05:04:10Z",
+      "merged_at": "2026-07-02T05:04:10Z",
+      "labels": [
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29354",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321704621Z-github-com-sgl-project-sglang-pull-29354-627de4d25c.md"
+    },
+    {
+      "number": 29880,
+      "kind": "pull_request",
+      "title": "Revert \"[DeepSeek V4] Enable FlashMLA sparse prefill by default\"",
+      "closed_at": "2026-07-02T04:20:24Z",
+      "merged_at": "",
+      "labels": [
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29880",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321704864Z-github-com-sgl-project-sglang-pull-29880-df959cbeff.md"
+    },
+    {
+      "number": 29885,
+      "kind": "pull_request",
+      "title": "[DeepSeek V4] Cover both dense and sparse prefill paths in the compress attention",
+      "closed_at": "2026-07-02T04:20:12Z",
+      "merged_at": "2026-07-02T04:20:12Z",
+      "labels": [
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29885",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321705106Z-github-com-sgl-project-sglang-pull-29885-08aac0f3b1.md"
+    },
+    {
+      "number": 29551,
+      "kind": "pull_request",
+      "title": "sgl-kernel: bump sgl-attn for varlen num_splits OOM fix",
+      "closed_at": "2026-07-02T04:13:54Z",
+      "merged_at": "2026-07-02T04:13:54Z",
+      "labels": [
+        "sgl-kernel",
+        "run-ci",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29551",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321705363Z-github-com-sgl-project-sglang-pull-29551-e7a0c5be56.md"
+    },
+    {
+      "number": 29842,
+      "kind": "pull_request",
+      "title": "pad customized_info for mixed output batches",
+      "closed_at": "2026-07-02T04:07:59Z",
+      "merged_at": "2026-07-02T04:07:59Z",
+      "labels": [
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29842",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321705604Z-github-com-sgl-project-sglang-pull-29842-a3999286a0.md"
+    },
+    {
+      "number": 29814,
+      "kind": "pull_request",
+      "title": "[AMD] ci: register page-major Qwen3.5-4B GDN-hybrid test on extra-a 1-gpu-large-amd",
+      "closed_at": "2026-07-02T04:02:33Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29814",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321705838Z-github-com-sgl-project-sglang-pull-29814-3aa3d82f07.md"
+    },
+    {
+      "number": 29691,
+      "kind": "pull_request",
+      "title": "[Apple Silicon] [CI] Add model-free unit-test workflow on macos-26",
+      "closed_at": "2026-07-02T04:00:22Z",
+      "merged_at": "2026-07-02T04:00:22Z",
+      "labels": [
+        "apple-silicon"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29691",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321706084Z-github-com-sgl-project-sglang-pull-29691-18420f658c.md"
+    },
+    {
+      "number": 29808,
+      "kind": "pull_request",
+      "title": "[diffusion]: enable RL rollout path for LTX-2.3 post-training&step indices",
+      "closed_at": "2026-07-02T03:53:18Z",
+      "merged_at": "",
+      "labels": [
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29808",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321706328Z-github-com-sgl-project-sglang-pull-29808-766cc24398.md"
+    },
+    {
+      "number": 29472,
+      "kind": "pull_request",
+      "title": "[KDA] Add FlashKDA prefill backend for safe-gate KDA linear attention",
+      "closed_at": "2026-07-02T03:37:05Z",
+      "merged_at": "2026-07-02T03:37:05Z",
+      "labels": [
+        "dependencies",
+        "run-ci",
+        "run-ci-extra",
+        "linear-attention"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29472",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321706579Z-github-com-sgl-project-sglang-pull-29472-f22e49c084.md"
+    },
+    {
+      "number": 21405,
+      "kind": "pull_request",
+      "title": "Enable IndexCache for DeepSeek V3.2",
+      "closed_at": "2026-04-05T09:45:58Z",
+      "merged_at": "2026-04-05T09:45:58Z",
+      "labels": [
+        "high priority",
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/21405",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321706852Z-github-com-sgl-project-sglang-pull-21405-f196da09c6.md"
+    },
+    {
+      "number": 29446,
+      "kind": "pull_request",
+      "title": "Add Laguna XS.2.1 DFlash support to SGLang",
+      "closed_at": "2026-07-02T03:26:24Z",
+      "merged_at": "2026-07-02T03:26:24Z",
+      "labels": [
+        "high priority",
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29446",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321707108Z-github-com-sgl-project-sglang-pull-29446-6da87f7b13.md"
+    },
+    {
+      "number": 29829,
+      "kind": "pull_request",
+      "title": "[NPU] Fix block_table batch size mismatch in GLM-4.7-Flash DeepEP + MTP without",
+      "closed_at": "2026-07-02T03:09:02Z",
+      "merged_at": "2026-07-02T03:09:02Z",
+      "labels": [
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29829",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321707349Z-github-com-sgl-project-sglang-pull-29829-6b0dc4d546.md"
+    },
+    {
+      "number": 29867,
+      "kind": "pull_request",
+      "title": "feat(short-conv): shared ShortConvAttnBackend for ZAYA1 CCA + LFM2 short conv",
+      "closed_at": "2026-07-02T03:08:00Z",
+      "merged_at": "2026-07-02T03:08:00Z",
+      "labels": [
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29867",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260703T021321707601Z-github-com-sgl-project-sglang-pull-29867-592fa1015f.md"
+    },
+    {
+      "number": 24364,
+      "kind": "issue",
+      "title": "[Bug] Qwen3.6 hybrid Mamba: Mamba pool 9-18 GiB allocation OOM on RTX PRO",
+      "closed_at": "2026-07-04T00:38:26Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24364",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349125916Z-github-com-sgl-project-sglang-issues-24364-049e81396b.md"
+    },
+    {
+      "number": 23083,
+      "kind": "issue",
+      "title": "[Bug] : ImportError: cannot import name ''dynamic_per_tensor_quant'' from",
+      "closed_at": "2026-07-04T00:38:25Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/23083",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349126707Z-github-com-sgl-project-sglang-issues-23083-b8c57460ca.md"
+    },
+    {
+      "number": 21855,
+      "kind": "issue",
+      "title": "[Feature] Replace memory-bound custom CUDA kernels with torch.compile generated",
+      "closed_at": "2026-07-04T00:38:23Z",
+      "merged_at": "",
+      "labels": [
+        "inactive",
+        "performance",
+        "nvidia"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/21855",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349127082Z-github-com-sgl-project-sglang-issues-21855-95afd12233.md"
+    },
+    {
+      "number": 24353,
+      "kind": "issue",
+      "title": "Triton RMSNorm kernel underutilizes T4/A10G/A100 SMs for large contexts (NCU",
+      "closed_at": "2026-07-04T00:38:21Z",
+      "merged_at": "",
+      "labels": [
+        "inactive"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/24353",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349127434Z-github-com-sgl-project-sglang-issues-24353-1da269faf5.md"
+    },
+    {
+      "number": 30019,
+      "kind": "issue",
+      "title": "MambaRadixCache shape mismatch in PD chunked prefill when caching unfinished",
+      "closed_at": "2026-07-03T07:43:18Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/30019",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349127722Z-github-com-sgl-project-sglang-issues-30019-d282cc71f4.md"
+    },
+    {
+      "number": 29987,
+      "kind": "issue",
+      "title": "Eval dataset tip",
+      "closed_at": "2026-07-03T04:11:23Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/issues/29987",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349127990Z-github-com-sgl-project-sglang-issues-29987-6420246e01.md"
+    },
+    {
+      "number": 30081,
+      "kind": "pull_request",
+      "title": "[NPU] Bugfix: mamba_track_indices adapted for npu",
+      "closed_at": "2026-07-04T02:12:38Z",
+      "merged_at": "",
+      "labels": [
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30081",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349128266Z-github-com-sgl-project-sglang-pull-30081-f32a1fbe79.md"
+    },
+    {
+      "number": 29831,
+      "kind": "pull_request",
+      "title": "[diffusion] Prefer official diffusion consistency GT",
+      "closed_at": "2026-07-04T02:09:33Z",
+      "merged_at": "2026-07-04T02:09:33Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29831",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349128529Z-github-com-sgl-project-sglang-pull-29831-1dc595f744.md"
+    },
+    {
+      "number": 30083,
+      "kind": "pull_request",
+      "title": "Revert \"Fix wrong RMSNorm fallback to old Flashinfer CUDA kernel when in PCG\"",
+      "closed_at": "2026-07-04T02:05:20Z",
+      "merged_at": "2026-07-04T02:05:20Z",
+      "labels": [
+        "sgl-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30083",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349128790Z-github-com-sgl-project-sglang-pull-30083-4ad739e740.md"
+    },
+    {
+      "number": 30079,
+      "kind": "pull_request",
+      "title": "[MoE] Fix moe_fused_gate out-of-range expert id on all-NaN rows (fixes eagle_dp_attention",
+      "closed_at": "2026-07-04T01:48:52Z",
+      "merged_at": "2026-07-04T01:48:52Z",
+      "labels": [
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30079",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349129044Z-github-com-sgl-project-sglang-pull-30079-8bdcaccdd6.md"
+    },
+    {
+      "number": 30080,
+      "kind": "pull_request",
+      "title": "[MiMo-VL] Fix missing padded_context_dim in vision patch merger (fixes test_mimo_v2",
+      "closed_at": "2026-07-04T01:32:02Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30080",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349129317Z-github-com-sgl-project-sglang-pull-30080-0be0be9fc6.md"
+    },
+    {
+      "number": 2,
+      "kind": "pull_request",
+      "title": "Add SRT json decode example",
+      "closed_at": "2024-01-09T20:35:45Z",
+      "merged_at": "2024-01-09T20:35:44Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/2",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349129580Z-github-com-sgl-project-sglang-pull-2-b040149076.md"
+    },
+    {
+      "number": 29994,
+      "kind": "pull_request",
+      "title": "fix(mimo-vl): pass padded_context_dim to Qwen2_5_VisionPatchMerger",
+      "closed_at": "2026-07-04T00:08:26Z",
+      "merged_at": "2026-07-04T00:08:26Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29994",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349129813Z-github-com-sgl-project-sglang-pull-29994-522dcb1390.md"
+    },
+    {
+      "number": 29210,
+      "kind": "pull_request",
+      "title": "Fix eagle hidden dim extraction, PD wildcard host, and cuda graph",
+      "closed_at": "2026-06-25T04:28:36Z",
+      "merged_at": "",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29210",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349130060Z-github-com-sgl-project-sglang-pull-29210-f441048c26.md"
+    },
+    {
+      "number": 29324,
+      "kind": "pull_request",
+      "title": "Fix async generator reader lock leak causing pause_generation to hang",
+      "closed_at": "2026-06-25T19:31:27Z",
+      "merged_at": "",
+      "labels": [
+        "documentation"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29324",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349130312Z-github-com-sgl-project-sglang-pull-29324-ad3accd29c.md"
+    },
+    {
+      "number": 30025,
+      "kind": "pull_request",
+      "title": "fix: reorder DSA indexer dual-stream ops to avoid CUDA graph stream explosion",
+      "closed_at": "2026-07-03T20:53:17Z",
+      "merged_at": "2026-07-03T20:53:17Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30025",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349130560Z-github-com-sgl-project-sglang-pull-30025-1c73676673.md"
+    },
+    {
+      "number": 30021,
+      "kind": "pull_request",
+      "title": "[CI] Add GLM52 NVFP4 MTP B200 tests",
+      "closed_at": "2026-07-03T20:43:39Z",
+      "merged_at": "2026-07-03T20:43:38Z",
+      "labels": [
+        "blackwell"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30021",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349130815Z-github-com-sgl-project-sglang-pull-30021-e8400aba5c.md"
+    },
+    {
+      "number": 29874,
+      "kind": "pull_request",
+      "title": "[LoRA] DSA indexer targets + MoE-LoRA cuda-graph and RL adapter-reload fixes",
+      "closed_at": "2026-07-03T20:14:28Z",
+      "merged_at": "2026-07-03T20:14:28Z",
+      "labels": [
+        "lora"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29874",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349131056Z-github-com-sgl-project-sglang-pull-29874-af0ea95cc6.md"
+    },
+    {
+      "number": 29365,
+      "kind": "pull_request",
+      "title": "[CP] Consolidate decode-context-parallel (DCP) helpers into layers/dcp/",
+      "closed_at": "2026-07-03T19:25:40Z",
+      "merged_at": "2026-07-03T19:25:40Z",
+      "labels": [
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29365",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349131360Z-github-com-sgl-project-sglang-pull-29365-e8763a3cd3.md"
+    },
+    {
+      "number": 29908,
+      "kind": "pull_request",
+      "title": "[Apple Silicon] Add labeler config",
+      "closed_at": "2026-07-03T16:43:01Z",
+      "merged_at": "2026-07-03T16:43:01Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29908",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349131638Z-github-com-sgl-project-sglang-pull-29908-4fa2419863.md"
+    },
+    {
+      "number": 30054,
+      "kind": "pull_request",
+      "title": "perf(logits): drop redundant nonzero host-device sync in chunked input-logprob",
+      "closed_at": "2026-07-03T15:09:31Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30054",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349131873Z-github-com-sgl-project-sglang-pull-30054-5350734a8e.md"
+    },
+    {
+      "number": 30039,
+      "kind": "pull_request",
+      "title": "[diffusion] CI: fix AMD diffusion CI import",
+      "closed_at": "2026-07-03T14:26:09Z",
+      "merged_at": "2026-07-03T14:26:09Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30039",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349132125Z-github-com-sgl-project-sglang-pull-30039-2175602009.md"
+    },
+    {
+      "number": 29214,
+      "kind": "pull_request",
+      "title": "[Cleanup] IPC struct renames, better typing, and SenderWrapper removal",
+      "closed_at": "2026-06-25T00:25:24Z",
+      "merged_at": "2026-06-25T00:25:24Z",
+      "labels": [
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29214",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349132365Z-github-com-sgl-project-sglang-pull-29214-69981fdb84.md"
+    },
+    {
+      "number": 30041,
+      "kind": "pull_request",
+      "title": "[mem_cache] Deduplicate dead DSA indexer buffers for skip-topk layers (opt-in)",
+      "closed_at": "2026-07-03T13:06:38Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30041",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349132613Z-github-com-sgl-project-sglang-pull-30041-f0a2d36163.md"
+    },
+    {
+      "number": 21590,
+      "kind": "pull_request",
+      "title": "Fix llava next video model",
+      "closed_at": "2026-07-03T12:33:31Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/21590",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349132863Z-github-com-sgl-project-sglang-pull-21590-e50b9b95ee.md"
+    },
+    {
+      "number": 29759,
+      "kind": "pull_request",
+      "title": "[npu] fix gemma rmsnorm",
+      "closed_at": "2026-07-03T12:33:13Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29759",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349133093Z-github-com-sgl-project-sglang-pull-29759-281d63cb31.md"
+    },
+    {
+      "number": 29631,
+      "kind": "pull_request",
+      "title": "[diffusion][cache-dit] add cache-dit support for Ideogram 4",
+      "closed_at": "2026-07-03T11:58:48Z",
+      "merged_at": "2026-07-03T11:58:48Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29631",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349133327Z-github-com-sgl-project-sglang-pull-29631-7e93b1cf29.md"
+    },
+    {
+      "number": 29503,
+      "kind": "pull_request",
+      "title": "NPU case rl update weights for tensor load_format == None and flatten bucket",
+      "closed_at": "2026-07-02T14:12:05Z",
+      "merged_at": "2026-07-02T14:12:05Z",
+      "labels": [
+        "quant",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29503",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349133586Z-github-com-sgl-project-sglang-pull-29503-22a33f761f.md"
+    },
+    {
+      "number": 30016,
+      "kind": "pull_request",
+      "title": "[diffusion] feat: performance_mode=speed enables torch.compile by default",
+      "closed_at": "2026-07-03T11:12:18Z",
+      "merged_at": "2026-07-03T11:12:18Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30016",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349133860Z-github-com-sgl-project-sglang-pull-30016-d5171fb70c.md"
+    },
+    {
+      "number": 30032,
+      "kind": "pull_request",
+      "title": "fix(xpu): use memory_reserved() instead of memory_allocated() for accurate",
+      "closed_at": "2026-07-03T10:55:56Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30032",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349134107Z-github-com-sgl-project-sglang-pull-30032-e599a6bb43.md"
+    },
+    {
+      "number": 29986,
+      "kind": "pull_request",
+      "title": "[AMD]: hot-patch transformers dynamic_module_utils symlink bug",
+      "closed_at": "2026-07-03T10:20:37Z",
+      "merged_at": "2026-07-03T10:20:37Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29986",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349134363Z-github-com-sgl-project-sglang-pull-29986-4810e0edbd.md"
+    },
+    {
+      "number": 30001,
+      "kind": "pull_request",
+      "title": "[NPU] bugfix for dsv4 memory pool",
+      "closed_at": "2026-07-03T08:41:40Z",
+      "merged_at": "2026-07-03T08:41:40Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30001",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349134602Z-github-com-sgl-project-sglang-pull-30001-7cfb5884e9.md"
+    },
+    {
+      "number": 29798,
+      "kind": "pull_request",
+      "title": "fix: avoid DSA indexer CPU seq lens fallback",
+      "closed_at": "2026-07-03T05:50:24Z",
+      "merged_at": "2026-07-03T05:50:24Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29798",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349134851Z-github-com-sgl-project-sglang-pull-29798-6a0aa6f563.md"
+    },
+    {
+      "number": 30018,
+      "kind": "pull_request",
+      "title": "[Fix] Turn off dsa indexer fusion by default",
+      "closed_at": "2026-07-03T08:08:07Z",
+      "merged_at": "2026-07-03T08:08:07Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30018",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349135097Z-github-com-sgl-project-sglang-pull-30018-5278cfb465.md"
+    },
+    {
+      "number": 27914,
+      "kind": "pull_request",
+      "title": "[Intel GPU] DeepSeek V4 6/N: use sgl-kernel implemetation of flash_mla_with_kvcache",
+      "closed_at": "2026-07-03T07:59:39Z",
+      "merged_at": "2026-07-03T07:59:39Z",
+      "labels": [
+        "deepseek",
+        "intel",
+        "xpu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27914",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349135347Z-github-com-sgl-project-sglang-pull-27914-ccc5e7682f.md"
+    },
+    {
+      "number": 28048,
+      "kind": "pull_request",
+      "title": "[Intel GPU] DeepSeek V4 10/N : Add sqrtsoftplus support to fused_topk_torch_native",
+      "closed_at": "2026-07-03T07:59:13Z",
+      "merged_at": "2026-07-03T07:59:13Z",
+      "labels": [
+        "intel",
+        "xpu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28048",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349135607Z-github-com-sgl-project-sglang-pull-28048-c19d49b981.md"
+    },
+    {
+      "number": 29911,
+      "kind": "pull_request",
+      "title": "[XPU] Remove redundant xpu graph backend and make xpu graph opt-in by default",
+      "closed_at": "2026-07-03T07:58:57Z",
+      "merged_at": "2026-07-03T07:58:57Z",
+      "labels": [
+        "documentation",
+        "deepseek",
+        "intel",
+        "xpu",
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29911",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349135852Z-github-com-sgl-project-sglang-pull-29911-3e904e5def.md"
+    },
+    {
+      "number": 29966,
+      "kind": "pull_request",
+      "title": "[codex] Add CUDA 12.2 compatibility fallbacks",
+      "closed_at": "2026-07-03T07:44:58Z",
+      "merged_at": "",
+      "labels": [
+        "quant",
+        "sgl-kernel",
+        "blackwell",
+        "npu",
+        "deterministic",
+        "jit-kernel"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29966",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349136098Z-github-com-sgl-project-sglang-pull-29966-416d097d88.md"
+    },
+    {
+      "number": 30014,
+      "kind": "pull_request",
+      "title": "[AMD] Temporarily disabled: every-6-hours rocm 7.2 test",
+      "closed_at": "2026-07-03T07:38:07Z",
+      "merged_at": "2026-07-03T07:38:07Z",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30014",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349136344Z-github-com-sgl-project-sglang-pull-30014-ad64a444d6.md"
+    },
+    {
+      "number": 30011,
+      "kind": "pull_request",
+      "title": "[DOC] [NPU] update supported features on ascend npu",
+      "closed_at": "2026-07-03T07:36:42Z",
+      "merged_at": "2026-07-03T07:36:42Z",
+      "labels": [
+        "documentation",
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/30011",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349136582Z-github-com-sgl-project-sglang-pull-30011-a0bb0b8892.md"
+    },
+    {
+      "number": 28605,
+      "kind": "pull_request",
+      "title": "[AMD] [DO NOT MERGE] ci: test AMD PR workflow on MI300 shadow runners (Cirrascale",
+      "closed_at": "2026-07-03T07:15:47Z",
+      "merged_at": "",
+      "labels": [
+        "amd"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/28605",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349136823Z-github-com-sgl-project-sglang-pull-28605-ba4733a265.md"
+    },
+    {
+      "number": 29999,
+      "kind": "pull_request",
+      "title": "[NPU] bugfix for Base class add mamba_track_indices parameter",
+      "closed_at": "2026-07-03T07:10:41Z",
+      "merged_at": "2026-07-03T07:10:41Z",
+      "labels": [
+        "npu",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29999",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349137089Z-github-com-sgl-project-sglang-pull-29999-95cbd9989b.md"
+    },
+    {
+      "number": 27704,
+      "kind": "pull_request",
+      "title": "[Diffusion] Add profiling support and fix VBench dataset handling in bench_offline_throughput",
+      "closed_at": "2026-07-03T07:08:38Z",
+      "merged_at": "2026-07-03T07:08:38Z",
+      "labels": [
+        "intel",
+        "benchmark",
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27704",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md"
+    },
+    {
+      "number": 29995,
+      "kind": "pull_request",
+      "title": "[Spec] Remove the ServerArgs clone + global save/restore hack from DFlashWorkerV2",
+      "closed_at": "2026-07-03T06:37:05Z",
+      "merged_at": "2026-07-03T06:37:05Z",
+      "labels": [
+        "speculative-decoding",
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29995",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349137602Z-github-com-sgl-project-sglang-pull-29995-bf85ff2d03.md"
+    },
+    {
+      "number": 27349,
+      "kind": "pull_request",
+      "title": "Support DSV4 shared expert fusion for DeepEP and MegaMOE",
+      "closed_at": "2026-07-03T06:18:25Z",
+      "merged_at": "2026-07-03T06:18:25Z",
+      "labels": [
+        "documentation",
+        "deepseek",
+        "run-ci",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/27349",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349137859Z-github-com-sgl-project-sglang-pull-27349-8a4103a6a5.md"
+    },
+    {
+      "number": 29988,
+      "kind": "pull_request",
+      "title": "[dsv4] Trigger MHC prenorm prewarm at weight-load time with rank sync",
+      "closed_at": "2026-07-03T06:05:04Z",
+      "merged_at": "2026-07-03T06:05:03Z",
+      "labels": [
+        "deepseek"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29988",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349138097Z-github-com-sgl-project-sglang-pull-29988-06c3734dfd.md"
+    },
+    {
+      "number": 29619,
+      "kind": "pull_request",
+      "title": "[DeepSeek-V4] Add an opt-in non-paged indexer for long-context prefill",
+      "closed_at": "2026-07-03T05:54:41Z",
+      "merged_at": "2026-07-03T05:54:41Z",
+      "labels": [
+        "deepseek",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29619",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349138352Z-github-com-sgl-project-sglang-pull-29619-d1571966d5.md"
+    },
+    {
+      "number": 29774,
+      "kind": "pull_request",
+      "title": "[diffusion] Shard QwenImage DiT across TP ranks",
+      "closed_at": "2026-07-03T05:17:53Z",
+      "merged_at": "2026-07-03T05:17:53Z",
+      "labels": [
+        "run-ci",
+        "diffusion"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29774",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349138603Z-github-com-sgl-project-sglang-pull-29774-afcbba87e0.md"
+    },
+    {
+      "number": 29703,
+      "kind": "pull_request",
+      "title": "[Anthropic] Fix missing cache_read_input_tokens in streaming responses",
+      "closed_at": "2026-07-03T04:46:46Z",
+      "merged_at": "2026-07-03T04:46:46Z",
+      "labels": [
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29703",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349138882Z-github-com-sgl-project-sglang-pull-29703-04f7b30e20.md"
+    },
+    {
+      "number": 29915,
+      "kind": "pull_request",
+      "title": "[router] Log every engine /abort_request with a router_reason label + Prom",
+      "closed_at": "2026-07-03T04:36:30Z",
+      "merged_at": "2026-07-03T04:36:30Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29915",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md"
+    },
+    {
+      "number": 29447,
+      "kind": "pull_request",
+      "title": "[CI] Add per-stage NVIDIA model inventory tool",
+      "closed_at": "2026-07-03T03:38:04Z",
+      "merged_at": "2026-07-03T03:38:04Z",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29447",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349139409Z-github-com-sgl-project-sglang-pull-29447-89b4a0aef1.md"
+    },
+    {
+      "number": 29945,
+      "kind": "pull_request",
+      "title": "Move deferred mamba cow and clear",
+      "closed_at": "2026-07-03T03:29:05Z",
+      "merged_at": "2026-07-03T03:29:05Z",
+      "labels": [
+        "run-ci",
+        "bypass-fastfail",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29945",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349139663Z-github-com-sgl-project-sglang-pull-29945-6f6a6397de.md"
+    },
+    {
+      "number": 29771,
+      "kind": "pull_request",
+      "title": "[MoE] Consolidate ungrouped + grouped gate/topk onto one Triton router (#26771)",
+      "closed_at": "2026-07-03T03:19:00Z",
+      "merged_at": "2026-07-03T03:19:00Z",
+      "labels": [
+        "run-ci",
+        "jit-kernel",
+        "run-ci-extra"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29771",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349139911Z-github-com-sgl-project-sglang-pull-29771-75bc251c1f.md"
+    },
+    {
+      "number": 29932,
+      "kind": "pull_request",
+      "title": "add mimo-v2-flash model tutorial",
+      "closed_at": "2026-07-03T03:02:24Z",
+      "merged_at": "2026-07-03T03:02:24Z",
+      "labels": [
+        "documentation",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29932",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349140213Z-github-com-sgl-project-sglang-pull-29932-85ed816513.md"
+    },
+    {
+      "number": 29355,
+      "kind": "pull_request",
+      "title": "[spec] Stop draft workers from clobbering the global server_args",
+      "closed_at": "2026-07-03T02:57:18Z",
+      "merged_at": "",
+      "labels": [],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29355",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349140460Z-github-com-sgl-project-sglang-pull-29355-45cb802d86.md"
+    },
+    {
+      "number": 29822,
+      "kind": "pull_request",
+      "title": "[AMD] Accept ROCm tensors in JIT kernel TensorMatcher + register 4 kernel",
+      "closed_at": "2026-07-03T02:29:48Z",
+      "merged_at": "2026-07-03T02:29:48Z",
+      "labels": [
+        "run-ci",
+        "jit-kernel",
+        "bypass-fastfail"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29822",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349140712Z-github-com-sgl-project-sglang-pull-29822-e7dbf44108.md"
+    },
+    {
+      "number": 29828,
+      "kind": "pull_request",
+      "title": "glm5.2 on ascend doc (new version)",
+      "closed_at": "2026-07-03T02:19:44Z",
+      "merged_at": "2026-07-03T02:19:44Z",
+      "labels": [
+        "documentation",
+        "run-ci"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29828",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349140964Z-github-com-sgl-project-sglang-pull-29828-c6a69afadf.md"
+    },
+    {
+      "number": 29937,
+      "kind": "pull_request",
+      "title": "[NPU] [DOC] add missing DEEP_NORMAL_MODE_USE_INT8_QUANT for w8a8+deepep scenarios",
+      "closed_at": "2026-07-03T02:18:23Z",
+      "merged_at": "2026-07-03T02:18:23Z",
+      "labels": [
+        "documentation",
+        "deepseek",
+        "npu"
+      ],
+      "canonical_url": "https://github.com/sgl-project/sglang/pull/29937",
+      "raw_path": "raw/crawler/sglang-github-closed-issues-prs/20260704T021349141195Z-github-com-sgl-project-sglang-pull-29937-385c2f3ac7.md"
+    }
+  ]
+}

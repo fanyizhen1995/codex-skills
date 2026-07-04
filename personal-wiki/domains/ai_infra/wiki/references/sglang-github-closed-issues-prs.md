@@ -20,7 +20,8 @@ source_refs:
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-by-item-api-pages.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest.json
-updated: 2026-06-29
+  - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json
+updated: 2026-07-04
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -52,6 +53,8 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | PR closed range | 2024-01-08 to 2026-06-24 |
 | Crawler supplement capture | 51 Markdown page snapshots captured 2026-06-29 |
 | Crawler supplement overlap | 10 items overlap the API corpus; 41 are later selected page captures |
+| Scheduled crawler supplement capture | 318 Markdown page snapshots captured 2026-07-01 through 2026-07-04 |
+| Scheduled crawler supplement composition | 41 issues, 277 pull requests, including 198 merged pull requests |
 
 Raw files:
 
@@ -65,6 +68,7 @@ Raw files:
 - [Issue comments per-item supplement pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-by-item-api-pages.json.gz)
 - [PR review comment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz)
 - [Crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
+- [Scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
 
 # Capture Notes
 
@@ -74,6 +78,8 @@ Unattached comment counts are expected in repository-level comment streams becau
 
 The crawler supplement under `raw/crawler/sglang-github-closed-issues-prs/` is selective browser/page evidence, not a replacement for the API corpus. Its manifest records 51 Markdown captures: 7 issue pages and 44 pull request pages. Ten captured item numbers already exist in the API corpus; 41 are later selected page captures, mostly closed between 2026-06-25 and 2026-06-29. Do not combine those 41 items into the API corpus counts unless a full API refresh with comments and review comments is performed.
 
+The scheduled crawler supplement manifest for 2026-07-01 through 2026-07-04 records 318 additional Markdown page snapshots: 41 issues and 277 pull requests, including 198 merged pull requests. This supplement is useful for near-term operational discovery after the API corpus cutoff, but it remains page-level evidence without joined comments or PR review comments. Its highest-count labels are `run-ci`, `documentation`, `run-ci-extra`, `deepseek`, `diffusion`, `amd`, `jit-kernel`, `inactive`, `bypass-fastfail`, `npu`, `quant`, `dependencies`, `high priority`, `sgl-kernel`, `intel`, `release-highlight`, `blackwell`, and `xpu`.
+
 # Operational Signals
 
 The issue workflow state is mostly completed: 5,585 closed issues are `completed`, 35 are `not_planned`, and 13 are `duplicate`. Treat issue `state_reason` as workflow metadata, not as a direct quality or severity signal.
@@ -81,6 +87,8 @@ The issue workflow state is mostly completed: 5,585 closed issues are `completed
 The highest-count issue labels are `inactive`, `high priority`, `bug`, `good first issue`, `help wanted`, `deepseek`, `enhancement`, `npu`, `collaboration`, `amd`, `router`, and `Multi-modal`. The highest-count PR labels include `run-ci`, `documentation`, `high priority`, `diffusion`, `deepseek`, `npu`, `amd`, `quant`, `model-gateway`, `dependencies`, `sgl-kernel`, and `Multi-modal`.
 
 Keyword-derived themes are retrieval aids rather than mutually exclusive taxonomy. In the captured corpus, frequent surfaces include distributed parallelism and cluster behavior, serving runtime/API work, model support, kernel/attention backend work, memory and KV cache behavior, installation/build/packaging, performance, and reliability/correctness.
+
+In the 2026-07 scheduled crawler supplement, the strongest new operational surfaces are CI and merge workflow (`run-ci`, `run-ci-extra`, `bypass-fastfail`), accelerator-specific backend work (`amd`, `npu`, `intel`, `xpu`, `blackwell`), DeepSeek and GLM-family serving work, diffusion serving, JIT/kernel work, quantization, and documentation. Representative page snapshots include AMD/ROCm disaggregation and MI300X/MI355X issues, Ascend NPU DeepSeek work, Intel XPU graph and kernel support, Blackwell FP8/prefill work, and memory/KV-cache regressions. Treat these as discovery leads until a full API refresh joins comments and review comments.
 
 # Retrieval Notes
 
@@ -116,3 +124,4 @@ High-discussion examples in the captured corpus include:
 - [SGLang issue comment per-item supplement pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-issue-comments-by-item-api-pages.json.gz)
 - [SGLang PR review comment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz)
 - [SGLang crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
+- [SGLang scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)

@@ -15,7 +15,8 @@ source_refs:
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-api-pages.json.gz
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-issue-comments-api-pages.json.gz
-updated: 2026-06-24
+  - ../../raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json
+updated: 2026-07-04
 aliases:
   - NVIDIA/nccl closed issues
   - NCCL GitHub issues
@@ -45,6 +46,7 @@ Use this page as a field-evidence companion to [NCCL Release Notes](nccl-release
 | Issue/comment count mismatches | 0 |
 | Issue created range | 2016-01-15 to 2026-06-22 |
 | Issue closed range | 2016-01-25 to 2026-06-23 |
+| Scheduled crawler supplement capture | 2 Markdown page snapshots captured 2026-07-01 and 2026-07-03 |
 
 Raw files:
 
@@ -53,6 +55,7 @@ Raw files:
 - [Closed issue API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-api-pages.json.gz)
 - [Issue comment API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-issue-comments-api-pages.json.gz)
 - Per-page raw evidence under `raw/github/nvidia-nccl-closed-issues/api-pages/` and `raw/github/nvidia-nccl-closed-issues/comment-pages/`.
+- [Scheduled crawler supplement manifest, 2026-07-01 and 2026-07-03](../../raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json)
 
 # Operational Signals
 
@@ -63,6 +66,8 @@ Labels are sparse in the historical closed issue set. The largest label counts a
 Keyword-derived themes in the summary are retrieval aids and are not mutually exclusive. They point to common investigation surfaces: build and packaging, performance and scaling, API usage and integrations, network transport, GPU topology and platform behavior, and runtime failure debugging.
 
 Closed-by-year counts are uneven, with 2025 dominating the captured closed set at 821 issues. Treat the year distribution as a repository process and triage signal, not as a direct defect-rate metric.
+
+The 2026-07 scheduled crawler supplement adds two page-level issue snapshots after the API corpus cutoff. Issue #2226 is a question about GIN, GPI versus GDAKI, QP selection, and NIC support for GPU-initiated networking. Issue #2024 reports Ring Broadcast hangs above 16M elements with `cudaIpcMemLazyEnablePeerAccess` on H200/NVSwitch, separate processes, Ray, EFA, and NCCL 2.27.5. These are discovery leads for the next full GitHub API refresh; they are not yet joined with repository comments in the API corpus.
 
 # Retrieval Notes
 
@@ -139,3 +144,4 @@ Reusable takeaway: the virtualization set is about NCCL running under GPU passth
 - [NCCL closed GitHub issues summary](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json)
 - [NCCL closed issue API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-api-pages.json.gz)
 - [NCCL issue comment API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-issue-comments-api-pages.json.gz)
+- [NCCL scheduled crawler supplement manifest, 2026-07-01 and 2026-07-03](../../raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json)
