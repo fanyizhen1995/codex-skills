@@ -724,6 +724,77 @@ def test_run_approved_task_allows_sources_yaml_and_task_attachment_baseline(tmp_
     assert "schedule: manual" not in committed_sources
 
 
+def test_run_approved_task_ignores_local_runtime_artifacts_in_baseline(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".personal-wiki-workbench")
+    seed = tmp_path / "README.md"
+    seed.write_text("seed", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "README.md"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    (tmp_path / ".codex").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".codex" / "loop-dashboard-8766.log").write_text("dashboard log", encoding="utf-8")
+    (tmp_path / ".codex" / "loop-dashboard-8766.pid").write_text("8766\n", encoding="utf-8")
+    (tmp_path / "generated").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "generated" / "child-001.txt").write_text("child 1", encoding="utf-8")
+
+    wiki_page = settings.wiki_root / "domains" / "ai_infra" / "wiki" / "references" / "runtime-artifacts.md"
+    with connect(settings.database_path) as db:
+        migrate(db)
+        task_id = seed_approved_task(settings, db)
+        original_git_dirty_paths = __import__("crawler_workbench.ingest", fromlist=["git_dirty_paths"]).git_dirty_paths
+        sqlite_sidecars = {
+            ".personal-wiki-workbench/workbench.sqlite3-journal",
+            ".personal-wiki-workbench/workbench.sqlite3-wal",
+            ".personal-wiki-workbench/workbench.sqlite3-shm",
+        }
+
+        def write_wiki_page(*args):
+            wiki_page.parent.mkdir(parents=True, exist_ok=True)
+            wiki_page.write_text("curated", encoding="utf-8")
+            return ok_process()
+
+        def dirty_paths_with_runtime_sidecars(repo_root):
+            return original_git_dirty_paths(repo_root) | sqlite_sidecars
+
+        monkeypatch.setattr("crawler_workbench.ingest.git_dirty_paths", dirty_paths_with_runtime_sidecars)
+        monkeypatch.setattr("crawler_workbench.ingest.run_ingest_plan", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_index", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_backlinks", lambda *args: ok_process())
+        monkeypatch.setattr("crawler_workbench.ingest.run_validate", lambda *args: ok_process())
+        result = run_approved_task(
+            settings,
+            db,
+            task_id,
+            auto_commit_enabled=True,
+            codex_runner=write_wiki_page,
+        )
+        task = db.execute("select status, reason, commit_id from ingest_tasks where id = ?", (task_id,)).fetchone()
+
+    assert result["status"] == "succeeded"
+    assert task["status"] == "succeeded"
+    assert task["commit_id"] is not None
+    committed_paths = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert "personal-wiki/domains/ai_infra/raw/crawler/src/item.md" in committed_paths
+    assert "personal-wiki/domains/ai_infra/wiki/references/runtime-artifacts.md" in committed_paths
+    assert ".codex/loop-dashboard-8766.log" not in committed_paths
+    assert ".codex/loop-dashboard-8766.pid" not in committed_paths
+    assert "generated/child-001.txt" not in committed_paths
+    assert ".personal-wiki-workbench/workbench.sqlite3-journal" not in committed_paths
+    assert ".personal-wiki-workbench/workbench.sqlite3-wal" not in committed_paths
+    assert ".personal-wiki-workbench/workbench.sqlite3-shm" not in committed_paths
+    dirty_paths = git_dirty_paths(tmp_path)
+    assert ".codex/loop-dashboard-8766.log" in dirty_paths
+    assert ".codex/loop-dashboard-8766.pid" in dirty_paths
+    assert "generated/child-001.txt" in dirty_paths
+
+
 def test_run_approved_task_defers_on_dirty_baseline_without_auto_commit(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")

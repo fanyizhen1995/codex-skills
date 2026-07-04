@@ -164,7 +164,7 @@ def _run_approved_task(
     baseline_dirty_paths = git_dirty_paths(settings.repo_root)
     ignored_baseline_paths = _ignored_baseline_repo_paths(settings)
     allowed_baseline_paths = _approved_raw_repo_paths(settings, db, domain) | ignored_baseline_paths
-    disallowed_baseline_paths = baseline_dirty_paths - allowed_baseline_paths
+    disallowed_baseline_paths = _filter_ignored_runtime_repo_paths(baseline_dirty_paths - allowed_baseline_paths)
     if disallowed_baseline_paths:
         _defer_approved_task(db, task_id, ALLOWED_BASELINE_REASON)
         return _task_response(db, task_id)
@@ -218,7 +218,9 @@ def _run_approved_task(
     commit_id: int | None = None
     if auto_commit_enabled:
         other_approved_raw_paths = _approved_raw_repo_paths(settings, db, domain) - current_task_raw_paths
-        dirty_paths = git_dirty_paths(settings.repo_root) - ignored_baseline_paths - other_approved_raw_paths
+        dirty_paths = _filter_ignored_runtime_repo_paths(
+            git_dirty_paths(settings.repo_root) - ignored_baseline_paths - other_approved_raw_paths
+        )
         owned_prefixes = [f"personal-wiki/domains/{domain}/", "personal-wiki/global/"]
         if not paths_owned_by_task(dirty_paths, owned_prefixes):
             _mark_task_failed(db, task_id, "dirty paths include files outside the ingest task")
@@ -554,7 +556,22 @@ def _ignored_baseline_repo_paths(settings: Any) -> set[str]:
         _repo_relative_path(settings.repo_root, settings.sources_yaml_path),
         _repo_relative_path(settings.repo_root, settings.database_path),
     }
+    database_path = _repo_relative_path(settings.repo_root, settings.database_path)
+    if database_path is not None:
+        paths.update({f"{database_path}-journal", f"{database_path}-wal", f"{database_path}-shm"})
     return {path for path in paths if path is not None}
+
+
+def _filter_ignored_runtime_repo_paths(paths: set[str]) -> set[str]:
+    return {path for path in paths if not _is_ignored_runtime_repo_path(path)}
+
+
+def _is_ignored_runtime_repo_path(path: str) -> bool:
+    if path.startswith("generated/"):
+        return True
+    if not path.startswith(".codex/loop-dashboard-"):
+        return False
+    return path.endswith(".log") or path.endswith(".pid")
 
 
 def _repo_relative_path(repo_root: Path, path: Path) -> str | None:
