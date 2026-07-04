@@ -629,6 +629,13 @@ function artifactSection(title, paths) {
 }
 
 function renderFlow() {
+  const isParentRun = state.detail && state.detail.run_kind === "parent";
+  els.flowDiagram.classList.toggle("is-parent-flow", Boolean(isParentRun));
+  if (isParentRun) {
+    renderParentFlow(state.detail);
+    return;
+  }
+
   const nodes = state.detail && Array.isArray(state.detail.flow_nodes) ? state.detail.flow_nodes : [];
   if (nodes.length === 0) {
     setChildren(els.flowDiagram, [empty("等待运行数据")]);
@@ -653,6 +660,13 @@ function renderFlow() {
 }
 
 function renderAgents() {
+  const isParentRun = state.detail && state.detail.run_kind === "parent";
+  els.agentCards.classList.toggle("is-parent-agents", Boolean(isParentRun));
+  if (isParentRun) {
+    renderParentAgents(state.detail);
+    return;
+  }
+
   const agents = state.detail && state.detail.agents ? state.detail.agents : {};
   const names = ["planner", "generator", "evaluator"];
   if (!names.some((name) => agents[name])) {
@@ -685,6 +699,167 @@ function renderAgents() {
     card.append(layout);
     return card;
   }));
+}
+
+function renderParentFlow(detail) {
+  const children = Array.isArray(detail.children) ? detail.children : [];
+  const summary = detail.children_summary || detail.aggregate_acceptance || {};
+  const wrapper = el("div", "parent-flow-overview");
+
+  const progress = el("section", "parent-flow-summary");
+  progress.append(el("div", "detail-section-title", "父需求进展"));
+  const metrics = el("div", "parent-flow-metrics");
+  [
+    ["子任务进度", parentChildrenProgressText(summary)],
+    ["当前子任务", detail.current_child_run_id || "等待父 Planner 选择"],
+    ["下一步", actionLabel(detail.next_action)],
+    ["用户决策", detail.decision_summary && detail.decision_summary.requires_user_decision ? "需要" : "不需要"],
+  ].forEach(([label, value]) => metrics.append(summaryMetric(label, value)));
+  progress.append(metrics);
+
+  const childSection = el("section", "parent-flow-children");
+  childSection.append(el("div", "detail-section-title", "子任务运行概览"));
+  if (!children.length) {
+    childSection.append(empty("父 Planner 尚未生成可展示的子任务。"));
+  } else {
+    const grid = el("div", "parent-flow-child-grid");
+    children.forEach((child) => grid.append(parentFlowChildCard(child)));
+    childSection.append(grid);
+  }
+
+  wrapper.append(progress, childSection);
+  setChildren(els.flowDiagram, [wrapper]);
+}
+
+function parentFlowChildCard(child) {
+  const reader = child.reader_summary || {};
+  const status = childVisualStatus(child);
+  const card = el("article", `parent-flow-child status-${status}`);
+  const header = el("div", "parent-flow-child-header");
+  header.append(
+    el("div", "parent-flow-child-title", `${childIndexPrefix(child.child_index)}${text(child.task_description || child.task_summary || child.run_id)}`),
+    el("span", `status-pill status-${status}`, phaseLabel(child.phase)),
+  );
+  card.append(
+    header,
+    el("div", "parent-flow-child-meta", text(child.run_id)),
+    parentStepRow("Planner", reader.planner_action || agentResult(child, "planner")),
+    parentStepRow("Generator", reader.generator_action || agentResult(child, "generator")),
+    parentStepRow("Evaluator", reader.evaluator_action || agentResult(child, "evaluator")),
+    parentStepRow("验收", reader.acceptance_result || resultLabel(child.last_result)),
+  );
+  return card;
+}
+
+function renderParentAgents(detail) {
+  const children = Array.isArray(detail.children) ? detail.children : [];
+  const nodes = [];
+  const summary = el("section", "parent-agent-summary");
+  summary.append(
+    el("div", "detail-section-title", "父需求 Agent 结果"),
+    el("div", "parent-agent-note", "按子任务聚合展示 Planner、Generator、Evaluator 做了什么，便于判断整个需求 loop 推进到哪里。"),
+  );
+  const parentPlanner = detail.agents && detail.agents.planner ? detail.agents.planner : null;
+  if (parentPlanner) {
+    summary.append(parentStepRow("父 Planner", parentPlanner.last_result || detail.task_summary));
+  }
+  nodes.push(summary);
+
+  if (!children.length) {
+    nodes.push(empty("父 Planner 尚未生成可展示的子任务 Agent 结果。"));
+    setChildren(els.agentCards, nodes);
+    return;
+  }
+
+  children.forEach((child) => nodes.push(parentAgentChildCard(child)));
+  setChildren(els.agentCards, nodes);
+}
+
+function parentAgentChildCard(child) {
+  const reader = child.reader_summary || {};
+  const status = childVisualStatus(child);
+  const card = el("article", `parent-agent-card status-${status}`);
+  const header = el("div", "parent-agent-child-header");
+  header.append(
+    el("div", "parent-agent-child-title", `${childIndexPrefix(child.child_index)}${text(child.task_description || child.task_summary || child.run_id)}`),
+    el("span", `status-pill status-${status}`, phaseLabel(child.phase)),
+  );
+  card.append(header, el("div", "parent-agent-child-meta", text(child.run_id)));
+
+  [
+    ["planner", reader.planner_action],
+    ["generator", reader.generator_action],
+    ["evaluator", reader.evaluator_action],
+  ].forEach(([name, readerAction]) => {
+    card.append(parentAgentRow(name, child.agents && child.agents[name], readerAction));
+  });
+  return card;
+}
+
+function parentAgentRow(name, agent, readerAction) {
+  const currentAgent = agent || {};
+  const row = el("div", "parent-agent-row");
+  const heading = el("div", "parent-agent-row-heading");
+  heading.append(
+    el("span", "parent-agent-name", agentLabel(name)),
+    el("span", "parent-agent-status", `${agentStatusLabel(currentAgent.status)} · 尝试 ${currentAgent.attempt || 0}`),
+  );
+  const body = el("div", "parent-agent-row-body");
+  body.append(el("div", "parent-agent-action", text(readerAction || currentAgent.last_result)));
+  const paths = agentArtifactPaths(currentAgent);
+  if (paths.length) {
+    body.append(artifactList(paths, "parent-agent-artifacts"));
+  }
+  row.append(heading, body);
+  return row;
+}
+
+function parentStepRow(label, value) {
+  const row = el("div", "parent-step-row");
+  row.append(el("span", "parent-step-label", `${label}:`), el("span", "parent-step-value", text(value)));
+  return row;
+}
+
+function parentChildrenProgressText(summary) {
+  const total = Number(summary && summary.total) || 0;
+  if (!total) {
+    return "暂无子任务";
+  }
+  const passed = Number(summary.passed) || 0;
+  const failed = Number(summary.failed) || 0;
+  const blocked = Number(summary.blocked) || 0;
+  const pending = Number(summary.pending) || 0;
+  const extras = [];
+  if (pending) {
+    extras.push(`${pending} 待处理`);
+  }
+  if (failed) {
+    extras.push(`${failed} 失败`);
+  }
+  if (blocked) {
+    extras.push(`${blocked} 阻塞`);
+  }
+  return extras.length ? `${passed} / ${total} 通过，${extras.join("，")}` : `${passed} / ${total} 通过`;
+}
+
+function childVisualStatus(child) {
+  const phase = String(child && child.phase || "");
+  const lastResult = String(child && child.last_result || "");
+  if (["passed", "passed_waiting_human_merge"].includes(phase) || lastResult === "pass") {
+    return "done";
+  }
+  if (["stopped_blocked", "repair_needed", "invalid_artifact", "failed", "fail"].includes(phase) || ["blocked", "fail", "failed"].includes(lastResult)) {
+    return "blocked";
+  }
+  if (["generating", "child_running", "running"].includes(phase) || String(child && child.next_action || "").startsWith("run_")) {
+    return "running";
+  }
+  return "waiting";
+}
+
+function agentResult(child, name) {
+  const agent = child && child.agents && child.agents[name] ? child.agents[name] : {};
+  return agent.last_result || "";
 }
 
 function renderDiagnostics() {

@@ -25,7 +25,9 @@ CHECKED = [
     "通过 API 验证 unsafe run_id 返回 404 且不绕过 store safe-id",
     "通过 tabs 查看概览、Agent 结果、验收、日志、阻塞诊断和产物",
     "查看流程图中的当前阶段、跳过节点和人工合并节点",
+    "查看父需求概览 tab 中的多子任务进度和每个子任务状态",
     "查看 Planner、Generator、Evaluator 的状态说明",
+    "查看父需求 Agent 结果 tab 中按子任务聚合的 Planner、Generator、Evaluator 说明",
     "查看验收 tab 中的模拟用户验收场景",
     "查看阻塞诊断 tab 中的 evaluator finding",
     "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
@@ -815,6 +817,24 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             ]:
                 if internal_action in parent_detail.inner_text():
                     raise AssertionError(f"dashboard should translate internal action id: {internal_action}")
+            tabs.get_by_role("tab", name="概览").click()
+            parent_flow = page.get_by_test_id("flow-diagram")
+            expect(parent_flow).to_contain_text("父需求进展")
+            expect(parent_flow).to_contain_text("1 / 2 通过")
+            expect(parent_flow).to_contain_text("parent-run-child-001")
+            expect(parent_flow).to_contain_text("parent-run-child-002")
+            expect(parent_flow).to_contain_text("Generator 已生成实现产物")
+            expect(parent_flow).to_contain_text("Generator 正在生成实现产物")
+            expect(parent_flow).not_to_contain_text("Repair Needed")
+            tabs.get_by_role("tab", name="Agent结果").click()
+            parent_agent_cards = page.get_by_test_id("agent-cards")
+            expect(parent_agent_cards).to_contain_text("父需求 Agent 结果")
+            expect(parent_agent_cards).to_contain_text("parent-run-child-001")
+            expect(parent_agent_cards).to_contain_text("parent-run-child-002")
+            expect(parent_agent_cards).to_contain_text("Planner 选择了这个子任务")
+            expect(parent_agent_cards).to_contain_text("Generator 已生成实现产物")
+            expect(parent_agent_cards).to_contain_text("Generator 正在生成实现产物")
+            expect(parent_agent_cards).to_contain_text("Evaluator 模拟用户检查")
             tabs.get_by_role("tab", name="阻塞诊断").click()
             expect(page.get_by_test_id("blocked-diagnostics")).to_contain_text("child_artifact_missing")
             tabs.get_by_role("tab", name="日志").click()

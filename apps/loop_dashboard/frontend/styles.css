@@ -590,6 +590,138 @@ button {
   overflow-wrap: anywhere;
 }
 
+.flow-diagram.is-parent-flow {
+  grid-template-columns: 1fr;
+}
+
+.parent-flow-overview,
+.parent-flow-summary,
+.parent-flow-children,
+.parent-agent-summary,
+.parent-agent-card {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.parent-flow-summary,
+.parent-flow-children,
+.parent-agent-summary,
+.parent-agent-card {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-alt);
+}
+
+.parent-flow-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.parent-flow-child-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.parent-flow-child {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.parent-flow-child-header,
+.parent-agent-child-header,
+.parent-agent-row-heading {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.parent-flow-child-title,
+.parent-agent-child-title {
+  min-width: 0;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.parent-flow-child-meta,
+.parent-agent-child-meta,
+.parent-agent-note {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.parent-step-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.parent-step-label,
+.parent-agent-name {
+  font-weight: 700;
+  color: #334155;
+}
+
+.parent-step-value,
+.parent-agent-action {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-cards.is-parent-agents {
+  grid-template-columns: 1fr;
+}
+
+.parent-agent-row {
+  min-width: 0;
+  padding: 9px 0 0;
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.parent-agent-row:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.parent-agent-status {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.parent-agent-row-body {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.parent-agent-artifacts {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
 .agent-cards {
   min-height: 156px;
   display: grid;
@@ -934,6 +1066,11 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .parent-flow-metrics,
+  .parent-flow-child-grid {
+    grid-template-columns: 1fr;
+  }
+
   .log-list {
     max-height: none;
   }
@@ -943,5 +1080,16 @@ button {
   .child-reader-row {
     grid-template-columns: 1fr;
     gap: 2px;
+  }
+
+  .parent-step-row,
+  .parent-flow-child-header,
+  .parent-agent-child-header,
+  .parent-agent-row-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .parent-agent-status {
+    text-align: left;
   }
 }
