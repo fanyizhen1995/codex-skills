@@ -40,6 +40,7 @@
           <div id="run-detail-content" class="empty">请选择一个运行</div>
           <div class="detail-tabs" data-testid="detail-tabs" id="detail-tabs" role="tablist" aria-label="运行详情视图">
             <button type="button" role="tab" data-tab="overview" aria-controls="tab-overview">概览</button>
+            <button type="button" role="tab" data-tab="children" aria-controls="tab-children">子任务</button>
             <button type="button" role="tab" data-tab="agents" aria-controls="tab-agents">Agent结果</button>
             <button type="button" role="tab" data-tab="acceptance" aria-controls="tab-acceptance">验收</button>
             <button type="button" role="tab" data-tab="logs" aria-controls="tab-logs">日志</button>
@@ -54,6 +55,12 @@
               </div>
               <div class="flow-diagram" data-testid="flow-diagram" id="flow-diagram">
                 <div class="empty">等待运行数据</div>
+              </div>
+            </section>
+
+            <section class="tab-panel" data-testid="tab-children" id="tab-children" role="tabpanel" hidden>
+              <div id="children-content">
+                <div class="empty">暂无子任务</div>
               </div>
             </section>
 

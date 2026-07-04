@@ -23,11 +23,13 @@ CHECKED = [
     "确认页面为左侧选运行、右侧看结论的两栏结构",
     "通过 API 验证父需求、子任务顺序、旧单任务兼容和冲突诊断",
     "通过 API 验证 unsafe run_id 返回 404 且不绕过 store safe-id",
-    "通过 tabs 查看概览、Agent 结果、验收、日志、阻塞诊断和产物",
+    "通过 tabs 查看概览、子任务、Agent 结果、验收、日志、阻塞诊断和产物",
     "查看流程图中的当前阶段、跳过节点和人工合并节点",
     "查看父需求概览 tab 中的多子任务进度和每个子任务状态",
+    "查看父需求子任务 tab 中的完整 child 描述、agent 动作、验收结果和 artifact 路径",
     "查看 Planner、Generator、Evaluator 的状态说明",
     "查看父需求 Agent 结果 tab 中按子任务聚合的 Planner、Generator、Evaluator 说明",
+    "确认 evaluator 验证功能实现完整性和设计/mock 匹配，并在验收 tab 中可见",
     "查看验收 tab 中的模拟用户验收场景",
     "查看阻塞诊断 tab 中的 evaluator finding",
     "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
@@ -491,6 +493,37 @@ def seed_demand_multi_task_dashboard_fixture(repo_root: Path) -> None:
             + "\n",
             encoding="utf-8",
         )
+        if phase == "passed":
+            write_json(
+                run_root / child_id / "evaluator-result.json",
+                {
+                    "status": "pass",
+                    "gate": "task",
+                    "task_id": f"{child_id}-task",
+                    "attempt": 1,
+                    "summary": "Evaluator 已模拟用户检查子任务功能完整性和设计匹配。",
+                    "scenario_results": [
+                        {
+                            "scenario_id": f"{child_id}-DESIGN-001",
+                            "status": "pass",
+                            "summary": "模拟第三方读者打开看板，核对功能实现完整性和设计/mock 匹配。",
+                            "evidence": [
+                                "点击父需求运行记录",
+                                "切换子任务 tab",
+                                "核对 Agent 结果和验收内容",
+                            ],
+                        }
+                    ],
+                    "checked": [
+                        "功能实现完整性",
+                        "设计/mock 匹配",
+                        "父需求和子任务信息可读",
+                    ],
+                    "rerun_commands": [
+                        "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-dev-01"
+                    ],
+                },
+            )
     write_json(
         run_root / "legacy-single" / "run.json",
         {
@@ -795,7 +828,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 raise AssertionError(f"run info should render one field per row, got {info_columns} columns")
 
             tabs = page.get_by_test_id("detail-tabs")
-            for tab_name in ["概览", "Agent结果", "验收", "日志", "阻塞诊断", "产物"]:
+            for tab_name in ["概览", "子任务", "Agent结果", "验收", "日志", "阻塞诊断", "产物"]:
                 expect(tabs.get_by_role("tab", name=tab_name)).to_be_visible()
 
             click_run(page, "parent-run")
@@ -814,9 +847,22 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 "resume_current_child",
                 "repair_child",
                 "return_to_parent_planner",
+                "child_running",
+                "1 children passed",
+                "Run parent planner",
+                "No",
             ]:
                 if internal_action in parent_detail.inner_text():
                     raise AssertionError(f"dashboard should translate internal action id: {internal_action}")
+            tabs.get_by_role("tab", name="子任务").click()
+            child_tab = page.get_by_test_id("tab-children")
+            expect(child_tab).to_be_visible()
+            expect(child_tab).to_contain_text("子任务详情")
+            expect(child_tab).to_contain_text("parent-run-child-001")
+            expect(child_tab).to_contain_text("parent-run-child-002")
+            expect(child_tab).to_contain_text("Generator 已生成实现产物")
+            expect(child_tab).to_contain_text("Evaluator 模拟用户检查")
+            expect(child_tab).to_contain_text(".codex/loop-runs/parent-run-child-001/evaluator-result.json")
             tabs.get_by_role("tab", name="概览").click()
             parent_flow = page.get_by_test_id("flow-diagram")
             expect(parent_flow).to_contain_text("父需求进展")
@@ -835,6 +881,13 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(parent_agent_cards).to_contain_text("Generator 已生成实现产物")
             expect(parent_agent_cards).to_contain_text("Generator 正在生成实现产物")
             expect(parent_agent_cards).to_contain_text("Evaluator 模拟用户检查")
+            tabs.get_by_role("tab", name="验收").click()
+            parent_acceptance = page.get_by_test_id("tab-acceptance")
+            expect(parent_acceptance).to_contain_text("验收情况")
+            expect(parent_acceptance).to_contain_text("功能实现完整性")
+            expect(parent_acceptance).to_contain_text("设计/mock 匹配")
+            expect(parent_acceptance).to_contain_text("模拟第三方读者打开看板")
+            expect(parent_acceptance).to_contain_text("parent-run-child-001")
             tabs.get_by_role("tab", name="阻塞诊断").click()
             expect(page.get_by_test_id("blocked-diagnostics")).to_contain_text("child_artifact_missing")
             tabs.get_by_role("tab", name="日志").click()

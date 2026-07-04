@@ -83,8 +83,8 @@ class LoopDashboardStore:
         _, rich_evaluator = self._rich_evaluator_result(evaluator)
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
-        scenario_contract = self._scenario_contract(evaluator)
         run_kind = self._run_kind(run_data)
+        acceptance_summary = self._acceptance_summary_for_run_dir(run_dir)
         decision_summary = (
             summary.get("decision_summary")
             if summary.get("phase") == "invalid_artifact" and isinstance(summary.get("decision_summary"), dict)
@@ -99,7 +99,7 @@ class LoopDashboardStore:
                 "allowed_paths": planner.get("allowed_paths", run_data.get("allowed_paths", [])),
                 "denylist_paths": planner.get("denylist_paths", run_data.get("denylist_paths", [])),
                 "decision_summary": decision_summary,
-                "acceptance_summary": self._acceptance_summary(evaluator, rich_evaluator, scenario_contract),
+                "acceptance_summary": acceptance_summary,
                 "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
             }
         )
@@ -113,6 +113,11 @@ class LoopDashboardStore:
                     "children": [child.summary for child in child_runs],
                     "relationship_diagnostics": relationship_diagnostics,
                     "blocked_diagnostics": [*summary.get("blocked_diagnostics", []), *relationship_diagnostics],
+                    "acceptance_summary": self._parent_acceptance_summary(
+                        run_data,
+                        acceptance_summary,
+                        child_runs,
+                    ),
                 }
             )
         return summary
@@ -821,6 +826,94 @@ class LoopDashboardStore:
             "evidence": self._acceptance_evidence(primary, fallback, scenario_contract),
             "rerun_commands": self._acceptance_rerun_commands(primary, fallback, scenario_contract),
         }
+
+    def _acceptance_summary_for_run_dir(self, run_dir: Path) -> dict[str, Any]:
+        evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
+        if not isinstance(evaluator, dict):
+            evaluator = {}
+        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        if not isinstance(rich_evaluator, dict):
+            rich_evaluator = {}
+        return self._acceptance_summary(evaluator, rich_evaluator, self._scenario_contract(evaluator))
+
+    def _parent_acceptance_summary(
+        self,
+        parent_data: dict[str, Any],
+        parent_acceptance: dict[str, Any],
+        child_runs: list[ChildRun],
+    ) -> dict[str, Any]:
+        child_acceptances = [
+            (str(child.summary.get("run_id") or child.source.run_dir.name), self._acceptance_summary_for_run_dir(child.source.run_dir))
+            for child in child_runs
+        ]
+        summaries_with_content = [
+            (child_id, summary)
+            for child_id, summary in child_acceptances
+            if self._acceptance_has_content(summary)
+        ]
+        if not summaries_with_content:
+            return parent_acceptance
+
+        scenarios: list[dict[str, str]] = []
+        checked: list[str] = []
+        evidence: list[str] = []
+        rerun_commands: list[str] = []
+        for child_id, summary in summaries_with_content:
+            for scenario in summary.get("scenarios", []):
+                if not isinstance(scenario, dict):
+                    continue
+                scenario_id = self._first_text(scenario.get("scenario_id"), "scenario")
+                scenarios.append(
+                    {
+                        "scenario_id": f"{child_id}:{scenario_id}",
+                        "status": self._first_text(scenario.get("status")),
+                        "summary": self._trim(f"{child_id}：{self._first_text(scenario.get('summary'))}", 220),
+                    }
+                )
+            checked.extend(self._checked_items(summary.get("checked")))
+            for item in self._checked_items(summary.get("evidence")):
+                evidence.append(self._trim(f"{child_id}：{item}", 220))
+            rerun_commands.extend(self._checked_items(summary.get("rerun_commands")))
+
+        for item in self._checked_items(parent_acceptance.get("checked")):
+            checked.append(item)
+        for item in self._checked_items(parent_acceptance.get("evidence")):
+            evidence.append(item)
+        for item in self._checked_items(parent_acceptance.get("rerun_commands")):
+            rerun_commands.append(item)
+
+        return {
+            "status": self._parent_acceptance_status(parent_data, [summary for _child_id, summary in child_acceptances]),
+            "scenarios": self._dedupe_scenarios([
+                *self._scenario_summaries(parent_acceptance.get("scenarios")),
+                *scenarios,
+            ]),
+            "checked": self._unique_nonempty(checked),
+            "evidence": self._unique_nonempty(evidence),
+            "rerun_commands": self._unique_nonempty(rerun_commands),
+        }
+
+    def _acceptance_has_content(self, summary: dict[str, Any]) -> bool:
+        return bool(
+            self._first_text(summary.get("status"))
+            or summary.get("scenarios")
+            or summary.get("checked")
+            or summary.get("evidence")
+            or summary.get("rerun_commands")
+        )
+
+    def _parent_acceptance_status(self, parent_data: dict[str, Any], child_summaries: list[dict[str, Any]]) -> str:
+        statuses = [self._first_text(summary.get("status")).lower() for summary in child_summaries]
+        nonempty = [status for status in statuses if status]
+        if any(status in {"fail", "failed"} for status in nonempty):
+            return "fail"
+        if any(status == "blocked" for status in nonempty):
+            return "blocked"
+        if nonempty and len(nonempty) == len(child_summaries) and all(status in {"pass", "passed"} for status in nonempty):
+            return "pass"
+        if nonempty:
+            return "partial"
+        return self._first_text(parent_data.get("last_result"))
 
     def _acceptance_scenarios(
         self,

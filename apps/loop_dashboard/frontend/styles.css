@@ -597,6 +597,8 @@ button {
 .parent-flow-overview,
 .parent-flow-summary,
 .parent-flow-children,
+.children-tab-content,
+.child-detail-card,
 .parent-agent-summary,
 .parent-agent-card {
   min-width: 0;
@@ -606,6 +608,8 @@ button {
 
 .parent-flow-summary,
 .parent-flow-children,
+.children-tab-content,
+.child-detail-card,
 .parent-agent-summary,
 .parent-agent-card {
   padding: 10px;
@@ -638,6 +642,7 @@ button {
 }
 
 .parent-flow-child-header,
+.child-detail-header,
 .parent-agent-child-header,
 .parent-agent-row-heading {
   min-width: 0;
@@ -648,6 +653,7 @@ button {
 }
 
 .parent-flow-child-title,
+.child-detail-title,
 .parent-agent-child-title {
   min-width: 0;
   font-weight: 700;
@@ -656,6 +662,7 @@ button {
 }
 
 .parent-flow-child-meta,
+.child-detail-meta,
 .parent-agent-child-meta,
 .parent-agent-note {
   min-width: 0;
@@ -720,6 +727,22 @@ button {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #ffffff;
+}
+
+.child-detail-diagnostics,
+.child-detail-artifacts {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.child-detail-diagnostic {
+  min-width: 0;
+  color: var(--blocked);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .agent-cards {
@@ -1084,6 +1107,7 @@ button {
 
   .parent-step-row,
   .parent-flow-child-header,
+  .child-detail-header,
   .parent-agent-child-header,
   .parent-agent-row-heading {
     grid-template-columns: 1fr;

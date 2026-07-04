@@ -8,6 +8,9 @@ const COMPLETED_PHASES = new Set([
 
 const PHASE_LABELS = {
   passed_waiting_human_merge: "通过，等待人工合并",
+  child_running: "子任务运行中",
+  generating: "生成中",
+  passed: "通过",
   stopped_no_action: "停止：无需操作",
   stopped_budget: "停止：预算耗尽",
   stopped_blocked: "停止：阻塞",
@@ -32,6 +35,7 @@ const STATUS_LABELS = {
 const ACCEPTANCE_LABELS = {
   pass: "通过",
   passed: "通过",
+  partial: "部分完成",
   fail: "失败",
   failed: "失败",
   blocked: "阻塞",
@@ -47,6 +51,7 @@ const AGENT_LABELS = {
 
 const ACTION_LABELS = {
   run_parent_planner: "运行父 Planner",
+  run_child_planner: "运行子任务 Planner",
   run_child_generator: "运行子任务 Generator",
   resume_current_child: "继续当前子任务",
   repair_child: "修复子任务",
@@ -57,6 +62,7 @@ const ACTION_LABELS = {
   run_evaluator: "运行 Evaluator",
   await_human_merge_confirmation: "等待人工合并确认",
   proceed_to_user_acceptance: "进入用户验收",
+  none: "暂无",
 };
 
 const state = {
@@ -84,6 +90,7 @@ const els = {
   runDetail: document.getElementById("run-detail-content"),
   detailTabs: document.getElementById("detail-tabs"),
   tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
+  childrenContent: document.getElementById("children-content"),
   acceptanceContent: document.getElementById("acceptance-content"),
   artifactContent: document.getElementById("artifact-content"),
   flowDiagram: document.getElementById("flow-diagram"),
@@ -181,7 +188,7 @@ function setAgentFilter(agentName) {
 }
 
 function setActiveTab(tabName) {
-  const validTabs = ["overview", "agents", "acceptance", "logs", "diagnostics", "artifacts"];
+  const validTabs = ["overview", "children", "agents", "acceptance", "logs", "diagnostics", "artifacts"];
   state.activeTab = validTabs.includes(tabName) ? tabName : "overview";
   renderTabs();
 }
@@ -319,6 +326,7 @@ function renderAll() {
   renderDetail();
   renderTabs();
   renderFlow();
+  renderChildrenTab();
   renderAgents();
   renderAcceptanceTab();
   renderDiagnostics();
@@ -488,9 +496,9 @@ function renderParentReaderSummary(detail) {
   section.append(el("div", "detail-section-title", "父需求读者摘要"));
   [
     ["目的", summary.purpose || detail.task_description || detail.task_summary],
-    ["当前进展", summary.current_progress || phaseLabel(detail.phase)],
-    ["下一步", summary.next_step || actionLabel(detail.next_action)],
-    ["用户决策", summary.decision_needed || "不需要"],
+    ["当前进展", parentProgressText(detail, summary.current_progress)],
+    ["下一步", parentNextStepText(detail, summary.next_step)],
+    ["用户决策", parentDecisionText(detail, summary.decision_needed)],
   ].forEach(([label, value]) => section.append(infoRow(label, value)));
   return section;
 }
@@ -528,6 +536,60 @@ function childReaderRow(label, value) {
   const row = el("div", "child-reader-row");
   row.append(el("span", "child-reader-label", `${label}:`), el("span", "child-reader-value", text(value, "暂无")));
   return row;
+}
+
+function renderChildrenTab() {
+  if (!els.childrenContent) {
+    return;
+  }
+  if (!state.detail) {
+    setChildren(els.childrenContent, [empty("暂无子任务")]);
+    return;
+  }
+  if (state.detail.run_kind !== "parent") {
+    setChildren(els.childrenContent, [empty("当前运行不是父需求，没有子任务树。")]);
+    return;
+  }
+  const children = Array.isArray(state.detail.children) ? state.detail.children : [];
+  const section = el("section", "children-tab-content");
+  section.append(el("div", "detail-section-title", "子任务详情"));
+  if (!children.length) {
+    section.append(empty("父 Planner 尚未生成可展示的子任务。"));
+    setChildren(els.childrenContent, [section]);
+    return;
+  }
+  children.forEach((child) => section.append(childDetailCard(child)));
+  setChildren(els.childrenContent, [section]);
+}
+
+function childDetailCard(child) {
+  const reader = child.reader_summary || {};
+  const status = childVisualStatus(child);
+  const card = el("article", `child-detail-card status-${status}`);
+  const header = el("div", "child-detail-header");
+  header.append(
+    el("div", "child-detail-title", `${childIndexPrefix(child.child_index)}${text(child.task_description || child.task_summary || child.run_id)}`),
+    el("span", `status-pill status-${status}`, phaseLabel(child.phase)),
+  );
+  card.append(
+    header,
+    el("div", "child-detail-meta", text(child.run_id)),
+    parentStepRow("Planner", reader.planner_action || agentResult(child, "planner")),
+    parentStepRow("Generator", reader.generator_action || agentResult(child, "generator")),
+    parentStepRow("Evaluator", reader.evaluator_action || agentResult(child, "evaluator")),
+    parentStepRow("验收", reader.acceptance_result || resultLabel(child.last_result)),
+  );
+  const diagnostics = Array.isArray(child.blocked_diagnostics) ? child.blocked_diagnostics : [];
+  if (diagnostics.length) {
+    const diag = el("div", "child-detail-diagnostics");
+    diag.append(el("div", "artifact-title", "失败或阻塞原因"));
+    diagnostics.forEach((item) => {
+      diag.append(el("div", "child-detail-diagnostic", `${text(item.title || item.kind)}：${text(item.message || item.reason)}`));
+    });
+    card.append(diag);
+  }
+  card.append(artifactList(childArtifactPaths(child), "child-detail-artifacts"));
+  return card;
 }
 
 function renderAcceptanceSummary(summary) {
@@ -751,6 +813,49 @@ function parentFlowChildCard(child) {
   return card;
 }
 
+function parentProgressText(detail, value) {
+  const normalized = text(value, "");
+  if (!normalized || normalized === detail.phase || /children passed/i.test(normalized)) {
+    return parentChildrenProgressText(detail.children_summary || detail.aggregate_acceptance || {});
+  }
+  return readableLooseText(normalized);
+}
+
+function parentNextStepText(detail, value) {
+  const normalized = text(value, "");
+  if (!normalized || normalized === detail.next_action || ACTION_LABELS[normalized] || /^run |^await |^resume |^repair/i.test(normalized)) {
+    return actionLabel(detail.next_action || normalized);
+  }
+  return readableLooseText(normalized);
+}
+
+function parentDecisionText(detail, value) {
+  const normalized = text(value, "");
+  if (!normalized || /^(no|false)$/i.test(normalized)) {
+    const decision = detail.decision_summary || {};
+    return decision.requires_user_decision ? "需要" : "不需要";
+  }
+  if (/^(yes|true)$/i.test(normalized)) {
+    return "需要";
+  }
+  return readableLooseText(normalized);
+}
+
+function readableLooseText(value) {
+  const raw = text(value, "");
+  const labels = {
+    "1 children passed": "1 个子任务已通过",
+    "2 children passed": "2 个子任务已通过",
+    "3 children passed": "3 个子任务已通过",
+    "Run parent planner": "运行父 Planner",
+    "Await human merge": "等待人工合并确认",
+    "No": "不需要",
+    "Yes": "需要",
+    child_running: "子任务运行中",
+  };
+  return labels[raw] || actionLabel(raw);
+}
+
 function renderParentAgents(detail) {
   const children = Array.isArray(detail.children) ? detail.children : [];
   const nodes = [];
@@ -860,6 +965,17 @@ function childVisualStatus(child) {
 function agentResult(child, name) {
   const agent = child && child.agents && child.agents[name] ? child.agents[name] : {};
   return agent.last_result || "";
+}
+
+function childArtifactPaths(child) {
+  const paths = [
+    ...normalizeList(child.artifact_paths),
+    ...normalizeList(child.allowed_paths),
+  ];
+  Object.values(child.agents || {}).forEach((agent) => {
+    paths.push(...agentArtifactPaths(agent || {}));
+  });
+  return Array.from(new Set(paths));
 }
 
 function renderDiagnostics() {

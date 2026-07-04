@@ -740,6 +740,44 @@ def test_parent_child_runs_are_aggregated_with_children_and_events(tmp_path: Pat
     assert any(item["kind"] == "child_artifact_missing" for item in detail["relationship_diagnostics"])
 
 
+def test_parent_acceptance_summary_aggregates_child_evaluator_results(tmp_path: Path) -> None:
+    seed_parent_child_runs(tmp_path)
+    child_dir = tmp_path / ".codex" / "loop-runs" / "parent-run-child-001"
+    write_json(
+        child_dir / "evaluator-result.json",
+        {
+            "status": "pass",
+            "task_id": "parent-run-child-001-task",
+            "summary": "子任务浏览器验收通过",
+            "scenario_results": [
+                {
+                    "scenario_id": "CHILD-UI-001",
+                    "status": "pass",
+                    "summary": "Evaluator 模拟用户检查子任务页面，验证功能实现完整性和设计匹配。",
+                    "evidence": ["点击子任务 tab", "核对设计 mock 中的 Agent 结果和验收区域"],
+                }
+            ],
+            "checked": ["功能实现完整性", "设计/mock 匹配"],
+            "rerun_commands": ["python3 scripts/loop_dashboard_evaluator.py --child parent-run-child-001"],
+        },
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("parent-run")
+
+    acceptance = detail["acceptance_summary"]
+    assert acceptance["status"] in {"pass", "partial"}
+    scenario_text = json.dumps(acceptance["scenarios"], ensure_ascii=False)
+    assert "parent-run-child-001" in scenario_text
+    assert "功能实现完整性和设计匹配" in scenario_text
+    checked_text = json.dumps(acceptance["checked"], ensure_ascii=False)
+    assert "功能实现完整性" in checked_text
+    assert "设计/mock 匹配" in checked_text
+    evidence_text = json.dumps(acceptance["evidence"], ensure_ascii=False)
+    assert "核对设计 mock" in evidence_text
+    assert "parent-run-child-001" in evidence_text
+    assert acceptance["rerun_commands"] == ["python3 scripts/loop_dashboard_evaluator.py --child parent-run-child-001"]
+
+
 def test_top_level_list_runs_hides_children_that_have_existing_parent(tmp_path: Path) -> None:
     seed_parent_child_runs(tmp_path)
 
