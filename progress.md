@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-07-06 AI Infra Meta Loop Runtime Hardened Smoke Correction
+
+- Superseded the earlier AI infra meta loop smoke evidence in this file after the hardened placeholder-only gate landed.
+- Current expected smoke behavior for `python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone` is a blocked placeholder path, not a passing merge-ready result.
+- Treat any older mention of `overall_status=pass` or `expanded_code_scope.status=pass` for this smoke as stale evidence.
+- Corrected expectations:
+  - `overall_status=blocked`
+  - `expanded_code_scope.status=blocked`
+  - `synthetic_placeholder_block=true`
+  - no `commit-result.json` artifact is expected for the placeholder-only freshness path
+
 ## 2026-07-06 AI Infra Meta Loop Runtime Review Fix
 
 - Tightened `transition_meta_loop_to_expansion(...)` guardrails after Task 6 review:

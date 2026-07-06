@@ -454,6 +454,8 @@ git commit -m "feat(harness): gate autonomous runs on required evidence"
 
 Add tests that `run_autonomous()` accepts `generator_driver="fake-expanded-code"` only when expanded policy is loaded. The driver writes one allowed `scripts/ai_infra_expanded_runtime_smoke.txt` path plus the required evidence manifest; the run should commit and return to planning.
 
+Correction after hardening: the placeholder-only fake-expanded path is no longer expected to commit. When the smoke uses synthetic freshness placeholders instead of live pass evidence, the expected result is `overall_status=blocked`, `expanded_code_scope.status=blocked`, `synthetic_placeholder_block=true`, and no `commit-result.json`.
+
 Add a paired test with `generator_driver="fake-missing-evidence"` that blocks with `inspect_required_evidence`.
 
 Run: `python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_allows_code_path_with_evidence -v`
@@ -474,9 +476,10 @@ Keep the driver deterministic and local. Do not touch real service processes.
 Add a test that calls the smoke helper in an isolated temporary clone and asserts the JSON output contains:
 
 - `expanded_policy_preflight: pass`
-- `expanded_code_scope: pass`
+- `expanded_code_scope: blocked`
 - `missing_evidence_gate: pass`
-- `service_availability_evidence: pass`
+- `service_availability_evidence: blocked`
+- `synthetic_placeholder_block: true`
 
 Run: `python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_ai_infra_meta_loop_smoke_helper_exercises_expanded_runtime -v`
 

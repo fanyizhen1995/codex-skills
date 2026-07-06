@@ -375,6 +375,36 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_required_evidence_manifest_rejects_blocked_summary_only_fallback_match(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "unknown-evidence.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            requirement = "new requirement proof for synthetic placeholder freshness"
+            findings = validate_required_evidence_manifest(
+                [requirement],
+                {
+                    "items": [
+                        {
+                            "status": "blocked",
+                            "summary": "new requirement proof for synthetic placeholder freshness",
+                            "artifacts": ["artifacts/unknown-evidence.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertIn(
+                f"missing required evidence manifest item for: {requirement}",
+                findings,
+            )
+
     def test_required_evidence_manifest_blocks_placeholder_freshness_payloads(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

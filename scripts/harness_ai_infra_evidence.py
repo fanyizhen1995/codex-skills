@@ -431,8 +431,10 @@ def validate_required_evidence_manifest(
         if not requirement_tokens:
             continue
         if not any(
-            not item_evidence_id and requirement_tokens.issubset(item_tokens)
-            for _, item_evidence_id, item_tokens, _, _ in indexed_items
+            not item_evidence_id
+            and item_status == "pass"
+            and requirement_tokens.issubset(item_tokens)
+            for _, item_evidence_id, item_tokens, item_status, _ in indexed_items
         ):
             findings.append(f"missing required evidence manifest item for: {requirement_text}")
 
