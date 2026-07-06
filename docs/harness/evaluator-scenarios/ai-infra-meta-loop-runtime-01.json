@@ -4,7 +4,7 @@
   "user_scenarios": [
     {
       "scenario_id": "AI-INFRA-META-LOOP-E2E-3",
-      "user_goal": "As an evaluator, confirm the expanded ai_infra runtime can run a deterministic smoke pass in an isolated clone, enforce the expanded policy contract, and stop if required evidence is missing.",
+      "user_goal": "As an evaluator, confirm the expanded ai_infra runtime can run a deterministic isolated smoke round, enforce the expanded policy contract, and report expected blocked safety gates when only synthetic freshness placeholders exist.",
       "prerequisites": [
         "Repository root is readable and can be cloned locally.",
         "The expanded policy fixture exists at docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json.",
@@ -21,7 +21,8 @@
         "The helper prints compact JSON summary output and exits 0.",
         "expanded_policy_preflight is pass.",
         "missing_evidence_gate is pass because the runtime blocks missing required evidence instead of committing.",
-        "expanded_code_scope is pass and the deterministic smoke file is committed in the isolated clone."
+        "expanded_code_scope is blocked with inspect_required_evidence because synthetic freshness placeholders cannot satisfy the expanded commit gate.",
+        "overall_status is blocked, the deterministic smoke file exists in the isolated clone, and no commit-result.json is produced."
       ],
       "failure_signals": [
         "The helper accepts an expanded autonomous task without the policy fixture.",
@@ -54,7 +55,7 @@
       ],
       "failure_signals": [
         "Marker-only required_evidence unlocks an expanded fake driver without the expanded policy file.",
-        "Expanded runtime code path commits without required evidence.",
+        "Expanded runtime code path commits with only synthetic freshness placeholders or without live/pass evidence.",
         "Expanded runtime path touches denylist or live service processes."
       ],
       "cleanup": [
@@ -79,7 +80,7 @@
         "If any live service is unavailable, service_availability_evidence is blocked instead of being reported as pass.",
         "crawler_freshness_evidence exists and reports synthetic smoke or blocked freshness evidence from the run-local manifest.",
         "loop_dashboard_freshness_evidence exists and reports synthetic smoke or blocked freshness evidence from the run-local manifest.",
-        "The summary still includes evidence for expanded policy preflight, expanded code scope, and missing evidence gating."
+        "The summary still includes evidence for expanded policy preflight, expanded code scope, and missing evidence gating, and placeholder-only freshness leaves overall_status blocked."
       ],
       "failure_signals": [
         "The helper treats unavailable live services as a passing condition.",

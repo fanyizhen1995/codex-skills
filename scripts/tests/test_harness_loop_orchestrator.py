@@ -4072,15 +4072,19 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
 
         self.assertEqual(payload["expanded_policy_preflight"]["status"], "pass")
-        self.assertEqual(payload["expanded_code_scope"]["status"], "pass")
+        self.assertEqual(payload["expanded_code_scope"]["status"], "blocked")
         self.assertEqual(payload["missing_evidence_gate"]["status"], "pass")
         self.assertEqual(payload["service_availability_evidence"]["status"], "pass")
         self.assertEqual(payload["crawler_freshness_evidence"]["status"], "blocked")
         self.assertEqual(payload["loop_dashboard_freshness_evidence"]["status"], "blocked")
+        self.assertTrue(payload["expanded_code_scope"]["synthetic_placeholder_block"])
+        self.assertEqual(payload["expanded_code_scope"]["run_status"]["phase"], "stopped_blocked")
+        self.assertEqual(payload["expanded_code_scope"]["run_status"]["next_action"], "inspect_required_evidence")
+        self.assertEqual(payload["expanded_code_scope"]["commit_result_path"], "")
         self.assertIn("synthetic", payload["crawler_freshness_evidence"]["summary"].lower())
         self.assertIn("synthetic", payload["loop_dashboard_freshness_evidence"]["summary"].lower())
         self.assertTrue(payload["isolated_clone"])
-        self.assertEqual(payload["overall_status"], "pass")
+        self.assertEqual(payload["overall_status"], "blocked")
 
     def test_ai_infra_meta_loop_smoke_helper_keeps_git_identity_changes_inside_isolated_clone(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke

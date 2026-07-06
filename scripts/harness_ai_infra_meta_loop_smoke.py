@@ -223,7 +223,7 @@ def _run_expanded_code_round(repo_root: Path, run_id: str) -> dict[str, Any]:
         )
     )
     return {
-        "status": "pass" if normal_pass or expected_synthetic_block else "fail",
+        "status": "pass" if normal_pass else "blocked" if expected_synthetic_block else "fail",
         "run_status": status,
         "run_dir": _relative(repo_root, run_dir),
         "generator_result_path": _relative(repo_root, run_dir / "generator-result.json"),
@@ -313,10 +313,16 @@ def _run_smoke_in_repo(repo_root: Path, run_id: str, *, configure_git_identity: 
     loop_dashboard_freshness = _manifest_item_summary(repo_root, run_id, "loop-dashboard-freshness")
 
     overall_status = "pass"
-    for section in (preflight_summary, missing_evidence_gate, expanded_code_scope):
+    for section in (preflight_summary, missing_evidence_gate):
         if section["status"] != "pass":
             overall_status = "fail"
             break
+    if overall_status == "pass":
+        expanded_status = expanded_code_scope["status"]
+        if expanded_status == "fail":
+            overall_status = "fail"
+        elif expanded_status == "blocked":
+            overall_status = "blocked"
     if overall_status == "pass" and service_availability["status"] != "pass":
         overall_status = "blocked"
 

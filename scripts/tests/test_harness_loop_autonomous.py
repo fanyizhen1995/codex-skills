@@ -280,6 +280,31 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
             ],
         )
 
+    def test_expanded_policy_denies_root_level_artifact_paths(self) -> None:
+        policy_path = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies" / "autonomous-knowledge-ai-infra-expanded.json"
+        with policy_path.open("r", encoding="utf-8") as handle:
+            policy = json.load(handle)
+
+        changed_paths = [
+            "foo.log",
+            "foo.pid",
+            "dist/app.js",
+            "build/app.js",
+            "node_modules/pkg/index.js",
+            ".pytest_cache/v/cache",
+            "__pycache__/x.pyc",
+            ".superpowers/sdd/review.diff",
+        ]
+        result = check_autonomous_scope(
+            changed_paths,
+            policy["allowed_paths"],
+            policy["denylist_paths"],
+            policy.get("manual_confirm_paths", []),
+        )
+
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.denied_paths, changed_paths)
+
     def test_policy_patterns_fall_back_to_conservative_defaults_for_legacy_empty_lists(self) -> None:
         allowed, denied, manual = policy_patterns_for_run(
             {

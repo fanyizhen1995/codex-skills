@@ -357,9 +357,10 @@ First it seeds `ai_infra` loop-state and coverage-map data, runs
 `fake-missing-evidence`, and expects the loop to stop at
 `inspect_required_evidence`. Then it resets the clone back to a clean committed
 state, reseeds the same deterministic candidate context, runs
-`fake-expanded-code`, and expects a committed
-`scripts/ai_infra_expanded_runtime_smoke.txt` artifact plus a passing required
-evidence gate. The helper prints compact JSON with
+`fake-expanded-code`, and expects
+`scripts/ai_infra_expanded_runtime_smoke.txt` plus an expected blocked
+`inspect_required_evidence` result because synthetic freshness placeholders do
+not satisfy the expanded commit gate. The helper prints compact JSON with
 `expanded_policy_preflight`, `missing_evidence_gate`, `expanded_code_scope`,
 `service_availability_evidence`, `crawler_freshness_evidence`, and
 `loop_dashboard_freshness_evidence`.
@@ -372,16 +373,20 @@ exactly. The expanded-code
 driver writes a deterministic local smoke file plus run-local evidence
 artifacts and stable-ID `required-evidence-manifest.json` entries. Freshness
 and visibility artifacts remain explicit synthetic smoke placeholders or
-blocked evidence; they do not claim live checks occurred. The
+blocked evidence; they do not claim live checks occurred, and they must block
+before commit. Valid live/pass freshness and service evidence is required
+before expanded autonomous code changes can produce `commit-result.json`. The
 missing-evidence driver writes the same smoke file but omits the manifest so
-the runtime must block before commit.
+the runtime must also block before commit.
 
 Even with `--isolate-clone`, service checks still target the live project URLs
 at `127.0.0.1:8765`, `127.0.0.1:5173`, and `127.0.0.1:8766` through
 `scripts.harness_ai_infra_evidence.check_service_availability()`. If any live
 service is unavailable, the helper reports
 `service_availability_evidence.status=blocked` instead of pretending the smoke
-passed.
+passed. Placeholder-only expanded rounds also leave the smoke summary at
+`overall_status=blocked`; the command still exits 0 unless an unexpected
+failure occurs.
 
 When Phase A demand-development fixes finish and a reviewer has a checkpoint
 commit to preserve, transition the parent meta loop into Phase B autonomous
