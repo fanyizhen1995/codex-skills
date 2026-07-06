@@ -278,7 +278,7 @@ def check_autonomous_scope(
     findings: list[str] = []
 
     for changed_path in changed_paths:
-        if _matches_any(changed_path, deny_patterns):
+        if _matches_any(changed_path, deny_patterns, case_sensitive=False):
             denied_paths.append(changed_path)
             findings.append(f"denylist path: {changed_path}")
             continue
@@ -503,13 +503,15 @@ def _coverage_map_no_action_reasons(
     return reasons
 
 
-def _matches_any(path: str, patterns: Sequence[str]) -> bool:
-    return any(_matches(path, pattern) for pattern in patterns)
+def _matches_any(path: str, patterns: Sequence[str], *, case_sensitive: bool = True) -> bool:
+    return any(_matches(path, pattern, case_sensitive=case_sensitive) for pattern in patterns)
 
 
-def _matches(path: str, pattern: str) -> bool:
-    if fnmatch(path, pattern):
+def _matches(path: str, pattern: str, *, case_sensitive: bool = True) -> bool:
+    matched_path = path if case_sensitive else path.casefold()
+    matched_pattern = pattern if case_sensitive else pattern.casefold()
+    if fnmatch(matched_path, matched_pattern):
         return True
-    if pattern.endswith("/**"):
-        return path == pattern[:-3] or path.startswith(pattern[:-2])
+    if matched_pattern.endswith("/**"):
+        return matched_path == matched_pattern[:-3] or matched_path.startswith(matched_pattern[:-2])
     return False

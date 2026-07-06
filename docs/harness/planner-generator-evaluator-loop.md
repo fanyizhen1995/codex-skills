@@ -200,6 +200,13 @@ run-local evidence. The gate writes
 checks or commit and blocks the run with
 `next_action=inspect_required_evidence` when findings exist.
 
+Live semantic evidence for `service-availability`,
+`crawler-workbench-freshness`, `loop-dashboard-freshness`,
+`search-api-visibility`, and `frontend-visibility` must also carry trusted
+provenance. The manifest item or referenced JSON artifact must include
+`created_by: harness_loop_orchestrator`; generator-written pass artifacts
+without that marker are treated as untrusted and block the commit gate.
+
 Expanded AI infra policies should use stable manifest `evidence_id` values
 instead of copying the full prose requirement into `summary`. Current stable
 IDs are:

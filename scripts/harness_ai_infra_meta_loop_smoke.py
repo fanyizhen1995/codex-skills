@@ -216,8 +216,8 @@ def _run_expanded_code_round(repo_root: Path, run_id: str) -> dict[str, Any]:
         and smoke_file.exists()
         and synthetic_placeholder_ids == SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS
         and all(
-            any(evidence_id in str(finding) for evidence_id in SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS)
-            for finding in required_evidence.get("findings", [])
+            any(evidence_id in str(finding) for finding in required_evidence.get("findings", []))
+            for evidence_id in SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS
         )
     )
     return {

@@ -309,6 +309,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def _valid_service_availability_payload(self) -> dict[str, object]:
         return {
             "overall_status": "pass",
+            "created_by": "harness_loop_orchestrator",
             "services": [
                 {
                     "service": "crawler-backend",
@@ -354,6 +355,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             }
         return {
             "status": "pass",
+            "created_by": "harness_loop_orchestrator",
             "summary": f"{evidence_id} captured",
             "details": details,
         }
@@ -361,6 +363,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def _valid_search_visibility_payload(self) -> dict[str, object]:
         return {
             "status": "pass",
+            "created_by": "harness_loop_orchestrator",
             "query": "expanded runtime smoke",
             "visible_results": 1,
             "visible_items": ["personal-wiki/domains/ai_infra/raw/synthetic-gap-proof.md"],
@@ -369,6 +372,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def _valid_frontend_visibility_payload(self) -> dict[str, object]:
         return {
             "status": "pass",
+            "created_by": "harness_loop_orchestrator",
             "page_url": "http://127.0.0.1:5173/wiki/ai_infra",
             "route": "/wiki/ai_infra",
             "visible_text": ["Expanded runtime smoke"],

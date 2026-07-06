@@ -82,6 +82,7 @@ VISIBILITY_EVIDENCE_IDS = {
     "frontend-visibility",
 }
 SEMANTIC_GATE_EVIDENCE_IDS = FRESHNESS_EVIDENCE_IDS | VISIBILITY_EVIDENCE_IDS | {"service-availability"}
+TRUSTED_EVIDENCE_CREATED_BY = "harness_loop_orchestrator"
 
 
 def canonicalize_url(url: str) -> str:
@@ -435,6 +436,7 @@ def _validate_frontend_visibility_payload(
 def _validate_semantic_evidence_artifacts(
     *,
     evidence_id: str,
+    item: Mapping[str, Any],
     resolved_artifacts: Sequence[tuple[str, Path]],
 ) -> list[str]:
     if evidence_id not in SEMANTIC_GATE_EVIDENCE_IDS:
@@ -458,6 +460,14 @@ def _validate_semantic_evidence_artifacts(
             if evidence_id == "search-api-visibility"
             else _validate_frontend_visibility_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
         )
+        provenance_finding = _validate_trusted_live_evidence_provenance(
+            payload,
+            item=item,
+            evidence_id=evidence_id,
+            artifact_path=artifact_path,
+        )
+        if provenance_finding:
+            artifact_findings.append(provenance_finding)
         if artifact_findings:
             findings.extend(artifact_findings)
             continue
@@ -466,6 +476,23 @@ def _validate_semantic_evidence_artifacts(
     if semantic_valid:
         return []
     return findings
+
+
+def _validate_trusted_live_evidence_provenance(
+    payload: Mapping[str, Any],
+    *,
+    item: Mapping[str, Any],
+    evidence_id: str,
+    artifact_path: str,
+) -> str:
+    manifest_created_by = str(item.get("created_by", "")).strip()
+    payload_created_by = str(payload.get("created_by", "")).strip()
+    if TRUSTED_EVIDENCE_CREATED_BY in {manifest_created_by, payload_created_by}:
+        return ""
+    return (
+        f"{evidence_id} artifact {artifact_path} must include trusted created_by "
+        f"{TRUSTED_EVIDENCE_CREATED_BY} in the manifest item or artifact payload"
+    )
 
 
 def validate_required_evidence_manifest(
@@ -509,6 +536,7 @@ def validate_required_evidence_manifest(
         evidence_id = _normalized_evidence_id(item.get("evidence_id", ""))
         semantic_findings = _validate_semantic_evidence_artifacts(
             evidence_id=evidence_id,
+            item=item,
             resolved_artifacts=resolved_artifacts,
         )
         findings.extend(semantic_findings)
@@ -567,6 +595,7 @@ def validate_required_evidence_manifest(
             for indexed_item in summary_only_matches:
                 inferred_findings = _validate_semantic_evidence_artifacts(
                     evidence_id=inferred_semantic_evidence_id,
+                    item=indexed_item["item"],
                     resolved_artifacts=indexed_item["resolved_artifacts"],
                 )
                 if inferred_findings:
@@ -613,4 +642,8 @@ def check_service_availability(
         if entry["status"] != "pass":
             overall_status = "fail"
         results.append(entry)
-    return {"overall_status": overall_status, "services": results}
+    return {
+        "overall_status": overall_status,
+        "services": results,
+        "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+    }
