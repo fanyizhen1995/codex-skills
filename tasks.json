@@ -141,7 +141,7 @@
       "id": "demand-multi-task-loop-01",
       "title": "Implement demand-development multi-task loop",
       "description": "Implement parent/child demand-development loops, child task contracts, budget limits, resume behavior, dashboard aggregation, and browser evaluator coverage.",
-      "status": "done",
+      "status": "todo",
       "priority": "high",
       "blocked_by": "planner-generator-evaluator-loop-phase-3-01",
       "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts -v && python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/demand-multi-task-final && git diff --check",
