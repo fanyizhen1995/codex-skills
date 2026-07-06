@@ -305,6 +305,26 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
         self.assertFalse(result.allowed)
         self.assertEqual(result.denied_paths, changed_paths)
 
+    def test_expanded_policy_denies_nested_runtime_artifact_dirs(self) -> None:
+        policy_path = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies" / "autonomous-knowledge-ai-infra-expanded.json"
+        with policy_path.open("r", encoding="utf-8") as handle:
+            policy = json.load(handle)
+
+        changed_paths = [
+            "x/.codex/y",
+            "x/.worktrees/y",
+            "x/generated/y",
+        ]
+        result = check_autonomous_scope(
+            changed_paths,
+            policy["allowed_paths"],
+            policy["denylist_paths"],
+            policy.get("manual_confirm_paths", []),
+        )
+
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.denied_paths, changed_paths)
+
     def test_expanded_policy_denies_root_level_secret_token_and_credential_paths(self) -> None:
         policy_path = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies" / "autonomous-knowledge-ai-infra-expanded.json"
         with policy_path.open("r", encoding="utf-8") as handle:
