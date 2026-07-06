@@ -1,0 +1,58 @@
+{
+  "policy": "autonomous-knowledge",
+  "auto_commit": true,
+  "auto_merge_main": false,
+  "allowed_paths": [
+    "**"
+  ],
+  "manual_confirm_paths": [],
+  "denylist_paths": [
+    ".env",
+    ".env.*",
+    "**/.env",
+    "**/.env.*",
+    "**/secrets/**",
+    "**/*secret*",
+    "**/*token*",
+    "**/*credential*",
+    ".codex/**",
+    ".worktrees/**",
+    "generated/**",
+    "**/node_modules/**",
+    "**/.pytest_cache/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.pid",
+    "**/*.log"
+  ],
+  "limits": {
+    "max_tasks_per_run": 3,
+    "max_generator_attempts_per_task": 2,
+    "max_eval_attempts_per_task": 3,
+    "max_wall_time_minutes": 240,
+    "max_no_action_rounds": 1,
+    "agent_timeout_minutes": 30,
+    "cleanup_retention_days": 7,
+    "max_rounds_per_invocation": 4,
+    "max_network_fetches_per_invocation": 20,
+    "max_raw_bytes_per_invocation": 262144000
+  },
+  "required_evidence": [
+    "confirmed ai_infra autonomous expansion preflight",
+    "gap proof with duplicate checks before each task",
+    "domain loop-state.json with coverage evidence",
+    "raw evidence or existing raw reuse evidence",
+    "curated wiki source_refs",
+    "wiki validate --domain ai_infra result",
+    "search/API visibility evidence for new knowledge",
+    "frontend visibility evidence when services are running",
+    "link probe or blocked/auth evidence for new external sources",
+    "secret scan evidence for changed paths",
+    "code test evidence when crawler/harness/frontend/backend changes",
+    "autonomous-scope-result.json",
+    "supply-chain-result.json for dependency changes",
+    "commit-result.json",
+    "fresh no-action evidence before stopped_no_action"
+  ]
+}

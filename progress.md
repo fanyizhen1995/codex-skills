@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-07-06 AI Infra Autonomous Expansion Loop Preflight
+
+- Added the AI infra autonomous expansion design spec for comprehensive `ai_infra` wiki growth across training, inference, orchestration, data/RAG, evaluation/observability, security/cost, hardware, network, storage, and cluster operations.
+- Defined deterministic duplicate/gap proof requirements before each candidate task, including canonical URL, GitHub issue/PR, paper, hardware model, source profile, and wiki/index checks.
+- Added the expanded AI infra autonomous policy fixture as a run-contract/evaluator artifact, while documenting that current Phase 3 runtime still uses the conservative hardcoded autonomous scope until policy fixture loading is implemented.
+- Evidence:
+  - `python3 -m json.tool docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json >/dev/null`
+  - `python3 - <<'PY' ... validate_loop_policy_payload(...) ... PY`
+  - `git diff --check`
+
 ## 2026-07-04 Wiki Crawler Capture Artifacts
 
 - Organized the current uncommitted wiki/crawler capture artifacts for the `ai_infra` domain into a dedicated commit scope.

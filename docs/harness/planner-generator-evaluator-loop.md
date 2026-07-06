@@ -156,6 +156,18 @@ for path in Path("docs/harness/loop-policies").glob("*.json"):
 PY
 ```
 
+`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json` is
+an AI infrastructure expansion policy fixture. It records the stricter
+preflight/evaluator contract for repo-wide autonomous repair during
+`ai_infra` knowledge expansion: gap proofs, duplicate checks, search/frontend
+visibility, link probes, secret scans, and code tests when crawler, harness,
+frontend, or backend files change. The current Phase 3 runtime still uses the
+hardcoded conservative `autonomous-knowledge` scope in
+`scripts/harness_loop_autonomous.py` and `scripts/harness_loop_orchestrator.py`;
+the expanded fixture is therefore a confirmed run contract, not active runtime
+behavior, until the orchestrator is extended to read policy fixtures or a
+dedicated expanded autonomous mode is implemented.
+
 Start an autonomous run with an explicit domain and confirmed preflight:
 
 ```bash
