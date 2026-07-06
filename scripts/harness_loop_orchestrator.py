@@ -2148,16 +2148,29 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
     else:
         manifest_path = run_dir / "required-evidence-manifest.json"
         manifest_entries = _load_required_evidence_manifest_entries(manifest_path, findings)
-        matching_entry = next(
-            (
-                entry
-                for entry in manifest_entries
-                if "gap-proof" in str(entry.get("evidence_id", "")).strip().lower()
-            ),
-            None,
-        )
+        matching_entry = None
+        mismatched_task_ids: list[str] = []
+        for entry in manifest_entries:
+            evidence_id = str(entry.get("evidence_id", "")).strip()
+            evidence_id_lower = evidence_id.lower()
+            if "gap-proof" not in evidence_id_lower:
+                continue
+            entry_task_id = str(entry.get("task_id", "")).strip()
+            if entry_task_id:
+                if entry_task_id == task_id:
+                    matching_entry = entry
+                    break
+                mismatched_task_ids.append(entry_task_id)
+                continue
+            if task_id and task_id.lower() in evidence_id_lower:
+                matching_entry = entry
+                break
         if matching_entry is None:
-            findings.append(f"missing gap proof artifact for task {task_id}")
+            for mismatched_task_id in mismatched_task_ids:
+                findings.append(
+                    f"gap proof manifest entry task_id {mismatched_task_id} does not match current task {task_id}"
+                )
+            findings.append(f"missing gap proof manifest entry for current task {task_id}")
         else:
             artifact_path = str(matching_entry.get("artifacts", [""])[0]).strip() if matching_entry.get("artifacts") else ""
             status = str(matching_entry.get("status", "")).strip().lower()

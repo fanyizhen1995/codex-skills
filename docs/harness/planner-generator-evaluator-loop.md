@@ -191,9 +191,14 @@ dedicated expanded autonomous mode is implemented.
 When an autonomous run carries policy `required_evidence` containing `gap
 proof`, the commit gate now requires either
 `.codex/loop-runs/<run-id>/gap-proofs/<task-id>.json` or a matching
-`required-evidence-manifest.json` entry whose `evidence_id` contains
-`gap-proof`. The gate writes `gap-proof-result.json` with `pass` or `blocked`
-before supply-chain checks or commit.
+`required-evidence-manifest.json` entry for the current task. Manifest fallback
+prefers an explicit `task_id` field equal to the current task id; legacy
+fallback only applies when `evidence_id` contains both `gap-proof` and the
+exact current task id. A matching manifest entry must also be `status: pass`
+and reference a resolvable artifact file inside the repo, because the runtime
+re-validates that artifact payload before continuing. The gate writes
+`gap-proof-result.json` with `pass` or `blocked` before supply-chain checks or
+commit.
 
 Start an autonomous run with an explicit domain and confirmed preflight:
 
