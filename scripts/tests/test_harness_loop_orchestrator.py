@@ -345,23 +345,46 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "sources": {"status": "pass"},
                 "channels": {"status": "pass"},
                 "queue": {"status": "pass"},
-                "wiki": {"status": "pass"},
-                "search": {"status": "pass"},
+                "wiki": self._valid_search_visibility_payload(),
+                "search": self._valid_search_visibility_payload(),
             }
         else:
             details = {
-                "current_run": {"status": "pass"},
-                "child_tasks": {"status": "pass"},
-                "agent_actions": {"status": "pass"},
-                "evaluator_scenarios": {"status": "pass"},
-                "completed_history": {"status": "pass"},
+                "current_run": {
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "run_id": "expanded-run",
+                        "project_root": "/tmp/current-project",
+                        "source_path": ".worktrees/ai-infra-meta-loop-runtime/.codex/loop-runs/expanded-run",
+                    },
+                },
+                "child_tasks": {
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "run_id": "expanded-run",
+                        "project_root": "/tmp/current-project",
+                        "source_path": ".worktrees/ai-infra-meta-loop-runtime/.codex/loop-runs/expanded-run",
+                    },
+                },
+                "agent_actions": {"status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "events": []}},
+                "evaluator_scenarios": {"status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "logs": []}},
+                "completed_history": {"status": "pass", "http_status": 200, "json": [{"run_id": "expanded-run"}]},
+                "project": {"status": "pass", "http_status": 200, "json": {"project_root": "/tmp/current-project"}},
             }
-        return {
+        payload = {
             "status": "pass",
             "created_by": "harness_loop_orchestrator",
             "summary": f"{evidence_id} captured",
             "details": details,
         }
+        if evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness"}:
+            payload["run_id"] = "expanded-run"
+            payload["task_id"] = "expanded-run-task-1"
+            payload["domain"] = "ai_infra"
+            payload["worktree"] = "/tmp/current-project"
+        return payload
 
     def _valid_search_visibility_payload(self) -> dict[str, object]:
         expected_target = {
@@ -370,6 +393,8 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             "path": "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
             "title": "Expanded Runtime Smoke",
             "query": "Expanded Runtime Smoke",
+            "content_terms": ["tensorlake", "schedulerproof", "rdmawatch"],
+            "content_fingerprint": "tensorlake schedulerproof rdmawatch",
         }
         return {
             "status": "pass",
@@ -389,6 +414,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "query": expected_target["query"],
                     "matched_on": "path",
                     "result_value": expected_target["path"],
+                    "matched_content_terms": ["tensorlake", "schedulerproof", "rdmawatch"],
                 }
             ],
             "missing_targets": [],
@@ -401,6 +427,8 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             "path": "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
             "title": "Expanded Runtime Smoke",
             "query": "Expanded Runtime Smoke",
+            "content_terms": ["tensorlake", "schedulerproof", "rdmawatch"],
+            "content_fingerprint": "tensorlake schedulerproof rdmawatch",
         }
         return {
             "status": "pass",
@@ -422,6 +450,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "query": expected_target["query"],
                     "matched_on": "path",
                     "result_value": expected_target["path"],
+                    "matched_content_terms": ["tensorlake", "schedulerproof", "rdmawatch"],
                 }
             ],
             "missing_targets": [],
@@ -538,11 +567,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         *,
         run_id: str,
         title: str = "Expanded Runtime Smoke",
+        relative_path: str = "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
+        body: str = "Tensorlake schedulerproof rdmawatch evidence.\n",
     ) -> str:
-        relative_path = "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md"
         page_path = repo_root / relative_path
         page_path.parent.mkdir(parents=True, exist_ok=True)
-        page_path.write_text(f"---\ntitle: {title}\n---\n\n# {title}\n", encoding="utf-8")
+        page_path.write_text(f"---\ntitle: {title}\n---\n\n# {title}\n\n{body}", encoding="utf-8")
         write_json_file(
             run_dir_for(repo_root, run_id) / "generator-result.json",
             {
@@ -558,6 +588,40 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             },
         )
         return relative_path
+
+    def _seed_visibility_targets(
+        self,
+        repo_root: Path,
+        *,
+        run_id: str,
+        targets: list[dict[str, str]],
+    ) -> list[str]:
+        relative_paths: list[str] = []
+        for target in targets:
+            relative_paths.append(
+                self._seed_visibility_target(
+                    repo_root,
+                    run_id=run_id,
+                    title=target["title"],
+                    relative_path=target["path"],
+                    body=target["body"],
+                )
+            )
+        write_json_file(
+            run_dir_for(repo_root, run_id) / "generator-result.json",
+            {
+                "task_id": f"{run_id}-task-1",
+                "status": "implemented",
+                "changed_paths": relative_paths,
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": [],
+                "cleanup_required": False,
+                "notes": "seeded current visibility targets",
+            },
+        )
+        return relative_paths
 
     def test_create_preflight_run_without_confirmation_writes_run_state_and_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2645,6 +2709,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             {
                                 "title": "Expanded Runtime Smoke",
                                 "path": relative_path,
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
                             }
                         ]
                     },
@@ -2708,6 +2773,110 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["matched_targets"], [])
             self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
 
+    def test_capture_live_search_visibility_blocks_partial_match_across_two_changed_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_paths = self._seed_visibility_targets(
+                repo_root,
+                run_id=run_id,
+                targets=[
+                    {
+                        "title": "Expanded Runtime Smoke",
+                        "path": "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
+                        "body": "Tensorlake schedulerproof rdmawatch evidence.\n",
+                    },
+                    {
+                        "title": "Expanded Runtime Followup",
+                        "path": "personal-wiki/domains/ai_infra/runtime/expanded-runtime-followup.md",
+                        "body": "Linkmesh cacheguard topologyseal evidence.\n",
+                    },
+                ],
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_paths[0],
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(len(payload["expected_targets"]), 2)
+            self.assertEqual(len(payload["matched_targets"]), 1)
+            self.assertEqual(payload["matched_targets"][0]["path"], relative_paths[0])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_paths[1])
+
+    def test_capture_live_search_visibility_blocks_path_title_match_without_current_content_terms(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(
+                repo_root,
+                run_id=run_id,
+                body="Tensorlake schedulerproof rdmawatch evidence.\n",
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "description": "Old indexed summary without the new runtime terms",
+                                "snippet": "Expanded runtime smoke legacy summary",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
+
     def test_capture_live_frontend_visibility_blocks_loaded_root_without_current_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -2758,6 +2927,126 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["expected_targets"][0]["path"], relative_path)
             self.assertEqual(payload["matched_targets"], [])
             self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
+
+    def test_capture_live_crawler_freshness_blocks_http_200_without_current_target_discoverability(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                payload = {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": [],
+                }
+                if "/api/wiki/page" in url:
+                    payload["json"] = {
+                        "path": "runtime/other-page.md",
+                        "full_path": "personal-wiki/domains/ai_infra/wiki/runtime/other-page.md",
+                        "title": "Other page",
+                        "body": "old content only",
+                    }
+                elif "/api/search" in url:
+                    payload["json"] = {
+                        "results": [
+                            {
+                                "title": "AI Infra Overview",
+                                "path": "personal-wiki/domains/ai_infra/index.md",
+                                "snippet": "generic ai_infra result",
+                            }
+                        ]
+                    }
+                return payload
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "crawler-workbench-freshness",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["run_id"], run_id)
+            self.assertEqual(payload["details"]["sources"]["status"], "pass")
+            self.assertEqual(payload["details"]["search"]["status"], "blocked")
+            self.assertEqual(payload["details"]["wiki"]["status"], "blocked")
+            self.assertEqual(payload["details"]["search"]["missing_targets"][0]["path"], relative_path)
+
+    def test_capture_live_loop_dashboard_freshness_blocks_http_200_for_wrong_run_and_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                if url.endswith("/api/runs/expanded-run"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {
+                            "run_id": "other-run",
+                            "project_root": "/tmp/other-project",
+                            "source_path": ".worktrees/other/.codex/loop-runs/other-run",
+                        },
+                    }
+                if url.endswith("/api/runs/expanded-run/events"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"run_id": "other-run", "events": []},
+                    }
+                if url.endswith("/api/runs/expanded-run/logs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"run_id": "other-run", "logs": []},
+                    }
+                if url.endswith("/api/projects/current"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"project_root": "/tmp/other-project"},
+                    }
+                if url.endswith("/api/runs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": [{"run_id": "other-run"}],
+                    }
+                return {"url": url, "status": "pass", "http_status": 200, "json": {}}
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "loop-dashboard-freshness",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["run_id"], "expanded-run")
+            self.assertEqual(payload["details"]["current_run"]["status"], "blocked")
+            self.assertEqual(payload["details"]["completed_history"]["status"], "blocked")
+            self.assertEqual(payload["details"]["project"]["status"], "blocked")
 
     def test_run_autonomous_rejects_expanded_fake_drivers_without_expanded_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

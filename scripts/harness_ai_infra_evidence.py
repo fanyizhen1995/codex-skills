@@ -356,6 +356,80 @@ def _validate_freshness_payload(
         findings.append(
             f"{evidence_id} artifact {artifact_path} must include pass details for: {', '.join(missing_dimensions)}"
         )
+    if evidence_id == "crawler-workbench-freshness":
+        for key in ("wiki", "search"):
+            nested = details.get(key)
+            if not isinstance(nested, Mapping):
+                findings.append(f"{evidence_id} artifact {artifact_path} details.{key} must be a mapping")
+                continue
+            findings.extend(
+                _validate_search_visibility_payload(
+                    nested,
+                    evidence_id=evidence_id,
+                    artifact_path=f"{artifact_path} details.{key}",
+                )
+            )
+    if evidence_id == "loop-dashboard-freshness":
+        expected_run_id = str(payload.get("run_id", "")).strip()
+        expected_worktree = str(payload.get("worktree", "")).strip()
+        if not expected_run_id:
+            findings.append(f"{evidence_id} artifact {artifact_path} must include non-empty run_id")
+        if not expected_worktree:
+            findings.append(f"{evidence_id} artifact {artifact_path} must include non-empty worktree")
+
+        current_run = details.get("current_run")
+        child_tasks = details.get("child_tasks")
+        agent_actions = details.get("agent_actions")
+        evaluator_scenarios = details.get("evaluator_scenarios")
+        completed_history = details.get("completed_history")
+        project = details.get("project")
+
+        if isinstance(current_run, Mapping):
+            current_payload = current_run.get("json")
+            if not (
+                isinstance(current_payload, Mapping)
+                and str(current_payload.get("run_id", "")).strip() == expected_run_id
+            ):
+                findings.append(f"{evidence_id} artifact {artifact_path} must bind current run_id to details.current_run")
+            elif expected_worktree:
+                project_root = str(current_payload.get("project_root", "")).strip()
+                if project_root and project_root != expected_worktree:
+                    findings.append(f"{evidence_id} artifact {artifact_path} current run_id binding must match worktree")
+        if isinstance(child_tasks, Mapping):
+            child_payload = child_tasks.get("json")
+            if not (
+                isinstance(child_payload, Mapping)
+                and str(child_payload.get("run_id", "")).strip() == expected_run_id
+            ):
+                findings.append(f"{evidence_id} artifact {artifact_path} must bind current run_id to details.child_tasks")
+        if isinstance(agent_actions, Mapping):
+            agent_payload = agent_actions.get("json")
+            if not (
+                isinstance(agent_payload, Mapping)
+                and str(agent_payload.get("run_id", "")).strip() == expected_run_id
+            ):
+                findings.append(f"{evidence_id} artifact {artifact_path} must bind current run_id to details.agent_actions")
+        if isinstance(evaluator_scenarios, Mapping):
+            evaluator_payload = evaluator_scenarios.get("json")
+            if not (
+                isinstance(evaluator_payload, Mapping)
+                and str(evaluator_payload.get("run_id", "")).strip() == expected_run_id
+            ):
+                findings.append(
+                    f"{evidence_id} artifact {artifact_path} must bind current run_id to details.evaluator_scenarios"
+                )
+        if isinstance(completed_history, Mapping):
+            history_payload = completed_history.get("json")
+            if not any(
+                isinstance(item, Mapping) and str(item.get("run_id", "")).strip() == expected_run_id
+                for item in _json_candidates(history_payload)
+            ):
+                findings.append(f"{evidence_id} artifact {artifact_path} completed history must contain current run_id")
+        if isinstance(project, Mapping):
+            project_payload = project.get("json")
+            project_root = str(project_payload.get("project_root", "")).strip() if isinstance(project_payload, Mapping) else ""
+            if expected_worktree and project_root != expected_worktree:
+                findings.append(f"{evidence_id} artifact {artifact_path} project metadata must match current worktree")
     return findings
 
 
@@ -382,6 +456,87 @@ def _non_empty_sequence(value: Any) -> bool:
     return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)) and any(
         _non_empty_string(item) for item in value
     )
+
+
+def _normalized_target_ids(targets: Any) -> list[str]:
+    if not isinstance(targets, list):
+        return []
+    return [
+        str(item.get("target_id", "")).strip()
+        for item in targets
+        if isinstance(item, Mapping) and str(item.get("target_id", "")).strip()
+    ]
+
+
+def _validate_visibility_target_consistency(
+    payload: Mapping[str, Any],
+    *,
+    evidence_id: str,
+    artifact_path: str,
+    prefix: str = "",
+) -> list[str]:
+    findings: list[str] = []
+    expected_targets = payload.get("expected_targets")
+    matched_targets = payload.get("matched_targets")
+    missing_targets = payload.get("missing_targets")
+    if not isinstance(expected_targets, list) or not isinstance(matched_targets, list) or not isinstance(missing_targets, list):
+        return findings
+
+    label = f"{prefix} " if prefix else ""
+    expected_ids = _normalized_target_ids(expected_targets)
+    matched_ids = _normalized_target_ids(matched_targets)
+    missing_ids = _normalized_target_ids(missing_targets)
+    status = str(payload.get("status", "")).strip().lower()
+
+    if status == "pass":
+        if missing_targets or missing_ids:
+            findings.append(f"{evidence_id} artifact {artifact_path} {label}pass status requires missing_targets to be empty")
+        if len(matched_targets) != len(expected_targets) or set(matched_ids) != set(expected_ids):
+            findings.append(
+                f"{evidence_id} artifact {artifact_path} {label}pass status requires matched_targets to exactly cover expected target_ids"
+            )
+
+    visible_results = payload.get("visible_results")
+    if isinstance(visible_results, int) and visible_results != len(matched_targets):
+        findings.append(f"{evidence_id} artifact {artifact_path} {label}visible_results must equal len(matched_targets)")
+
+    matched_by_id = {
+        str(item.get("target_id", "")).strip(): item
+        for item in matched_targets
+        if isinstance(item, Mapping) and str(item.get("target_id", "")).strip()
+    }
+    for expected in expected_targets:
+        if not isinstance(expected, Mapping) or str(expected.get("kind", "")).strip() != "wiki_page":
+            continue
+        expected_id = str(expected.get("target_id", "")).strip()
+        expected_terms = {
+            str(term).strip().lower()
+            for term in expected.get("content_terms", [])
+            if str(term).strip()
+        }
+        if not expected_terms:
+            continue
+        matched = matched_by_id.get(expected_id)
+        if not isinstance(matched, Mapping):
+            continue
+        matched_terms = {
+            str(term).strip().lower()
+            for term in matched.get("matched_content_terms", [])
+            if str(term).strip()
+        }
+        if matched_terms != expected_terms:
+            findings.append(
+                f"{evidence_id} artifact {artifact_path} {label}wiki_page target {expected_id} must prove current content_terms"
+            )
+    return findings
+
+
+def _json_candidates(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, Mapping):
+        return [value]
+    return []
 
 
 def _validate_visibility_target_fields(
@@ -436,6 +591,13 @@ def _validate_search_visibility_payload(
             artifact_path=artifact_path,
         )
     )
+    findings.extend(
+        _validate_visibility_target_consistency(
+            payload,
+            evidence_id=evidence_id,
+            artifact_path=artifact_path,
+        )
+    )
     return findings
 
 
@@ -463,6 +625,13 @@ def _validate_frontend_visibility_payload(
         )
     findings.extend(
         _validate_visibility_target_fields(
+            payload,
+            evidence_id=evidence_id,
+            artifact_path=artifact_path,
+        )
+    )
+    findings.extend(
+        _validate_visibility_target_consistency(
             payload,
             evidence_id=evidence_id,
             artifact_path=artifact_path,
