@@ -1622,6 +1622,15 @@ def _load_ai_infra_coverage_map(
         }
         write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
         return None, result
+    if payload.get("domain") != run["domain"]:
+        result = {
+            "status": "blocked",
+            "domain": run["domain"],
+            "coverage_map_path": str(coverage_path.relative_to(repo_root)),
+            "error": "coverage_map domain does not match loop state",
+        }
+        write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
+        return None, result
     return payload, None
 
 

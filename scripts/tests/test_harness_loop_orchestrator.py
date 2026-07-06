@@ -521,6 +521,40 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["phase"], "stopped_blocked")
             self.assertEqual(load_run(repo_root, "ai-run")["next_action"], "inspect_ai_infra_coverage_map")
 
+    def test_run_autonomous_blocks_semantically_invalid_ai_infra_coverage_map(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="ai-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_no_action_loop_state(repo_root, "ai_infra")
+            coverage_map_path = repo_root / "personal-wiki" / "domains" / "ai_infra" / "coverage-map.json"
+            coverage_map = read_json_file(coverage_map_path)
+            coverage_map["domain"] = "other_domain"
+            write_json_file(coverage_map_path, coverage_map)
+
+            status = run_autonomous(
+                repo_root,
+                "ai-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(load_run(repo_root, "ai-run")["next_action"], "inspect_ai_infra_coverage_map")
+            coverage_result = read_json_file(run_dir_for(repo_root, "ai-run") / "coverage-map-result.json")
+            self.assertEqual(coverage_result["status"], "blocked")
+            self.assertIn("domain does not match loop state", coverage_result["error"])
+
     def test_run_autonomous_commits_allowlisted_change_then_returns_to_planning_and_stops_no_action(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
