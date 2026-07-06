@@ -56,11 +56,16 @@ def identity_key_for_candidate(candidate: Mapping[str, Any]) -> str:
     return f"{source_type}:{title}".strip(":")
 
 
-def validate_gap_proof_payload(payload: Mapping[str, Any]) -> list[str]:
+def validate_gap_proof_payload(payload: Mapping[str, Any], expected_task_id: str | None = None) -> list[str]:
     findings: list[str] = []
 
-    if not str(payload.get("task_id", "")).strip():
+    payload_task_id = str(payload.get("task_id", "")).strip()
+    if not payload_task_id:
         findings.append("missing task_id")
+    elif expected_task_id is not None and payload_task_id != expected_task_id:
+        findings.append(
+            f"gap proof payload task_id {payload_task_id} does not match expected task {expected_task_id}"
+        )
     if not str(payload.get("layer", "")).strip():
         findings.append("missing layer")
 
@@ -91,10 +96,10 @@ def validate_gap_proof_payload(payload: Mapping[str, Any]) -> list[str]:
     return findings
 
 
-def validate_gap_proof_file(path: Path | str) -> list[str]:
+def validate_gap_proof_file(path: Path | str, expected_task_id: str | None = None) -> list[str]:
     gap_proof_path = Path(path)
     with gap_proof_path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
         raise ValueError(f"gap proof payload must be an object: {gap_proof_path}")
-    return validate_gap_proof_payload(payload)
+    return validate_gap_proof_payload(payload, expected_task_id=expected_task_id)

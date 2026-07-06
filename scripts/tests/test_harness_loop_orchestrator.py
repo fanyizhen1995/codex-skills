@@ -1300,6 +1300,123 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(gap_proof_result["artifact_path"], "artifacts/gap-proofs/current-task-gap-proof.json")
             self.assertEqual(gap_proof_result["findings"], [])
 
+    def test_run_autonomous_accepts_direct_gap_proof_file_for_current_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_direct_gap_proof(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                task_id = str(run["task_id"])
+                gap_proof_relative = f".codex/loop-runs/{run['run_id']}/gap-proofs/{task_id}.json"
+                write_json_file(repo_root_arg / gap_proof_relative, self._valid_gap_proof_payload(task_id))
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_direct_gap_proof,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(gap_proof_result["status"], "pass")
+            self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
+            self.assertTrue(gap_proof_result["artifact_path"].endswith("/gap-proofs/expanded-run-task-1.json"))
+            self.assertEqual(gap_proof_result["findings"], [])
+
+    def test_run_autonomous_blocks_direct_gap_proof_file_for_wrong_payload_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_wrong_direct_gap_proof(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                task_id = str(run["task_id"])
+                gap_proof_relative = f".codex/loop-runs/{run['run_id']}/gap-proofs/{task_id}.json"
+                write_json_file(repo_root_arg / gap_proof_relative, self._valid_gap_proof_payload("other-task-9"))
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_wrong_direct_gap_proof,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(gap_proof_result["status"], "blocked")
+            self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
+            self.assertTrue(
+                any(
+                    "other-task-9" in finding and "expanded-run-task-1" in finding
+                    for finding in gap_proof_result["findings"]
+                )
+            )
+
     def test_run_autonomous_blocks_gap_proof_manifest_for_wrong_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1371,6 +1488,83 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertTrue(
                 any(
                     "expanded-run-task-1" in finding and "gap proof" in finding.lower()
+                    for finding in gap_proof_result["findings"]
+                )
+            )
+
+    def test_run_autonomous_blocks_gap_proof_manifest_when_artifact_payload_task_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_manifest_with_wrong_payload(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                task_id = str(run["task_id"])
+                artifact_relative = "artifacts/gap-proofs/current-task-gap-proof.json"
+                write_json_file(repo_root_arg / artifact_relative, self._valid_gap_proof_payload("other-task-9"))
+                write_json_file(
+                    run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json",
+                    {
+                        "evidence": [
+                            {
+                                "evidence_id": f"{task_id}-gap-proof",
+                                "task_id": task_id,
+                                "status": "pass",
+                                "artifacts": [artifact_relative],
+                            }
+                        ]
+                    },
+                )
+                payload["changed_paths"] = [*list(payload["changed_paths"]), artifact_relative]
+                payload["artifacts"] = [*list(payload["artifacts"]), artifact_relative]
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_manifest_with_wrong_payload,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(gap_proof_result["status"], "blocked")
+            self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
+            self.assertEqual(gap_proof_result["artifact_path"], "artifacts/gap-proofs/current-task-gap-proof.json")
+            self.assertTrue(
+                any(
+                    "other-task-9" in finding and "expanded-run-task-1" in finding
                     for finding in gap_proof_result["findings"]
                 )
             )
