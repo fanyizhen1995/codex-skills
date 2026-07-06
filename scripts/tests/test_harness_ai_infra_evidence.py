@@ -425,6 +425,39 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_required_evidence_manifest_blocks_forged_live_pass_evidence_from_repo_root_trusted_path(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = repo_root / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._search_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("must resolve to run-local" in finding for finding in findings),
+                findings,
+            )
+
     def test_required_evidence_manifest_reports_non_object_entries(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

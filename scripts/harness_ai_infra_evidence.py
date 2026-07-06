@@ -438,6 +438,7 @@ def _validate_semantic_evidence_artifacts(
     *,
     evidence_id: str,
     item: Mapping[str, Any],
+    run_dir: Path,
     resolved_artifacts: Sequence[tuple[str, Path]],
 ) -> list[str]:
     if evidence_id not in SEMANTIC_GATE_EVIDENCE_IDS:
@@ -466,6 +467,8 @@ def _validate_semantic_evidence_artifacts(
             item=item,
             evidence_id=evidence_id,
             artifact_path=artifact_path,
+            run_dir=run_dir,
+            resolved=resolved,
         )
         if provenance_finding:
             artifact_findings.append(provenance_finding)
@@ -485,12 +488,20 @@ def _validate_trusted_live_evidence_provenance(
     item: Mapping[str, Any],
     evidence_id: str,
     artifact_path: str,
+    run_dir: Path,
+    resolved: Path,
 ) -> str:
     del item
     expected_path = trusted_live_evidence_artifact_path(evidence_id)
     if _normalize_manifest_artifact_path(artifact_path) != expected_path:
         return (
             f"{evidence_id} artifact {artifact_path} must use orchestrator-owned "
+            f"{expected_path}"
+        )
+    expected_resolved = (run_dir / expected_path).resolve()
+    if resolved.resolve() != expected_resolved:
+        return (
+            f"{evidence_id} artifact {artifact_path} must resolve to run-local "
             f"{expected_path}"
         )
     payload_created_by = str(payload.get("created_by", "")).strip()
@@ -552,6 +563,7 @@ def validate_required_evidence_manifest(
         semantic_findings = _validate_semantic_evidence_artifacts(
             evidence_id=evidence_id,
             item=item,
+            run_dir=run_dir,
             resolved_artifacts=resolved_artifacts,
         )
         findings.extend(semantic_findings)
@@ -611,6 +623,7 @@ def validate_required_evidence_manifest(
                 inferred_findings = _validate_semantic_evidence_artifacts(
                     evidence_id=inferred_semantic_evidence_id,
                     item=indexed_item["item"],
+                    run_dir=run_dir,
                     resolved_artifacts=indexed_item["resolved_artifacts"],
                 )
                 if inferred_findings:
