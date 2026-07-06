@@ -283,6 +283,8 @@ def _validate_service_availability_payload(
         findings.append(
             f"{evidence_id} artifact {artifact_path} must contain overall_status with pass/fail/blocked"
         )
+    if bool(payload.get("synthetic_smoke")):
+        findings.append(f"{evidence_id} artifact {artifact_path} cannot use synthetic_smoke placeholders")
     if not isinstance(services, list):
         findings.append(f"{evidence_id} artifact {artifact_path} must contain a services list")
         return findings
