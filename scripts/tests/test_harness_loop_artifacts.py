@@ -185,6 +185,52 @@ class HarnessLoopArtifactHygieneTests(unittest.TestCase):
             redaction_manifest = json.loads(Path(result["redaction_manifest_path"]).read_text(encoding="utf-8"))
             self.assertEqual(redaction_manifest["redactions"][0]["rule_id"], "authorization_header")
 
+    def test_run_artifact_hygiene_redacts_token_assignment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            artifact_path = repo_root / "artifact.txt"
+            artifact_path.write_text("access_token=secret-value\n", encoding="utf-8")
+
+            result_path = run_artifact_hygiene(
+                repo_root=repo_root,
+                run_dir=run_dir,
+                artifact_paths=["artifact.txt"],
+                max_file_bytes=1024,
+                max_total_bytes=4096,
+            )
+
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            self.assertEqual(result["status"], "redacted")
+            redacted = (repo_root / "artifact.txt.redacted").read_text(encoding="utf-8")
+            self.assertIn("[REDACTED]", redacted)
+            self.assertNotIn("secret-value", redacted)
+            redaction_manifest = json.loads(Path(result["redaction_manifest_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(redaction_manifest["redactions"][0]["rule_id"], "token_or_secret")
+
+    def test_run_artifact_hygiene_does_not_redact_plain_secret_scan_terms(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            artifact_path = repo_root / "artifact.txt"
+            artifact_path.write_text(
+                "No matches for xox token, token assignment, password assignment, or credential assignment patterns.\n",
+                encoding="utf-8",
+            )
+
+            result_path = run_artifact_hygiene(
+                repo_root=repo_root,
+                run_dir=run_dir,
+                artifact_paths=["artifact.txt"],
+                max_file_bytes=1024,
+                max_total_bytes=4096,
+            )
+
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            self.assertEqual(result["status"], "pass")
+            self.assertEqual(result["redacted_paths"], [])
+            self.assertFalse((repo_root / "artifact.txt.redacted").exists())
+
     def test_run_artifact_hygiene_omits_large_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

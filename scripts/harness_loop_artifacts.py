@@ -139,6 +139,8 @@ def run_artifact_hygiene(
 
     resolved_repo_root = repo_root.resolve()
     for relative_path in artifact_paths:
+        if _is_virtual_artifact_reference(relative_path):
+            continue
         artifact_path, safe_relative_path, path_error = _resolve_safe_artifact_path(
             resolved_repo_root,
             relative_path,
@@ -291,6 +293,10 @@ def run_artifact_hygiene(
     return write_json_file(manifest_path, payload)
 
 
+def _is_virtual_artifact_reference(path_value: str) -> bool:
+    return path_value.strip().startswith("embedded:")
+
+
 def _resolve_safe_artifact_path(repo_root: Path, path_value: str) -> tuple[Path | None, str | None, str]:
     requested_path = Path(path_value)
     if requested_path.is_absolute():
@@ -331,6 +337,9 @@ def _sha256(path: Path) -> str:
 
 _AUTHORIZATION_RE = re.compile(r"authorization\s*:", re.IGNORECASE)
 _SIMPLE_AUTHORIZATION_RE = re.compile(r"^(\s*authorization\s*:\s*).*$", re.IGNORECASE)
+_TOKEN_OR_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|bearer[_-]?token|secret|password|credential)\b\s*[:=]"
+)
 
 
 def _redact_sensitive_text(text: str) -> tuple[str, list[str]]:
@@ -339,7 +348,6 @@ def _redact_sensitive_text(text: str) -> tuple[str, list[str]]:
     for line in text.splitlines(keepends=True):
         content = line.rstrip("\r\n")
         newline = line[len(content) :]
-        lowered = content.lower()
         simple_authorization = _SIMPLE_AUTHORIZATION_RE.match(content)
         if simple_authorization:
             output_lines.append(simple_authorization.group(1) + "[REDACTED]" + newline)
@@ -347,7 +355,7 @@ def _redact_sensitive_text(text: str) -> tuple[str, list[str]]:
         elif _AUTHORIZATION_RE.search(content):
             output_lines.append("[REDACTED]" + newline)
             rule_ids.append("authorization_header")
-        elif "token" in lowered or "secret" in lowered:
+        elif _TOKEN_OR_SECRET_ASSIGNMENT_RE.search(content):
             output_lines.append("[REDACTED]" + newline)
             rule_ids.append("token_or_secret")
         else:

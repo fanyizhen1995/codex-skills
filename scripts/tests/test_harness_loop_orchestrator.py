@@ -5750,6 +5750,33 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertTrue((run_dir / "artifact-manifest.json").exists())
             self.assertTrue((run_dir / "cleanup-result.json").exists())
 
+    def test_artifact_hygiene_ignores_embedded_artifact_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo-run"
+            run_dir.mkdir(parents=True)
+            (repo_root / "artifact.txt").write_text("public artifact\n", encoding="utf-8")
+
+            from scripts.harness_loop_artifacts import run_artifact_hygiene
+
+            result_path = run_artifact_hygiene(
+                repo_root=repo_root,
+                run_dir=run_dir,
+                artifact_paths=["artifact.txt", "embedded:required_evidence_manifest"],
+            )
+
+            artifact_manifest = read_json_file(result_path)
+            self.assertEqual(artifact_manifest["status"], "pass")
+            self.assertEqual(artifact_manifest["scanned_paths"], ["artifact.txt"])
+            self.assertEqual(artifact_manifest["omitted_paths"], [])
+            self.assertFalse(
+                [
+                    finding
+                    for finding in artifact_manifest["findings"]
+                    if finding.get("path") == "embedded:required_evidence_manifest"
+                ]
+            )
+
     def test_run_loop_hygiene_redacts_scenario_command_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
