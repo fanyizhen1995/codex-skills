@@ -182,6 +182,36 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
         self.assertFalse(env_result.allowed)
         self.assertEqual(env_result.denied_paths, [".env"])
 
+    def test_policy_patterns_honor_manual_only_overrides(self) -> None:
+        allowed, denied, manual = policy_patterns_for_run(
+            {
+                "manual_confirm_paths": ["tasks.json"],
+            },
+            domain="ai_infra",
+        )
+
+        tasks_result = check_autonomous_scope(["tasks.json"], allowed, denied, manual)
+        scripts_result = check_autonomous_scope(["scripts/harness_loop_orchestrator.py"], allowed, denied, manual)
+
+        self.assertFalse(tasks_result.allowed)
+        self.assertEqual(tasks_result.manual_confirm_paths, ["tasks.json"])
+        self.assertFalse(scripts_result.allowed)
+        self.assertEqual(scripts_result.denied_paths, ["scripts/harness_loop_orchestrator.py"])
+        self.assertEqual(manual, ["tasks.json"])
+
+        empty_allowed, empty_denied, empty_manual = policy_patterns_for_run(
+            {
+                "manual_confirm_paths": [],
+            },
+            domain="ai_infra",
+        )
+
+        empty_tasks_result = check_autonomous_scope(["tasks.json"], empty_allowed, empty_denied, empty_manual)
+
+        self.assertFalse(empty_tasks_result.allowed)
+        self.assertEqual(empty_tasks_result.denied_paths, ["tasks.json"])
+        self.assertEqual(empty_manual, [])
+
     def test_supply_chain_check_requires_explanation_for_dependency_paths(self) -> None:
         result = check_supply_chain(["requirements.txt"], explanation="", verification=["pytest"])
 

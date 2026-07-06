@@ -157,10 +157,20 @@ def autonomous_denylist_paths() -> list[str]:
 
 def policy_patterns_for_run(run: Mapping[str, Any], *, domain: str) -> tuple[list[str], list[str], list[str]]:
     loop_state_path = f"personal-wiki/domains/{domain}/loop-state.json"
+    has_allowed_override = "allowed_paths" in run
+    has_denied_override = "denylist_paths" in run
+    has_manual_override = "manual_confirm_paths" in run
     allowed_override = list(run.get("allowed_paths") or [])
     denied_override = list(run.get("denylist_paths") or [])
     manual_override = list(run.get("manual_confirm_paths") or [])
-    has_explicit_scope_override = bool(allowed_override or denied_override)
+    legacy_empty_scope = (
+        has_allowed_override
+        and has_denied_override
+        and has_manual_override
+        and not allowed_override
+        and not denied_override
+        and not manual_override
+    )
 
     if allowed_override:
         allowed = allowed_override
@@ -169,7 +179,7 @@ def policy_patterns_for_run(run: Mapping[str, Any], *, domain: str) -> tuple[lis
     if loop_state_path not in allowed:
         allowed.append(loop_state_path)
     denied = denied_override or autonomous_denylist_paths()
-    if manual_override or ("manual_confirm_paths" in run and has_explicit_scope_override):
+    if has_manual_override and not legacy_empty_scope:
         manual = manual_override
     else:
         manual = autonomous_manual_confirm_paths()
