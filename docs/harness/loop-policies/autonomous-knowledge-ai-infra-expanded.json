@@ -40,7 +40,9 @@
   },
   "required_evidence": [
     "confirmed ai_infra autonomous expansion preflight",
+    "policy_file and expanded limits recorded in run.json",
     "gap proof with duplicate checks before each task",
+    "validated ai_infra coverage-map evidence for all required layers",
     "domain loop-state.json with coverage evidence",
     "raw evidence or existing raw reuse evidence",
     "curated wiki source_refs",
@@ -50,6 +52,7 @@
     "crawler workbench API freshness evidence for sources, channels, queue, wiki, and search",
     "Domain Channels evidence for new or changed crawler source subscriptions",
     "Loop Dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
+    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
     "link probe or blocked/auth evidence for new external sources",
     "secret scan evidence for changed paths",
     "code test evidence when crawler/harness/frontend/backend changes",

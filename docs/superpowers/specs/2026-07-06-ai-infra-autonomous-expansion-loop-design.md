@@ -163,6 +163,19 @@ Gap proof 必填字段：
 
 在这项实现完成前，扩展 policy 只能作为 preflight 约束和 evaluator 检查依据，不能假设 runtime 已自动采用。
 
+## 修正后的正式启动门槛
+
+Grill-me 评审结论是：当前方案内容足够作为设计方向，但还不能直接启动正式自动资料扩充。正式启动 AI infra expansion loop 前，必须先完成以下 runtime/evaluator 修正：
+
+1. **Policy fixture runtime 接入**：`preflight` 和 `run-autonomous` 必须读取 `docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`，把 `policy_file`、expanded limits、allowed/manual/deny patterns 写入 `run.json`，并在 scope check 中使用该 policy，而不是继续只使用 hardcoded conservative scope。
+2. **Coverage map 机器状态**：新增 `personal-wiki/domains/ai_infra/coverage-map.json`，或等价扩展 `loop-state.json` schema，用结构化字段记录 8 个 coverage layer 的状态、最后扫描时间、已覆盖页面、raw 证据、候选缺口和 blocked 原因。`stopped_no_action` 必须基于 coverage map 判断，不能只看 `known_sources` 非空。
+3. **Gap proof 和去重 validator**：新增 canonical URL、GitHub issue/PR、release、paper、hardware model、source profile、wiki title/alias/path 的统一去重 helper；Evaluator 必须校验 gap proof artifact，而不是接受 Planner 自述。
+4. **Required evidence gate**：policy 的 `required_evidence` 必须从字符串说明升级为可检查 artifact gate。缺少 Dashboard freshness、Crawler Workbench freshness、Domain Channels、search/API visibility、secret scan、link probe 或代码测试证据时，Evaluator 必须 fail 或 blocked。
+5. **AI infra evaluator scenario**：新增正式 scenario 或 task-contract，覆盖 Domain Channels、Crawler Workbench 前后端刷新、Loop Dashboard 刷新、重复候选防重、repo-wide 修复 scope、供应链检查和 no-action 停止。
+6. **在线服务守护**：正式 loop 运行期间必须保持 Crawler Workbench backend、Crawler Workbench frontend、Loop Dashboard 在线，且绑定到用户可远程访问的可信网络地址。每轮开始和结束都要记录三者健康检查结果。
+
+这些修正可以用需求开发 loop 完成。完成前，AI infra 资料扩充只能用保守 autonomous runtime 执行纯 wiki/raw/source 任务；一旦需要修改 crawler、harness、frontend、backend 或 evaluator，就必须停下或切换到修正任务。
+
 ## Evaluator 验收标准
 
 每个子任务必须通过以下检查，缺一项不能 pass：
@@ -176,6 +189,7 @@ Gap proof 必填字段：
 - 前端可见性：知识工作台或 Wiki 浏览页至少验证一个新关键词或新页面标题；涉及 UI 变更时必须用 Playwright 模拟用户操作。
 - Crawler Workbench 及时刷新：新 source、fetch run、queue 状态、raw capture、wiki 页面和 search 结果必须能通过 backend API 读到；如果长驻 backend/frontend 正在运行，Evaluator 必须验证页面无需人工重建仓库状态即可看到最新数据，必要时记录已重启的服务和原因。
 - Loop Dashboard 及时刷新：每个子任务至少写入 reader summary、agent action、scenario result、错误/阻塞和用户决策字段；Dashboard 必须能显示当前 run、已完成 run、子任务进度、Planner/Generator/Evaluator 正在做什么，以及 evaluator 模拟用户验收过哪些场景。
+- 服务在线证据：正式 loop 运行期间，每轮 evaluator 必须检查 `http://127.0.0.1:8765/api/health`、`http://127.0.0.1:5173/` 和 `http://127.0.0.1:8766/api/health`；如果用户通过远程地址访问，还要在最终汇报中列出远程可访问 URL。
 - 链接检查：新引入的外部链接至少执行连接性探测；失败需要记录 HTTP 状态、DNS/TLS/timeout 原因或 blocked/auth 原因。
 - secrets scan：本次 changed paths 中不能出现 GitHub token、Authorization bearer、cookie、private key 或 `.env` 内容。
 - 若修改代码：运行对应单元测试、集成测试或 UI 测试，不能只跑 wiki validate。
@@ -198,6 +212,7 @@ AI infra 扩充会频繁新增来源，必须使用新开发的 Domain Channels 
 
 每轮知识入库后，loop 不只要提交文件，还要证明用户能在 UI 和 API 里看到变化：
 
+- 在线服务：正式运行前确认 Crawler Workbench backend `8765`、Crawler Workbench frontend `5173`、Loop Dashboard `8766` 三个服务在线；运行中不要主动停止这些服务。确需重启时，必须立即恢复并记录重启原因、时间和健康检查结果。
 - Crawler backend：验证 `/api/wiki/pages`、`/api/wiki/page`、`/api/search`、`/api/sources`、`/api/channels`、`/api/queue` 或对应 run API 返回最新数据。
 - Crawler frontend：用 Playwright 搜索一个新关键词，打开新 wiki 页面，查看相关 source/channel 或 queue 记录。
 - Search/index：优先验证自动刷新；只有自动刷新失败或 schema/index 逻辑变更时才手动 `/api/search/rebuild`，并记录原因。
@@ -228,6 +243,9 @@ git diff --check
 - `.codex/**`、`.worktrees/**`、`generated/**`、secret/token/credential 路径仍被拒绝。
 - dependency file 变更没有 supply-chain evidence 时被拒绝。
 - baseline dirty paths 不会被误归入当前任务。
+- expanded limits 中的 max rounds、max network fetches 和 max raw bytes 会被执行，而不是只通过 JSON 结构校验。
+- required evidence artifact 缺失时 evaluator fail 或 blocked。
+- service availability evidence 缺失时 evaluator fail 或 blocked。
 
 ## E2E 测试用例设计
 
@@ -298,6 +316,42 @@ git diff --check
 - 前端显示标题或正文片段。
 - evaluator artifact 记录截图或 DOM 断言。
 
+### E2E-5：在线服务和看板持续监控
+
+用户目标：验证正式 AI infra loop 运行期间，用户可以持续通过前端和看板观察状态。
+
+步骤：
+
+1. 启动或确认 Crawler Workbench backend `8765`、frontend `5173`、Loop Dashboard `8766` 均绑定到可信网络地址。
+2. 运行一个包含 2 个子任务的测试 loop。
+3. 在子任务运行中请求 `/api/health`、前端首页、Dashboard `/api/health` 和 Dashboard 页面。
+4. 验证 Dashboard 运行列表能看到当前 run，详情能看到子任务、agent action、evaluator scenario、错误/阻塞和用户决策。
+5. 验证 loop 完成后，该 run 仍能在 Dashboard 历史中看到。
+
+预期：
+
+- 三个服务在 run 前、run 中、run 后都可访问。
+- Dashboard 内容随 run artifact 更新。
+- Crawler Workbench 能看到新增 wiki/search/source/channel/queue 变化。
+
+### E2E-6：expanded runtime gate
+
+用户目标：验证扩展 policy 不只是文档，而是会控制 runtime 行为。
+
+步骤：
+
+1. 用 expanded policy 创建 autonomous preflight，确认 `run.json` 写入 `policy_file` 和 expanded limits。
+2. 让 Generator 修改 `scripts/**` 或 `apps/**` 中的允许路径并提供测试证据。
+3. 让另一个测试 Generator 修改 `.codex/**`、`generated/**` 或 secret/token 路径。
+4. 让第三个测试 Generator 缺失 required evidence。
+
+预期：
+
+- 允许路径在 expanded policy 下通过 scope check。
+- denylist 路径被 blocked。
+- 缺少 required evidence 被 evaluator 拦截。
+- expanded limits 被写入并执行。
+
 ## 停止条件
 
 任一条件满足时停止：
@@ -335,7 +389,8 @@ git diff --check
 
 1. 用户确认本 spec 的覆盖矩阵、去重规则、权限策略和停止条件。
 2. 当前工作树 dirty paths 已分类：本任务产物、已有 crawler raw、运行日志、无关改动。
-3. 如果使用当前保守 autonomous runtime，接受“代码修复会 blocked，需要另起需求开发 loop”的限制。
-4. 如果要求 repo-wide 自动修复不停机，先实现 policy fixture runtime 接入并通过 E2E-3。
-5. 创建 ai_infra expansion run 的 `preflight.md`，写入本 spec 的约束和用户确认。
-6. 首轮 Planner 只能选择有明确 gap proof 的最多 3 个子任务。
+3. Crawler Workbench backend、Crawler Workbench frontend、Loop Dashboard 已在线，并记录访问 URL。
+4. 如果使用当前保守 autonomous runtime，接受“代码修复会 blocked，需要另起需求开发 loop”的限制。
+5. 如果要求 repo-wide 自动修复不停机，先实现 policy fixture runtime 接入、coverage map、gap proof validator、required evidence gate 和 AI infra evaluator scenario，并通过 E2E-3、E2E-5、E2E-6。
+6. 创建 ai_infra expansion run 的 `preflight.md`，写入本 spec 的约束和用户确认。
+7. 首轮 Planner 只能选择有明确 gap proof 的最多 3 个子任务。

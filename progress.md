@@ -11,6 +11,7 @@
 - Defined deterministic duplicate/gap proof requirements before each candidate task, including canonical URL, GitHub issue/PR, paper, hardware model, source profile, and wiki/index checks.
 - Added the expanded AI infra autonomous policy fixture as a run-contract/evaluator artifact, while documenting that current Phase 3 runtime still uses the conservative hardcoded autonomous scope until policy fixture loading is implemented.
 - Follow-up tightened the spec for Loop Dashboard freshness, Crawler Workbench backend/frontend refresh, and the new Domain Channels source subscription model.
+- Follow-up from grill-me review made the missing runtime work explicit: expanded policy runtime loading, coverage-map state, gap-proof validation, required-evidence gates, AI infra evaluator scenarios, and always-on Crawler Workbench plus Loop Dashboard monitoring.
 - Evidence:
   - `python3 -m json.tool docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json >/dev/null`
   - `python3 - <<'PY' ... validate_loop_policy_payload(...) ... PY`

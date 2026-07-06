@@ -37,21 +37,37 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 前端访问：`http://127.0.0.1:5173`。如果需要指向其他 backend，用 `VITE_API_TARGET=http://127.0.0.1:<port> npm run dev -- --host 0.0.0.0 --port 5173`。
 
+Loop Dashboard 默认端口是 `8766`。当用户需要远程持续观察 loop 状态时，必须保持它在线并绑定可信网络地址：
+
+```bash
+tmux new -s loop-dashboard
+cd /home/fyz/codex-skills
+PYTHONPATH=apps/loop_dashboard/backend \
+python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+```
+
+Loop Dashboard 访问：`http://127.0.0.1:8766`。它无登录能力，只读展示 `.codex/loop-runs` 和 evaluator artifacts；只在可信网络中绑定 `0.0.0.0`。
+
 ### 启动后检查
 ```bash
 curl --noproxy '*' http://127.0.0.1:8765/api/health
+curl --noproxy '*' -I http://127.0.0.1:5173/
+curl --noproxy '*' http://127.0.0.1:8766/api/health
 curl --noproxy '*' -X POST http://127.0.0.1:8765/api/accelerator-candidates/999999999/trust-source
 ```
 
-第二条应返回业务错误 `candidate not found: 999999999`。如果返回路由级 `{"detail":"Not Found"}`，说明端口上跑的是旧 backend，先重启 `personal-wiki-crawler-backend`。
+最后一条应返回业务错误 `candidate not found: 999999999`。如果返回路由级 `{"detail":"Not Found"}`，说明端口上跑的是旧 backend，先重启 `personal-wiki-crawler-backend`。
+
+在 AI infra 资料扩充、crawler 入库或 loop 开发运行期间，`personal-wiki-crawler-backend`、`personal-wiki-crawler-frontend` 和 `loop-dashboard` 必须尽量保持在线，方便用户持续检查状态。确需重启时，先记录原因，重启后立即跑上述三项健康检查，并在最终汇报中列出访问 URL。
 
 ### 新知识入库后的刷新验证
 每次新增或整理知识入库后，都必须同步确认后端和前端已经反映新数据：
 
 1. 后端：确认 `/api/wiki/pages`、`/api/wiki/page` 或相关业务 API 能读到新 wiki/raw 内容；涉及全文检索时，通过普通 `/api/search` 查询验证搜索索引已自动刷新，不要只依赖手动 `/api/search/rebuild`。
-2. 服务：如果改了 backend 代码、schema、搜索索引逻辑或运行配置，重启长驻 `personal-wiki-crawler-backend`；如果改了 frontend 代码或 Vite 配置，重启 `personal-wiki-crawler-frontend`。
+2. 服务：如果改了 backend 代码、schema、搜索索引逻辑或运行配置，重启长驻 `personal-wiki-crawler-backend`；如果改了 frontend 代码或 Vite 配置，重启 `personal-wiki-crawler-frontend`；如果改了 loop dashboard 代码或 run artifact 展示契约，重启 `loop-dashboard`。
 3. 前端：通过 Vite 代理或 Playwright 模拟用户操作，验证页面能看到新入库内容。知识工作台至少搜索一个新资料关键词；Wiki 浏览至少确认新页面标题或正文可见。
-4. 证据：最终汇报必须包含验证命令或页面级验证结果，以及是否重启了 backend/frontend。
+4. Loop 看板：确认对应 run 能在 Loop Dashboard 看到，且 agent 动作、子任务状态、evaluator 场景、错误/阻塞和用户决策字段可读。
+5. 证据：最终汇报必须包含验证命令或页面级验证结果，以及是否重启了 backend/frontend/dashboard。
 
 ### Wiki / Crawler 入库提交规则
 每次 wiki/crawler 完成抓取、整理或入库后，都必须把本次新增 raw、ingest-plan、curated wiki、索引和 ingest log 作为独立 commit 提交：

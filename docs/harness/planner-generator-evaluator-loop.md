@@ -262,6 +262,27 @@ The dashboard has no authentication layer. Keep the default `127.0.0.1`
 binding unless the port is exposed through a trusted tunnel or controlled
 network.
 
+For long-running remote monitoring in this project, keep the dashboard online
+in a named tmux session and bind only on a trusted network:
+
+```bash
+tmux new -s loop-dashboard
+cd /home/fyz/codex-skills
+PYTHONPATH=apps/loop_dashboard/backend \
+python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
+```
+
+During AI infrastructure autonomous expansion runs, the operator must keep
+Crawler Workbench backend `8765`, Crawler Workbench frontend `5173`, and Loop
+Dashboard `8766` available so the user can continuously inspect state. If a
+service is restarted, record the reason and verify:
+
+```bash
+curl --noproxy '*' http://127.0.0.1:8765/api/health
+curl --noproxy '*' -I http://127.0.0.1:5173/
+curl --noproxy '*' http://127.0.0.1:8766/api/health
+```
+
 To inspect a different project, point `LOOP_DASHBOARD_PROJECT_ROOT` at that
 checkout:
 
