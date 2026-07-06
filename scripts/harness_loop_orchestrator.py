@@ -2249,6 +2249,7 @@ def _run_codex_autonomous_generator(
     generator_payload = read_json_file(output_path)
     validate_generator_result_payload(generator_payload)
     run = load_run(repo_root, run["run_id"])
+    _clear_autonomous_commit_state(run)
     run["phase"] = "evaluating"
     run["next_action"] = "run_autonomous_evaluator"
     save_run(repo_root, run)
@@ -2382,6 +2383,7 @@ def _run_wiki_validate(repo_root: Path, domain: str, run_dir: Path) -> bool:
 
 
 _AUTONOMOUS_COMMIT_CREATED_BY = "harness_loop_orchestrator"
+_AUTONOMOUS_COMMIT_STATE_KEY = "autonomous_commit_state"
 
 
 def _commit_changed_paths(repo_root: Path, commit_sha: str) -> list[str]:
@@ -2398,14 +2400,39 @@ def _commit_changed_paths(repo_root: Path, commit_sha: str) -> list[str]:
     return sorted(path.strip() for path in result.stdout.splitlines() if path.strip())
 
 
-def _verify_orchestrator_commit_result(
+def _clear_autonomous_commit_state(run: dict[str, Any]) -> None:
+    run.pop(_AUTONOMOUS_COMMIT_STATE_KEY, None)
+
+
+def _commit_state_changed_paths(payload: Mapping[str, Any]) -> list[str]:
+    paths = payload.get("changed_paths")
+    if not isinstance(paths, list):
+        return []
+    return [str(path).strip() for path in paths if str(path).strip()]
+
+
+def _verify_orchestrator_commit_resume_state(
     repo_root: Path,
+    run: Mapping[str, Any],
     run_dir: Path,
     commit_sha: str,
-    declared_changed_paths: Sequence[str],
 ) -> str:
     if not commit_sha:
         return "missing commit"
+    if run.get("phase") != "cleanup":
+        return "run is not in cleanup phase"
+    state = run.get(_AUTONOMOUS_COMMIT_STATE_KEY)
+    if not isinstance(state, dict):
+        return "missing autonomous commit state in run.json"
+    if state.get("status") != "committed":
+        return "autonomous commit state is not committed"
+    if state.get("commit") != commit_sha:
+        return "autonomous commit state commit does not match generator result"
+    if state.get("created_by") != _AUTONOMOUS_COMMIT_CREATED_BY:
+        return "autonomous commit state was not created by the orchestrator"
+    state_changed_paths = _commit_state_changed_paths(state)
+    if not state_changed_paths:
+        return "autonomous commit state has no changed paths"
     result_path = run_dir / "commit-result.json"
     if not result_path.exists():
         return "missing commit-result.json"
@@ -2419,16 +2446,33 @@ def _verify_orchestrator_commit_result(
         return "commit-result.json commit does not match generator result"
     if payload.get("created_by") != _AUTONOMOUS_COMMIT_CREATED_BY:
         return "commit-result.json was not created by the orchestrator"
+    if _commit_state_changed_paths(payload) != state_changed_paths:
+        return "commit-result.json changed paths do not match run state"
     if commit_sha != _current_head(repo_root):
         return "commit does not match current HEAD"
     committed_paths = _commit_changed_paths(repo_root, commit_sha)
     if not committed_paths:
         return "commit has no changed paths"
-    declared = {str(path).strip() for path in declared_changed_paths if str(path).strip()}
+    declared = set(state_changed_paths)
     undeclared_paths = sorted(path for path in committed_paths if path not in declared)
     if undeclared_paths:
-        return f"commit contains undeclared paths: {', '.join(undeclared_paths)}"
+        return f"commit contains paths outside autonomous commit state: {', '.join(undeclared_paths)}"
     return ""
+
+
+def _diagnose_generator_supplied_commit_paths(
+    repo_root: Path,
+    commit_sha: str,
+    declared_changed_paths: Sequence[str],
+) -> str:
+    committed_paths = _commit_changed_paths(repo_root, commit_sha)
+    if not committed_paths:
+        return ""
+    declared = {str(path).strip() for path in declared_changed_paths if str(path).strip()}
+    undeclared_paths = sorted(path for path in committed_paths if path not in declared)
+    if not undeclared_paths:
+        return ""
+    return f"commit contains undeclared paths: {', '.join(undeclared_paths)}"
 
 
 def _commit_autonomous_changes(
@@ -2499,19 +2543,22 @@ def _commit_autonomous_changes(
 
     supplied_commit = str(generator_result.get("commit", "")).strip()
     if supplied_commit:
-        commit_verification_error = _verify_orchestrator_commit_result(
+        commit_verification_error = _verify_orchestrator_commit_resume_state(
             repo_root,
+            run,
             run_dir,
             supplied_commit,
-            changed_paths,
         )
         if commit_verification_error:
+            diagnostic = _diagnose_generator_supplied_commit_paths(repo_root, supplied_commit, changed_paths)
+            if diagnostic:
+                commit_verification_error = f"{commit_verification_error}; {diagnostic}"
             write_json_file(
                 run_dir / "commit-result.json",
                 {
                     "status": "blocked",
                     "commit": supplied_commit,
-                    "error": f"generator supplied commit without verified orchestrator commit-result evidence: {commit_verification_error}",
+                    "error": f"generator supplied commit without verified orchestrator run-state evidence: {commit_verification_error}",
                     "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
                 },
             )
@@ -2536,15 +2583,21 @@ def _commit_autonomous_changes(
             )
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
             return False
-        write_json_file(
-            run_dir / "commit-result.json",
-            {
-                "status": "pass",
-                "commit": commit_sha,
-                "error": "",
-                "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
-            },
-        )
+        commit_result = {
+            "status": "pass",
+            "commit": commit_sha,
+            "error": "",
+            "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+            "changed_paths": changed_paths,
+        }
+        write_json_file(run_dir / "commit-result.json", commit_result)
+        run[_AUTONOMOUS_COMMIT_STATE_KEY] = {
+            "status": "committed",
+            "commit": commit_sha,
+            "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+            "changed_paths": changed_paths,
+        }
+        save_run(repo_root, run)
         generator_result["commit"] = commit_sha
         write_json_file(run_dir / "generator-result.json", generator_result)
 
