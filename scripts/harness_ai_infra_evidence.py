@@ -36,6 +36,8 @@ EVIDENCE_STOPWORDS = {
     "with",
 }
 EVIDENCE_REQUIREMENT_ALIAS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("confirmed-preflight", ("confirmed ai_infra autonomous expansion preflight",)),
+    ("policy-run-limits", ("policy_file and expanded limits recorded in run.json",)),
     ("gap-proof", ("gap proof",)),
     ("coverage-map", ("coverage-map",)),
     ("loop-state", ("loop-state.json", "loop state")),
@@ -168,7 +170,14 @@ def _manifest_items(payload: Mapping[str, Any]) -> tuple[list[dict[str, Any]], l
         entries = payload.get("evidence")
     if not isinstance(entries, list):
         return [], ["required-evidence-manifest.json must contain an items list"]
-    return [entry for entry in entries if isinstance(entry, dict)], []
+    findings: list[str] = []
+    items: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        if isinstance(entry, dict):
+            items.append(entry)
+            continue
+        findings.append(f"required-evidence-manifest.json items[{index}] must be an object")
+    return items, findings
 
 
 def resolve_manifest_artifact_path(raw_path: str, repo_root: Path, run_dir: Path) -> Path | None:

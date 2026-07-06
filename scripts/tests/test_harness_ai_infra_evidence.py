@@ -102,6 +102,8 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             run_dir.mkdir(parents=True, exist_ok=True)
 
             aliases = [
+                ("confirmed-preflight", "artifacts/confirmed-preflight.json"),
+                ("policy-run-limits", "artifacts/policy-run-limits.json"),
                 ("gap-proof", "gap-proofs/demo-task.json"),
                 ("service-availability", "artifacts/service-availability.json"),
                 ("search-api-visibility", "artifacts/search-api-visibility.json"),
@@ -113,6 +115,8 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
 
             findings = validate_required_evidence_manifest(
                 [
+                    "confirmed ai_infra autonomous expansion preflight",
+                    "policy_file and expanded limits recorded in run.json",
                     "gap proof with duplicate checks before each task",
                     "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
                     "search API visibility after ingestion",
@@ -133,6 +137,34 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             )
 
             self.assertEqual(findings, [])
+
+    def test_required_evidence_manifest_reports_non_object_entries(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "confirmed-preflight.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["confirmed ai_infra autonomous expansion preflight"],
+                {
+                    "items": [
+                        "not-an-object",
+                        {
+                            "evidence_id": "confirmed-preflight",
+                            "status": "pass",
+                            "summary": "preflight captured",
+                            "artifacts": ["artifacts/confirmed-preflight.json"],
+                        },
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertIn("required-evidence-manifest.json items[0] must be an object", findings)
 
     def test_required_evidence_manifest_blocks_missing_service_availability_alias(self) -> None:
         with TemporaryDirectory() as tmp:

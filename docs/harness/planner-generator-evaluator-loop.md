@@ -204,6 +204,8 @@ Expanded AI infra policies should use stable manifest `evidence_id` values
 instead of copying the full prose requirement into `summary`. Current stable
 IDs are:
 
+- `confirmed-preflight`
+- `policy-run-limits`
 - `gap-proof`
 - `coverage-map`
 - `loop-state`
@@ -226,7 +228,9 @@ IDs are:
 
 Legacy manifests remain compatible when they omit `evidence_id` and rely on a
 summary-only fallback, but new tests and new manifest emitters should target
-the stable IDs above.
+the stable IDs above. Use short summaries such as `confirmed preflight
+captured`, `run.json records policy file and limits`, or `service checks
+captured`; do not paste the policy requirement prose into `summary`.
 
 When a required evidence policy line mentions `gap proof`, the same commit gate
 also writes `.codex/loop-runs/<run-id>/gap-proof-result.json` and re-validates

@@ -258,6 +258,30 @@ def seed_candidate_loop_state(repo_root: Path, domain: str) -> dict[str, object]
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
+    REQUIRED_EVIDENCE_STABLE_IDS = {
+        "confirmed ai_infra autonomous expansion preflight": "confirmed-preflight",
+        "policy_file and expanded limits recorded in run.json": "policy-run-limits",
+        "gap proof with duplicate checks before each task": "gap-proof",
+        "validated ai_infra coverage-map evidence for all required layers": "coverage-map",
+        "domain loop-state.json with coverage evidence": "loop-state",
+        "raw evidence or existing raw reuse evidence": "raw-evidence",
+        "curated wiki source_refs": "curated-wiki-source-refs",
+        "wiki validate --domain ai_infra result": "wiki-validate",
+        "search/api visibility evidence for new knowledge": "search-api-visibility",
+        "frontend visibility evidence when services are running": "frontend-visibility",
+        "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search": "crawler-workbench-freshness",
+        "domain channels evidence for new or changed crawler source subscriptions": "domain-channels",
+        "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history": "loop-dashboard-freshness",
+        "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round": "service-availability",
+        "link probe or blocked/auth evidence for new external sources": "link-probe",
+        "secret scan evidence for changed paths": "secret-scan",
+        "code test evidence when crawler/harness/frontend/backend changes": "code-tests",
+        "autonomous-scope-result.json": "autonomous-scope-result",
+        "supply-chain-result.json for dependency changes": "supply-chain-result",
+        "commit-result.json": "commit-result",
+        "fresh no-action evidence before stopped_no_action": "no-action-evidence",
+    }
+
     def _seed_policy_fixture(self, repo_root: Path, relative_path: str) -> str:
         source_root = Path(__file__).resolve().parents[2]
         payload = read_json_file(source_root / relative_path)
@@ -299,6 +323,8 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             requirement_text = str(requirement)
             if (not include_service_availability) and "service availability evidence" in requirement_text.lower():
                 continue
+            stable_evidence_id = self.REQUIRED_EVIDENCE_STABLE_IDS.get(requirement_text.lower())
+            self.assertIsNotNone(stable_evidence_id, f"missing stable evidence id for requirement: {requirement_text}")
             if "gap proof" in requirement_text.lower():
                 artifact_relative = gap_proof_artifact_relative or f".codex/loop-runs/{run_id}/gap-proofs/{task_id}.json"
                 write_json_file(
@@ -307,9 +333,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 )
                 items.append(
                     {
-                        "evidence_id": "gap-proof",
+                        "evidence_id": stable_evidence_id,
                         "status": "pass",
-                        "summary": requirement_text,
+                        "summary": "gap proof validated for current task",
                         "artifacts": [artifact_relative],
                     }
                 )
@@ -318,9 +344,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             write_json_file(repo_root / artifact_relative, {"requirement": requirement_text})
             items.append(
                 {
-                    "evidence_id": requirement_text.lower().replace(" ", "-"),
+                    "evidence_id": stable_evidence_id,
                     "status": "pass",
-                    "summary": requirement_text,
+                    "summary": f"{stable_evidence_id} captured",
                     "artifacts": [artifact_relative],
                 }
             )
@@ -1567,6 +1593,17 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertNotEqual(status["next_action"], "inspect_required_evidence")
             self.assertEqual(required_evidence_result["status"], "pass")
             self.assertEqual(required_evidence_result["findings"], [])
+
+            manifest_payload = read_json_file(run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json")
+            expected_ids = {
+                self.REQUIRED_EVIDENCE_STABLE_IDS[str(requirement).lower()]
+                for requirement in load_run(repo_root, "expanded-run")["required_evidence"]
+            }
+            actual_ids = {str(item["evidence_id"]) for item in manifest_payload["items"]}
+            self.assertEqual(actual_ids, expected_ids)
+            for item in manifest_payload["items"]:
+                self.assertNotEqual(item["summary"], item["evidence_id"])
+                self.assertNotIn("evidence for", str(item["summary"]).lower())
 
     def test_run_autonomous_accepts_direct_gap_proof_file_for_current_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
