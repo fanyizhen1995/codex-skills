@@ -1184,6 +1184,38 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "blocked")
             self.assertEqual(run["next_action"], "inspect_supply_chain")
 
+    def test_run_autonomous_blocks_expanded_policy_without_gap_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "expanded-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+
     def test_run_autonomous_checks_scope_before_supply_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

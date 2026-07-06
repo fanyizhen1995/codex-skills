@@ -188,6 +188,13 @@ the expanded fixture is therefore a confirmed run contract, not active runtime
 behavior, until the orchestrator is extended to read policy fixtures or a
 dedicated expanded autonomous mode is implemented.
 
+When an autonomous run carries policy `required_evidence` containing `gap
+proof`, the commit gate now requires either
+`.codex/loop-runs/<run-id>/gap-proofs/<task-id>.json` or a matching
+`required-evidence-manifest.json` entry whose `evidence_id` contains
+`gap-proof`. The gate writes `gap-proof-result.json` with `pass` or `blocked`
+before supply-chain checks or commit.
+
 Start an autonomous run with an explicit domain and confirmed preflight:
 
 ```bash

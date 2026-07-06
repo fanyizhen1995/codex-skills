@@ -5,9 +5,10 @@ import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 try:
+    from scripts.harness_ai_infra_evidence import validate_gap_proof_file
     from scripts.harness_loop_contracts import (
         default_limits,
         load_loop_policy,
@@ -39,6 +40,7 @@ try:
         write_loop_state,
     )
 except ModuleNotFoundError:
+    from harness_ai_infra_evidence import validate_gap_proof_file  # type: ignore[no-redef]
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
         load_loop_policy,
@@ -2076,6 +2078,14 @@ def _commit_autonomous_changes(
         _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_scope", last_result="blocked")
         return False
 
+    required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
+    if any("gap proof" in item.lower() for item in required_evidence):
+        gap_proof_result = _validate_gap_proof_evidence(repo_root, run)
+        write_json_file(run_dir / "gap-proof-result.json", gap_proof_result)
+        if gap_proof_result["status"] != "pass":
+            _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_required_evidence", last_result="blocked")
+            return False
+
     supply_chain = check_supply_chain(changed_paths, generator_result["notes"], generator_result["verify_results"])
     write_json_file(
         run_dir / "supply-chain-result.json",
@@ -2123,6 +2133,67 @@ def _commit_autonomous_changes(
         write_json_file(run_dir / "generator-result.json", generator_result)
 
     return _finish_autonomous_cleanup(repo_root, run["run_id"])
+
+
+def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    task_id = str(run.get("task_id", "")).strip()
+    gap_proof_path = run_dir / "gap-proofs" / f"{task_id}.json"
+    findings: list[str] = []
+    artifact_path = ""
+
+    if gap_proof_path.exists():
+        artifact_path = gap_proof_path.relative_to(repo_root).as_posix()
+        findings.extend(validate_gap_proof_file(gap_proof_path))
+    else:
+        manifest_path = run_dir / "required-evidence-manifest.json"
+        manifest_entries = _load_required_evidence_manifest_entries(manifest_path, findings)
+        matching_entry = next(
+            (
+                entry
+                for entry in manifest_entries
+                if "gap-proof" in str(entry.get("evidence_id", "")).strip().lower()
+            ),
+            None,
+        )
+        if matching_entry is None:
+            findings.append(f"missing gap proof artifact for task {task_id}")
+        else:
+            artifact_path = str(matching_entry.get("artifacts", [""])[0]).strip() if matching_entry.get("artifacts") else ""
+            status = str(matching_entry.get("status", "")).strip().lower()
+            if status != "pass":
+                findings.append(f"gap proof manifest entry must be pass for task {task_id}")
+            if artifact_path:
+                resolved_artifact = (repo_root / artifact_path).resolve()
+                try:
+                    resolved_artifact.relative_to(repo_root.resolve())
+                except ValueError:
+                    findings.append(f"gap proof artifact escapes repo root: {artifact_path}")
+                else:
+                    if not resolved_artifact.exists():
+                        findings.append(f"missing gap proof artifact file: {artifact_path}")
+                    else:
+                        findings.extend(validate_gap_proof_file(resolved_artifact))
+            else:
+                findings.append(f"gap proof manifest entry missing artifact path for task {task_id}")
+
+    return {
+        "status": "pass" if not findings else "blocked",
+        "task_id": task_id,
+        "artifact_path": artifact_path,
+        "findings": findings,
+    }
+
+
+def _load_required_evidence_manifest_entries(path: Path, findings: list[str]) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    payload = read_json_file(path)
+    entries = payload.get("evidence")
+    if not isinstance(entries, list):
+        findings.append("required-evidence-manifest.json must contain an evidence list")
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
 
 
 def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
