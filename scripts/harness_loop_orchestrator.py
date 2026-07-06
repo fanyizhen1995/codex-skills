@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 import shutil
 import subprocess
 from datetime import UTC, datetime
@@ -2162,7 +2163,7 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
                     break
                 mismatched_task_ids.append(entry_task_id)
                 continue
-            if task_id and task_id.lower() in evidence_id_lower:
+            if _legacy_gap_proof_evidence_matches_task(evidence_id, task_id):
                 matching_entry = entry
                 break
         if matching_entry is None:
@@ -2196,6 +2197,20 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
         "artifact_path": artifact_path,
         "findings": findings,
     }
+
+
+def _legacy_gap_proof_evidence_matches_task(evidence_id: str, task_id: str) -> bool:
+    normalized_task_id = task_id.strip().lower()
+    if not normalized_task_id:
+        return False
+    tokens = [token for token in re.split(r"[^0-9A-Za-z]+", evidence_id.lower()) if token]
+    task_tokens = [token for token in re.split(r"[^0-9A-Za-z]+", normalized_task_id) if token]
+    if not task_tokens or len(tokens) < len(task_tokens):
+        return False
+    for index in range(len(tokens) - len(task_tokens) + 1):
+        if tokens[index : index + len(task_tokens)] == task_tokens:
+            return True
+    return False
 
 
 def _load_required_evidence_manifest_entries(path: Path, findings: list[str]) -> list[dict[str, Any]]:

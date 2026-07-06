@@ -1375,6 +1375,77 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 )
             )
 
+    def test_run_autonomous_blocks_gap_proof_manifest_substring_task_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_substring_collision_manifest(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                artifact_relative = "artifacts/gap-proofs/task-10-gap-proof.json"
+                write_json_file(repo_root_arg / artifact_relative, self._valid_gap_proof_payload("expanded-run-task-10"))
+                write_json_file(
+                    run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json",
+                    {
+                        "evidence": [
+                            {
+                                "evidence_id": "expanded-run-task-10-gap-proof",
+                                "status": "pass",
+                                "artifacts": [artifact_relative],
+                            }
+                        ]
+                    },
+                )
+                payload["changed_paths"] = [*list(payload["changed_paths"]), artifact_relative]
+                payload["artifacts"] = [*list(payload["artifacts"]), artifact_relative]
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_substring_collision_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(gap_proof_result["status"], "blocked")
+            self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
+            self.assertTrue(
+                any("missing gap proof manifest entry for current task expanded-run-task-1" == finding for finding in gap_proof_result["findings"])
+            )
+
     def test_run_autonomous_checks_scope_before_supply_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
