@@ -570,6 +570,12 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Do not run git commit or fill the commit field; the orchestrator commits after gates pass.",
             "Run verification commands and include non-empty verify_results when dependency files change.",
             (
+                "Do not run live service or local socket checks from planner verify_commands. "
+                "Do not start tmux, uvicorn, npm, Vite, or other long-lived services. "
+                "Record delegated live checks in verify_results instead of blocking; the orchestrator "
+                "captures backend/search/frontend/dashboard trusted live evidence."
+            ),
+            (
                 "When this run has required_evidence, write required-evidence-manifest.json in the run directory, "
                 "or include the same object as required_evidence_manifest in generator-result.json if the run directory is read-only. "
                 "Live semantic evidence ids service-availability, crawler-workbench-freshness, "

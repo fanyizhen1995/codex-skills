@@ -664,6 +664,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
         self.assertIn("write required-evidence-manifest.json", prompt)
         self.assertIn("declare stable evidence ids", prompt)
+        self.assertIn("Do not run live service or local socket checks", prompt)
+        self.assertIn("Do not start tmux, uvicorn, npm, Vite, or other long-lived services", prompt)
+        self.assertIn("Record delegated live checks in verify_results instead of blocking", prompt)
         self.assertNotIn("put created_by: harness_loop_orchestrator inside the referenced artifact payload", prompt)
         self.assertNotIn("create trusted-live-evidence", prompt)
 
