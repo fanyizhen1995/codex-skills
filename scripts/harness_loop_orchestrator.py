@@ -510,6 +510,7 @@ def _planner_prompt(requirement: str, run_id: str) -> str:
         [
             "Planner agent task.",
             f"Write {output_path} only.",
+            "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
             "Use policy demand_development and task_kind registered_task unless the requirement explicitly says otherwise.",
             f"Run ID: {run_id}",
@@ -527,6 +528,7 @@ def _generator_prompt(run_id: str) -> str:
             "Generator agent task.",
             f"Read {planner_output_path}.",
             f"Write {output_path}.",
+            "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
             "Do not mark final completion; evaluator decides.",
             "",
@@ -542,6 +544,7 @@ def _autonomous_planner_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Autonomous knowledge planner agent task.",
             f"Read {state_path} and the current repository state.",
             f"Write {output_path} only.",
+            "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
             "Use policy autonomous_knowledge and task_kind autonomous_implementation_task when work is actionable.",
             "If there is no actionable work, update loop-state.json no-action evidence and do not write unrelated files.",
@@ -561,12 +564,14 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Autonomous knowledge generator agent task.",
             f"Read {planner_output_path}.",
             f"Write {output_path}.",
+            "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
             "Only modify paths allowed by planner-output.json and the autonomous policy.",
             "Do not run git commit or fill the commit field; the orchestrator commits after gates pass.",
             "Run verification commands and include non-empty verify_results when dependency files change.",
             (
-                "When this run has required_evidence, write required-evidence-manifest.json in the run directory. "
+                "When this run has required_evidence, write required-evidence-manifest.json in the run directory, "
+                "or include the same object as required_evidence_manifest in generator-result.json if the run directory is read-only. "
                 "Live semantic evidence ids service-availability, crawler-workbench-freshness, "
                 "loop-dashboard-freshness, search-api-visibility, and frontend-visibility must reference "
                 "trusted-live-evidence/<evidence-id>.json, declare stable evidence ids in the manifest, "
@@ -588,6 +593,7 @@ def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Autonomous knowledge evaluator agent task.",
             f"Read {generator_result_path}.",
             f"Write {output_path}.",
+            "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_evaluator_result_payload.",
             "Verify changed wiki/raw/source artifacts from a user or operator perspective where applicable.",
             "Do not modify repository files other than the evaluator result.",
@@ -2617,6 +2623,7 @@ def _commit_autonomous_changes(
 
     required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
     if required_evidence:
+        _materialize_embedded_required_evidence_manifest(repo_root, run, generator_result)
         required_evidence_result = _validate_required_evidence(repo_root, run, required_evidence)
         write_json_file(run_dir / "required-evidence-result.json", required_evidence_result)
         if required_evidence_result["status"] != "pass":
@@ -2721,6 +2728,19 @@ def _commit_autonomous_changes(
         write_json_file(run_dir / "generator-result.json", generator_result)
 
     return _finish_autonomous_cleanup(repo_root, run["run_id"])
+
+
+def _materialize_embedded_required_evidence_manifest(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+) -> Path | None:
+    manifest = generator_result.get("required_evidence_manifest")
+    if not isinstance(manifest, Mapping):
+        return None
+    manifest_path = run_dir_for(repo_root, str(run["run_id"])) / "required-evidence-manifest.json"
+    write_json_file(manifest_path, dict(manifest))
+    return manifest_path
 
 
 _LIVE_SEMANTIC_EVIDENCE_IDS = {

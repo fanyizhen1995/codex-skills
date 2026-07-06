@@ -165,6 +165,73 @@ class HarnessLoopAgentsTests(unittest.TestCase):
             self.assertEqual(payload["output_json_path"], str(output_json_path))
             validate_agent_attempt_payload(payload)
 
+    def test_run_codex_prompt_uses_final_message_json_when_contract_output_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / ".codex" / "loop-runs" / "run-1"
+            prompt_path = run_dir / "prompt.md"
+            output_json_path = run_dir / "planner-output.json"
+            prompt_path.parent.mkdir(parents=True)
+            prompt_path.write_text("Do the thing", encoding="utf-8")
+
+            def run_side_effect(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+                message_path = Path(command[command.index("--output-last-message") + 1])
+                message_path.write_text('{"task_id":"from-final-message"}', encoding="utf-8")
+                self.assertFalse(output_json_path.exists())
+                return subprocess.CompletedProcess(command, 0, stdout="done", stderr="")
+
+            with mock.patch(
+                "scripts.harness_loop_agents.codex_exec_capabilities",
+                return_value={"json": True, "output_last_message": True},
+            ), mock.patch("scripts.harness_loop_agents.subprocess.run", side_effect=run_side_effect):
+                payload = run_codex_prompt(
+                    role="planner",
+                    run_id="run-1",
+                    repo_root=root,
+                    run_dir=run_dir,
+                    prompt_path=prompt_path,
+                    output_json_path=output_json_path,
+                    attempt=1,
+                    timeout_seconds=30,
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(read_json_file(output_json_path), {"task_id": "from-final-message"})
+            validate_agent_attempt_payload(payload)
+
+    def test_run_codex_prompt_extracts_fenced_final_message_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / ".codex" / "loop-runs" / "run-1"
+            prompt_path = run_dir / "prompt.md"
+            output_json_path = run_dir / "planner-output.json"
+            prompt_path.parent.mkdir(parents=True)
+            prompt_path.write_text("Do the thing", encoding="utf-8")
+
+            def run_side_effect(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+                message_path = Path(command[command.index("--output-last-message") + 1])
+                message_path.write_text('Here is the payload:\n```json\n{"task_id":"from-fence"}\n```', encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0, stdout="done", stderr="")
+
+            with mock.patch(
+                "scripts.harness_loop_agents.codex_exec_capabilities",
+                return_value={"json": True, "output_last_message": True},
+            ), mock.patch("scripts.harness_loop_agents.subprocess.run", side_effect=run_side_effect):
+                payload = run_codex_prompt(
+                    role="planner",
+                    run_id="run-1",
+                    repo_root=root,
+                    run_dir=run_dir,
+                    prompt_path=prompt_path,
+                    output_json_path=output_json_path,
+                    attempt=1,
+                    timeout_seconds=30,
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(read_json_file(output_json_path), {"task_id": "from-fence"})
+            validate_agent_attempt_payload(payload)
+
     def test_run_codex_prompt_treats_missing_contract_output_as_invalid_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -176,7 +243,7 @@ class HarnessLoopAgentsTests(unittest.TestCase):
 
             def run_side_effect(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
                 message_path = Path(command[command.index("--output-last-message") + 1])
-                message_path.write_text('{"type":"message"}', encoding="utf-8")
+                message_path.write_text("I could not write the output artifact.", encoding="utf-8")
                 self.assertTrue(message_path.exists())
                 self.assertFalse(output_json_path.exists())
                 return subprocess.CompletedProcess(command, 0, stdout="done", stderr="")

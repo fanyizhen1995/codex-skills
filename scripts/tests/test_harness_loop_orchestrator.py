@@ -2586,6 +2586,66 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 self.assertNotEqual(item["summary"], item["evidence_id"])
                 self.assertNotIn("evidence for", str(item["summary"]).lower())
 
+    def test_run_autonomous_materializes_embedded_required_evidence_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_embedded_manifest(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                self._write_required_evidence_manifest(repo_root_arg, run)
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                payload["required_evidence_manifest"] = read_json_file(manifest_path)
+                manifest_path.unlink()
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_embedded_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            required_evidence_result = read_json_file(
+                run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
+            )
+            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(required_evidence_result["status"], "pass")
+            self.assertTrue((run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json").exists())
+
     def test_run_autonomous_expanded_policy_blocks_synthetic_live_gate_placeholders(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

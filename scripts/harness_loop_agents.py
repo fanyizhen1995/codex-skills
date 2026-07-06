@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import json
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -96,7 +98,10 @@ def run_codex_prompt(
         stderr = result.stderr
         exit_code = result.returncode
         if exit_code == 0:
-            status = "pass" if output_json_path.exists() else "invalid_json"
+            if output_json_path.exists() or _write_output_from_final_message(output_message_path, output_json_path):
+                status = "pass"
+            else:
+                status = "invalid_json"
         else:
             status = "fail"
     except subprocess.TimeoutExpired as exc:
@@ -134,3 +139,33 @@ def _decode_timeout_stream(value: str | bytes | None) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
+
+
+def _write_output_from_final_message(output_message_path: Path, output_json_path: Path) -> bool:
+    payload = _load_json_object_from_final_message(output_message_path)
+    if payload is None:
+        return False
+    write_json_file(output_json_path, payload)
+    return True
+
+
+def _load_json_object_from_final_message(output_message_path: Path) -> dict[str, Any] | None:
+    if not output_message_path.exists():
+        return None
+    text = output_message_path.read_text(encoding="utf-8").strip()
+    if not text:
+        return None
+    for candidate in _final_message_json_candidates(text):
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _final_message_json_candidates(text: str) -> list[str]:
+    candidates = [text]
+    candidates.extend(match.group(1).strip() for match in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL))
+    return candidates
