@@ -70,16 +70,18 @@
       "entrypoint": "python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone",
       "steps": [
         "Run the helper in an isolated clone.",
-        "Inspect service_availability_evidence in the compact JSON summary."
+        "Inspect service_availability_evidence, crawler_freshness_evidence, and loop_dashboard_freshness_evidence in the compact JSON summary."
       ],
       "expected_outcomes": [
         "If live services respond, service_availability_evidence is pass.",
         "If any live service is unavailable, service_availability_evidence is blocked instead of being reported as pass.",
+        "crawler_freshness_evidence exists and reports synthetic smoke or blocked freshness evidence from the run-local manifest.",
+        "loop_dashboard_freshness_evidence exists and reports synthetic smoke or blocked freshness evidence from the run-local manifest.",
         "The summary still includes evidence for expanded policy preflight, expanded code scope, and missing evidence gating."
       ],
       "failure_signals": [
         "The helper treats unavailable live services as a passing condition.",
-        "The helper skips service or dashboard freshness evidence checks when --isolate-clone is set."
+        "The helper skips crawler freshness or dashboard freshness evidence checks when --isolate-clone is set."
       ],
       "cleanup": [
         "The helper does not restart or modify live project services."

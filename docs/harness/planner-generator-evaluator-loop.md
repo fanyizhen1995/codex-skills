@@ -361,12 +361,18 @@ state, reseeds the same deterministic candidate context, runs
 `scripts/ai_infra_expanded_runtime_smoke.txt` artifact plus a passing required
 evidence gate. The helper prints compact JSON with
 `expanded_policy_preflight`, `missing_evidence_gate`, `expanded_code_scope`,
-and `service_availability_evidence`.
+`service_availability_evidence`, `crawler_freshness_evidence`, and
+`loop_dashboard_freshness_evidence`.
 
 `fake-expanded-code` and `fake-missing-evidence` are smoke-only autonomous
-generator drivers. They never touch live project services. The expanded-code
+generator drivers. They never touch live project services, and they are valid
+only for runs that loaded
+`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json` or an
+equivalent expanded ai_infra required-evidence contract. The expanded-code
 driver writes a deterministic local smoke file plus run-local evidence
-artifacts and stable-ID `required-evidence-manifest.json` entries. The
+artifacts and stable-ID `required-evidence-manifest.json` entries. Freshness
+and visibility artifacts remain explicit synthetic smoke placeholders or
+blocked evidence; they do not claim live checks occurred. The
 missing-evidence driver writes the same smoke file but omits the manifest so
 the runtime must block before commit.
 

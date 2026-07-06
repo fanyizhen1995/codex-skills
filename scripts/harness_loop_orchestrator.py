@@ -1801,6 +1801,20 @@ _EXPANDED_REQUIRED_EVIDENCE_IDS = {
     "fresh no-action evidence before stopped_no_action": "no-action-evidence",
 }
 
+_EXPANDED_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
+_EXPANDED_POLICY_MARKERS = {
+    "confirmed ai_infra autonomous expansion preflight",
+    "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
+    "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
+}
+_EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE = {
+    "search-api-visibility": "Synthetic smoke placeholder: search/API visibility requires live ingest verification.",
+    "frontend-visibility": "Synthetic smoke placeholder: frontend visibility requires live UI verification.",
+    "crawler-workbench-freshness": "Synthetic smoke placeholder: crawler workbench freshness requires live service data.",
+    "loop-dashboard-freshness": "Synthetic smoke placeholder: loop dashboard freshness requires live dashboard data.",
+    "service-availability": "Synthetic smoke placeholder: live service availability is checked by the smoke helper.",
+}
+
 
 def _required_evidence_id(requirement: str) -> str:
     normalized = requirement.strip().lower()
@@ -1808,6 +1822,22 @@ def _required_evidence_id(requirement: str) -> str:
         normalized,
         re.sub(r"[^a-z0-9]+", "-", normalized).strip("-"),
     )
+
+
+def _run_uses_expanded_ai_infra_policy(run: Mapping[str, Any]) -> bool:
+    if str(run.get("policy", "")).strip() != "autonomous_knowledge":
+        return False
+    if str(run.get("domain", "")).strip() != "ai_infra":
+        return False
+    policy_file = str(run.get("policy_file", "")).strip()
+    if policy_file == _EXPANDED_POLICY_FILE:
+        return True
+    required_evidence = {
+        str(item).strip().lower()
+        for item in run.get("required_evidence", [])
+        if isinstance(item, str) and str(item).strip()
+    }
+    return _EXPANDED_POLICY_MARKERS.issubset(required_evidence)
 
 
 def _write_expanded_fake_evidence(
@@ -1845,11 +1875,15 @@ def _write_expanded_fake_evidence(
             continue
         evidence_id = _required_evidence_id(requirement)
         artifact_relative = f"evidence/{evidence_id}.json"
-        summary = f"{evidence_id} captured"
+        item_status = "pass"
+        summary = f"Synthetic smoke evidence captured for {evidence_id}."
         if evidence_id == "gap-proof":
             artifact_relative = gap_proof_relative
-            summary = "gap proof captured"
+            summary = "Synthetic smoke gap proof captured for the current task."
         else:
+            if evidence_id in _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE:
+                item_status = "blocked"
+                summary = _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE[evidence_id]
             write_json_file(
                 run_dir / artifact_relative,
                 {
@@ -1858,13 +1892,14 @@ def _write_expanded_fake_evidence(
                     "task_id": task_id,
                     "run_id": str(run["run_id"]),
                     "changed_path": changed_path,
-                    "status": "pass",
+                    "status": item_status,
+                    "synthetic_smoke": True,
                 },
             )
         item = {
             "evidence_id": evidence_id,
             "summary": summary,
-            "status": "pass",
+            "status": item_status,
             "artifacts": [artifact_relative],
         }
         if evidence_id == "gap-proof":
@@ -1961,6 +1996,10 @@ def _write_fake_autonomous_generator_result(
         changed_paths = [dependency_relative]
         notes = ""
     elif driver in {"fake-expanded-code", "fake-missing-evidence"}:
+        if not _run_uses_expanded_ai_infra_policy(run):
+            raise ValueError(
+                f"{driver} requires expanded ai_infra policy {_EXPANDED_POLICY_FILE}"
+            )
         smoke_relative = "scripts/ai_infra_expanded_runtime_smoke.txt"
         smoke_path = repo_root / smoke_relative
         smoke_path.parent.mkdir(parents=True, exist_ok=True)

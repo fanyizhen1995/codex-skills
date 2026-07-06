@@ -1798,6 +1798,18 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             }
             actual_ids = {str(item["evidence_id"]) for item in manifest_payload["items"]}
             self.assertEqual(actual_ids, expected_ids)
+            expected_blocked_ids = {
+                "search-api-visibility",
+                "frontend-visibility",
+                "crawler-workbench-freshness",
+                "loop-dashboard-freshness",
+                "service-availability",
+            }
+            manifest_by_id = {str(item["evidence_id"]): item for item in manifest_payload["items"]}
+            for evidence_id in expected_blocked_ids:
+                with self.subTest(evidence_id=evidence_id):
+                    self.assertEqual(manifest_by_id[evidence_id]["status"], "blocked")
+                    self.assertIn("synthetic", str(manifest_by_id[evidence_id]["summary"]).lower())
 
     def test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1838,6 +1850,33 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 any("missing required-evidence-manifest.json" in finding for finding in required_evidence_result["findings"]),
                 required_evidence_result,
             )
+
+    def test_run_autonomous_rejects_expanded_fake_drivers_without_expanded_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            for generator_driver in ("fake-expanded-code", "fake-missing-evidence"):
+                with self.subTest(generator_driver=generator_driver):
+                    with self.assertRaisesRegex(ValueError, "expanded ai_infra policy"):
+                        run_autonomous(
+                            repo_root,
+                            "demo-run",
+                            planner_driver="fake",
+                            generator_driver=generator_driver,
+                            evaluator_driver="fake",
+                            max_eval_attempts=2,
+                            max_tasks=1,
+                        )
 
     def test_run_autonomous_accepts_direct_gap_proof_file_for_current_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2243,7 +2282,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
             seed_no_action_loop_state(repo_root, "ai_infra")
 
-            for generator_driver in ("fake", "fake-expanded-code", "fake-missing-evidence"):
+            for generator_driver in ("fake",):
                 with self.subTest(generator_driver=generator_driver):
                     self.assertEqual(
                         call_cli(
@@ -2269,6 +2308,52 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     )
                     run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
                     self.assertEqual(run["phase"], "stopped_no_action")
+
+    def test_cli_run_autonomous_accepts_expanded_fake_drivers_with_expanded_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            for generator_driver in ("fake-expanded-code", "fake-missing-evidence"):
+                with self.subTest(generator_driver=generator_driver):
+                    self.assertEqual(
+                        call_cli(
+                            [
+                                "run-autonomous",
+                                "--repo-root",
+                                str(repo_root),
+                                "--run-id",
+                                "expanded-run",
+                                "--planner-driver",
+                                "fake",
+                                "--generator-driver",
+                                generator_driver,
+                                "--evaluator-driver",
+                                "fake",
+                                "--max-eval-attempts",
+                                "2",
+                                "--max-tasks",
+                                "1",
+                            ]
+                        ),
+                        0,
+                    )
+                    run = read_json_file(run_dir_for(repo_root, "expanded-run") / "run.json")
+                    self.assertIn(run["phase"], {"stopped_no_action", "stopped_blocked", "stopped_budget"})
 
     def test_create_preflight_run_accepts_explicit_task_id_for_fake_planner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3809,6 +3894,10 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertEqual(payload["expanded_code_scope"]["status"], "pass")
         self.assertEqual(payload["missing_evidence_gate"]["status"], "pass")
         self.assertEqual(payload["service_availability_evidence"]["status"], "pass")
+        self.assertEqual(payload["crawler_freshness_evidence"]["status"], "blocked")
+        self.assertEqual(payload["loop_dashboard_freshness_evidence"]["status"], "blocked")
+        self.assertIn("synthetic", payload["crawler_freshness_evidence"]["summary"].lower())
+        self.assertIn("synthetic", payload["loop_dashboard_freshness_evidence"]["summary"].lower())
         self.assertTrue(payload["isolated_clone"])
         self.assertEqual(payload["overall_status"], "pass")
 

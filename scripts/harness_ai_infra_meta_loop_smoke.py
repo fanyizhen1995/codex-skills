@@ -50,26 +50,45 @@ def _configure_git_identity(repo_root: Path) -> None:
     subprocess.run(["git", "config", "user.name", "Codex"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
-def _seed_ai_infra_candidate(repo_root: Path) -> None:
+def _commit_if_staged(repo_root: Path, message: str) -> None:
+    status = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if status.returncode == 0:
+        return
+    subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def _seed_ai_infra_candidate(repo_root: Path, run_id: str) -> None:
     state = create_default_loop_state("ai_infra", "Evaluator scenario AI infra meta loop smoke")
     state["known_sources"] = [
         {
-            "id": "meta-loop-smoke-source",
-            "title": "Meta loop smoke source",
+            "id": f"{run_id}-meta-loop-smoke-source",
+            "title": f"Meta loop smoke source {run_id}",
             "source": "smoke-helper",
             "status": "scanned",
             "updated_at": state["last_scan_at"],
-            "evidence": ["seeded source"],
+            "evidence": [f"seeded source for {run_id}"],
         }
     ]
     state["candidate_backlog"] = [
         {
-            "id": "meta-loop-smoke-candidate",
-            "title": "Create deterministic expanded runtime smoke artifact",
+            "id": f"{run_id}-meta-loop-smoke-candidate",
+            "title": f"Create deterministic expanded runtime smoke artifact {run_id}",
             "source": "smoke-helper",
             "status": "pending",
             "updated_at": state["last_scan_at"],
-            "evidence": ["seeded candidate backlog item"],
+            "evidence": [f"seeded candidate backlog item for {run_id}"],
         }
     ]
     write_loop_state(repo_root, "ai_infra", state)
@@ -82,7 +101,7 @@ def _seed_ai_infra_candidate(repo_root: Path) -> None:
         layer_payload["candidate_gaps"] = []
         layer_payload["blocked_reason"] = ""
         layer_payload["last_scanned_at"] = state["last_scan_at"]
-        layer_payload["notes"] = "Seeded coverage map for meta loop smoke."
+        layer_payload["notes"] = f"Seeded coverage map for meta loop smoke {run_id}."
     write_json_file(repo_root / "personal-wiki" / "domains" / "ai_infra" / "coverage-map.json", coverage_map)
 
     subprocess.run(
@@ -92,13 +111,7 @@ def _seed_ai_infra_candidate(repo_root: Path) -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    subprocess.run(
-        ["git", "commit", "-m", "test: seed ai infra meta loop smoke"],
-        cwd=repo_root,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    _commit_if_staged(repo_root, f"test: seed ai infra meta loop smoke {run_id}")
 
 
 def _relative(repo_root: Path, path: Path) -> str:
@@ -192,10 +205,55 @@ def _service_availability_summary() -> dict[str, Any]:
     }
 
 
+def _manifest_item_summary(repo_root: Path, run_id: str, evidence_id: str) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, run_id)
+    manifest = read_json_file(run_dir / "required-evidence-manifest.json")
+    items = manifest.get("items")
+    if not isinstance(items, list):
+        return {
+            "status": "fail",
+            "evidence_id": evidence_id,
+            "summary": "required-evidence-manifest.json is missing an items list",
+            "artifacts": [],
+        }
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("evidence_id", "")).strip() != evidence_id:
+            continue
+        artifacts = [str(value).strip() for value in item.get("artifacts", []) if str(value).strip()]
+        artifact_summaries: list[dict[str, Any]] = []
+        for artifact in artifacts:
+            artifact_path = run_dir / artifact
+            artifact_payload: Any = {}
+            if artifact_path.exists():
+                artifact_payload = read_json_file(artifact_path)
+            artifact_summaries.append(
+                {
+                    "path": artifact,
+                    "status": str(artifact_payload.get("status", "")).strip() if isinstance(artifact_payload, dict) else "",
+                    "summary": str(artifact_payload.get("summary", "")).strip() if isinstance(artifact_payload, dict) else "",
+                    "synthetic_smoke": bool(artifact_payload.get("synthetic_smoke")) if isinstance(artifact_payload, dict) else False,
+                }
+            )
+        return {
+            "status": str(item.get("status", "")).strip() or "fail",
+            "evidence_id": evidence_id,
+            "summary": str(item.get("summary", "")).strip(),
+            "artifacts": artifact_summaries,
+        }
+    return {
+        "status": "fail",
+        "evidence_id": evidence_id,
+        "summary": f"missing {evidence_id} in required-evidence-manifest.json",
+        "artifacts": [],
+    }
+
+
 def _run_smoke_in_repo(repo_root: Path, run_id: str) -> dict[str, Any]:
     _assert_git_repo(repo_root)
     _configure_git_identity(repo_root)
-    _seed_ai_infra_candidate(repo_root)
+    _seed_ai_infra_candidate(repo_root, run_id)
 
     preflight = _run_preflight(repo_root, run_id)
     preflight_summary = {
@@ -207,10 +265,12 @@ def _run_smoke_in_repo(repo_root: Path, run_id: str) -> dict[str, Any]:
     missing_evidence_gate = _run_missing_evidence_round(repo_root, run_id)
     _reset_to_clean_head(repo_root)
     _configure_git_identity(repo_root)
-    _seed_ai_infra_candidate(repo_root)
+    _seed_ai_infra_candidate(repo_root, run_id)
     _run_preflight(repo_root, run_id)
     expanded_code_scope = _run_expanded_code_round(repo_root, run_id)
     service_availability = _service_availability_summary()
+    crawler_freshness = _manifest_item_summary(repo_root, run_id, "crawler-workbench-freshness")
+    loop_dashboard_freshness = _manifest_item_summary(repo_root, run_id, "loop-dashboard-freshness")
 
     overall_status = "pass"
     for section in (preflight_summary, missing_evidence_gate, expanded_code_scope):
@@ -226,6 +286,8 @@ def _run_smoke_in_repo(repo_root: Path, run_id: str) -> dict[str, Any]:
         "missing_evidence_gate": missing_evidence_gate,
         "expanded_code_scope": expanded_code_scope,
         "service_availability_evidence": service_availability,
+        "crawler_freshness_evidence": crawler_freshness,
+        "loop_dashboard_freshness_evidence": loop_dashboard_freshness,
     }
 
 
