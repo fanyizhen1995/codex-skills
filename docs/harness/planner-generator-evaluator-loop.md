@@ -203,9 +203,11 @@ checks or commit and blocks the run with
 Live semantic evidence for `service-availability`,
 `crawler-workbench-freshness`, `loop-dashboard-freshness`,
 `search-api-visibility`, and `frontend-visibility` must also carry trusted
-provenance. The manifest item or referenced JSON artifact must include
-`created_by: harness_loop_orchestrator`; generator-written pass artifacts
-without that marker are treated as untrusted and block the commit gate.
+provenance. The manifest item must reference the run-local
+`trusted-live-evidence/<evidence-id>.json` artifact, and that referenced JSON
+artifact must include `created_by: harness_loop_orchestrator`. A manifest-level
+`created_by` marker is not trusted, and generator-written pass artifacts under
+ordinary artifact paths are blocked before commit.
 
 Expanded AI infra policies should use stable manifest `evidence_id` values
 instead of copying the full prose requirement into `summary`. Current stable

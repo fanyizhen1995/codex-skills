@@ -9,6 +9,7 @@ from scripts.harness_ai_infra_evidence import (
     canonicalize_url,
     check_service_availability,
     identity_key_for_candidate,
+    trusted_live_evidence_artifact_path,
     validate_required_evidence_manifest,
     validate_gap_proof_payload,
 )
@@ -204,41 +205,53 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 ("confirmed-preflight", "artifacts/confirmed-preflight.json"),
                 ("policy-run-limits", "artifacts/policy-run-limits.json"),
                 ("gap-proof", "gap-proofs/demo-task.json"),
-                ("service-availability", "artifacts/service-availability.json"),
-                ("crawler-workbench-freshness", "artifacts/crawler-workbench-freshness.json"),
-                ("loop-dashboard-freshness", "artifacts/loop-dashboard-freshness.json"),
-                ("search-api-visibility", "artifacts/search-api-visibility.json"),
-                ("frontend-visibility", "artifacts/frontend-visibility.json"),
+                ("service-availability", trusted_live_evidence_artifact_path("service-availability")),
+                (
+                    "crawler-workbench-freshness",
+                    trusted_live_evidence_artifact_path("crawler-workbench-freshness"),
+                ),
+                (
+                    "loop-dashboard-freshness",
+                    trusted_live_evidence_artifact_path("loop-dashboard-freshness"),
+                ),
+                ("search-api-visibility", trusted_live_evidence_artifact_path("search-api-visibility")),
+                ("frontend-visibility", trusted_live_evidence_artifact_path("frontend-visibility")),
             ]
             for evidence_id, relative_path in aliases:
                 artifact_path = run_dir / relative_path
                 artifact_path.parent.mkdir(parents=True, exist_ok=True)
                 if evidence_id == "service-availability":
+                    payload = self._service_availability_payload(
+                        statuses={
+                            "crawler-backend": ("pass", 200),
+                            "crawler-frontend": ("pass", 200),
+                            "loop-dashboard": ("pass", 200),
+                        }
+                    )
+                    payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
                     artifact_path.write_text(
-                        json.dumps(
-                            self._service_availability_payload(
-                                statuses={
-                                    "crawler-backend": ("pass", 200),
-                                    "crawler-frontend": ("pass", 200),
-                                    "loop-dashboard": ("pass", 200),
-                                }
-                            )
-                        ),
+                        json.dumps(payload),
                         encoding="utf-8",
                     )
                 elif evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness"}:
+                    payload = self._freshness_payload(status="pass", evidence_id=evidence_id)
+                    payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
                     artifact_path.write_text(
-                        json.dumps(self._freshness_payload(status="pass", evidence_id=evidence_id)),
+                        json.dumps(payload),
                         encoding="utf-8",
                     )
                 elif evidence_id == "search-api-visibility":
+                    payload = self._search_visibility_payload(status="pass")
+                    payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
                     artifact_path.write_text(
-                        json.dumps(self._search_visibility_payload(status="pass")),
+                        json.dumps(payload),
                         encoding="utf-8",
                     )
                 elif evidence_id == "frontend-visibility":
+                    payload = self._frontend_visibility_payload(status="pass")
+                    payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
                     artifact_path.write_text(
-                        json.dumps(self._frontend_visibility_payload(status="pass")),
+                        json.dumps(payload),
                         encoding="utf-8",
                     )
                 else:
@@ -342,11 +355,45 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
 
             for evidence_id, _relative_path, _payload in live_artifacts:
                 self.assertTrue(
-                    any(evidence_id in finding and "trusted created_by" in finding for finding in findings),
+                    any(
+                        evidence_id in finding
+                        and trusted_live_evidence_artifact_path(evidence_id) in finding
+                        for finding in findings
+                    ),
                     findings,
                 )
 
     def test_required_evidence_manifest_accepts_live_pass_evidence_with_trusted_payload_created_by(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._search_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertEqual(findings, [])
+
+    def test_required_evidence_manifest_blocks_forged_live_pass_evidence_on_untrusted_path(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
@@ -373,7 +420,10 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 run_dir,
             )
 
-            self.assertEqual(findings, [])
+            self.assertTrue(
+                any("trusted-live-evidence/search-api-visibility.json" in finding for finding in findings),
+                findings,
+            )
 
     def test_required_evidence_manifest_reports_non_object_entries(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -766,10 +816,13 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
             run_dir.mkdir(parents=True, exist_ok=True)
-            artifact_path = run_dir / "artifacts" / "crawler-workbench-freshness.json"
+            artifact_relative = trusted_live_evidence_artifact_path("crawler-workbench-freshness")
+            artifact_path = run_dir / artifact_relative
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._freshness_payload(status="pass", evidence_id="crawler-workbench-freshness")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
             artifact_path.write_text(
-                json.dumps(self._freshness_payload(status="pass", evidence_id="crawler-workbench-freshness")),
+                json.dumps(payload),
                 encoding="utf-8",
             )
 
@@ -782,7 +835,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                             "status": "pass",
                             "created_by": TRUSTED_EVIDENCE_CREATED_BY,
                             "summary": "validated",
-                            "artifacts": ["artifacts/crawler-workbench-freshness.json"],
+                            "artifacts": [artifact_relative],
                         }
                     ]
                 },
@@ -797,10 +850,13 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
             run_dir.mkdir(parents=True, exist_ok=True)
-            artifact_path = run_dir / "artifacts" / "loop-dashboard-freshness.json"
+            artifact_relative = trusted_live_evidence_artifact_path("loop-dashboard-freshness")
+            artifact_path = run_dir / artifact_relative
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._freshness_payload(status="pass", evidence_id="loop-dashboard-freshness")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
             artifact_path.write_text(
-                json.dumps(self._freshness_payload(status="pass", evidence_id="loop-dashboard-freshness")),
+                json.dumps(payload),
                 encoding="utf-8",
             )
 
@@ -813,7 +869,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                             "status": "pass",
                             "created_by": TRUSTED_EVIDENCE_CREATED_BY,
                             "summary": "validated",
-                            "artifacts": ["artifacts/loop-dashboard-freshness.json"],
+                            "artifacts": [artifact_relative],
                         }
                     ]
                 },
@@ -890,10 +946,13 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
             run_dir.mkdir(parents=True, exist_ok=True)
-            artifact_path = run_dir / "artifacts" / "search-api-visibility.json"
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._search_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
             artifact_path.write_text(
-                json.dumps(self._search_visibility_payload(status="pass")),
+                json.dumps(payload),
                 encoding="utf-8",
             )
 
@@ -906,7 +965,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                             "status": "pass",
                             "created_by": TRUSTED_EVIDENCE_CREATED_BY,
                             "summary": "validated",
-                            "artifacts": ["artifacts/search-api-visibility.json"],
+                            "artifacts": [artifact_relative],
                         }
                     ]
                 },
@@ -921,10 +980,13 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
             run_dir.mkdir(parents=True, exist_ok=True)
-            artifact_path = run_dir / "artifacts" / "frontend-visibility.json"
+            artifact_relative = trusted_live_evidence_artifact_path("frontend-visibility")
+            artifact_path = run_dir / artifact_relative
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._frontend_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
             artifact_path.write_text(
-                json.dumps(self._frontend_visibility_payload(status="pass")),
+                json.dumps(payload),
                 encoding="utf-8",
             )
 
@@ -937,7 +999,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                             "status": "pass",
                             "created_by": TRUSTED_EVIDENCE_CREATED_BY,
                             "summary": "validated",
-                            "artifacts": ["artifacts/frontend-visibility.json"],
+                            "artifacts": [artifact_relative],
                         }
                     ]
                 },
@@ -952,18 +1014,19 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
             run_dir.mkdir(parents=True, exist_ok=True)
-            artifact_path = run_dir / "artifacts" / "service-availability.json"
+            artifact_relative = trusted_live_evidence_artifact_path("service-availability")
+            artifact_path = run_dir / artifact_relative
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._service_availability_payload(
+                statuses={
+                    "crawler-backend": ("pass", 302),
+                    "crawler-frontend": ("pass", 204),
+                    "loop-dashboard": ("pass", 200),
+                }
+            )
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
             artifact_path.write_text(
-                json.dumps(
-                    self._service_availability_payload(
-                        statuses={
-                            "crawler-backend": ("pass", 302),
-                            "crawler-frontend": ("pass", 204),
-                            "loop-dashboard": ("pass", 200),
-                        }
-                    )
-                ),
+                json.dumps(payload),
                 encoding="utf-8",
             )
 
@@ -978,7 +1041,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                             "status": "pass",
                             "created_by": TRUSTED_EVIDENCE_CREATED_BY,
                             "summary": "validated",
-                            "artifacts": ["artifacts/service-availability.json"],
+                            "artifacts": [artifact_relative],
                         }
                     ]
                 },

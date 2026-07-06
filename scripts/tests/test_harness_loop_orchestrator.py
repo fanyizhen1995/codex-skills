@@ -20,6 +20,7 @@ from scripts.harness_loop_contracts import (
     validate_run_payload,
     write_json_file,
 )
+from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
 from scripts.harness_loop_autonomous import create_default_loop_state, write_loop_state
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
@@ -412,7 +413,16 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     }
                 )
                 continue
-            artifact_relative = f".codex/loop-runs/{run_id}/artifacts/evidence-{index:02d}.txt"
+            if stable_evidence_id in {
+                "service-availability",
+                "crawler-workbench-freshness",
+                "loop-dashboard-freshness",
+                "search-api-visibility",
+                "frontend-visibility",
+            }:
+                artifact_relative = trusted_live_evidence_artifact_path(stable_evidence_id)
+            else:
+                artifact_relative = f".codex/loop-runs/{run_id}/artifacts/evidence-{index:02d}.txt"
             artifact_payload: dict[str, object] = {"requirement": requirement_text}
             if stable_evidence_id == "service-availability":
                 artifact_payload = self._valid_service_availability_payload()
@@ -422,7 +432,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 artifact_payload = self._valid_search_visibility_payload()
             elif stable_evidence_id == "frontend-visibility":
                 artifact_payload = self._valid_frontend_visibility_payload()
-            write_json_file(repo_root / artifact_relative, artifact_payload)
+            artifact_path = (
+                run_dir / artifact_relative
+                if not artifact_relative.startswith(".codex/")
+                else repo_root / artifact_relative
+            )
+            write_json_file(artifact_path, artifact_payload)
             items.append(
                 {
                     "evidence_id": stable_evidence_id,

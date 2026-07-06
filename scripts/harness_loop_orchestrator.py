@@ -557,6 +557,13 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Only modify paths allowed by planner-output.json and the autonomous policy.",
             "Do not run git commit or fill the commit field; the orchestrator commits after gates pass.",
             "Run verification commands and include non-empty verify_results when dependency files change.",
+            (
+                "When this run has required_evidence, write required-evidence-manifest.json in the run directory. "
+                "Live semantic evidence ids service-availability, crawler-workbench-freshness, "
+                "loop-dashboard-freshness, search-api-visibility, and frontend-visibility must reference "
+                "trusted-live-evidence/<evidence-id>.json and put created_by: harness_loop_orchestrator "
+                "inside the referenced artifact payload; manifest-level created_by is not trusted."
+            ),
             f"Run ID: {run['run_id']}",
             f"Domain: {run['domain']}",
             "",

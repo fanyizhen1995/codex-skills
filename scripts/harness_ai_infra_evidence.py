@@ -83,6 +83,7 @@ VISIBILITY_EVIDENCE_IDS = {
 }
 SEMANTIC_GATE_EVIDENCE_IDS = FRESHNESS_EVIDENCE_IDS | VISIBILITY_EVIDENCE_IDS | {"service-availability"}
 TRUSTED_EVIDENCE_CREATED_BY = "harness_loop_orchestrator"
+TRUSTED_LIVE_EVIDENCE_DIR = "trusted-live-evidence"
 
 
 def canonicalize_url(url: str) -> str:
@@ -485,14 +486,28 @@ def _validate_trusted_live_evidence_provenance(
     evidence_id: str,
     artifact_path: str,
 ) -> str:
-    manifest_created_by = str(item.get("created_by", "")).strip()
+    del item
+    expected_path = trusted_live_evidence_artifact_path(evidence_id)
+    if _normalize_manifest_artifact_path(artifact_path) != expected_path:
+        return (
+            f"{evidence_id} artifact {artifact_path} must use orchestrator-owned "
+            f"{expected_path}"
+        )
     payload_created_by = str(payload.get("created_by", "")).strip()
-    if TRUSTED_EVIDENCE_CREATED_BY in {manifest_created_by, payload_created_by}:
+    if payload_created_by == TRUSTED_EVIDENCE_CREATED_BY:
         return ""
     return (
         f"{evidence_id} artifact {artifact_path} must include trusted created_by "
-        f"{TRUSTED_EVIDENCE_CREATED_BY} in the manifest item or artifact payload"
+        f"{TRUSTED_EVIDENCE_CREATED_BY} in the artifact payload"
     )
+
+
+def trusted_live_evidence_artifact_path(evidence_id: str) -> str:
+    return f"{TRUSTED_LIVE_EVIDENCE_DIR}/{evidence_id}.json"
+
+
+def _normalize_manifest_artifact_path(artifact_path: str) -> str:
+    return str(artifact_path).strip().replace("\\", "/").lstrip("./")
 
 
 def validate_required_evidence_manifest(
