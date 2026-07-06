@@ -383,6 +383,29 @@ service is unavailable, the helper reports
 `service_availability_evidence.status=blocked` instead of pretending the smoke
 passed.
 
+When Phase A demand-development fixes finish and a reviewer has a checkpoint
+commit to preserve, transition the parent meta loop into Phase B autonomous
+expansion with:
+
+```bash
+python3 scripts/harness_loop_orchestrator.py transition-meta \
+  --repo-root . \
+  --run-id ai-infra-meta \
+  --expansion-run-id ai-infra-meta-expansion \
+  --policy-file docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json \
+  --source-phase-commit <checkpoint-sha> \
+  --transition-evidence docs/harness/planner-generator-evaluator-loop.md
+```
+
+The parent run must already be in `passed_waiting_human_merge`. The transition
+verifies the checkpoint commit exists, refuses missing or out-of-repo evidence
+paths, creates a confirmed `autonomous_knowledge` child run for `ai_infra`, and
+updates the parent to `phase=child_running` with a `phase_transition` event in
+`.codex/loop-runs/<run-id>/events.jsonl`. The parent `run.json` records
+`phase_transition=development_to_expansion`, `source_phase_commit`,
+`transition_evidence`, and `expansion_run_id` so the autonomous child can start
+without losing the demand-development checkpoint context.
+
 ## Loop Dashboard
 
 The local read-only Loop Dashboard lives under `apps/loop_dashboard/`. Start it

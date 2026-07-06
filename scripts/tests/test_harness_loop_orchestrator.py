@@ -4103,6 +4103,146 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
         write_json_file(run_dir_for(repo_root, run_id) / "run.json", payload)
         return payload
 
+    def _write_transition_evidence(self, repo_root: Path, name: str = "transition-notes.md") -> str:
+        evidence_path = repo_root / "docs" / "harness" / name
+        evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence_path.write_text("phase transition evidence\n", encoding="utf-8")
+        return str(evidence_path.relative_to(repo_root))
+
+    def _prepare_transition_parent(self, repo_root: Path, run_id: str = "ai-meta") -> tuple[dict[str, object], str, str]:
+        init_git_repo(repo_root)
+        source_policy_root = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies"
+        target_policy_root = repo_root / "docs" / "harness" / "loop-policies"
+        target_policy_root.mkdir(parents=True, exist_ok=True)
+        for policy_name in ("autonomous-knowledge-ai-infra-expanded.json", "demand-development.json"):
+            shutil.copy2(source_policy_root / policy_name, target_policy_root / policy_name)
+        self._create_parent(repo_root, run_id)
+        parent = load_run(repo_root, run_id)
+        parent["phase"] = "passed_waiting_human_merge"
+        parent["next_action"] = "await_human_merge_confirmation"
+        parent["last_result"] = "pass"
+        write_json_file(run_dir_for(repo_root, run_id) / "run.json", parent)
+        checkpoint_file = repo_root / "docs" / "harness" / "checkpoint.txt"
+        checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_file.write_text("phase-a checkpoint\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/harness/checkpoint.txt"], cwd=repo_root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "test: checkpoint commit", "--", "docs/harness/checkpoint.txt"],
+            cwd=repo_root,
+            check=True,
+        )
+        checkpoint_sha = (
+            subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True)
+            .stdout.strip()
+        )
+        evidence_path = self._write_transition_evidence(repo_root)
+        return parent, checkpoint_sha, evidence_path
+
+    def test_transition_meta_loop_to_expansion_creates_autonomous_child(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            _parent, checkpoint_sha, evidence_path = self._prepare_transition_parent(repo_root)
+
+            payload = harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                repo_root=repo_root,
+                meta_run_id="ai-meta",
+                expansion_run_id="ai-meta-expansion",
+                policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                source_phase_commit=checkpoint_sha,
+                transition_evidence=[evidence_path],
+            )
+
+            self.assertEqual(payload["run_id"], "ai-meta")
+            parent = load_run(repo_root, "ai-meta")
+            self.assertEqual(parent["phase"], "child_running")
+            self.assertEqual(parent["phase_transition"], "development_to_expansion")
+            self.assertEqual(parent["source_phase_commit"], checkpoint_sha)
+            self.assertEqual(parent["expansion_run_id"], "ai-meta-expansion")
+            self.assertEqual(parent["next_action"], "run_autonomous_planner")
+            self.assertEqual(parent["transition_evidence"], [evidence_path])
+
+            expansion = load_run(repo_root, "ai-meta-expansion")
+            self.assertEqual(expansion["policy"], "autonomous_knowledge")
+            self.assertEqual(expansion["domain"], "ai_infra")
+            self.assertEqual(expansion["phase"], "planning")
+            self.assertEqual(
+                expansion["policy_file"],
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            self.assertEqual(expansion["next_action"], "run_autonomous_planner")
+            events = (run_dir_for(repo_root, "ai-meta") / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("phase_transition", events)
+            self.assertIn("ai-meta-expansion", events)
+
+    def test_transition_meta_loop_blocks_without_checkpoint_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            parent, checkpoint_sha, evidence_path = self._prepare_transition_parent(repo_root)
+
+            blocked_parent = dict(parent)
+            blocked_parent["phase"] = "planning"
+            write_json_file(run_dir_for(repo_root, "ai-meta") / "run.json", blocked_parent)
+            with self.assertRaisesRegex(RuntimeError, "passed_waiting_human_merge"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                    source_phase_commit=checkpoint_sha,
+                    transition_evidence=[evidence_path],
+                )
+
+            write_json_file(run_dir_for(repo_root, "ai-meta") / "run.json", parent)
+            with self.assertRaisesRegex(RuntimeError, "commit"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                    source_phase_commit="deadbeef",
+                    transition_evidence=[evidence_path],
+                )
+
+            with self.assertRaisesRegex(FileNotFoundError, "transition evidence"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                    source_phase_commit=checkpoint_sha,
+                    transition_evidence=["docs/harness/missing-transition.md"],
+                )
+
+            with self.assertRaisesRegex(ValueError, "policy"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/demand-development.json",
+                    source_phase_commit=checkpoint_sha,
+                    transition_evidence=[evidence_path],
+                )
+
+            write_json_file(run_dir_for(repo_root, "ai-meta") / "run.json", parent)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Existing expansion child",
+                run_id="ai-meta-expansion",
+                domain="ai_infra",
+                policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                confirm=True,
+            )
+            with self.assertRaisesRegex(RuntimeError, "already exists"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                    source_phase_commit=checkpoint_sha,
+                    transition_evidence=[evidence_path],
+                )
+
     def test_run_demand_multi_fake_completes_three_children_and_waits_for_human_merge(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

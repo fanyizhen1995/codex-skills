@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 try:
     from scripts.harness_ai_infra_evidence import (
@@ -580,6 +580,37 @@ def save_run(repo_root: Path | str, payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _git_commit_exists(repo_root: Path, commitish: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-e", f"{commitish}^{{commit}}"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def _resolve_transition_evidence_path(repo_root: Path, path_value: str) -> Path:
+    if not isinstance(path_value, str) or not path_value.strip():
+        raise ValueError("transition evidence path must be a non-empty repo-relative path")
+    raw_path = Path(path_value)
+    if raw_path.is_absolute():
+        resolved = raw_path.resolve()
+    else:
+        resolved = (repo_root / raw_path).resolve()
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except ValueError as exc:
+        raise ValueError("transition evidence path must stay inside the repository") from exc
+    if not resolved.exists():
+        raise FileNotFoundError(f"transition evidence path not found: {path_value}")
+    return resolved
+
+
 def create_preflight_run(
     repo_root: Path | str,
     mode: str,
@@ -675,6 +706,78 @@ def confirm_preflight(repo_root: Path | str, run_id: str) -> dict[str, Any]:
         payload["phase"] = "planned"
         payload["next_action"] = "run_planner"
     return save_run(repo_root, payload)
+
+
+def transition_meta_loop_to_expansion(
+    repo_root: Path | str,
+    meta_run_id: str,
+    expansion_run_id: str,
+    policy_file: str,
+    source_phase_commit: str,
+    transition_evidence: Sequence[str],
+) -> dict[str, Any]:
+    root = Path(repo_root)
+    validate_run_id(meta_run_id)
+    validate_run_id(expansion_run_id)
+    parent = _ensure_parent_fields(load_run(root, meta_run_id))
+    if parent["phase"] != "passed_waiting_human_merge":
+        raise RuntimeError("meta loop must be in passed_waiting_human_merge before transition")
+    if run_dir_for(root, expansion_run_id).exists():
+        raise RuntimeError(f"expansion run already exists: {expansion_run_id}")
+    if not isinstance(source_phase_commit, str) or not source_phase_commit.strip():
+        raise ValueError("source_phase_commit must be a non-empty git commit")
+    if not _git_commit_exists(root, source_phase_commit):
+        raise RuntimeError(f"source phase commit is missing: {source_phase_commit}")
+
+    evidence_paths = [str(path) for path in transition_evidence]
+    if not evidence_paths:
+        raise ValueError("transition_evidence must include at least one path")
+    resolved_evidence: list[str] = []
+    for path_value in evidence_paths:
+        resolved = _resolve_transition_evidence_path(root, path_value)
+        resolved_evidence.append(str(resolved.relative_to(root)))
+
+    policy_payload = load_loop_policy(root, policy_file)
+    if policy_payload["policy"] != "autonomous_knowledge":
+        raise ValueError("policy_file policy must be autonomous_knowledge for expansion transition")
+
+    create_preflight_run(
+        repo_root=root,
+        mode="autonomous-knowledge",
+        requirement=str(parent["requirement"]),
+        run_id=expansion_run_id,
+        domain="ai_infra",
+        policy_file=policy_file,
+        confirm=True,
+    )
+
+    parent["run_kind"] = "parent"
+    parent["phase"] = "child_running"
+    parent["next_action"] = "run_autonomous_planner"
+    parent["current_child_run_id"] = expansion_run_id
+    if expansion_run_id not in parent["child_run_ids"]:
+        parent["child_run_ids"].append(expansion_run_id)
+    parent["phase_transition"] = "development_to_expansion"
+    parent["transition_evidence"] = resolved_evidence
+    parent["source_phase_commit"] = source_phase_commit
+    parent["expansion_run_id"] = expansion_run_id
+    save_run(root, parent)
+    append_loop_event(
+        root,
+        run_id=meta_run_id,
+        actor="orchestrator",
+        event_type="phase_transition",
+        summary=f"Transitioned demand-development run to autonomous expansion child {expansion_run_id}",
+        parent_run_id=meta_run_id,
+        child_id=expansion_run_id,
+        details={
+            "phase_transition": "development_to_expansion",
+            "source_phase_commit": source_phase_commit,
+            "policy_file": policy_file,
+        },
+        artifact_paths=resolved_evidence,
+    )
+    return load_run(root, meta_run_id)
 
 
 def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
@@ -2769,6 +2872,17 @@ def _build_parser() -> argparse.ArgumentParser:
     run_autonomous_parser.add_argument("--max-eval-attempts", type=int, default=2)
     run_autonomous_parser.add_argument("--max-tasks", type=int, default=3)
 
+    transition_meta_parser = subparsers.add_parser(
+        "transition-meta",
+        help="Transition a passed demand-development meta run into autonomous expansion.",
+    )
+    transition_meta_parser.add_argument("--repo-root", default=".")
+    transition_meta_parser.add_argument("--run-id", required=True)
+    transition_meta_parser.add_argument("--expansion-run-id", required=True)
+    transition_meta_parser.add_argument("--policy-file", required=True)
+    transition_meta_parser.add_argument("--source-phase-commit", required=True)
+    transition_meta_parser.add_argument("--transition-evidence", action="append", default=[])
+
     status = subparsers.add_parser("status", help="Print run status.")
     status.add_argument("--repo-root", default=".")
     status.add_argument("--run-id", required=True)
@@ -2842,6 +2956,15 @@ def main(argv: list[str] | None = None) -> int:
             evaluator_driver=args.evaluator_driver,
             max_eval_attempts=args.max_eval_attempts,
             max_tasks=args.max_tasks,
+        )
+    elif args.command == "transition-meta":
+        payload = transition_meta_loop_to_expansion(
+            repo_root=args.repo_root,
+            meta_run_id=args.run_id,
+            expansion_run_id=args.expansion_run_id,
+            policy_file=args.policy_file,
+            source_phase_commit=args.source_phase_commit,
+            transition_evidence=args.transition_evidence,
         )
     elif args.command == "status":
         payload = status_for_run(repo_root=args.repo_root, run_id=args.run_id)

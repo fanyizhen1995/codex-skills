@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-07-06 AI Infra Meta Loop Runtime Phase Transition
+
+- Completed `ai-infra-meta-loop-runtime-01`: added the demand-development Phase A to autonomous Phase B transition helper and CLI, documented the transition contract, and marked the planned runtime task done.
+- Verified the transition runtime creates a confirmed `ai_infra` autonomous expansion child only from a parent run at `passed_waiting_human_merge`, with a real checkpoint commit and repo-local evidence paths.
+- Phase B autonomous knowledge expansion can now start from the recorded expansion child after the checkpoint handoff.
+- Commits created:
+  - `feat(harness): transition ai infra meta loops to expansion`
+- Evidence:
+  - `python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_ai_infra_evidence -v` -> 211 tests passed
+  - `python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone` -> `overall_status=pass`, `missing_evidence_gate.status=pass`, `expanded_code_scope.status=pass`
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/ai-infra-meta-loop-runtime-01.json >/dev/null`
+  - `python3 - <<'PY' ... validate_loop_policy_payload(...) ... PY`
+  - `curl --noproxy '*' http://127.0.0.1:8765/api/health` -> HTTP 200, `{\"status\":\"ok\"...}`
+  - `curl --noproxy '*' -I http://127.0.0.1:5173/ | sed -n '1,5p'` -> `HTTP/1.1 200 OK`
+  - `curl --noproxy '*' http://127.0.0.1:8766/api/health` -> HTTP 200, `{\"status\":\"ok\"}`
+  - `git diff --check`
+
 ## 2026-07-06 AI Infra Meta Loop Runtime Started
 
 - Registered `ai-infra-meta-loop-runtime-01` for Phase A runtime/evaluator implementation before autonomous `ai_infra` expansion.
