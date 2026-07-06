@@ -1777,6 +1777,104 @@ def _run_codex_autonomous_planner(
     return True
 
 
+_EXPANDED_REQUIRED_EVIDENCE_IDS = {
+    "confirmed ai_infra autonomous expansion preflight": "confirmed-preflight",
+    "policy_file and expanded limits recorded in run.json": "policy-run-limits",
+    "gap proof with duplicate checks before each task": "gap-proof",
+    "validated ai_infra coverage-map evidence for all required layers": "coverage-map",
+    "domain loop-state.json with coverage evidence": "loop-state",
+    "raw evidence or existing raw reuse evidence": "raw-evidence",
+    "curated wiki source_refs": "curated-wiki-source-refs",
+    "wiki validate --domain ai_infra result": "wiki-validate",
+    "search/api visibility evidence for new knowledge": "search-api-visibility",
+    "frontend visibility evidence when services are running": "frontend-visibility",
+    "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search": "crawler-workbench-freshness",
+    "domain channels evidence for new or changed crawler source subscriptions": "domain-channels",
+    "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history": "loop-dashboard-freshness",
+    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round": "service-availability",
+    "link probe or blocked/auth evidence for new external sources": "link-probe",
+    "secret scan evidence for changed paths": "secret-scan",
+    "code test evidence when crawler/harness/frontend/backend changes": "code-tests",
+    "autonomous-scope-result.json": "autonomous-scope-result",
+    "supply-chain-result.json for dependency changes": "supply-chain-result",
+    "commit-result.json": "commit-result",
+    "fresh no-action evidence before stopped_no_action": "no-action-evidence",
+}
+
+
+def _required_evidence_id(requirement: str) -> str:
+    normalized = requirement.strip().lower()
+    return _EXPANDED_REQUIRED_EVIDENCE_IDS.get(
+        normalized,
+        re.sub(r"[^a-z0-9]+", "-", normalized).strip("-"),
+    )
+
+
+def _write_expanded_fake_evidence(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    *,
+    changed_path: str,
+    include_manifest: bool,
+) -> None:
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    task_id = str(run["task_id"])
+    gap_proof_relative = f"gap-proofs/{task_id}.json"
+    write_json_file(
+        run_dir / gap_proof_relative,
+        {
+            "task_id": task_id,
+            "layer": "inference-runtime",
+            "candidate": {
+                "title": "Expanded runtime smoke candidate",
+                "source_type": "docs",
+                "identity_key": "url:https://example.invalid/ai-infra-expanded-runtime-smoke",
+            },
+            "local_checks": {
+                "raw_manifest_scan": "No matching raw manifest entries found.",
+                "wiki_search": "No matching wiki content found.",
+                "domain_index_scan": "No matching domain index content found.",
+            },
+            "gap_reason": "Synthetic expanded runtime smoke gap proof.",
+            "planned_outputs": [changed_path],
+        },
+    )
+    manifest_items: list[dict[str, Any]] = []
+    for requirement in run.get("required_evidence", []):
+        if not isinstance(requirement, str):
+            continue
+        evidence_id = _required_evidence_id(requirement)
+        artifact_relative = f"evidence/{evidence_id}.json"
+        summary = f"{evidence_id} captured"
+        if evidence_id == "gap-proof":
+            artifact_relative = gap_proof_relative
+            summary = "gap proof captured"
+        else:
+            write_json_file(
+                run_dir / artifact_relative,
+                {
+                    "evidence_id": evidence_id,
+                    "summary": summary,
+                    "task_id": task_id,
+                    "run_id": str(run["run_id"]),
+                    "changed_path": changed_path,
+                    "status": "pass",
+                },
+            )
+        item = {
+            "evidence_id": evidence_id,
+            "summary": summary,
+            "status": "pass",
+            "artifacts": [artifact_relative],
+        }
+        if evidence_id == "gap-proof":
+            item["task_id"] = task_id
+        manifest_items.append(item)
+
+    if include_manifest:
+        write_json_file(run_dir / "required-evidence-manifest.json", {"items": manifest_items})
+
+
 def _write_fake_autonomous_generator_result(
     repo_root: Path,
     run: dict[str, Any],
@@ -1862,6 +1960,46 @@ def _write_fake_autonomous_generator_result(
         (repo_root / dependency_relative).write_text("example-package==0.0.1\n", encoding="utf-8")
         changed_paths = [dependency_relative]
         notes = ""
+    elif driver in {"fake-expanded-code", "fake-missing-evidence"}:
+        smoke_relative = "scripts/ai_infra_expanded_runtime_smoke.txt"
+        smoke_path = repo_root / smoke_relative
+        smoke_path.parent.mkdir(parents=True, exist_ok=True)
+        smoke_path.write_text(
+            "\n".join(
+                [
+                    "AI infra expanded runtime smoke",
+                    f"run_id={run['run_id']}",
+                    f"task_id={run['task_id']}",
+                    "deterministic_local_artifact=true",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        state["candidate_backlog"] = []
+        state["coverage_gaps"] = []
+        state["last_scan_at"] = _timestamp()
+        state["last_planner_decision"] = "planned"
+        state["no_action_evidence"] = [
+            {
+                "id": f"{run['run_id']}-expanded-scan-{task_number}",
+                "title": "Expanded runtime scan completed",
+                "source": "coverage-map",
+                "status": "complete",
+                "updated_at": state["last_scan_at"],
+                "evidence": ["coverage-map scan confirmed no remaining candidates"],
+            }
+        ]
+        write_loop_state(repo_root, domain, state)
+        changed_paths = [smoke_relative]
+        _write_expanded_fake_evidence(
+            repo_root,
+            run,
+            changed_path=smoke_relative,
+            include_manifest=(driver == "fake-expanded-code"),
+        )
+        artifacts = [smoke_relative]
+        notes = "fake expanded autonomous generator wrote deterministic local smoke artifact"
     else:
         raise ValueError(f"unsupported autonomous generator driver: {driver}")
 
@@ -2394,7 +2532,14 @@ def run_autonomous(
     validate_run_id(run_id)
     if planner_driver not in {"fake", "codex-exec"}:
         raise ValueError(f"unsupported autonomous planner driver: {planner_driver}")
-    if generator_driver not in {"fake", "fake-denylist", "fake-dependency", "codex-exec"}:
+    if generator_driver not in {
+        "fake",
+        "fake-denylist",
+        "fake-dependency",
+        "fake-expanded-code",
+        "fake-missing-evidence",
+        "codex-exec",
+    }:
         raise ValueError(f"unsupported autonomous generator driver: {generator_driver}")
     if evaluator_driver not in {"fake", "codex-exec"}:
         raise ValueError(f"unsupported autonomous evaluator driver: {evaluator_driver}")
@@ -2572,7 +2717,11 @@ def _build_parser() -> argparse.ArgumentParser:
     run_autonomous_parser.add_argument("--repo-root", default=".")
     run_autonomous_parser.add_argument("--run-id", required=True)
     run_autonomous_parser.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
-    run_autonomous_parser.add_argument("--generator-driver", choices=("fake", "fake-denylist", "fake-dependency", "codex-exec"), required=True)
+    run_autonomous_parser.add_argument(
+        "--generator-driver",
+        choices=("fake", "fake-denylist", "fake-dependency", "fake-expanded-code", "fake-missing-evidence", "codex-exec"),
+        required=True,
+    )
     run_autonomous_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
     run_autonomous_parser.add_argument("--max-eval-attempts", type=int, default=2)
     run_autonomous_parser.add_argument("--max-tasks", type=int, default=3)

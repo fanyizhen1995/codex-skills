@@ -1,0 +1,90 @@
+{
+  "task_id": "ai-infra-meta-loop-runtime-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "AI-INFRA-META-LOOP-E2E-3",
+      "user_goal": "As an evaluator, confirm the expanded ai_infra runtime can run a deterministic smoke pass in an isolated clone, enforce the expanded policy contract, and stop if required evidence is missing.",
+      "prerequisites": [
+        "Repository root is readable and can be cloned locally.",
+        "The expanded policy fixture exists at docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json.",
+        "The smoke helper configures git identity only inside its temporary clone."
+      ],
+      "entrypoint": "python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone",
+      "steps": [
+        "Create a confirmed autonomous-knowledge preflight using the expanded ai_infra policy fixture.",
+        "Seed ai_infra loop-state.json and coverage-map.json with deterministic local candidate context.",
+        "Run fake-missing-evidence and verify the runtime blocks at inspect_required_evidence.",
+        "Reset the isolated clone to a clean committed state and rerun with fake-expanded-code."
+      ],
+      "expected_outcomes": [
+        "The helper prints compact JSON summary output and exits 0.",
+        "expanded_policy_preflight is pass.",
+        "missing_evidence_gate is pass because the runtime blocks missing required evidence instead of committing.",
+        "expanded_code_scope is pass and the deterministic smoke file is committed in the isolated clone."
+      ],
+      "failure_signals": [
+        "The helper accepts an expanded autonomous task without the policy fixture.",
+        "Missing required evidence does not stop the runtime at inspect_required_evidence.",
+        "The helper mutates live project services or requires a real Codex model call.",
+        "The expanded code path writes outside the intended deterministic local smoke artifact flow."
+      ],
+      "cleanup": [
+        "The isolated clone and all smoke commits are discarded when the helper exits."
+      ],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "AI-INFRA-META-LOOP-E2E-5",
+      "user_goal": "As an evaluator, verify expanded runtime code repair stays in scope and does not bypass denylist or evidence gates.",
+      "prerequisites": [
+        "run_autonomous accepts fake-expanded-code and fake-missing-evidence as autonomous generator drivers.",
+        "Stable required evidence IDs are available for manifest emission."
+      ],
+      "entrypoint": "python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_allows_code_path_with_evidence scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks -v",
+      "steps": [
+        "Run the expanded policy allow-path test.",
+        "Run the missing required evidence block test."
+      ],
+      "expected_outcomes": [
+        "fake-expanded-code writes scripts/ai_infra_expanded_runtime_smoke.txt and commits only after required evidence passes.",
+        "fake-missing-evidence blocks before commit with inspect_required_evidence."
+      ],
+      "failure_signals": [
+        "Expanded runtime code path is rejected as an unsupported driver.",
+        "Expanded runtime code path commits without required evidence.",
+        "Expanded runtime path touches denylist or live service processes."
+      ],
+      "cleanup": [
+        "The unit tests run in temporary repositories and discard their artifacts."
+      ],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "AI-INFRA-META-LOOP-E2E-6",
+      "user_goal": "As an evaluator, verify the smoke helper reports live service, crawler freshness, and loop dashboard evidence honestly even when the runtime executes in an isolated clone.",
+      "prerequisites": [
+        "The helper can call scripts.harness_ai_infra_evidence.check_service_availability().",
+        "Local service URLs remain 127.0.0.1:8765, 127.0.0.1:5173, and 127.0.0.1:8766."
+      ],
+      "entrypoint": "python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone",
+      "steps": [
+        "Run the helper in an isolated clone.",
+        "Inspect service_availability_evidence in the compact JSON summary."
+      ],
+      "expected_outcomes": [
+        "If live services respond, service_availability_evidence is pass.",
+        "If any live service is unavailable, service_availability_evidence is blocked instead of being reported as pass.",
+        "The summary still includes evidence for expanded policy preflight, expanded code scope, and missing evidence gating."
+      ],
+      "failure_signals": [
+        "The helper treats unavailable live services as a passing condition.",
+        "The helper skips service or dashboard freshness evidence checks when --isolate-clone is set."
+      ],
+      "cleanup": [
+        "The helper does not restart or modify live project services."
+      ],
+      "automation_hint": "shell"
+    }
+  ]
+}

@@ -1749,6 +1749,96 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 self.assertNotEqual(item["summary"], item["evidence_id"])
                 self.assertNotIn("evidence for", str(item["summary"]).lower())
 
+    def test_run_autonomous_expanded_policy_allows_code_path_with_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "expanded-run",
+                planner_driver="fake",
+                generator_driver="fake-expanded-code",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=2,
+            )
+
+            run_dir = run_dir_for(repo_root, "expanded-run")
+            run = read_json_file(run_dir / "run.json")
+            generator_result = read_json_file(run_dir / "generator-result.json")
+            required_evidence_result = read_json_file(run_dir / "required-evidence-result.json")
+            manifest_payload = read_json_file(run_dir / "required-evidence-manifest.json")
+            commit_result = read_json_file(run_dir / "commit-result.json")
+            self.assertEqual(status["phase"], "stopped_no_action")
+            self.assertEqual(status["next_action"], "none")
+            self.assertEqual(run["last_result"], "pass")
+            self.assertEqual(required_evidence_result["status"], "pass")
+            self.assertEqual(commit_result["status"], "pass")
+            self.assertTrue(generator_result["commit"])
+            self.assertIn("scripts/ai_infra_expanded_runtime_smoke.txt", generator_result["changed_paths"])
+            self.assertTrue((repo_root / "scripts" / "ai_infra_expanded_runtime_smoke.txt").exists())
+            expected_ids = {
+                self.REQUIRED_EVIDENCE_STABLE_IDS[str(requirement).lower()]
+                for requirement in run["required_evidence"]
+            }
+            actual_ids = {str(item["evidence_id"]) for item in manifest_payload["items"]}
+            self.assertEqual(actual_ids, expected_ids)
+
+    def test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "expanded-run",
+                planner_driver="fake",
+                generator_driver="fake-missing-evidence",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            required_evidence_result = read_json_file(
+                run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
+            )
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(required_evidence_result["status"], "blocked")
+            self.assertTrue(
+                any("missing required-evidence-manifest.json" in finding for finding in required_evidence_result["findings"]),
+                required_evidence_result,
+            )
+
     def test_run_autonomous_accepts_direct_gap_proof_file_for_current_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -2153,30 +2243,32 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
             seed_no_action_loop_state(repo_root, "ai_infra")
 
-            self.assertEqual(
-                call_cli(
-                    [
-                        "run-autonomous",
-                        "--repo-root",
-                        str(repo_root),
-                        "--run-id",
-                        "demo-run",
-                        "--planner-driver",
-                        "fake",
-                        "--generator-driver",
-                        "fake",
-                        "--evaluator-driver",
-                        "fake",
-                        "--max-eval-attempts",
-                        "2",
-                        "--max-tasks",
-                        "3",
-                    ]
-                ),
-                0,
-            )
-            run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
-            self.assertEqual(run["phase"], "stopped_no_action")
+            for generator_driver in ("fake", "fake-expanded-code", "fake-missing-evidence"):
+                with self.subTest(generator_driver=generator_driver):
+                    self.assertEqual(
+                        call_cli(
+                            [
+                                "run-autonomous",
+                                "--repo-root",
+                                str(repo_root),
+                                "--run-id",
+                                "demo-run",
+                                "--planner-driver",
+                                "fake",
+                                "--generator-driver",
+                                generator_driver,
+                                "--evaluator-driver",
+                                "fake",
+                                "--max-eval-attempts",
+                                "2",
+                                "--max-tasks",
+                                "3",
+                            ]
+                        ),
+                        0,
+                    )
+                    run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
+                    self.assertEqual(run["phase"], "stopped_no_action")
 
     def test_create_preflight_run_accepts_explicit_task_id_for_fake_planner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3690,6 +3782,35 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "task_id"):
             run_phase2_smoke(repo_root, "safe-run-id", "../planner-generator-evaluator-loop-phase-2-01")
+
+    def test_ai_infra_meta_loop_smoke_helper_exercises_expanded_runtime(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+
+        from scripts.harness_ai_infra_meta_loop_smoke import run_ai_infra_meta_loop_smoke
+
+        with patch(
+            "scripts.harness_ai_infra_meta_loop_smoke.check_service_availability",
+            return_value={
+                "overall_status": "pass",
+                "services": [
+                    {"service": "crawler-backend", "url": "http://127.0.0.1:8765/api/health", "status": "pass", "http_status": 200, "error": ""},
+                    {"service": "crawler-frontend", "url": "http://127.0.0.1:5173/", "status": "pass", "http_status": 200, "error": ""},
+                    {"service": "loop-dashboard", "url": "http://127.0.0.1:8766/api/health", "status": "pass", "http_status": 200, "error": ""},
+                ],
+            },
+        ):
+            payload = run_ai_infra_meta_loop_smoke(
+                repo_root,
+                "evaluator-scenario-ai-infra-meta-loop-runtime-test",
+                isolate_clone=True,
+            )
+
+        self.assertEqual(payload["expanded_policy_preflight"]["status"], "pass")
+        self.assertEqual(payload["expanded_code_scope"]["status"], "pass")
+        self.assertEqual(payload["missing_evidence_gate"]["status"], "pass")
+        self.assertEqual(payload["service_availability_evidence"]["status"], "pass")
+        self.assertTrue(payload["isolated_clone"])
+        self.assertEqual(payload["overall_status"], "pass")
 
 
 class HarnessLoopDemandMultiTaskTests(unittest.TestCase):

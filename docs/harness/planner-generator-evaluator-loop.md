@@ -339,6 +339,44 @@ at `stopped_no_action`. It prints JSON containing `phase`, `next_action`,
 `--isolate-clone` is intended only for disposable clones; the helper refuses to
 overwrite dirty smoke loop-state or generated raw paths.
 
+The expanded AI infra runtime adds a separate evaluator scenario and smoke
+helper for repo-local code-path validation under the expanded policy:
+
+```bash
+python3 scripts/harness_ai_infra_meta_loop_smoke.py \
+  --repo-root . \
+  --run-id evaluator-scenario-ai-infra-meta-loop-runtime \
+  --isolate-clone
+```
+
+This helper clones the current checkout into a disposable temporary repo when
+`--isolate-clone` is set, configures git identity only inside that clone, and
+then runs two deterministic fake autonomous rounds against
+`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`.
+First it seeds `ai_infra` loop-state and coverage-map data, runs
+`fake-missing-evidence`, and expects the loop to stop at
+`inspect_required_evidence`. Then it resets the clone back to a clean committed
+state, reseeds the same deterministic candidate context, runs
+`fake-expanded-code`, and expects a committed
+`scripts/ai_infra_expanded_runtime_smoke.txt` artifact plus a passing required
+evidence gate. The helper prints compact JSON with
+`expanded_policy_preflight`, `missing_evidence_gate`, `expanded_code_scope`,
+and `service_availability_evidence`.
+
+`fake-expanded-code` and `fake-missing-evidence` are smoke-only autonomous
+generator drivers. They never touch live project services. The expanded-code
+driver writes a deterministic local smoke file plus run-local evidence
+artifacts and stable-ID `required-evidence-manifest.json` entries. The
+missing-evidence driver writes the same smoke file but omits the manifest so
+the runtime must block before commit.
+
+Even with `--isolate-clone`, service checks still target the live project URLs
+at `127.0.0.1:8765`, `127.0.0.1:5173`, and `127.0.0.1:8766` through
+`scripts.harness_ai_infra_evidence.check_service_availability()`. If any live
+service is unavailable, the helper reports
+`service_availability_evidence.status=blocked` instead of pretending the smoke
+passed.
+
 ## Loop Dashboard
 
 The local read-only Loop Dashboard lives under `apps/loop_dashboard/`. Start it
