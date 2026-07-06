@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 try:
-    from scripts.harness_ai_infra_evidence import validate_gap_proof_file, validate_required_evidence_manifest
+    from scripts.harness_ai_infra_evidence import (
+        resolve_manifest_artifact_path,
+        validate_gap_proof_file,
+        validate_required_evidence_manifest,
+    )
     from scripts.harness_loop_contracts import (
         default_limits,
         load_loop_policy,
@@ -41,7 +45,11 @@ try:
         write_loop_state,
     )
 except ModuleNotFoundError:
-    from harness_ai_infra_evidence import validate_gap_proof_file, validate_required_evidence_manifest  # type: ignore[no-redef]
+    from harness_ai_infra_evidence import (  # type: ignore[no-redef]
+        resolve_manifest_artifact_path,
+        validate_gap_proof_file,
+        validate_required_evidence_manifest,
+    )
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
         load_loop_policy,
@@ -2225,16 +2233,13 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
             if status != "pass":
                 findings.append(f"gap proof manifest entry must be pass for task {task_id}")
             if artifact_path:
-                resolved_artifact = (repo_root / artifact_path).resolve()
-                try:
-                    resolved_artifact.relative_to(repo_root.resolve())
-                except ValueError:
-                    findings.append(f"gap proof artifact escapes repo root: {artifact_path}")
+                resolved_artifact = resolve_manifest_artifact_path(artifact_path, repo_root, run_dir)
+                if resolved_artifact is None:
+                    findings.append(f"gap proof artifact escapes repo or run dir: {artifact_path}")
+                elif not resolved_artifact.exists():
+                    findings.append(f"missing gap proof artifact file: {artifact_path}")
                 else:
-                    if not resolved_artifact.exists():
-                        findings.append(f"missing gap proof artifact file: {artifact_path}")
-                    else:
-                        findings.extend(validate_gap_proof_file(resolved_artifact, expected_task_id=task_id))
+                    findings.extend(validate_gap_proof_file(resolved_artifact, expected_task_id=task_id))
             else:
                 findings.append(f"gap proof manifest entry missing artifact path for task {task_id}")
 

@@ -192,10 +192,41 @@ requires `.codex/loop-runs/<run-id>/required-evidence-manifest.json` with an
 `items` list (legacy `evidence` still reads for older artifacts). Each required
 policy line must be represented by a matching manifest item with `status:
 pass|blocked` and at least one artifact path that resolves inside the repo or
-the current run directory. The gate writes
+the current run directory. Relative artifact paths are checked against the run
+directory first, then the repo root, so both `gap-proofs/<task-id>.json` and
+`.codex/loop-runs/<run-id>/gap-proofs/<task-id>.json` are valid references for
+run-local evidence. The gate writes
 `.codex/loop-runs/<run-id>/required-evidence-result.json` before supply-chain
 checks or commit and blocks the run with
 `next_action=inspect_required_evidence` when findings exist.
+
+Expanded AI infra policies should use stable manifest `evidence_id` values
+instead of copying the full prose requirement into `summary`. Current stable
+IDs are:
+
+- `gap-proof`
+- `coverage-map`
+- `loop-state`
+- `raw-evidence`
+- `curated-wiki-source-refs`
+- `wiki-validate`
+- `search-api-visibility`
+- `frontend-visibility`
+- `crawler-workbench-freshness`
+- `domain-channels`
+- `loop-dashboard-freshness`
+- `service-availability`
+- `link-probe`
+- `secret-scan`
+- `code-tests`
+- `autonomous-scope-result`
+- `supply-chain-result`
+- `commit-result`
+- `no-action-evidence`
+
+Legacy manifests remain compatible when they omit `evidence_id` and rely on a
+summary-only fallback, but new tests and new manifest emitters should target
+the stable IDs above.
 
 When a required evidence policy line mentions `gap proof`, the same commit gate
 also writes `.codex/loop-runs/<run-id>/gap-proof-result.json` and re-validates

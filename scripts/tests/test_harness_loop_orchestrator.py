@@ -1398,6 +1398,77 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(gap_proof_result["artifact_path"], "artifacts/gap-proofs/current-task-gap-proof.json")
             self.assertEqual(gap_proof_result["findings"], [])
 
+    def test_run_autonomous_accepts_run_dir_relative_gap_proof_manifest_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_manifest(repo_root_arg: Path, run: dict[str, object], *, driver: str, task_number: int) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                task_id = str(run["task_id"])
+                artifact_relative = f"gap-proofs/{task_id}.json"
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=artifact_relative,
+                )
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                root_level_artifact = repo_root_arg / artifact_relative
+                if root_level_artifact.exists():
+                    root_level_artifact.unlink()
+                write_json_file(
+                    run_dir_for(repo_root_arg, str(run["run_id"])) / artifact_relative,
+                    self._valid_gap_proof_payload(task_id),
+                )
+                for item in manifest["items"]:
+                    if item.get("evidence_id") == "gap-proof":
+                        item["summary"] = "validated"
+                        item["artifacts"] = [artifact_relative]
+                write_json_file(manifest_path, manifest)
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            required_evidence_result = read_json_file(
+                run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
+            )
+            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(required_evidence_result["status"], "pass")
+            self.assertEqual(gap_proof_result["status"], "pass")
+            self.assertTrue(gap_proof_result["artifact_path"].endswith("/gap-proofs/expanded-run-task-1.json"))
+            self.assertEqual(gap_proof_result["findings"], [])
+
     def test_run_autonomous_blocks_expanded_policy_missing_service_availability_manifest_item(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

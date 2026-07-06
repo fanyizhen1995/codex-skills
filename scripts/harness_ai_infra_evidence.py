@@ -35,6 +35,27 @@ EVIDENCE_STOPWORDS = {
     "when",
     "with",
 }
+EVIDENCE_REQUIREMENT_ALIAS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("gap-proof", ("gap proof",)),
+    ("coverage-map", ("coverage-map",)),
+    ("loop-state", ("loop-state.json", "loop state")),
+    ("raw-evidence", ("raw evidence", "raw reuse evidence")),
+    ("curated-wiki-source-refs", ("source_refs", "source refs")),
+    ("wiki-validate", ("wiki validate",)),
+    ("search-api-visibility", ("search/api visibility", "search api visibility")),
+    ("frontend-visibility", ("frontend visibility",)),
+    ("crawler-workbench-freshness", ("crawler workbench api freshness",)),
+    ("domain-channels", ("domain channels",)),
+    ("loop-dashboard-freshness", ("loop dashboard freshness",)),
+    ("service-availability", ("service availability",)),
+    ("link-probe", ("link probe", "blocked/auth evidence")),
+    ("secret-scan", ("secret scan",)),
+    ("code-tests", ("code test",)),
+    ("autonomous-scope-result", ("autonomous-scope-result.json",)),
+    ("supply-chain-result", ("supply-chain-result.json",)),
+    ("commit-result", ("commit-result.json",)),
+    ("no-action-evidence", ("no-action evidence",)),
+)
 
 
 def canonicalize_url(url: str) -> str:
@@ -150,7 +171,7 @@ def _manifest_items(payload: Mapping[str, Any]) -> tuple[list[dict[str, Any]], l
     return [entry for entry in entries if isinstance(entry, dict)], []
 
 
-def _resolve_manifest_artifact_path(raw_path: str, repo_root: Path, run_dir: Path) -> Path | None:
+def resolve_manifest_artifact_path(raw_path: str, repo_root: Path, run_dir: Path) -> Path | None:
     candidate = Path(raw_path)
     roots = [run_dir.resolve(), repo_root.resolve()]
     if candidate.is_absolute():
@@ -176,6 +197,32 @@ def _resolve_manifest_artifact_path(raw_path: str, repo_root: Path, run_dir: Pat
     return matched_nonexistent
 
 
+def _normalized_evidence_id(value: Any) -> str:
+    return _slugify(value)
+
+
+def _aliases_for_requirement(requirement: str) -> set[str]:
+    normalized = requirement.strip().lower()
+    aliases = {_normalized_evidence_id(requirement)}
+    for evidence_id, markers in EVIDENCE_REQUIREMENT_ALIAS_RULES:
+        if any(marker in normalized for marker in markers):
+            aliases.add(evidence_id)
+    return aliases
+
+
+def _evidence_id_matches_alias(evidence_id: str, accepted_ids: set[str]) -> bool:
+    for accepted_id in accepted_ids:
+        if not accepted_id:
+            continue
+        if evidence_id == accepted_id:
+            return True
+        if evidence_id.startswith(f"{accepted_id}-") or evidence_id.endswith(f"-{accepted_id}"):
+            return True
+        if f"-{accepted_id}-" in evidence_id:
+            return True
+    return False
+
+
 def validate_required_evidence_manifest(
     policy_required: Sequence[str],
     manifest: Mapping[str, Any],
@@ -188,7 +235,7 @@ def validate_required_evidence_manifest(
     if item_findings:
         return findings
 
-    indexed_items: list[tuple[dict[str, Any], set[str]]] = []
+    indexed_items: list[tuple[dict[str, Any], str, set[str]]] = []
     for item in items:
         status = str(item.get("status", "")).strip().lower()
         if status not in {"pass", "blocked"}:
@@ -205,25 +252,35 @@ def validate_required_evidence_manifest(
                 evidence_id = str(item.get("evidence_id", "")).strip() or "<unknown>"
                 findings.append(f"required evidence item {evidence_id} must list at least one artifact")
         for artifact_path in artifact_values:
-            resolved = _resolve_manifest_artifact_path(artifact_path, repo_root, run_dir)
+            resolved = resolve_manifest_artifact_path(artifact_path, repo_root, run_dir)
             if resolved is None:
                 findings.append(f"required evidence artifact escapes repo or run dir: {artifact_path}")
                 continue
             if not resolved.exists():
                 findings.append(f"missing required evidence artifact file: {artifact_path}")
+        evidence_id = _normalized_evidence_id(item.get("evidence_id", ""))
         evidence_text = " ".join(
             str(item.get(key, "")).strip() for key in ("evidence_id", "summary") if str(item.get(key, "")).strip()
         )
-        indexed_items.append((item, _keyword_tokens(evidence_text)))
+        indexed_items.append((item, evidence_id, _keyword_tokens(evidence_text)))
 
     for requirement in policy_required:
         requirement_text = str(requirement).strip()
         if not requirement_text:
             continue
+        accepted_ids = _aliases_for_requirement(requirement_text)
+        if any(
+            item_evidence_id and _evidence_id_matches_alias(item_evidence_id, accepted_ids)
+            for _, item_evidence_id, _ in indexed_items
+        ):
+            continue
         requirement_tokens = _keyword_tokens(requirement_text)
         if not requirement_tokens:
             continue
-        if not any(requirement_tokens.issubset(item_tokens) for _, item_tokens in indexed_items):
+        if not any(
+            not item_evidence_id and requirement_tokens.issubset(item_tokens)
+            for _, item_evidence_id, item_tokens in indexed_items
+        ):
             findings.append(f"missing required evidence manifest item for: {requirement_text}")
 
     return findings
