@@ -568,8 +568,9 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
                 "When this run has required_evidence, write required-evidence-manifest.json in the run directory. "
                 "Live semantic evidence ids service-availability, crawler-workbench-freshness, "
                 "loop-dashboard-freshness, search-api-visibility, and frontend-visibility must reference "
-                "trusted-live-evidence/<evidence-id>.json and put created_by: harness_loop_orchestrator "
-                "inside the referenced artifact payload; manifest-level created_by is not trusted."
+                "trusted-live-evidence/<evidence-id>.json, declare stable evidence ids in the manifest, "
+                "and describe the intended semantic gate; the orchestrator captures trusted live evidence "
+                "artifacts and records provenance for validation."
             ),
             f"Run ID: {run['run_id']}",
             f"Domain: {run['domain']}",
@@ -2841,12 +2842,6 @@ def _validate_required_evidence(
         trusted_live_state = _capture_trusted_live_evidence_for_manifest(repo_root, run, manifest_payload)
         if trusted_live_state:
             _record_trusted_live_evidence_state(repo_root, run, trusted_live_state)
-        else:
-            trusted_live_state = (
-                run.get("trusted_live_evidence_state")
-                if isinstance(run.get("trusted_live_evidence_state"), Mapping)
-                else {}
-            )
         findings.extend(
             validate_required_evidence_manifest(
                 required_evidence,

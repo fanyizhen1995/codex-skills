@@ -516,6 +516,17 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn("Build the thing", preflight)
             self.assertIn("Fallback Questionnaire", preflight)
 
+    def test_autonomous_generator_prompt_declares_manifest_intent_without_claiming_trusted_artifact_creation(self) -> None:
+        prompt = harness_loop_orchestrator._autonomous_generator_prompt(
+            {"run_id": "expanded-run", "domain": "ai_infra"},
+            Path("/tmp/run-dir"),
+        )
+
+        self.assertIn("write required-evidence-manifest.json", prompt)
+        self.assertIn("declare stable evidence ids", prompt)
+        self.assertNotIn("put created_by: harness_loop_orchestrator inside the referenced artifact payload", prompt)
+        self.assertNotIn("create trusted-live-evidence", prompt)
+
     def test_create_preflight_run_captures_baseline_before_loop_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -2453,6 +2464,67 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "run_id": "expanded-run",
                 "task_id": "expanded-task",
                 "domain": "ai_infra",
+            }
+
+            with patch.object(
+                harness_loop_orchestrator,
+                "_capture_trusted_live_evidence_for_manifest",
+                return_value={},
+            ):
+                result = harness_loop_orchestrator._validate_required_evidence(
+                    repo_root,
+                    run,
+                    ["search API visibility after ingestion"],
+                )
+
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(
+                any("trusted live evidence state" in finding for finding in result["findings"]),
+                result,
+            )
+
+    def test_required_evidence_gate_ignores_stale_run_trusted_live_state_when_current_pass_captures_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = run_dir_for(repo_root, "expanded-run")
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            write_json_file(
+                artifact_path,
+                {
+                    "status": "pass",
+                    "query": "fresh capture required",
+                    "visible_results": 1,
+                    "created_by": "harness_loop_orchestrator",
+                },
+            )
+            write_json_file(
+                run_dir / "required-evidence-manifest.json",
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "fresh search visibility evidence",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+            )
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-task",
+                "domain": "ai_infra",
+                "trusted_live_evidence_state": {
+                    "search-api-visibility": {
+                        "artifact_path": artifact_relative,
+                        "sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+                        "created_by": "harness_loop_orchestrator",
+                        "captured_at": "2026-01-01T00:00:00Z",
+                    }
+                },
             }
 
             with patch.object(

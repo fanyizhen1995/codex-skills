@@ -656,20 +656,11 @@ def validate_required_evidence_manifest(
             and requirement_tokens.issubset(indexed_item["tokens"])
         ]
         if inferred_semantic_evidence_id:
-            validated_summary_matches: list[dict[str, Any]] = []
-            for indexed_item in summary_only_matches:
-                inferred_findings = _validate_semantic_evidence_artifacts(
-                    evidence_id=inferred_semantic_evidence_id,
-                    item=indexed_item["item"],
-                    run_dir=run_dir,
-                    resolved_artifacts=indexed_item["resolved_artifacts"],
-                    trusted_live_evidence_state=trusted_live_evidence_state,
+            if summary_only_matches:
+                findings.append(
+                    f"semantic required evidence {inferred_semantic_evidence_id} must use explicit evidence_id"
                 )
-                if inferred_findings:
-                    findings.extend(inferred_findings)
-                    continue
-                validated_summary_matches.append(indexed_item)
-            summary_only_matches = validated_summary_matches
+            summary_only_matches = []
         if not summary_only_matches:
             findings.append(f"missing required evidence manifest item for: {requirement_text}")
 

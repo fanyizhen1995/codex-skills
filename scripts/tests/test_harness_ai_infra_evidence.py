@@ -416,6 +416,47 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
 
             self.assertEqual(findings, [])
 
+    def test_required_evidence_manifest_blocks_semantic_summary_only_match_without_explicit_evidence_id(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._search_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "status": "pass",
+                            "summary": "search API visibility after ingestion",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "search-api-visibility",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertTrue(
+                any("search-api-visibility" in finding and "explicit evidence_id" in finding for finding in findings),
+                findings,
+            )
+            self.assertTrue(
+                any("missing required evidence manifest item for: search API visibility after ingestion" in finding for finding in findings),
+                findings,
+            )
+
     def test_required_evidence_manifest_blocks_forged_run_local_live_pass_evidence_without_trusted_state(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -753,7 +794,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             )
 
             self.assertTrue(
-                any("service-availability artifact" in finding for finding in findings),
+                any("service-availability" in finding and "explicit evidence_id" in finding for finding in findings),
                 findings,
             )
             self.assertIn(
