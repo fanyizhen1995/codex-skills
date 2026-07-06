@@ -384,6 +384,28 @@ def _non_empty_sequence(value: Any) -> bool:
     )
 
 
+def _validate_visibility_target_fields(
+    payload: Mapping[str, Any],
+    *,
+    evidence_id: str,
+    artifact_path: str,
+) -> list[str]:
+    findings: list[str] = []
+    for field_name in ("run_id", "task_id", "domain"):
+        if not _non_empty_string(payload.get(field_name, "")):
+            findings.append(f"{evidence_id} artifact {artifact_path} must include non-empty {field_name}")
+    expected_targets = payload.get("expected_targets")
+    if not isinstance(expected_targets, list) or not expected_targets:
+        findings.append(f"{evidence_id} artifact {artifact_path} must include non-empty expected_targets")
+    matched_targets = payload.get("matched_targets")
+    if not isinstance(matched_targets, list) or not matched_targets:
+        findings.append(f"{evidence_id} artifact {artifact_path} must include non-empty matched_targets")
+    missing_targets = payload.get("missing_targets")
+    if not isinstance(missing_targets, list):
+        findings.append(f"{evidence_id} artifact {artifact_path} must include missing_targets as a list")
+    return findings
+
+
 def _validate_search_visibility_payload(
     payload: Mapping[str, Any],
     *,
@@ -407,6 +429,13 @@ def _validate_search_visibility_payload(
         findings.append(
             f"{evidence_id} artifact {artifact_path} must include visible_results > 0 or non-empty visible_items"
         )
+    findings.extend(
+        _validate_visibility_target_fields(
+            payload,
+            evidence_id=evidence_id,
+            artifact_path=artifact_path,
+        )
+    )
     return findings
 
 
@@ -432,6 +461,13 @@ def _validate_frontend_visibility_payload(
         findings.append(
             f"{evidence_id} artifact {artifact_path} must include non-empty visible_text or assertions"
         )
+    findings.extend(
+        _validate_visibility_target_fields(
+            payload,
+            evidence_id=evidence_id,
+            artifact_path=artifact_path,
+        )
+    )
     return findings
 
 

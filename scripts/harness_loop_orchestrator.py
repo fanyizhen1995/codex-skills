@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import urlopen
 
 try:
@@ -2027,21 +2028,67 @@ def _write_expanded_fake_evidence(
                 "status": item_status,
             }
             if evidence_id == "search-api-visibility":
+                target = {
+                    "target_id": f"synthetic:{changed_path}",
+                    "kind": "synthetic",
+                    "path": changed_path,
+                    "title": "Expanded runtime smoke",
+                    "query": "expanded runtime smoke",
+                }
                 artifact_payload.update(
                     {
                         "status": "pass",
                         "query": "expanded runtime smoke",
                         "visible_results": 1,
                         "visible_items": [changed_path],
+                        "run_id": str(run["run_id"]),
+                        "task_id": task_id,
+                        "domain": str(run.get("domain", "")),
+                        "expected_targets": [target],
+                        "matched_targets": [
+                            {
+                                "target_id": target["target_id"],
+                                "path": changed_path,
+                                "title": "Expanded runtime smoke",
+                                "query": "expanded runtime smoke",
+                                "matched_on": changed_path,
+                                "result_value": changed_path,
+                            }
+                        ],
+                        "missing_targets": [],
                     }
                 )
             elif evidence_id == "frontend-visibility":
+                target = {
+                    "target_id": f"synthetic:{changed_path}",
+                    "kind": "synthetic",
+                    "path": changed_path,
+                    "title": "Expanded runtime smoke",
+                    "query": "expanded runtime smoke",
+                }
                 artifact_payload.update(
                     {
                         "status": "pass",
-                        "route": "/wiki/ai_infra",
-                        "page_url": "http://127.0.0.1:5173/wiki/ai_infra",
+                        "run_id": str(run["run_id"]),
+                        "task_id": task_id,
+                        "domain": str(run.get("domain", "")),
+                        "route": "/api/search",
+                        "page_url": "http://127.0.0.1:5173/",
+                        "api_url": "http://127.0.0.1:5173/api/search?q=expanded+runtime+smoke&domain=ai_infra",
                         "visible_text": ["Expanded runtime smoke"],
+                        "assertions": ["frontend proxy search matched current runtime target"],
+                        "expected_targets": [target],
+                        "matched_targets": [
+                            {
+                                "target_id": target["target_id"],
+                                "path": changed_path,
+                                "title": "Expanded runtime smoke",
+                                "query": "expanded runtime smoke",
+                                "matched_on": changed_path,
+                                "result_value": changed_path,
+                            }
+                        ],
+                        "missing_targets": [],
                     }
                 )
             elif evidence_id in _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE:
@@ -2640,7 +2687,12 @@ def _capture_trusted_live_evidence_for_manifest(
         artifact_relative = trusted_live_evidence_artifact_path(evidence_id)
         artifact_path = run_dir / artifact_relative
         captured_at = _timestamp()
-        payload = _capture_live_evidence_payload(evidence_id, run=run, captured_at=captured_at)
+        payload = _capture_live_evidence_payload(
+            evidence_id,
+            run=run,
+            captured_at=captured_at,
+            repo_root=repo_root,
+        )
         payload["evidence_id"] = evidence_id
         payload["created_by"] = _TRUSTED_LIVE_EVIDENCE_CREATED_BY
         payload["captured_at"] = captured_at
@@ -2652,6 +2704,288 @@ def _capture_trusted_live_evidence_for_manifest(
             "captured_at": captured_at,
         }
     return state
+
+
+def _repo_root_for_live_evidence(run: Mapping[str, Any], repo_root: Path | None = None) -> Path:
+    if repo_root is not None:
+        return repo_root
+    worktree = str(run.get("worktree", "")).strip()
+    return Path(worktree) if worktree else Path.cwd()
+
+
+def _generator_changed_paths_for_visibility(repo_root: Path, run_id: str) -> list[str]:
+    generator_result_path = run_dir_for(repo_root, run_id) / "generator-result.json"
+    if not generator_result_path.exists():
+        return []
+    try:
+        generator_result = read_json_file(generator_result_path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return []
+    changed_paths = generator_result.get("changed_paths")
+    if not isinstance(changed_paths, list):
+        return []
+    return [str(path).strip() for path in changed_paths if str(path).strip()]
+
+
+def _read_markdown_title(path: Path) -> str:
+    if path.suffix.lower() != ".md" or not path.exists():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", text, re.DOTALL)
+    if frontmatter_match:
+        for line in frontmatter_match.group(1).splitlines():
+            title_match = re.match(r"^title:\s*(.+?)\s*$", line.strip(), re.IGNORECASE)
+            if title_match:
+                return title_match.group(1).strip().strip("'\"")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return ""
+
+
+def _query_from_path(path: str) -> str:
+    stem = Path(path).stem
+    query = re.sub(r"[-_.\\/]+", " ", stem).strip()
+    return re.sub(r"\s+", " ", query)
+
+
+def _dedupe_strings(values: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        normalized = text.lower()
+        if not text or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(text)
+    return deduped
+
+
+def _public_visibility_target(target: Mapping[str, Any]) -> dict[str, Any]:
+    public: dict[str, Any] = {}
+    for key in ("target_id", "kind", "path", "title", "query"):
+        value = target.get(key)
+        if isinstance(value, str) and value.strip():
+            public[key] = value.strip()
+    return public
+
+
+def _visibility_target_for_changed_path(repo_root: Path, domain: str, changed_path: str) -> dict[str, Any] | None:
+    normalized_path = str(changed_path).strip().replace("\\", "/")
+    domain_prefix = f"personal-wiki/domains/{domain}/"
+    if not normalized_path.startswith(domain_prefix):
+        return None
+    title = ""
+    kind = ""
+    if normalized_path.endswith(".md") and "/raw/" not in normalized_path and "/sources/" not in normalized_path:
+        kind = "wiki_page"
+        title = _read_markdown_title(repo_root / normalized_path)
+    elif "/raw/" in normalized_path:
+        kind = "raw_path"
+    elif "/sources/" in normalized_path:
+        kind = "source_path"
+    else:
+        return None
+    query_candidates = _dedupe_strings([title, _query_from_path(normalized_path)])
+    if not query_candidates:
+        return None
+    match_terms = _dedupe_strings(
+        [
+            normalized_path,
+            title,
+            Path(normalized_path).name,
+            _query_from_path(normalized_path),
+        ]
+    )
+    return {
+        "target_id": f"{kind}:{normalized_path}",
+        "kind": kind,
+        "path": normalized_path,
+        "title": title,
+        "query": query_candidates[0],
+        "query_candidates": query_candidates,
+        "match_terms": match_terms,
+    }
+
+
+def _visibility_context(
+    repo_root: Path | None,
+    run: Mapping[str, Any],
+) -> dict[str, Any]:
+    root = _repo_root_for_live_evidence(run, repo_root=repo_root)
+    run_id = str(run.get("run_id", "")).strip()
+    task_id = str(run.get("task_id", "")).strip()
+    domain = str(run.get("domain", "")).strip()
+    changed_paths = _generator_changed_paths_for_visibility(root, run_id)
+    targets: list[dict[str, Any]] = []
+    seen_target_ids: set[str] = set()
+    for changed_path in changed_paths:
+        target = _visibility_target_for_changed_path(root, domain, changed_path)
+        if target is None:
+            continue
+        target_id = str(target["target_id"])
+        if target_id in seen_target_ids:
+            continue
+        seen_target_ids.add(target_id)
+        targets.append(target)
+    return {
+        "repo_root": root,
+        "run_id": run_id,
+        "task_id": task_id,
+        "domain": domain,
+        "changed_paths": changed_paths,
+        "targets": targets,
+        "expected_targets": [_public_visibility_target(target) for target in targets],
+    }
+
+
+def _result_candidates(payload: Any) -> list[Any]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, Mapping):
+        for key in ("results", "items", "pages"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
+def _flatten_probe_text(value: Any) -> str:
+    parts: list[str] = []
+
+    def visit(node: Any) -> None:
+        if isinstance(node, Mapping):
+            for item in node.values():
+                visit(item)
+            return
+        if isinstance(node, list):
+            for item in node[:10]:
+                visit(item)
+            return
+        text = str(node).strip()
+        if text:
+            parts.append(text.lower())
+
+    visit(value)
+    return " ".join(parts)
+
+
+def _candidate_result_value(candidate: Any) -> str:
+    if isinstance(candidate, Mapping):
+        for key in ("path", "title", "url"):
+            value = str(candidate.get(key, "")).strip()
+            if value:
+                return value
+    return str(candidate).strip()
+
+
+def _match_visibility_target(
+    payload: Any,
+    target: Mapping[str, Any],
+    *,
+    query: str,
+) -> dict[str, Any] | None:
+    for candidate in _result_candidates(payload):
+        haystack = _flatten_probe_text(candidate)
+        for match_term in target.get("match_terms", []):
+            term = str(match_term).strip()
+            if term and term.lower() in haystack:
+                return {
+                    "target_id": str(target.get("target_id", "")).strip(),
+                    "path": str(target.get("path", "")).strip(),
+                    "title": str(target.get("title", "")).strip(),
+                    "query": query,
+                    "matched_on": term,
+                    "result_value": _candidate_result_value(candidate),
+                }
+    return None
+
+
+def _capture_targeted_search_visibility(
+    *,
+    run: Mapping[str, Any],
+    captured_at: str,
+    base_url: str,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    context = _visibility_context(repo_root, run)
+    expected_targets = context["expected_targets"]
+    missing_reason = "no current knowledge targets derived from generator-result changed_paths"
+    if not expected_targets:
+        return {
+            "status": "blocked",
+            "run_id": context["run_id"],
+            "task_id": context["task_id"],
+            "domain": context["domain"],
+            "query": "",
+            "visible_results": 0,
+            "visible_items": [],
+            "expected_targets": [],
+            "matched_targets": [],
+            "missing_targets": [{"reason": missing_reason, "changed_paths": context["changed_paths"]}],
+            "probes": [],
+            "summary": missing_reason,
+            "captured_at": captured_at,
+        }
+
+    matched_targets: list[dict[str, Any]] = []
+    missing_targets: list[dict[str, Any]] = []
+    probes: list[dict[str, Any]] = []
+    primary_query = ""
+    for target in context["targets"]:
+        target_match: dict[str, Any] | None = None
+        for query in target["query_candidates"]:
+            if not primary_query:
+                primary_query = query
+            params = {"q": query}
+            if context["domain"]:
+                params["domain"] = context["domain"]
+            probe_url = f"{base_url}?{urlencode(params)}"
+            probe = _http_probe(probe_url)
+            target_match = _match_visibility_target(probe.get("json"), target, query=query)
+            probes.append(
+                {
+                    "target_id": str(target["target_id"]),
+                    "query": query,
+                    "url": probe_url,
+                    "probe": probe,
+                    "matched": bool(target_match),
+                }
+            )
+            if target_match is not None:
+                break
+        if target_match is None:
+            missing_targets.append(_public_visibility_target(target))
+            continue
+        matched_targets.append(target_match)
+
+    visible_items = [str(match.get("result_value", "")).strip() for match in matched_targets if str(match.get("result_value", "")).strip()]
+    status = "pass" if matched_targets else "blocked"
+    summary = (
+        f"matched {len(matched_targets)} current visibility target(s) via live search probe"
+        if matched_targets
+        else "live search probe did not match any current visibility targets"
+    )
+    return {
+        "status": status,
+        "run_id": context["run_id"],
+        "task_id": context["task_id"],
+        "domain": context["domain"],
+        "query": primary_query,
+        "visible_results": len(matched_targets),
+        "visible_items": visible_items,
+        "expected_targets": expected_targets,
+        "matched_targets": matched_targets,
+        "missing_targets": missing_targets,
+        "probes": probes,
+        "summary": summary,
+        "captured_at": captured_at,
+    }
 
 
 def _live_evidence_ids_from_manifest(manifest_payload: Mapping[str, Any]) -> set[str]:
@@ -2673,7 +3007,13 @@ def _live_evidence_ids_from_manifest(manifest_payload: Mapping[str, Any]) -> set
     return evidence_ids
 
 
-def _capture_live_evidence_payload(evidence_id: str, *, run: Mapping[str, Any], captured_at: str) -> dict[str, Any]:
+def _capture_live_evidence_payload(
+    evidence_id: str,
+    *,
+    run: Mapping[str, Any],
+    captured_at: str,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
     if evidence_id == "service-availability":
         return check_service_availability(
             [
@@ -2702,30 +3042,50 @@ def _capture_live_evidence_payload(evidence_id: str, *, run: Mapping[str, Any], 
         }
         return _freshness_probe_payload(details, captured_at=captured_at)
     if evidence_id == "search-api-visibility":
-        probe = _http_probe("http://127.0.0.1:8765/api/search?q=ai_infra&domain=ai_infra")
-        visible_results = _visible_result_count(probe.get("json"))
-        return {
-            "status": "pass" if probe["status"] == "pass" and visible_results > 0 else "blocked",
-            "query": "ai_infra",
-            "visible_results": visible_results,
-            "visible_items": _visible_result_items(probe.get("json")),
-            "probe": probe,
-            "summary": "search API returned visible ai_infra results"
-            if probe["status"] == "pass" and visible_results > 0
-            else "search API visibility probe did not return visible ai_infra results",
-            "captured_at": captured_at,
-        }
+        return _capture_targeted_search_visibility(
+            run=run,
+            captured_at=captured_at,
+            base_url="http://127.0.0.1:8765/api/search",
+            repo_root=repo_root,
+        )
     if evidence_id == "frontend-visibility":
-        probe = _http_probe("http://127.0.0.1:5173/")
-        visible_text = ["crawler workbench frontend loaded"] if probe["status"] == "pass" and probe.get("body_excerpt") else []
+        root_probe = _http_probe("http://127.0.0.1:5173/")
+        search_payload = _capture_targeted_search_visibility(
+            run=run,
+            captured_at=captured_at,
+            base_url="http://127.0.0.1:5173/api/search",
+            repo_root=repo_root,
+        )
+        assertions: list[str] = []
+        visible_text: list[str] = []
+        if root_probe["status"] == "pass" and root_probe.get("body_excerpt"):
+            visible_text.append("crawler workbench frontend loaded")
+            assertions.append("frontend root loaded")
+        if search_payload["matched_targets"]:
+            assertions.append("frontend proxy /api/search matched current target")
+        else:
+            assertions.append("frontend proxy /api/search did not match current target")
         return {
-            "status": "pass" if visible_text else "blocked",
+            "status": "pass" if search_payload["matched_targets"] else "blocked",
+            "run_id": search_payload["run_id"],
+            "task_id": search_payload["task_id"],
+            "domain": search_payload["domain"],
+            "query": search_payload["query"],
             "page_url": "http://127.0.0.1:5173/",
+            "route": "/api/search",
+            "api_url": next((probe["url"] for probe in search_payload["probes"] if probe.get("url")), "http://127.0.0.1:5173/api/search"),
             "visible_text": visible_text,
-            "probe": probe,
-            "summary": "frontend returned a non-empty page"
-            if visible_text
-            else "frontend visibility probe did not return a non-empty page",
+            "assertions": assertions,
+            "expected_targets": search_payload["expected_targets"],
+            "matched_targets": search_payload["matched_targets"],
+            "missing_targets": search_payload["missing_targets"],
+            "probes": {
+                "page": root_probe,
+                "api": search_payload["probes"],
+            },
+            "summary": "frontend proxy matched current visibility targets"
+            if search_payload["matched_targets"]
+            else "frontend proxy did not match current visibility targets",
             "captured_at": captured_at,
         }
     return {
@@ -2840,8 +3200,7 @@ def _validate_required_evidence(
 
     if manifest_payload is not None:
         trusted_live_state = _capture_trusted_live_evidence_for_manifest(repo_root, run, manifest_payload)
-        if trusted_live_state:
-            _record_trusted_live_evidence_state(repo_root, run, trusted_live_state)
+        _record_trusted_live_evidence_state(repo_root, run, trusted_live_state)
         findings.extend(
             validate_required_evidence_manifest(
                 required_evidence,

@@ -364,21 +364,67 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         }
 
     def _valid_search_visibility_payload(self) -> dict[str, object]:
+        expected_target = {
+            "target_id": "wiki:personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
+            "kind": "wiki_page",
+            "path": "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
+            "title": "Expanded Runtime Smoke",
+            "query": "Expanded Runtime Smoke",
+        }
         return {
             "status": "pass",
             "created_by": "harness_loop_orchestrator",
-            "query": "expanded runtime smoke",
+            "run_id": "expanded-run",
+            "task_id": "expanded-run-task-1",
+            "domain": "ai_infra",
+            "query": "Expanded Runtime Smoke",
             "visible_results": 1,
-            "visible_items": ["personal-wiki/domains/ai_infra/raw/synthetic-gap-proof.md"],
+            "visible_items": [expected_target["path"]],
+            "expected_targets": [expected_target],
+            "matched_targets": [
+                {
+                    "target_id": expected_target["target_id"],
+                    "path": expected_target["path"],
+                    "title": expected_target["title"],
+                    "query": expected_target["query"],
+                    "matched_on": "path",
+                    "result_value": expected_target["path"],
+                }
+            ],
+            "missing_targets": [],
         }
 
     def _valid_frontend_visibility_payload(self) -> dict[str, object]:
+        expected_target = {
+            "target_id": "wiki:personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
+            "kind": "wiki_page",
+            "path": "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md",
+            "title": "Expanded Runtime Smoke",
+            "query": "Expanded Runtime Smoke",
+        }
         return {
             "status": "pass",
             "created_by": "harness_loop_orchestrator",
-            "page_url": "http://127.0.0.1:5173/wiki/ai_infra",
-            "route": "/wiki/ai_infra",
+            "run_id": "expanded-run",
+            "task_id": "expanded-run-task-1",
+            "domain": "ai_infra",
+            "page_url": "http://127.0.0.1:5173/",
+            "route": "/api/search",
+            "api_url": "http://127.0.0.1:5173/api/search?q=Expanded+Runtime+Smoke&domain=ai_infra",
             "visible_text": ["Expanded runtime smoke"],
+            "assertions": ["frontend proxy search matched current runtime target"],
+            "expected_targets": [expected_target],
+            "matched_targets": [
+                {
+                    "target_id": expected_target["target_id"],
+                    "path": expected_target["path"],
+                    "title": expected_target["title"],
+                    "query": expected_target["query"],
+                    "matched_on": "path",
+                    "result_value": expected_target["path"],
+                }
+            ],
+            "missing_targets": [],
         }
 
     def _write_required_evidence_manifest(
@@ -485,6 +531,33 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "captured_at": "2026-01-01T00:00:00Z",
             }
         return state
+
+    def _seed_visibility_target(
+        self,
+        repo_root: Path,
+        *,
+        run_id: str,
+        title: str = "Expanded Runtime Smoke",
+    ) -> str:
+        relative_path = "personal-wiki/domains/ai_infra/runtime/expanded-runtime-smoke.md"
+        page_path = repo_root / relative_path
+        page_path.parent.mkdir(parents=True, exist_ok=True)
+        page_path.write_text(f"---\ntitle: {title}\n---\n\n# {title}\n", encoding="utf-8")
+        write_json_file(
+            run_dir_for(repo_root, run_id) / "generator-result.json",
+            {
+                "task_id": f"{run_id}-task-1",
+                "status": "implemented",
+                "changed_paths": [relative_path],
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": [],
+                "cleanup_required": False,
+                "notes": "seeded current visibility target",
+            },
+        )
+        return relative_path
 
     def test_create_preflight_run_without_confirmation_writes_run_state_and_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2488,6 +2561,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             repo_root = Path(tmp)
             run_dir = run_dir_for(repo_root, "expanded-run")
             run_dir.mkdir(parents=True, exist_ok=True)
+            write_json_file(run_dir / "run.json", {"run_id": "expanded-run", "trusted_live_evidence_state": {"stale": True}})
             artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
             artifact_path = run_dir / artifact_relative
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2543,6 +2617,147 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 any("trusted live evidence state" in finding for finding in result["findings"]),
                 result,
             )
+            persisted_run = read_json_file(run_dir / "run.json")
+            self.assertEqual(persisted_run["trusted_live_evidence_state"], {})
+            self.assertEqual(run["trusted_live_evidence_state"], {})
+
+    def test_capture_live_search_visibility_matches_current_changed_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["query"], "Expanded Runtime Smoke")
+            self.assertEqual(payload["run_id"], run_id)
+            self.assertEqual(payload["task_id"], "expanded-run-task-1")
+            self.assertEqual(payload["domain"], "ai_infra")
+            self.assertEqual(payload["expected_targets"][0]["path"], relative_path)
+            self.assertEqual(payload["matched_targets"][0]["path"], relative_path)
+            self.assertEqual(payload["missing_targets"], [])
+
+    def test_capture_live_search_visibility_blocks_stale_generic_ai_infra_results(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "AI Infra Overview",
+                                "path": "personal-wiki/domains/ai_infra/index.md",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["query"], "Expanded Runtime Smoke")
+            self.assertEqual(payload["expected_targets"][0]["path"], relative_path)
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
+
+    def test_capture_live_frontend_visibility_blocks_loaded_root_without_current_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                if url == "http://127.0.0.1:5173/":
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "body_excerpt": "<html>Crawler Workbench</html>",
+                        "json": None,
+                    }
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "AI Infra Overview",
+                                "path": "personal-wiki/domains/ai_infra/index.md",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "frontend-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["page_url"], "http://127.0.0.1:5173/")
+            self.assertEqual(payload["route"], "/api/search")
+            self.assertEqual(payload["expected_targets"][0]["path"], relative_path)
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
 
     def test_run_autonomous_rejects_expanded_fake_drivers_without_expanded_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
