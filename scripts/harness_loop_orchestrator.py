@@ -2384,22 +2384,51 @@ def _run_wiki_validate(repo_root: Path, domain: str, run_dir: Path) -> bool:
 _AUTONOMOUS_COMMIT_CREATED_BY = "harness_loop_orchestrator"
 
 
-def _has_verified_orchestrator_commit_result(repo_root: Path, run_dir: Path, commit_sha: str) -> bool:
+def _commit_changed_paths(repo_root: Path, commit_sha: str) -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_sha],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    return sorted(path.strip() for path in result.stdout.splitlines() if path.strip())
+
+
+def _verify_orchestrator_commit_result(
+    repo_root: Path,
+    run_dir: Path,
+    commit_sha: str,
+    declared_changed_paths: Sequence[str],
+) -> str:
     if not commit_sha:
-        return False
+        return "missing commit"
     result_path = run_dir / "commit-result.json"
     if not result_path.exists():
-        return False
+        return "missing commit-result.json"
     try:
         payload = read_json_file(result_path)
     except (OSError, json.JSONDecodeError, ValueError):
-        return False
-    return (
-        payload.get("status") == "pass"
-        and payload.get("commit") == commit_sha
-        and payload.get("created_by") == _AUTONOMOUS_COMMIT_CREATED_BY
-        and commit_sha == _current_head(repo_root)
-    )
+        return "commit-result.json is unreadable"
+    if payload.get("status") != "pass":
+        return "commit-result.json status is not pass"
+    if payload.get("commit") != commit_sha:
+        return "commit-result.json commit does not match generator result"
+    if payload.get("created_by") != _AUTONOMOUS_COMMIT_CREATED_BY:
+        return "commit-result.json was not created by the orchestrator"
+    if commit_sha != _current_head(repo_root):
+        return "commit does not match current HEAD"
+    committed_paths = _commit_changed_paths(repo_root, commit_sha)
+    if not committed_paths:
+        return "commit has no changed paths"
+    declared = {str(path).strip() for path in declared_changed_paths if str(path).strip()}
+    undeclared_paths = sorted(path for path in committed_paths if path not in declared)
+    if undeclared_paths:
+        return f"commit contains undeclared paths: {', '.join(undeclared_paths)}"
+    return ""
 
 
 def _commit_autonomous_changes(
@@ -2470,13 +2499,19 @@ def _commit_autonomous_changes(
 
     supplied_commit = str(generator_result.get("commit", "")).strip()
     if supplied_commit:
-        if not _has_verified_orchestrator_commit_result(repo_root, run_dir, supplied_commit):
+        commit_verification_error = _verify_orchestrator_commit_result(
+            repo_root,
+            run_dir,
+            supplied_commit,
+            changed_paths,
+        )
+        if commit_verification_error:
             write_json_file(
                 run_dir / "commit-result.json",
                 {
                     "status": "blocked",
                     "commit": supplied_commit,
-                    "error": "generator supplied commit without verified orchestrator commit-result evidence",
+                    "error": f"generator supplied commit without verified orchestrator commit-result evidence: {commit_verification_error}",
                     "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
                 },
             )
