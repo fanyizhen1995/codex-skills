@@ -3992,6 +3992,35 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertTrue(payload["isolated_clone"])
         self.assertEqual(payload["overall_status"], "pass")
 
+    def test_ai_infra_meta_loop_smoke_helper_keeps_git_identity_changes_inside_isolated_clone(self) -> None:
+        from scripts import harness_ai_infra_meta_loop_smoke as smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+
+            section_pass = {"status": "pass"}
+            section_blocked = {"status": "blocked", "summary": "synthetic", "artifacts": []}
+
+            with (
+                patch.object(smoke, "_seed_ai_infra_candidate"),
+                patch.object(smoke, "_run_preflight", return_value={"policy_file": smoke.POLICY_FILE}),
+                patch.object(smoke, "_run_missing_evidence_round", return_value=section_pass),
+                patch.object(smoke, "_reset_to_clean_head"),
+                patch.object(smoke, "_run_expanded_code_round", return_value=section_pass),
+                patch.object(smoke, "_service_availability_summary", return_value=section_pass),
+                patch.object(smoke, "_manifest_item_summary", side_effect=[section_blocked, section_blocked]),
+                patch.object(smoke, "_configure_git_identity") as configure_git_identity,
+            ):
+                payload = smoke.run_ai_infra_meta_loop_smoke(
+                    repo_root,
+                    "evaluator-scenario-ai-infra-meta-loop-runtime-test",
+                    isolate_clone=False,
+                )
+
+            self.assertFalse(payload["isolated_clone"])
+            self.assertEqual(configure_git_identity.call_count, 0)
+
 
 class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
     def _create_parent(self, repo_root: Path, run_id: str = "parent-run") -> dict[str, object]:

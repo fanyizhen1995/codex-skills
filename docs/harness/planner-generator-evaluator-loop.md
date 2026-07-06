@@ -367,8 +367,8 @@ evidence gate. The helper prints compact JSON with
 `fake-expanded-code` and `fake-missing-evidence` are smoke-only autonomous
 generator drivers. They never touch live project services, and they are valid
 only for runs that loaded
-`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json` or an
-equivalent expanded ai_infra required-evidence contract. The expanded-code
+`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`
+exactly. The expanded-code
 driver writes a deterministic local smoke file plus run-local evidence
 artifacts and stable-ID `required-evidence-manifest.json` entries. Freshness
 and visibility artifacts remain explicit synthetic smoke placeholders or

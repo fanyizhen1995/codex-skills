@@ -250,9 +250,10 @@ def _manifest_item_summary(repo_root: Path, run_id: str, evidence_id: str) -> di
     }
 
 
-def _run_smoke_in_repo(repo_root: Path, run_id: str) -> dict[str, Any]:
+def _run_smoke_in_repo(repo_root: Path, run_id: str, *, configure_git_identity: bool) -> dict[str, Any]:
     _assert_git_repo(repo_root)
-    _configure_git_identity(repo_root)
+    if configure_git_identity:
+        _configure_git_identity(repo_root)
     _seed_ai_infra_candidate(repo_root, run_id)
 
     preflight = _run_preflight(repo_root, run_id)
@@ -264,7 +265,8 @@ def _run_smoke_in_repo(repo_root: Path, run_id: str) -> dict[str, Any]:
 
     missing_evidence_gate = _run_missing_evidence_round(repo_root, run_id)
     _reset_to_clean_head(repo_root)
-    _configure_git_identity(repo_root)
+    if configure_git_identity:
+        _configure_git_identity(repo_root)
     _seed_ai_infra_candidate(repo_root, run_id)
     _run_preflight(repo_root, run_id)
     expanded_code_scope = _run_expanded_code_round(repo_root, run_id)
@@ -305,13 +307,13 @@ def run_ai_infra_meta_loop_smoke(repo_root: Path | str, run_id: str, *, isolate_
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            payload = _run_smoke_in_repo(clone_root, run_id)
+            payload = _run_smoke_in_repo(clone_root, run_id, configure_git_identity=True)
             payload["isolated_clone"] = True
             payload["source_repo_root"] = str(source_root)
             payload["repo_root"] = str(clone_root)
             return payload
 
-    payload = _run_smoke_in_repo(source_root, run_id)
+    payload = _run_smoke_in_repo(source_root, run_id, configure_git_identity=False)
     payload["isolated_clone"] = False
     payload["repo_root"] = str(source_root)
     return payload
