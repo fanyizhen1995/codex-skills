@@ -897,6 +897,41 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["phase"], "stopped_blocked")
             self.assertEqual(load_run(repo_root, "ai-run")["next_action"], "inspect_ai_infra_coverage_map")
 
+    def test_run_autonomous_codex_planner_missing_coverage_map_without_no_action_evidence_reaches_planner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="ai-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+
+            def fake_planner(planner_repo_root: Path, run: dict[str, object]) -> bool:
+                run["phase"] = "stopped_blocked"
+                run["next_action"] = "planner_called"
+                run["last_result"] = "blocked"
+                harness_loop_orchestrator.save_run(planner_repo_root, run)
+                return False
+
+            with patch.object(harness_loop_orchestrator, "_run_codex_autonomous_planner", side_effect=fake_planner) as planner:
+                status = run_autonomous(
+                    repo_root,
+                    "ai-run",
+                    planner_driver="codex-exec",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            planner.assert_called_once()
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "planner_called")
+
     def test_run_autonomous_blocks_semantically_invalid_ai_infra_coverage_map(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

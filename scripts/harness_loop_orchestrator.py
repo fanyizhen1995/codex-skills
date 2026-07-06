@@ -1761,6 +1761,8 @@ def _coverage_map_result_path(repo_root: Path, run_id: str) -> Path:
 def _load_ai_infra_coverage_map(
     repo_root: Path,
     run: dict[str, Any],
+    *,
+    write_result: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     if run["domain"] != "ai_infra":
         return None, None
@@ -1772,7 +1774,8 @@ def _load_ai_infra_coverage_map(
             "coverage_map_path": str(coverage_path.relative_to(repo_root)),
             "error": "coverage-map.json is missing",
         }
-        write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
+        if write_result:
+            write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
         return None, result
     try:
         payload = load_or_create_coverage_map(repo_root, run["domain"], run["requirement"])
@@ -1783,7 +1786,8 @@ def _load_ai_infra_coverage_map(
             "coverage_map_path": str(coverage_path.relative_to(repo_root)),
             "error": str(exc),
         }
-        write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
+        if write_result:
+            write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
         return None, result
     try:
         validate_ai_infra_coverage_map_semantics(payload, expected_domain=run["domain"])
@@ -1794,7 +1798,8 @@ def _load_ai_infra_coverage_map(
             "coverage_map_path": str(coverage_path.relative_to(repo_root)),
             "error": str(exc),
         }
-        write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
+        if write_result:
+            write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
         return None, result
     return payload, None
 
@@ -1818,6 +1823,15 @@ def _stop_for_ai_infra_coverage_map(
         artifact_paths=[str(_coverage_map_result_path(repo_root, run["run_id"]).relative_to(repo_root))],
     )
     return True
+
+
+def _only_coverage_map_prevents_no_action(reasons: Sequence[str]) -> bool:
+    if not reasons:
+        return False
+    return all(
+        reason.startswith("coverage_map") or reason == "no_action_evidence must reference coverage-map"
+        for reason in reasons
+    )
 
 
 def _run_fake_autonomous_planner(
@@ -1876,10 +1890,13 @@ def _run_fake_autonomous_planner(
 def _stop_if_autonomous_no_action(repo_root: Path, run: dict[str, Any]) -> bool:
     domain = run["domain"]
     state = load_or_create_loop_state(repo_root, domain, run["requirement"])
-    coverage_map, coverage_result = _load_ai_infra_coverage_map(repo_root, run)
-    if coverage_result is not None:
-        return _stop_for_ai_infra_coverage_map(repo_root, run, coverage_result)
+    coverage_map, coverage_result = _load_ai_infra_coverage_map(repo_root, run, write_result=False)
     decision = decide_no_action(state, coverage_map=coverage_map)
+    if coverage_result is not None:
+        if _only_coverage_map_prevents_no_action(decision.reasons):
+            write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), coverage_result)
+            return _stop_for_ai_infra_coverage_map(repo_root, run, coverage_result)
+        return False
     if not decision.no_action:
         return False
     state["last_planner_decision"] = "no_action"
