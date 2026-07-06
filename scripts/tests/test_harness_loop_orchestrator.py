@@ -4114,7 +4114,11 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
         source_policy_root = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies"
         target_policy_root = repo_root / "docs" / "harness" / "loop-policies"
         target_policy_root.mkdir(parents=True, exist_ok=True)
-        for policy_name in ("autonomous-knowledge-ai-infra-expanded.json", "demand-development.json"):
+        for policy_name in (
+            "autonomous-knowledge-ai-infra-expanded.json",
+            "autonomous-knowledge.json",
+            "demand-development.json",
+        ):
             shutil.copy2(source_policy_root / policy_name, target_policy_root / policy_name)
         self._create_parent(repo_root, run_id)
         parent = load_run(repo_root, run_id)
@@ -4239,6 +4243,38 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                     meta_run_id="ai-meta",
                     expansion_run_id="ai-meta-expansion",
                     policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                    source_phase_commit=checkpoint_sha,
+                    transition_evidence=[evidence_path],
+                )
+
+    def test_transition_meta_loop_blocks_non_demand_parent_in_passed_waiting_human_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            parent, checkpoint_sha, evidence_path = self._prepare_transition_parent(repo_root)
+            parent["policy"] = "autonomous_knowledge"
+            write_json_file(run_dir_for(repo_root, "ai-meta") / "run.json", parent)
+
+            with self.assertRaisesRegex(RuntimeError, "demand_development"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+                    source_phase_commit=checkpoint_sha,
+                    transition_evidence=[evidence_path],
+                )
+
+    def test_transition_meta_loop_blocks_non_expanded_autonomous_policy_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            _parent, checkpoint_sha, evidence_path = self._prepare_transition_parent(repo_root)
+
+            with self.assertRaisesRegex(ValueError, "autonomous-knowledge-ai-infra-expanded.json"):
+                harness_loop_orchestrator.transition_meta_loop_to_expansion(
+                    repo_root=repo_root,
+                    meta_run_id="ai-meta",
+                    expansion_run_id="ai-meta-expansion",
+                    policy_file="docs/harness/loop-policies/autonomous-knowledge.json",
                     source_phase_commit=checkpoint_sha,
                     transition_evidence=[evidence_path],
                 )

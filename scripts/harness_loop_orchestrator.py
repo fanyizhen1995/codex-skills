@@ -720,6 +720,8 @@ def transition_meta_loop_to_expansion(
     validate_run_id(meta_run_id)
     validate_run_id(expansion_run_id)
     parent = _ensure_parent_fields(load_run(root, meta_run_id))
+    if parent["policy"] != "demand_development":
+        raise RuntimeError("meta loop must use demand_development policy before transition")
     if parent["phase"] != "passed_waiting_human_merge":
         raise RuntimeError("meta loop must be in passed_waiting_human_merge before transition")
     if run_dir_for(root, expansion_run_id).exists():
@@ -737,6 +739,8 @@ def transition_meta_loop_to_expansion(
         resolved = _resolve_transition_evidence_path(root, path_value)
         resolved_evidence.append(str(resolved.relative_to(root)))
 
+    if policy_file != _EXPANDED_POLICY_FILE:
+        raise ValueError(f"policy_file must be {_EXPANDED_POLICY_FILE} for expansion transition")
     policy_payload = load_loop_policy(root, policy_file)
     if policy_payload["policy"] != "autonomous_knowledge":
         raise ValueError("policy_file policy must be autonomous_knowledge for expansion transition")

@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-06 AI Infra Meta Loop Runtime Review Fix
+
+- Tightened `transition_meta_loop_to_expansion(...)` guardrails after Task 6 review:
+  - refuse non-`demand_development` parents even if they are already at `passed_waiting_human_merge`
+  - require the exact expanded AI infra autonomous policy file `docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`
+- Marked `ai-infra-meta-loop-runtime-01` done in `tasks.json` to match the completed runtime work.
+- Commit created: `fix(harness): enforce ai infra transition guardrails`
+- Evidence:
+  - RED: `python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopDemandMultiTaskTests.test_transition_meta_loop_blocks_non_demand_parent_in_passed_waiting_human_merge scripts.tests.test_harness_loop_orchestrator.HarnessLoopDemandMultiTaskTests.test_transition_meta_loop_blocks_non_expanded_autonomous_policy_file -v` -> 2 failures before the fix
+  - GREEN: same focused command -> 2 passed after the fix
+  - Full verification rerun recorded with the final task fix commit.
+
 ## 2026-07-06 AI Infra Meta Loop Runtime Phase Transition
 
 - Completed `ai-infra-meta-loop-runtime-01`: added the demand-development Phase A to autonomous Phase B transition helper and CLI, documented the transition contract, and marked the planned runtime task done.

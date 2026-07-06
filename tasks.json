@@ -195,7 +195,7 @@
       "id": "ai-infra-meta-loop-runtime-01",
       "title": "Implement AI infra meta loop runtime gates",
       "description": "Implement expanded autonomous policy fixture loading, ai_infra coverage map and no-action gate, gap proof dedupe validation, required evidence and service freshness gates, AI infra evaluator smoke coverage, and Phase A to Phase B meta-loop transition for autonomous AI infra expansion.",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "blocked_by": "planner-generator-evaluator-loop-phase-3-01",
       "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_ai_infra_evidence -v && python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/ai-infra-meta-loop-runtime-01.json >/dev/null && python3 - <<'PY'\nfrom pathlib import Path\nfrom scripts.harness_loop_contracts import read_json_file, validate_loop_policy_payload\nfor path in Path('docs/harness/loop-policies').glob('*.json'):\n    validate_loop_policy_payload(read_json_file(path))\nPY\ncurl --noproxy '*' -fsS http://127.0.0.1:8765/api/health && curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p' && curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health && git diff --check",
