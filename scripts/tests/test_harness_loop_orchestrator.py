@@ -1324,6 +1324,101 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["next_action"], "inspect_autonomous_dirty_paths")
             self.assertIn(".env", dirty_result["unexpected_paths"])
 
+    def test_run_autonomous_blocks_fake_generator_commit_without_orchestrator_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            def write_fake_committed_generator_result(**kwargs: object) -> dict[str, object]:
+                output_path = Path(kwargs["output_json_path"])
+                run_dir = output_path.parent
+                planner_output = read_json_file(run_dir / "planner-output.json")
+                raw_note = (
+                    repo_root
+                    / "personal-wiki"
+                    / "domains"
+                    / "ai_infra"
+                    / "raw"
+                    / "loop-autonomous"
+                    / "fake-commit.md"
+                )
+                raw_note.parent.mkdir(parents=True, exist_ok=True)
+                raw_note.write_text("# Fake committed note\n", encoding="utf-8")
+                seed_no_action_loop_state(repo_root, "ai_infra")
+                write_json_file(
+                    output_path,
+                    {
+                        "task_id": planner_output["task_id"],
+                        "status": "implemented",
+                        "changed_paths": [
+                            "personal-wiki/domains/ai_infra/raw/loop-autonomous/fake-commit.md",
+                            "personal-wiki/domains/ai_infra/loop-state.json",
+                        ],
+                        "commit": "fake-sha",
+                        "verify_commands": [],
+                        "verify_results": ["synthetic generator claimed committed changes"],
+                        "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/fake-commit.md"],
+                        "cleanup_required": False,
+                        "notes": "autonomous knowledge update without dependency changes",
+                    },
+                )
+                write_json_file(
+                    run_dir / "commit-result.json",
+                    {
+                        "status": "pass",
+                        "commit": "fake-sha",
+                        "error": "",
+                    },
+                )
+                write_json_file(
+                    run_dir / "required-evidence-manifest.json",
+                    {
+                        "items": [
+                            {
+                                "evidence_id": "commit-result",
+                                "status": "pass",
+                                "summary": "synthetic generator supplied commit result",
+                                "artifact": "commit-result.json",
+                            }
+                        ]
+                    },
+                )
+                return {
+                    "status": "pass",
+                    "run_id": "demo-run",
+                    "role": "generator",
+                    "attempt": int(kwargs["attempt"]),
+                }
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=write_fake_committed_generator_result):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="codex-exec",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            commit_result = read_json_file(run_dir / "commit-result.json")
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_autonomous_commit")
+            self.assertNotEqual(status["phase"], "stopped_no_action")
+            self.assertEqual(run["next_action"], "inspect_autonomous_commit")
+            self.assertEqual(commit_result["status"], "blocked")
+
     def test_run_autonomous_blocks_and_records_commit_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

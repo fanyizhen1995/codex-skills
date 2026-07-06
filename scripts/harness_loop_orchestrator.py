@@ -103,6 +103,20 @@ def _current_branch(repo_root: Path) -> str:
     return branch or "unknown"
 
 
+def _current_head(repo_root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+    return result.stdout.strip()
+
+
 def _baseline_dirty_paths(repo_root: Path) -> list[str]:
     try:
         result = subprocess.run(
@@ -541,6 +555,7 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             f"Write {output_path}.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
             "Only modify paths allowed by planner-output.json and the autonomous policy.",
+            "Do not run git commit or fill the commit field; the orchestrator commits after gates pass.",
             "Run verification commands and include non-empty verify_results when dependency files change.",
             f"Run ID: {run['run_id']}",
             f"Domain: {run['domain']}",
@@ -2366,6 +2381,27 @@ def _run_wiki_validate(repo_root: Path, domain: str, run_dir: Path) -> bool:
     return result.returncode == 0
 
 
+_AUTONOMOUS_COMMIT_CREATED_BY = "harness_loop_orchestrator"
+
+
+def _has_verified_orchestrator_commit_result(repo_root: Path, run_dir: Path, commit_sha: str) -> bool:
+    if not commit_sha:
+        return False
+    result_path = run_dir / "commit-result.json"
+    if not result_path.exists():
+        return False
+    try:
+        payload = read_json_file(result_path)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
+    return (
+        payload.get("status") == "pass"
+        and payload.get("commit") == commit_sha
+        and payload.get("created_by") == _AUTONOMOUS_COMMIT_CREATED_BY
+        and commit_sha == _current_head(repo_root)
+    )
+
+
 def _commit_autonomous_changes(
     repo_root: Path,
     run: dict[str, Any],
@@ -2432,7 +2468,21 @@ def _commit_autonomous_changes(
         _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_wiki_validate", last_result="blocked")
         return False
 
-    if changed_paths and not generator_result["commit"]:
+    supplied_commit = str(generator_result.get("commit", "")).strip()
+    if supplied_commit:
+        if not _has_verified_orchestrator_commit_result(repo_root, run_dir, supplied_commit):
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "blocked",
+                    "commit": supplied_commit,
+                    "error": "generator supplied commit without verified orchestrator commit-result evidence",
+                    "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                },
+            )
+            _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
+            return False
+    elif changed_paths:
         try:
             commit_sha = run_git_commit(
                 repo_root,
@@ -2446,6 +2496,7 @@ def _commit_autonomous_changes(
                     "status": "blocked",
                     "commit": "",
                     "error": str(exc),
+                    "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
                 },
             )
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
@@ -2456,6 +2507,7 @@ def _commit_autonomous_changes(
                 "status": "pass",
                 "commit": commit_sha,
                 "error": "",
+                "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
             },
         )
         generator_result["commit"] = commit_sha
