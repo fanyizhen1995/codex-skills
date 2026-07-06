@@ -58,6 +58,15 @@ EVIDENCE_REQUIREMENT_ALIAS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("commit-result", ("commit-result.json",)),
     ("no-action-evidence", ("no-action evidence",)),
 )
+SERVICE_AVAILABILITY_REQUIRED_SERVICES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("crawler-backend", ("crawler-backend", "crawler backend")),
+    ("crawler-frontend", ("crawler-frontend", "crawler frontend")),
+    ("loop-dashboard", ("loop-dashboard", "loop dashboard")),
+)
+FRESHNESS_EVIDENCE_IDS = {
+    "crawler-workbench-freshness",
+    "loop-dashboard-freshness",
+}
 
 
 def canonicalize_url(url: str) -> str:
@@ -231,6 +240,125 @@ def _evidence_id_matches_alias(evidence_id: str, accepted_ids: set[str]) -> bool
     return False
 
 
+def _load_artifact_payload(path: Path, evidence_id: str, artifact_path: str) -> tuple[dict[str, Any] | None, list[str]]:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except json.JSONDecodeError as exc:
+        return None, [f"{evidence_id} artifact {artifact_path} could not be parsed as JSON: {exc.msg}"]
+    if not isinstance(payload, dict):
+        return None, [f"{evidence_id} artifact {artifact_path} must contain an object payload"]
+    return payload, []
+
+
+def _normalize_service_name(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(value).strip().lower()).strip("-")
+
+
+def _validate_service_availability_payload(
+    payload: Mapping[str, Any],
+    *,
+    evidence_id: str,
+    artifact_path: str,
+) -> list[str]:
+    findings: list[str] = []
+    overall_status = str(payload.get("overall_status", "")).strip().lower()
+    services = payload.get("services")
+    if overall_status not in {"pass", "fail", "blocked"}:
+        findings.append(
+            f"{evidence_id} artifact {artifact_path} must contain overall_status with pass/fail/blocked"
+        )
+    if not isinstance(services, list):
+        findings.append(f"{evidence_id} artifact {artifact_path} must contain a services list")
+        return findings
+
+    services_by_name: dict[str, Mapping[str, Any]] = {}
+    for entry in services:
+        if not isinstance(entry, Mapping):
+            findings.append(f"{evidence_id} artifact {artifact_path} services entries must be objects")
+            continue
+        normalized = _normalize_service_name(entry.get("service", ""))
+        if normalized:
+            services_by_name[normalized] = entry
+
+    for canonical_name, aliases in SERVICE_AVAILABILITY_REQUIRED_SERVICES:
+        matched = None
+        for alias in aliases:
+            matched = services_by_name.get(_normalize_service_name(alias))
+            if matched is not None:
+                break
+        if matched is None:
+            findings.append(f"{evidence_id} artifact {artifact_path} is missing service {canonical_name}")
+            continue
+        service_status = str(matched.get("status", "")).strip().lower()
+        if service_status != "pass":
+            findings.append(
+                f"{evidence_id} artifact {artifact_path} must record {canonical_name} as pass"
+            )
+        http_status = matched.get("http_status")
+        if http_status != 200:
+            findings.append(
+                f"{evidence_id} artifact {artifact_path} must record HTTP 200 for {canonical_name}"
+            )
+
+    if overall_status != "pass":
+        findings.append(f"{evidence_id} artifact {artifact_path} must report overall_status pass")
+    return findings
+
+
+def _validate_freshness_payload(
+    payload: Mapping[str, Any],
+    *,
+    evidence_id: str,
+    artifact_path: str,
+) -> list[str]:
+    findings: list[str] = []
+    status = str(payload.get("status", "")).strip().lower()
+    if status not in {"pass", "fail", "blocked"}:
+        findings.append(f"{evidence_id} artifact {artifact_path} must contain status pass/fail/blocked")
+    elif status != "pass":
+        findings.append(f"{evidence_id} artifact {artifact_path} must report status pass")
+    summary = str(payload.get("summary", "")).strip()
+    if not summary:
+        findings.append(f"{evidence_id} artifact {artifact_path} must include a non-empty summary")
+    details = payload.get("details")
+    if not isinstance(details, Mapping) or not details:
+        findings.append(f"{evidence_id} artifact {artifact_path} must include meaningful details")
+    return findings
+
+
+def _validate_semantic_evidence_artifacts(
+    *,
+    evidence_id: str,
+    resolved_artifacts: Sequence[tuple[str, Path]],
+) -> list[str]:
+    if evidence_id not in FRESHNESS_EVIDENCE_IDS and evidence_id != "service-availability":
+        return []
+    if not resolved_artifacts:
+        return [f"{evidence_id} must reference at least one artifact"]
+
+    findings: list[str] = []
+    semantic_valid = False
+    for artifact_path, resolved in resolved_artifacts:
+        payload, payload_findings = _load_artifact_payload(resolved, evidence_id, artifact_path)
+        if payload_findings:
+            findings.extend(payload_findings)
+            continue
+        artifact_findings = (
+            _validate_service_availability_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
+            if evidence_id == "service-availability"
+            else _validate_freshness_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
+        )
+        if artifact_findings:
+            findings.extend(artifact_findings)
+            continue
+        semantic_valid = True
+
+    if semantic_valid:
+        return []
+    return findings
+
+
 def validate_required_evidence_manifest(
     policy_required: Sequence[str],
     manifest: Mapping[str, Any],
@@ -243,7 +371,7 @@ def validate_required_evidence_manifest(
     if item_findings:
         return findings
 
-    indexed_items: list[tuple[dict[str, Any], str, set[str]]] = []
+    indexed_items: list[tuple[dict[str, Any], str, set[str], str, bool]] = []
     for item in items:
         status = str(item.get("status", "")).strip().lower()
         if status not in {"pass", "blocked"}:
@@ -259,6 +387,7 @@ def validate_required_evidence_manifest(
             if not artifact_values:
                 evidence_id = str(item.get("evidence_id", "")).strip() or "<unknown>"
                 findings.append(f"required evidence item {evidence_id} must list at least one artifact")
+        resolved_artifacts: list[tuple[str, Path]] = []
         for artifact_path in artifact_values:
             resolved = resolve_manifest_artifact_path(artifact_path, repo_root, run_dir)
             if resolved is None:
@@ -266,28 +395,44 @@ def validate_required_evidence_manifest(
                 continue
             if not resolved.exists():
                 findings.append(f"missing required evidence artifact file: {artifact_path}")
+                continue
+            resolved_artifacts.append((artifact_path, resolved))
         evidence_id = _normalized_evidence_id(item.get("evidence_id", ""))
+        semantic_findings = _validate_semantic_evidence_artifacts(
+            evidence_id=evidence_id,
+            resolved_artifacts=resolved_artifacts,
+        )
+        findings.extend(semantic_findings)
         evidence_text = " ".join(
             str(item.get(key, "")).strip() for key in ("evidence_id", "summary") if str(item.get(key, "")).strip()
         )
-        indexed_items.append((item, evidence_id, _keyword_tokens(evidence_text)))
+        indexed_items.append((item, evidence_id, _keyword_tokens(evidence_text), status, not semantic_findings))
 
     for requirement in policy_required:
         requirement_text = str(requirement).strip()
         if not requirement_text:
             continue
         accepted_ids = _aliases_for_requirement(requirement_text)
-        if any(
-            item_evidence_id and _evidence_id_matches_alias(item_evidence_id, accepted_ids)
-            for _, item_evidence_id, _ in indexed_items
-        ):
+        matching_items = [
+            (item, item_evidence_id, item_status, item_semantic_ok)
+            for item, item_evidence_id, _, item_status, item_semantic_ok in indexed_items
+            if item_evidence_id and _evidence_id_matches_alias(item_evidence_id, accepted_ids)
+        ]
+        if matching_items:
+            if any(item_status == "pass" and item_semantic_ok for _, _, item_status, item_semantic_ok in matching_items):
+                continue
+            for item, item_evidence_id, item_status, _ in matching_items:
+                if item_status != "pass":
+                    findings.append(
+                        f"required evidence item {item_evidence_id or str(item.get('evidence_id', '')).strip() or '<unknown>'} has non-pass status {item_status}"
+                    )
             continue
         requirement_tokens = _keyword_tokens(requirement_text)
         if not requirement_tokens:
             continue
         if not any(
             not item_evidence_id and requirement_tokens.issubset(item_tokens)
-            for _, item_evidence_id, item_tokens in indexed_items
+            for _, item_evidence_id, item_tokens, _, _ in indexed_items
         ):
             findings.append(f"missing required evidence manifest item for: {requirement_text}")
 

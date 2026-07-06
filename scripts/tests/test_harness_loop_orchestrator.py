@@ -306,6 +306,52 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             "planned_outputs": ["personal-wiki/domains/ai_infra/raw/synthetic-gap-proof.md"],
         }
 
+    def _valid_service_availability_payload(self) -> dict[str, object]:
+        return {
+            "overall_status": "pass",
+            "services": [
+                {
+                    "service": "crawler-backend",
+                    "url": "http://127.0.0.1:8765/api/health",
+                    "status": "pass",
+                    "http_status": 200,
+                    "error": "",
+                },
+                {
+                    "service": "crawler-frontend",
+                    "url": "http://127.0.0.1:5173/",
+                    "status": "pass",
+                    "http_status": 200,
+                    "error": "",
+                },
+                {
+                    "service": "loop-dashboard",
+                    "url": "http://127.0.0.1:8766/api/health",
+                    "status": "pass",
+                    "http_status": 200,
+                    "error": "",
+                },
+            ],
+        }
+
+    def _valid_freshness_payload(self, evidence_id: str) -> dict[str, object]:
+        details: dict[str, object]
+        if evidence_id == "crawler-workbench-freshness":
+            details = {
+                "checked_endpoints": ["sources", "channels", "queue", "wiki", "search"],
+                "refreshed_at": "2026-07-06T00:00:00Z",
+            }
+        else:
+            details = {
+                "checked_views": ["current-run", "child-tasks", "agent-actions", "evaluator-scenarios", "completed-history"],
+                "refreshed_at": "2026-07-06T00:00:00Z",
+            }
+        return {
+            "status": "pass",
+            "summary": f"{evidence_id} captured",
+            "details": details,
+        }
+
     def _write_required_evidence_manifest(
         self,
         repo_root: Path,
@@ -341,7 +387,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 )
                 continue
             artifact_relative = f".codex/loop-runs/{run_id}/artifacts/evidence-{index:02d}.txt"
-            write_json_file(repo_root / artifact_relative, {"requirement": requirement_text})
+            artifact_payload: dict[str, object] = {"requirement": requirement_text}
+            if stable_evidence_id == "service-availability":
+                artifact_payload = self._valid_service_availability_payload()
+            elif stable_evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness"}:
+                artifact_payload = self._valid_freshness_payload(stable_evidence_id)
+            write_json_file(repo_root / artifact_relative, artifact_payload)
             items.append(
                 {
                     "evidence_id": stable_evidence_id,
@@ -1749,7 +1800,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 self.assertNotEqual(item["summary"], item["evidence_id"])
                 self.assertNotIn("evidence for", str(item["summary"]).lower())
 
-    def test_run_autonomous_expanded_policy_allows_code_path_with_evidence(self) -> None:
+    def test_run_autonomous_expanded_policy_blocks_synthetic_live_gate_placeholders(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             init_git_repo(repo_root)
@@ -1783,13 +1834,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             generator_result = read_json_file(run_dir / "generator-result.json")
             required_evidence_result = read_json_file(run_dir / "required-evidence-result.json")
             manifest_payload = read_json_file(run_dir / "required-evidence-manifest.json")
-            commit_result = read_json_file(run_dir / "commit-result.json")
-            self.assertEqual(status["phase"], "stopped_no_action")
-            self.assertEqual(status["next_action"], "none")
-            self.assertEqual(run["last_result"], "pass")
-            self.assertEqual(required_evidence_result["status"], "pass")
-            self.assertEqual(commit_result["status"], "pass")
-            self.assertTrue(generator_result["commit"])
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(run["last_result"], "blocked")
+            self.assertEqual(required_evidence_result["status"], "blocked")
+            self.assertFalse((run_dir / "commit-result.json").exists())
+            self.assertFalse(generator_result["commit"])
             self.assertIn("scripts/ai_infra_expanded_runtime_smoke.txt", generator_result["changed_paths"])
             self.assertIn("personal-wiki/domains/ai_infra/coverage-map.json", generator_result["changed_paths"])
             self.assertTrue((repo_root / "scripts" / "ai_infra_expanded_runtime_smoke.txt").exists())
@@ -1827,6 +1877,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 with self.subTest(evidence_id=evidence_id):
                     self.assertEqual(manifest_by_id[evidence_id]["status"], "blocked")
                     self.assertIn("synthetic", str(manifest_by_id[evidence_id]["summary"]).lower())
+            for evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness", "service-availability"}:
+                self.assertTrue(
+                    any(evidence_id in finding for finding in required_evidence_result["findings"]),
+                    required_evidence_result,
+                )
 
     def test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4047,6 +4102,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertNotEqual(clone_root, repo_root.resolve())
             self.assertEqual(clone_run_id, "evaluator-scenario-ai-infra-meta-loop-runtime-test")
             self.assertTrue(run_smoke_in_repo.call_args.kwargs["configure_git_identity"])
+
+    def test_ai_infra_meta_loop_smoke_main_returns_nonzero_for_fail_status(self) -> None:
+        from scripts import harness_ai_infra_meta_loop_smoke as smoke
+
+        with patch.object(smoke, "run_ai_infra_meta_loop_smoke", return_value={"overall_status": "fail"}):
+            self.assertEqual(smoke.main([]), 1)
 
     def test_ai_infra_meta_loop_smoke_helper_refuses_non_isolated_mode_before_repo_mutation(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke

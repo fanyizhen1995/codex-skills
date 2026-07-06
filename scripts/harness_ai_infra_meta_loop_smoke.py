@@ -29,6 +29,13 @@ SERVICE_TARGETS = (
     {"service": "crawler-frontend", "url": "http://127.0.0.1:5173/"},
     {"service": "loop-dashboard", "url": "http://127.0.0.1:8766/api/health"},
 )
+SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS = {
+    "search-api-visibility",
+    "frontend-visibility",
+    "crawler-workbench-freshness",
+    "loop-dashboard-freshness",
+    "service-availability",
+}
 
 
 def _validate_safe_id(value: str, label: str) -> None:
@@ -177,25 +184,53 @@ def _run_expanded_code_round(repo_root: Path, run_id: str) -> dict[str, Any]:
     )
     run_dir = run_dir_for(repo_root, run_id)
     generator_result = read_json_file(run_dir / "generator-result.json")
-    commit_result = read_json_file(run_dir / "commit-result.json")
     required_evidence = read_json_file(run_dir / "required-evidence-result.json")
     smoke_file = repo_root / "scripts" / "ai_infra_expanded_runtime_smoke.txt"
-    passed = (
+    normal_pass = (
         status["phase"] == "stopped_no_action"
         and status["next_action"] == "none"
         and required_evidence.get("status") == "pass"
-        and commit_result.get("status") == "pass"
+        and read_json_file(run_dir / "commit-result.json").get("status") == "pass"
         and bool(generator_result.get("commit"))
         and smoke_file.exists()
     )
+    manifest_items = read_json_file(run_dir / "required-evidence-manifest.json").get("items", [])
+    manifest_by_id = {
+        str(item.get("evidence_id", "")).strip(): item
+        for item in manifest_items
+        if isinstance(item, dict)
+    }
+    synthetic_placeholder_ids = {
+        evidence_id
+        for evidence_id in SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS
+        if isinstance(manifest_by_id.get(evidence_id), dict)
+        and str(manifest_by_id[evidence_id].get("status", "")).strip() == "blocked"
+        and any(
+            artifact.get("synthetic_smoke")
+            for artifact in _manifest_item_summary(repo_root, run_id, evidence_id).get("artifacts", [])
+            if isinstance(artifact, dict)
+        )
+    }
+    expected_synthetic_block = (
+        status["phase"] == "stopped_blocked"
+        and status["next_action"] == "inspect_required_evidence"
+        and required_evidence.get("status") == "blocked"
+        and smoke_file.exists()
+        and synthetic_placeholder_ids == SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS
+        and all(
+            any(evidence_id in str(finding) for evidence_id in SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS)
+            for finding in required_evidence.get("findings", [])
+        )
+    )
     return {
-        "status": "pass" if passed else "fail",
+        "status": "pass" if normal_pass or expected_synthetic_block else "fail",
         "run_status": status,
         "run_dir": _relative(repo_root, run_dir),
         "generator_result_path": _relative(repo_root, run_dir / "generator-result.json"),
         "required_evidence_result_path": _relative(repo_root, run_dir / "required-evidence-result.json"),
-        "commit_result_path": _relative(repo_root, run_dir / "commit-result.json"),
+        "commit_result_path": _relative(repo_root, run_dir / "commit-result.json") if (run_dir / "commit-result.json").exists() else "",
         "smoke_file": _relative(repo_root, smoke_file),
+        "synthetic_placeholder_block": expected_synthetic_block,
     }
 
 
@@ -331,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     payload = run_ai_infra_meta_loop_smoke(args.repo_root, args.run_id, isolate_clone=args.isolate_clone)
     print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
-    return 0
+    return 1 if payload.get("overall_status") == "fail" else 0
 
 
 if __name__ == "__main__":

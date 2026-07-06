@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,6 +15,37 @@ from scripts.harness_ai_infra_evidence import (
 
 
 class HarnessAiInfraEvidenceTests(unittest.TestCase):
+    def _service_availability_payload(self, *, statuses: dict[str, tuple[str, int | None]]) -> dict:
+        return {
+            "overall_status": "pass" if all(status == "pass" and http_status == 200 for status, http_status in statuses.values()) else "fail",
+            "services": [
+                {
+                    "service": service,
+                    "url": f"http://127.0.0.1/{service}",
+                    "status": status,
+                    "http_status": http_status,
+                    "error": "" if status == "pass" else "service unavailable",
+                }
+                for service, (status, http_status) in statuses.items()
+            ],
+        }
+
+    def _freshness_payload(
+        self,
+        *,
+        status: str,
+        synthetic_smoke: bool = False,
+        details: dict[str, object] | None = None,
+    ) -> dict:
+        payload = {
+            "status": status,
+            "summary": "freshness verified" if status == "pass" else "freshness blocked",
+            "details": details or {"checked_endpoints": ["sources", "channels", "queue", "wiki", "search"]},
+        }
+        if synthetic_smoke:
+            payload["synthetic_smoke"] = True
+        return payload
+
     def test_canonicalize_url_normalizes_tracking_noise_and_case(self) -> None:
         self.assertEqual(
             canonicalize_url("HTTPS://Docs.VLLM.AI/en/latest/foo/?utm_source=x#section"),
@@ -106,12 +138,33 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 ("policy-run-limits", "artifacts/policy-run-limits.json"),
                 ("gap-proof", "gap-proofs/demo-task.json"),
                 ("service-availability", "artifacts/service-availability.json"),
+                ("crawler-workbench-freshness", "artifacts/crawler-workbench-freshness.json"),
+                ("loop-dashboard-freshness", "artifacts/loop-dashboard-freshness.json"),
                 ("search-api-visibility", "artifacts/search-api-visibility.json"),
             ]
-            for _, relative_path in aliases:
+            for evidence_id, relative_path in aliases:
                 artifact_path = run_dir / relative_path
                 artifact_path.parent.mkdir(parents=True, exist_ok=True)
-                artifact_path.write_text("{}", encoding="utf-8")
+                if evidence_id == "service-availability":
+                    artifact_path.write_text(
+                        json.dumps(
+                            self._service_availability_payload(
+                                statuses={
+                                    "crawler-backend": ("pass", 200),
+                                    "crawler-frontend": ("pass", 200),
+                                    "loop-dashboard": ("pass", 200),
+                                }
+                            )
+                        ),
+                        encoding="utf-8",
+                    )
+                elif evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness"}:
+                    artifact_path.write_text(
+                        json.dumps(self._freshness_payload(status="pass")),
+                        encoding="utf-8",
+                    )
+                else:
+                    artifact_path.write_text("{}", encoding="utf-8")
 
             findings = validate_required_evidence_manifest(
                 [
@@ -119,6 +172,8 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                     "policy_file and expanded limits recorded in run.json",
                     "gap proof with duplicate checks before each task",
                     "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
+                    "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
+                    "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
                     "search API visibility after ingestion",
                 ],
                 {
@@ -242,6 +297,127 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
 
             self.assertIn(
                 f"missing required evidence manifest item for: {requirement}",
+                findings,
+            )
+
+    def test_required_evidence_manifest_blocks_service_availability_placeholder_payload(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "service-availability.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "service-availability",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/service-availability.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("service-availability artifact" in finding for finding in findings),
+                findings,
+            )
+
+    def test_required_evidence_manifest_blocks_non_pass_live_gate_status(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "service-availability.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    self._service_availability_payload(
+                        statuses={
+                            "crawler-backend": ("pass", 200),
+                            "crawler-frontend": ("pass", 200),
+                            "loop-dashboard": ("blocked", None),
+                        }
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "service-availability",
+                            "status": "blocked",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/service-availability.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("service-availability has non-pass status blocked" in finding for finding in findings),
+                findings,
+            )
+
+    def test_required_evidence_manifest_blocks_placeholder_freshness_payloads(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+
+            crawler_artifact = run_dir / "artifacts" / "crawler-workbench-freshness.json"
+            crawler_artifact.parent.mkdir(parents=True, exist_ok=True)
+            crawler_artifact.write_text("{}", encoding="utf-8")
+            loop_artifact = run_dir / "artifacts" / "loop-dashboard-freshness.json"
+            loop_artifact.write_text("{}", encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
+                    "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "crawler-workbench-freshness",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/crawler-workbench-freshness.json"],
+                        },
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/loop-dashboard-freshness.json"],
+                        },
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("crawler-workbench-freshness artifact" in finding for finding in findings),
+                findings,
+            )
+            self.assertTrue(
+                any("loop-dashboard-freshness artifact" in finding for finding in findings),
                 findings,
             )
 
