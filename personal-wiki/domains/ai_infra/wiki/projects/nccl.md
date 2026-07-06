@@ -14,13 +14,17 @@ source_refs:
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-30-7-html.md
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json
-updated: 2026-06-24
+  - ../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md
+  - ../../raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md
+  - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
+updated: 2026-07-07
 aliases:
   - NVIDIA Collective Communications Library
   - NVIDIA NCCL
 related:
   - ../references/nccl-release-notes.md
   - ../references/nccl-github-closed-issues.md
+  - ../references/nccl-technical-blog-network-observability.md
 ---
 # Summary
 
@@ -32,10 +36,11 @@ NVIDIA describes NCCL as focused on accelerating collective communication primit
 
 # Operational Evidence
 
-The local wiki has two complementary NCCL evidence sets:
+The local wiki has three complementary NCCL evidence sets:
 
 - [NCCL Release Notes](../references/nccl-release-notes.md) is the official versioned change and compatibility history.
 - [NCCL GitHub Closed Issues](../references/nccl-github-closed-issues.md) is the operational issue corpus for troubleshooting, integration, upgrade risk, and field failure patterns.
+- [NCCL Technical Blog Network Observability](../references/nccl-technical-blog-network-observability.md) organizes local NVIDIA technical-blog captures for NCCL Inspector, Prometheus metrics, NCCL 2.24 RAS, Spectrum-X/RoCE fabric behavior, SHARP, NVBandwidth, dynamic communicators, and NCCL 2.22 cost estimation.
 
 The closed issue corpus captures 1,589 closed GitHub issues and 7,325 comments associated with those issues. GitHub `state_reason` splits the captured closed issues into 921 `completed` and 668 `not_planned` items, so a closed issue should not automatically be interpreted as a product fix.
 
@@ -43,6 +48,7 @@ The closed issue corpus captures 1,589 closed GitHub issues and 7,325 comments a
 
 - Use [NCCL Release Notes](../references/nccl-release-notes.md) before upgrading NCCL in training or inference clusters.
 - Use [NCCL GitHub Closed Issues](../references/nccl-github-closed-issues.md) when investigating field reports, integration behavior, transport problems, performance regressions, or runtime failures that may not appear in release notes.
+- Use [NCCL Technical Blog Network Observability](../references/nccl-technical-blog-network-observability.md) when investigating live collective performance, cluster fabric telemetry, RoCE/Spectrum-X convergence behavior, SHARP offload, or NCCL cost-estimation hooks.
 - Check each target release's compatibility section for CUDA and packaging support.
 - Check fixed and known issues for behavior that can affect multi-node jobs, GPU Direct paths, collectives, and runtime stability.
 
@@ -50,6 +56,7 @@ The closed issue corpus captures 1,589 closed GitHub issues and 7,325 comments a
 
 - [NCCL Release Notes](../references/nccl-release-notes.md) catalogs all official per-version release-note pages captured from NVIDIA.
 - [NCCL GitHub Closed Issues](../references/nccl-github-closed-issues.md) indexes the closed issue and comment corpus captured from the NVIDIA/nccl GitHub repository.
+- [NCCL Technical Blog Network Observability](../references/nccl-technical-blog-network-observability.md) links NCCL release features and operational questions to local NVIDIA technical blog evidence about observability, reliability, fabric behavior, and cost-estimation APIs.
 
 # Future Work
 
@@ -61,3 +68,6 @@ The closed issue corpus captures 1,589 closed GitHub issues and 7,325 comments a
 - [Latest captured NCCL release note](../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-30-7-html.md)
 - [NCCL closed GitHub issues with comments](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz)
 - [NCCL closed GitHub issues summary](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json)
+- [NCCL Inspector with Prometheus raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md)
+- [NCCL 2.24 reliability and observability raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md)
+- [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)

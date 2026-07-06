@@ -1,0 +1,170 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r3-task-2",
+  "status": "pass_with_live_service_sandbox_blocks",
+  "generated_at": "2026-07-06T22:06:03Z",
+  "changed_paths": [
+    "docs/superpowers/plans/2026-07-07-nccl-network-observability-curation.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-2-verification.json"
+  ],
+  "source_summary": {
+    "raw_reuse_only": true,
+    "new_external_fetches": 0,
+    "canonical_raw_root": "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/",
+    "duplicate_raw_root": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/",
+    "curated_page": "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
+  },
+  "coverage_updates": [
+    {
+      "layer": "training-distributed",
+      "status": "partial",
+      "evidence_added": "NCCL technical-blog evidence for SHARP, dynamic communicators, reliability, and cost-estimation hooks."
+    },
+    {
+      "layer": "eval-observability-reliability",
+      "status": "partial",
+      "evidence_added": "NCCL Inspector, Prometheus/Grafana metrics, RAS, NVBandwidth, and Spectrum-X telemetry evidence."
+    },
+    {
+      "layer": "security-governance-cost",
+      "status": "partial",
+      "evidence_added": "NCCL 2.22 cost-estimation and resource-efficiency evidence; platform-wide attribution and governance remain gaps."
+    },
+    {
+      "layer": "network-storage-cluster",
+      "status": "partial",
+      "evidence_added": "RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry evidence."
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload / validate_coverage_map_payload / validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json and coverage-map.json satisfy harness contracts and ai_infra coverage-map timestamp semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md with the new NCCL Technical Blog Network Observability reference."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json is valid JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json is valid JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-2-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "task-2 gap proof manifest is valid JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-06-r3-task-2') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "task-2 gap proof satisfies scripts.harness_ai_infra_evidence.validate_gap_proof_file."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in tracked diffs."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No matches for private-key, bearer authorization, cloud key, xox token, api-key assignment, token assignment, password assignment, or credential assignment patterns."
+    },
+    {
+      "command": "check_supply_chain over declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No dependency files changed."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "All declared non-run-artifact paths are allowed by run.json allowed_paths and denylist_paths; pre-existing untracked 20260706 compute captures are intentionally excluded."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health",
+      "status": "blocked",
+      "exit_code": 7,
+      "summary": "No existing backend service was reachable in this sandbox. Attempts to keep Uvicorn running in one exec session were not reachable from a separate exec network context; same-shell probes also returned curl (7) before Uvicorn became observable."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=NCCL%20Inspector%20Prometheus'",
+      "status": "blocked",
+      "exit_code": 7,
+      "summary": "Search API visibility was blocked by the same sandbox-local service reachability issue; the required-evidence manifest declares trusted semantic search-api-visibility for orchestrator capture."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=AI%20fabric%20resiliency'",
+      "status": "blocked",
+      "exit_code": 7,
+      "summary": "Search API visibility was blocked by the same sandbox-local service reachability issue; the required-evidence manifest declares trusted semantic search-api-visibility for orchestrator capture."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p'",
+      "status": "blocked",
+      "exit_code": 0,
+      "summary": "The planner pipeline returns 0 through sed, but curl output was curl (7). Vite could not bind in this sandbox: Node reported listen EPERM for both 0.0.0.0:5173 and 127.0.0.1:5173."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "blocked",
+      "exit_code": 7,
+      "summary": "No existing loop dashboard service was reachable in this sandbox. A managed Uvicorn session started, but separate exec commands could not reach it through loopback."
+    }
+  ],
+  "service_start_attempts": [
+    {
+      "service": "tmux",
+      "status": "blocked",
+      "detail": "tmux ls failed with Operation not permitted."
+    },
+    {
+      "service": "crawler-backend",
+      "status": "blocked",
+      "detail": "Detached nohup processes were killed when the sandbox shell exited; managed Uvicorn sessions logged startup but were not reachable from separate exec network contexts."
+    },
+    {
+      "service": "crawler-frontend",
+      "status": "blocked",
+      "detail": "npm was not on the default service PATH; after using the explicit nvm npm path, Vite failed with listen EPERM on both 0.0.0.0:5173 and 127.0.0.1:5173."
+    },
+    {
+      "service": "loop-dashboard",
+      "status": "blocked",
+      "detail": "Managed Uvicorn session logged startup, but separate exec commands could not reach it through loopback."
+    }
+  ],
+  "dependency_files_changed": false,
+  "code_files_changed": false,
+  "commit": "",
+  "notes": "The durable wiki and machine-state verification passed. Live service evidence is delegated to the orchestrator-owned trusted live evidence semantic gates because this sandbox prevents stable cross-exec service reachability and blocks Vite listening."
+}

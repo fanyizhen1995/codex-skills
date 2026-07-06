@@ -8,21 +8,25 @@
         "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-index-html.md",
         "personal-wiki/domains/ai_infra/raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-30-7-html.md",
         "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298217Z-developer-nvidia-com-blog-advancing-performance-with-nvidia-sharp-in-network-computing-2154529061.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md",
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
       ],
       "candidate_gaps": [
         "Add source-backed pages for distributed training frameworks beyond NCCL, such as Megatron, DeepSpeed, PyTorch FSDP, checkpointing, and elastic training.",
-        "Separate communication library evidence from training job lifecycle, checkpoint, and fault-tolerance evidence."
+        "Separate NCCL communication evidence from broader training job lifecycle, checkpoint, and non-NCCL fault-tolerance evidence."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T21:23:08Z",
-      "notes": "NCCL provides strong collective-communication and field-issue coverage, while the broader distributed-training stack remains thin."
+      "last_scanned_at": "2026-07-06T22:06:03Z",
+      "notes": "NCCL now has source-backed release-note, issue, and technical-blog evidence for collective communication, SHARP offload, dynamic communicators, reliability, and cost-estimation hooks; the broader distributed-training stack remains thin."
     },
     "inference-runtime": {
       "status": "partial",
@@ -92,30 +96,39 @@
         "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
         "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md"
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
         "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
-        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json"
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294079Z-developer-nvidia-com-blog-nvidia-nvbandwidth-your-essential-tool-for-measuring-gpu-interco-9a6dc9cf64.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294770Z-developer-nvidia-com-blog-enhancing-communication-observability-of-ai-workloads-with-nccl-436a699803.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md"
       ],
       "candidate_gaps": [
         "Add LLM observability and evaluation infrastructure sources such as OpenTelemetry for LLM apps, Langfuse, LangSmith, prompt/model eval harnesses, and benchmark environment state.",
-        "Add GPU and cluster profiling/debug evidence such as NVIDIA Nsight, NCCL observability, and incident/SLO patterns."
+        "Add non-NCCL incident, SLO, tracing, and profiling sources such as NVIDIA Nsight or platform-level observability stacks."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T21:23:08Z",
-      "notes": "Evaluation and reliability are visible in the Hitchhiker paper and issue corpora, but dedicated observability tooling coverage is still missing."
+      "last_scanned_at": "2026-07-06T22:06:03Z",
+      "notes": "NCCL Inspector, Prometheus/Grafana metrics, RAS, NVBandwidth, and Spectrum-X telemetry provide dedicated source-backed GPU communication and fabric observability; LLM evaluation and broader tracing platforms remain gaps."
     },
     "security-governance-cost": {
-      "status": "weak",
+      "status": "partial",
       "covered_pages": [
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
         "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
         "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json"
       ],
@@ -124,8 +137,8 @@
         "Separate security/governance claims from adjacent DPU, GPU-sharing, and scheduling evidence."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T21:23:08Z",
-      "notes": "Current evidence is adjacent: NCCL GPU sharing and virtualization issues, DPU/security positioning, and Kueue quota-aware scheduling."
+      "last_scanned_at": "2026-07-06T22:06:03Z",
+      "notes": "NCCL 2.22 cost-estimation and resource-efficiency evidence now complements adjacent NCCL GPU sharing and virtualization issues, DPU/security positioning, and Kueue quota-aware scheduling; tenant isolation, governance, and cost attribution remain open."
     },
     "hardware-accelerator": {
       "status": "partial",
@@ -157,23 +170,30 @@
       "covered_pages": [
         "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298217Z-developer-nvidia-com-blog-advancing-performance-with-nvidia-sharp-in-network-computing-2154529061.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704299278Z-developer-nvidia-com-blog-oci-accelerates-hpc-ai-and-database-using-roce-and-nvidia-connec-904a22fed4.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704299596Z-developer-nvidia-com-blog-turbocharging-ai-workloads-with-nvidia-spectrum-x-networking-pla-752fd3e399.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md"
       ],
       "candidate_gaps": [
-        "Add source-backed coverage for InfiniBand, RoCE, Spectrum-X, EFA, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem behavior in AI clusters.",
+        "Add source-backed coverage for EFA, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem behavior in AI clusters.",
         "Distinguish cluster networking and storage architecture evidence from accelerator SKU tables."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T21:23:08Z",
-      "notes": "NCCL issue evidence and DPU/SmartNIC raw captures cover network/offload signals, but storage and cluster fabric coverage needs expansion."
+      "last_scanned_at": "2026-07-06T22:06:03Z",
+      "notes": "NCCL issue evidence, DPU/SmartNIC raw captures, and NCCL technical blogs now cover RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry; storage and non-NVIDIA fabric coverage still need expansion."
     }
   }
 }

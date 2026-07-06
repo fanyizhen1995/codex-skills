@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-06T21:23:08Z",
+  "last_scan_at": "2026-07-06T22:06:03Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
     {
@@ -19,38 +19,41 @@
     },
     {
       "id": "eval-observability-reliability-primary-sources",
-      "title": "Add dedicated evaluation, observability, and reliability tooling coverage",
+      "title": "Add evaluation/tracing and non-NCCL observability/reliability coverage",
       "source": "coverage-map:eval-observability-reliability",
       "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
+      "updated_at": "2026-07-06T22:06:03Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/coverage-map.json",
         "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md"
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
       ]
     },
     {
       "id": "security-governance-cost-primary-sources",
-      "title": "Add AI platform security, governance, and cost sources",
+      "title": "Add AI platform tenant isolation, governance, cost attribution, and capacity planning sources",
       "source": "coverage-map:security-governance-cost",
       "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
+      "updated_at": "2026-07-06T22:06:03Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/coverage-map.json",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
       ]
     },
     {
       "id": "network-storage-cluster-primary-sources",
-      "title": "Add cluster fabric and storage infrastructure coverage",
+      "title": "Add EFA, storage, and parallel filesystem infrastructure coverage beyond NCCL/Spectrum-X",
       "source": "coverage-map:network-storage-cluster",
       "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
+      "updated_at": "2026-07-06T22:06:03Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/coverage-map.json",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
       ]
     },
@@ -68,14 +71,15 @@
     },
     {
       "id": "training-distributed-broadening",
-      "title": "Broaden distributed training coverage beyond NCCL communication evidence",
+      "title": "Broaden distributed training coverage beyond NCCL communication, observability, and reliability evidence",
       "source": "coverage-map:training-distributed",
       "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
+      "updated_at": "2026-07-06T22:06:03Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/coverage-map.json",
         "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md"
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
       ]
     },
     {
@@ -115,6 +119,19 @@
         "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
         "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz"
+      ]
+    },
+    {
+      "id": "nccl-technical-blog-network-observability-evidence",
+      "title": "NCCL technical blog network, observability, reliability, and cost evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T22:06:03Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md"
       ]
     },
     {

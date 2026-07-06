@@ -1,0 +1,48 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r3-task-2",
+  "layer": "training-distributed, eval-observability-reliability, security-governance-cost, network-storage-cluster",
+  "candidate": {
+    "title": "Local NCCL technical blog network, observability, reliability, and cost evidence",
+    "source_type": "local_raw_corpus",
+    "identity_key": "local-corpus:ai_infra/raw/crawler/nccl-technical-blog:nccl-network-observability-cost"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Confirmed local captures exist under raw/crawler/nccl-technical-blog for NCCL Inspector Prometheus, NCCL communication observability, AI fabric resiliency, NCCL 2.24 reliability/observability, NCCL 2.22 cost estimation, RoCE, Spectrum-X, NVBandwidth, and SHARP. raw/crawler/nccl-nvidia-blog-wide contains overlapping duplicate captures for the Inspector and NVBandwidth pages, so this task selects the nccl-technical-blog copies as canonical local evidence.",
+    "wiki_search": "Searched current ai_infra wiki pages for NCCL Inspector, Prometheus, Spectrum-X, RoCE, SHARP, NVBandwidth, RAS, and cost estimation. Existing curated NCCL pages cover release notes and GitHub issues but do not contain a dedicated technical-blog reference for network observability, reliability, convergence, or cost-estimation evidence.",
+    "domain_index_scan": "Read wiki/index.md, wiki/projects/nccl.md, wiki/references/nccl-release-notes.md, wiki/references/nccl-github-closed-issues.md, coverage-map.json, loop-state.json, and ingest.md. The domain index has no existing NCCL technical blog network observability reference."
+  },
+  "gap_reason": "coverage-map.json marked eval-observability-reliability and network-storage-cluster partial and security-governance-cost weak, while candidate backlog requested observability, profiling/debug, cost, cluster fabric, Spectrum-X/RoCE/EFA, and storage/fabric evidence. The selected local NCCL technical blog captures directly cover NCCL Inspector/Prometheus observability, RAS/NIC Fusion reliability, Spectrum-X/RoCE convergence, SHARP/NVBandwidth performance diagnostics, and NCCL 2.22 cost-estimation evidence without new external fetching.",
+  "selected_raw_paths": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294079Z-developer-nvidia-com-blog-nvidia-nvbandwidth-your-essential-tool-for-measuring-gpu-interco-9a6dc9cf64.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294770Z-developer-nvidia-com-blog-enhancing-communication-observability-of-ai-workloads-with-nccl-436a699803.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298217Z-developer-nvidia-com-blog-advancing-performance-with-nvidia-sharp-in-network-computing-2154529061.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704299278Z-developer-nvidia-com-blog-oci-accelerates-hpc-ai-and-database-using-roce-and-nvidia-connec-904a22fed4.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704299596Z-developer-nvidia-com-blog-turbocharging-ai-workloads-with-nvidia-spectrum-x-networking-pla-752fd3e399.md"
+  ],
+  "duplicate_findings": [
+    {
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260626T015710842618Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md",
+      "finding": "Duplicate capture of the NCCL Inspector Prometheus article; canonical local evidence for this task uses the nccl-technical-blog copy with matching content hash suffix."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260626T015710842925Z-developer-nvidia-com-blog-nvidia-nvbandwidth-your-essential-tool-for-measuring-gpu-interco-9a6dc9cf64.md",
+      "finding": "Duplicate capture of the NVBandwidth article; canonical local evidence for this task uses the nccl-technical-blog copy with matching content hash suffix."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-2-verification.json"
+  ]
+}

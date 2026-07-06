@@ -30,6 +30,8 @@ No active ingest.
   - Organized daily scheduled crawler snapshots captured 2026-07-01 through 2026-07-04 as a page-level supplement after the API corpus cutoff: 318 Markdown captures, 41 issues, 277 pull requests, and 198 merged pull requests. The supplement is not a full API corpus refresh with comments or review comments.
 - [x] `raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json` -> `wiki/references/nccl-github-closed-issues.md`
   - Organized daily scheduled crawler snapshots for NCCL issue #2226 and #2024 as page-level discovery leads after the 2026-06-24 API corpus cutoff.
+- [x] `raw/crawler/nccl-technical-blog/` -> `wiki/references/nccl-technical-blog-network-observability.md`, `wiki/projects/nccl.md`, `wiki/references/ai-infra-coverage-map.md`
+  - Organized existing local NVIDIA technical-blog captures for NCCL Inspector/Prometheus, communication observability, NCCL 2.24 RAS/NIC Fusion, dynamic communicators, Spectrum-X/RoCE fabric telemetry and convergence, NVBandwidth, SHARP, and NCCL 2.22 cost-estimation evidence. The overlapping `raw/crawler/nccl-nvidia-blog-wide/` Inspector and NVBandwidth captures were treated as duplicate local evidence and were not promoted as separate curated sources.
 
 ## Rejected
 
