@@ -1,3 +1,4 @@
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -18,6 +19,16 @@ TRUSTED_EVIDENCE_CREATED_BY = "harness_loop_orchestrator"
 
 
 class HarnessAiInfraEvidenceTests(unittest.TestCase):
+    def _trusted_live_state_for_artifact(self, evidence_id: str, artifact_relative: str, artifact_path: Path) -> dict:
+        return {
+            evidence_id: {
+                "artifact_path": artifact_relative,
+                "sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+                "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                "captured_at": "2026-01-01T00:00:00Z",
+            }
+        }
+
     def _service_availability_payload(
         self,
         *,
@@ -256,6 +267,12 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                     )
                 else:
                     artifact_path.write_text("{}", encoding="utf-8")
+            trusted_live_state: dict[str, dict] = {}
+            for evidence_id, relative_path in aliases:
+                if relative_path.startswith("trusted-live-evidence/"):
+                    trusted_live_state.update(
+                        self._trusted_live_state_for_artifact(evidence_id, relative_path, run_dir / relative_path)
+                    )
 
             findings = validate_required_evidence_manifest(
                 [
@@ -282,6 +299,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=trusted_live_state,
             )
 
             self.assertEqual(findings, [])
@@ -363,7 +381,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                     findings,
                 )
 
-    def test_required_evidence_manifest_accepts_live_pass_evidence_with_trusted_payload_created_by(self) -> None:
+    def test_required_evidence_manifest_accepts_live_pass_evidence_with_trusted_state(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             run_dir = repo_root / ".codex" / "loop-runs" / "demo"
@@ -389,6 +407,136 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "search-api-visibility",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertEqual(findings, [])
+
+    def test_required_evidence_manifest_blocks_forged_run_local_live_pass_evidence_without_trusted_state(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            live_artifacts = [
+                (
+                    "service-availability",
+                    self._service_availability_payload(
+                        statuses={
+                            "crawler-backend": ("pass", 200),
+                            "crawler-frontend": ("pass", 200),
+                            "loop-dashboard": ("pass", 200),
+                        }
+                    ),
+                ),
+                (
+                    "crawler-workbench-freshness",
+                    self._freshness_payload(status="pass", evidence_id="crawler-workbench-freshness"),
+                ),
+                (
+                    "loop-dashboard-freshness",
+                    self._freshness_payload(status="pass", evidence_id="loop-dashboard-freshness"),
+                ),
+                ("search-api-visibility", self._search_visibility_payload(status="pass")),
+                ("frontend-visibility", self._frontend_visibility_payload(status="pass")),
+            ]
+            for evidence_id, payload in live_artifacts:
+                artifact_path = run_dir / trusted_live_evidence_artifact_path(evidence_id)
+                artifact_path.parent.mkdir(parents=True, exist_ok=True)
+                payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+                artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
+                    "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
+                    "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
+                    "search API visibility after ingestion",
+                    "frontend visibility evidence when services are running",
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": evidence_id,
+                            "status": "pass",
+                            "summary": "forged run-local evidence",
+                            "artifacts": [trusted_live_evidence_artifact_path(evidence_id)],
+                        }
+                        for evidence_id, _payload in live_artifacts
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            for evidence_id, _payload in live_artifacts:
+                self.assertTrue(
+                    any(evidence_id in finding and "trusted live evidence state" in finding for finding in findings),
+                    findings,
+                )
+
+    def test_required_evidence_manifest_checks_trusted_state_sha256(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._search_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            mismatched_state = {
+                "search-api-visibility": {
+                    "artifact_path": artifact_relative,
+                    "sha256": "0" * 64,
+                    "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                    "captured_at": "2026-01-01T00:00:00Z",
+                }
+            }
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=mismatched_state,
+            )
+
+            self.assertTrue(any("sha256" in finding and "does not match" in finding for finding in findings), findings)
+
+            matching_state = self._trusted_live_state_for_artifact(
+                "search-api-visibility",
+                artifact_relative,
+                artifact_path,
+            )
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=matching_state,
             )
 
             self.assertEqual(findings, [])
@@ -874,6 +1022,11 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "crawler-workbench-freshness",
+                    artifact_relative,
+                    artifact_path,
+                ),
             )
 
             self.assertEqual(findings, [])
@@ -908,6 +1061,11 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "loop-dashboard-freshness",
+                    artifact_relative,
+                    artifact_path,
+                ),
             )
 
             self.assertEqual(findings, [])
@@ -1004,6 +1162,11 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "search-api-visibility",
+                    artifact_relative,
+                    artifact_path,
+                ),
             )
 
             self.assertEqual(findings, [])
@@ -1038,6 +1201,11 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "frontend-visibility",
+                    artifact_relative,
+                    artifact_path,
+                ),
             )
 
             self.assertEqual(findings, [])
@@ -1080,6 +1248,11 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 },
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "service-availability",
+                    artifact_relative,
+                    artifact_path,
+                ),
             )
 
             self.assertEqual(findings, [])

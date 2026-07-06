@@ -1,4 +1,5 @@
 import io
+import hashlib
 import os
 import shutil
 import tempfile
@@ -7,6 +8,7 @@ import json
 import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Mapping
 from unittest.mock import patch
 
 import scripts.harness_loop_orchestrator as harness_loop_orchestrator
@@ -448,6 +450,42 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
         write_json_file(run_dir / "required-evidence-manifest.json", {"items": items})
 
+    def _trusted_live_state_from_manifest(
+        self,
+        repo_root: Path,
+        run: Mapping[str, object],
+        manifest_payload: Mapping[str, object],
+    ) -> dict[str, dict[str, str]]:
+        run_dir = run_dir_for(repo_root, str(run["run_id"]))
+        entries = manifest_payload.get("items")
+        state: dict[str, dict[str, str]] = {}
+        if not isinstance(entries, list):
+            return state
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                continue
+            evidence_id = str(entry.get("evidence_id", "")).strip()
+            if evidence_id not in {
+                "service-availability",
+                "crawler-workbench-freshness",
+                "loop-dashboard-freshness",
+                "search-api-visibility",
+                "frontend-visibility",
+            }:
+                continue
+            artifacts = entry.get("artifacts")
+            if not isinstance(artifacts, list) or not artifacts:
+                continue
+            artifact_relative = str(artifacts[0]).strip()
+            artifact_path = run_dir / artifact_relative
+            state[evidence_id] = {
+                "artifact_path": artifact_relative,
+                "sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+                "created_by": "harness_loop_orchestrator",
+                "captured_at": "2026-01-01T00:00:00Z",
+            }
+        return state
+
     def test_create_preflight_run_without_confirmation_writes_run_state_and_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -608,7 +646,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 payload["policy_file"],
                 policy_file,
             )
-            self.assertIn("**", payload["allowed_paths"])
+            self.assertNotIn("**", payload["allowed_paths"])
+            self.assertIn("personal-wiki/domains/ai_infra/**", payload["allowed_paths"])
+            self.assertIn("scripts/harness*.py", payload["allowed_paths"])
             self.assertIn(".codex/**", payload["denylist_paths"])
             self.assertIn("service availability evidence", " ".join(payload["required_evidence"]))
             self.assertEqual(payload["limits"]["max_rounds_per_invocation"], 4)
@@ -1260,6 +1300,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=write_undeclared_dirty_path,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -1825,6 +1868,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_direct_gap_proof_only,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -1866,7 +1912,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             def inject_manifest(repo_root_arg: Path, run: dict[str, object], *, driver: str, task_number: int) -> dict[str, object]:
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 task_id = str(run["task_id"])
-                artifact_relative = "artifacts/gap-proofs/current-task-gap-proof.json"
+                artifact_relative = "docs/harness/gap-proofs/current-task-gap-proof.json"
                 self._write_required_evidence_manifest(
                     repo_root_arg,
                     run,
@@ -1888,6 +1934,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -1903,7 +1952,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertNotEqual(status["next_action"], "inspect_required_evidence")
             self.assertEqual(gap_proof_result["status"], "pass")
             self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
-            self.assertEqual(gap_proof_result["artifact_path"], "artifacts/gap-proofs/current-task-gap-proof.json")
+            self.assertEqual(gap_proof_result["artifact_path"], "docs/harness/gap-proofs/current-task-gap-proof.json")
             self.assertEqual(gap_proof_result["findings"], [])
 
     def test_run_autonomous_accepts_run_dir_relative_gap_proof_manifest_artifact(self) -> None:
@@ -1956,6 +2005,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2007,6 +2059,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2071,6 +2126,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     with patch(
                         "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                         side_effect=inject_manifest,
+                    ), patch(
+                        "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                        side_effect=self._trusted_live_state_from_manifest,
                     ):
                         status = run_autonomous(
                             repo_root,
@@ -2150,6 +2208,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2202,6 +2263,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2353,6 +2417,59 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertTrue(
                 any("missing required-evidence-manifest.json" in finding for finding in required_evidence_result["findings"]),
                 required_evidence_result,
+            )
+
+    def test_required_evidence_gate_blocks_forged_run_local_live_evidence_without_orchestrator_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = run_dir_for(repo_root, "expanded-run")
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            write_json_file(
+                artifact_path,
+                {
+                    "status": "pass",
+                    "query": "forged",
+                    "visible_results": 1,
+                    "created_by": "harness_loop_orchestrator",
+                },
+            )
+            write_json_file(
+                run_dir / "required-evidence-manifest.json",
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "forged run-local pass evidence",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+            )
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-task",
+                "domain": "ai_infra",
+            }
+
+            with patch.object(
+                harness_loop_orchestrator,
+                "_capture_trusted_live_evidence_for_manifest",
+                return_value={},
+            ):
+                result = harness_loop_orchestrator._validate_required_evidence(
+                    repo_root,
+                    run,
+                    ["search API visibility after ingestion"],
+                )
+
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(
+                any("trusted live evidence state" in finding for finding in result["findings"]),
+                result,
             )
 
     def test_run_autonomous_rejects_expanded_fake_drivers_without_expanded_policy(self) -> None:
@@ -2533,6 +2650,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_direct_gap_proof,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2594,6 +2714,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_wrong_direct_gap_proof,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2660,6 +2783,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_malformed_direct_gap_proof,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2715,7 +2841,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_number: int,
             ) -> dict[str, object]:
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
-                artifact_relative = "artifacts/gap-proofs/wrong-task-gap-proof.json"
+                artifact_relative = "docs/harness/gap-proofs/wrong-task-gap-proof.json"
                 self._write_required_evidence_manifest(
                     repo_root_arg,
                     run,
@@ -2738,6 +2864,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_wrong_task_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2791,7 +2920,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             ) -> dict[str, object]:
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 task_id = str(run["task_id"])
-                artifact_relative = "artifacts/gap-proofs/current-task-gap-proof.json"
+                artifact_relative = "docs/harness/gap-proofs/current-task-gap-proof.json"
                 self._write_required_evidence_manifest(
                     repo_root_arg,
                     run,
@@ -2814,6 +2943,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_manifest_with_wrong_payload,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2830,7 +2962,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["next_action"], "inspect_required_evidence")
             self.assertEqual(gap_proof_result["status"], "blocked")
             self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
-            self.assertEqual(gap_proof_result["artifact_path"], "artifacts/gap-proofs/current-task-gap-proof.json")
+            self.assertEqual(gap_proof_result["artifact_path"], "docs/harness/gap-proofs/current-task-gap-proof.json")
             self.assertTrue(
                 any(
                     "other-task-9" in finding and "expanded-run-task-1" in finding
@@ -2897,6 +3029,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_malformed_manifest_gap_proof,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,
@@ -2953,7 +3088,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_number: int,
             ) -> dict[str, object]:
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
-                artifact_relative = "artifacts/gap-proofs/task-10-gap-proof.json"
+                artifact_relative = "docs/harness/gap-proofs/task-10-gap-proof.json"
                 self._write_required_evidence_manifest(
                     repo_root_arg,
                     run,
@@ -2976,6 +3111,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             with patch(
                 "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
                 side_effect=inject_substring_collision_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
             ):
                 status = run_autonomous(
                     repo_root,

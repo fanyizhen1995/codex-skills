@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -440,6 +441,7 @@ def _validate_semantic_evidence_artifacts(
     item: Mapping[str, Any],
     run_dir: Path,
     resolved_artifacts: Sequence[tuple[str, Path]],
+    trusted_live_evidence_state: Mapping[str, Any] | None,
 ) -> list[str]:
     if evidence_id not in SEMANTIC_GATE_EVIDENCE_IDS:
         return []
@@ -469,6 +471,7 @@ def _validate_semantic_evidence_artifacts(
             artifact_path=artifact_path,
             run_dir=run_dir,
             resolved=resolved,
+            trusted_live_evidence_state=trusted_live_evidence_state,
         )
         if provenance_finding:
             artifact_findings.append(provenance_finding)
@@ -490,8 +493,9 @@ def _validate_trusted_live_evidence_provenance(
     artifact_path: str,
     run_dir: Path,
     resolved: Path,
+    trusted_live_evidence_state: Mapping[str, Any] | None,
 ) -> str:
-    del item
+    del item, payload
     expected_path = trusted_live_evidence_artifact_path(evidence_id)
     if _normalize_manifest_artifact_path(artifact_path) != expected_path:
         return (
@@ -504,13 +508,44 @@ def _validate_trusted_live_evidence_provenance(
             f"{evidence_id} artifact {artifact_path} must resolve to run-local "
             f"{expected_path}"
         )
-    payload_created_by = str(payload.get("created_by", "")).strip()
-    if payload_created_by == TRUSTED_EVIDENCE_CREATED_BY:
-        return ""
-    return (
-        f"{evidence_id} artifact {artifact_path} must include trusted created_by "
-        f"{TRUSTED_EVIDENCE_CREATED_BY} in the artifact payload"
-    )
+    state_entry = _trusted_live_evidence_state_entry(trusted_live_evidence_state, evidence_id)
+    if state_entry is None:
+        return (
+            f"{evidence_id} artifact {artifact_path} is missing trusted live evidence state "
+            f"for {expected_path}"
+        )
+    state_created_by = str(state_entry.get("created_by", "")).strip()
+    if state_created_by != TRUSTED_EVIDENCE_CREATED_BY:
+        return (
+            f"{evidence_id} trusted live evidence state must record created_by "
+            f"{TRUSTED_EVIDENCE_CREATED_BY}"
+        )
+    state_artifact_path = _normalize_manifest_artifact_path(str(state_entry.get("artifact_path", "")))
+    if state_artifact_path != expected_path:
+        return (
+            f"{evidence_id} trusted live evidence state artifact_path {state_artifact_path or '<missing>'} "
+            f"does not match {expected_path}"
+        )
+    if not str(state_entry.get("captured_at", "")).strip():
+        return f"{evidence_id} trusted live evidence state must record captured_at"
+    expected_sha256 = str(state_entry.get("sha256", "")).strip().lower()
+    actual_sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
+    if expected_sha256 != actual_sha256:
+        return (
+            f"{evidence_id} trusted live evidence state sha256 {expected_sha256 or '<missing>'} "
+            f"does not match artifact sha256 {actual_sha256}"
+        )
+    return ""
+
+
+def _trusted_live_evidence_state_entry(
+    trusted_live_evidence_state: Mapping[str, Any] | None,
+    evidence_id: str,
+) -> Mapping[str, Any] | None:
+    if not isinstance(trusted_live_evidence_state, Mapping):
+        return None
+    entry = trusted_live_evidence_state.get(evidence_id)
+    return entry if isinstance(entry, Mapping) else None
 
 
 def trusted_live_evidence_artifact_path(evidence_id: str) -> str:
@@ -526,6 +561,8 @@ def validate_required_evidence_manifest(
     manifest: Mapping[str, Any],
     repo_root: Path,
     run_dir: Path,
+    *,
+    trusted_live_evidence_state: Mapping[str, Any] | None = None,
 ) -> list[str]:
     findings: list[str] = []
     items, item_findings = _manifest_items(manifest)
@@ -565,6 +602,7 @@ def validate_required_evidence_manifest(
             item=item,
             run_dir=run_dir,
             resolved_artifacts=resolved_artifacts,
+            trusted_live_evidence_state=trusted_live_evidence_state,
         )
         findings.extend(semantic_findings)
         evidence_text = " ".join(
@@ -625,6 +663,7 @@ def validate_required_evidence_manifest(
                     item=indexed_item["item"],
                     run_dir=run_dir,
                     resolved_artifacts=indexed_item["resolved_artifacts"],
+                    trusted_live_evidence_state=trusted_live_evidence_state,
                 )
                 if inferred_findings:
                     findings.extend(inferred_findings)

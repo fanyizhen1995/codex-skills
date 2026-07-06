@@ -325,6 +325,37 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
         self.assertFalse(result.allowed)
         self.assertEqual(result.denied_paths, changed_paths)
 
+    def test_expanded_policy_restricts_unrelated_paths_and_allows_required_ranges(self) -> None:
+        policy_path = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies" / "autonomous-knowledge-ai-infra-expanded.json"
+        with policy_path.open("r", encoding="utf-8") as handle:
+            policy = json.load(handle)
+
+        unrelated_result = check_autonomous_scope(
+            ["random.txt", "tools/unrelated.py"],
+            policy["allowed_paths"],
+            policy["denylist_paths"],
+            policy.get("manual_confirm_paths", []),
+        )
+        allowed_result = check_autonomous_scope(
+            [
+                "personal-wiki/domains/ai_infra/wiki/runtime.md",
+                "personal-wiki/apps/crawler_workbench/backend/crawler_workbench/main.py",
+                "personal-wiki/apps/crawler_workbench/frontend/src/App.tsx",
+                "scripts/harness_loop_orchestrator.py",
+                "docs/harness/planner-generator-evaluator-loop.md",
+                "scripts/tests/test_harness_ai_infra_evidence.py",
+                "tasks.json",
+                "progress.md",
+            ],
+            policy["allowed_paths"],
+            policy["denylist_paths"],
+            policy.get("manual_confirm_paths", []),
+        )
+
+        self.assertFalse(unrelated_result.allowed)
+        self.assertEqual(unrelated_result.denied_paths, ["random.txt", "tools/unrelated.py"])
+        self.assertTrue(allowed_result.allowed, allowed_result.findings)
+
     def test_expanded_policy_denies_root_level_secret_token_and_credential_paths(self) -> None:
         policy_path = Path(__file__).resolve().parents[2] / "docs" / "harness" / "loop-policies" / "autonomous-knowledge-ai-infra-expanded.json"
         with policy_path.open("r", encoding="utf-8") as handle:

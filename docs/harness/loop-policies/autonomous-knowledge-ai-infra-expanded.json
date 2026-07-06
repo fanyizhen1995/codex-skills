@@ -3,7 +3,25 @@
   "auto_commit": true,
   "auto_merge_main": false,
   "allowed_paths": [
-    "**"
+    "personal-wiki/domains/ai_infra/**",
+    "personal-wiki/docs/**",
+    "personal-wiki/WIKI.md",
+    "personal-wiki/apps/crawler_workbench/backend/**",
+    "personal-wiki/apps/crawler_workbench/frontend/**",
+    "apps/loop_dashboard/**",
+    "scripts/harness*.py",
+    "scripts/tests/**",
+    "scripts/wiki_crawler_e2e_evaluator.py",
+    "scripts/ai_infra_expanded_runtime_smoke.txt",
+    "docs/harness/**",
+    "docs/ARCHITECTURE.md",
+    "docs/CONVENTIONS.md",
+    "docs/TECH_DECISIONS.md",
+    "docs/QUALITY.md",
+    "docs/exec-plans/**",
+    "docs/superpowers/plans/**",
+    "tasks.json",
+    "progress.md"
   ],
   "manual_confirm_paths": [],
   "denylist_paths": [

@@ -204,10 +204,16 @@ Live semantic evidence for `service-availability`,
 `crawler-workbench-freshness`, `loop-dashboard-freshness`,
 `search-api-visibility`, and `frontend-visibility` must also carry trusted
 provenance. The manifest item must reference the run-local
-`trusted-live-evidence/<evidence-id>.json` artifact, and that referenced JSON
-artifact must include `created_by: harness_loop_orchestrator`. A manifest-level
-`created_by` marker is not trusted, and generator-written pass artifacts under
-ordinary artifact paths are blocked before commit.
+`trusted-live-evidence/<evidence-id>.json` artifact. During the required
+evidence gate, the orchestrator generates or overwrites those artifacts from
+live probes and records `run.json.trusted_live_evidence_state` as an
+orchestrator-owned map from `evidence_id` to `artifact_path`, `sha256`,
+`created_by: harness_loop_orchestrator`, and `captured_at`. The validator
+requires the manifest path to resolve to the run-local trusted artifact and the
+artifact bytes to match the sha256 recorded in run state. A manifest-level
+`created_by` marker and a payload-level `created_by` marker are not trusted by
+themselves, and generator-written pass artifacts without matching run state are
+blocked before commit.
 
 Expanded AI infra policies should use stable manifest `evidence_id` values
 instead of copying the full prose requirement into `summary`. Current stable

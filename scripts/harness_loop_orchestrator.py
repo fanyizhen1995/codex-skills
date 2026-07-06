@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -7,10 +8,14 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 
 try:
     from scripts.harness_ai_infra_evidence import (
+        check_service_availability,
         resolve_manifest_artifact_path,
+        trusted_live_evidence_artifact_path,
         validate_gap_proof_file,
         validate_required_evidence_manifest,
     )
@@ -46,7 +51,9 @@ try:
     )
 except ModuleNotFoundError:
     from harness_ai_infra_evidence import (  # type: ignore[no-redef]
+        check_service_availability,
         resolve_manifest_artifact_path,
+        trusted_live_evidence_artifact_path,
         validate_gap_proof_file,
         validate_required_evidence_manifest,
     )
@@ -2611,6 +2618,209 @@ def _commit_autonomous_changes(
     return _finish_autonomous_cleanup(repo_root, run["run_id"])
 
 
+_LIVE_SEMANTIC_EVIDENCE_IDS = {
+    "service-availability",
+    "crawler-workbench-freshness",
+    "loop-dashboard-freshness",
+    "search-api-visibility",
+    "frontend-visibility",
+}
+_TRUSTED_LIVE_EVIDENCE_CREATED_BY = "harness_loop_orchestrator"
+
+
+def _capture_trusted_live_evidence_for_manifest(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    manifest_payload: Mapping[str, Any],
+) -> dict[str, dict[str, str]]:
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    state: dict[str, dict[str, str]] = {}
+    for evidence_id in sorted(_live_evidence_ids_from_manifest(manifest_payload)):
+        artifact_relative = trusted_live_evidence_artifact_path(evidence_id)
+        artifact_path = run_dir / artifact_relative
+        captured_at = _timestamp()
+        payload = _capture_live_evidence_payload(evidence_id, run=run, captured_at=captured_at)
+        payload["evidence_id"] = evidence_id
+        payload["created_by"] = _TRUSTED_LIVE_EVIDENCE_CREATED_BY
+        payload["captured_at"] = captured_at
+        write_json_file(artifact_path, payload)
+        state[evidence_id] = {
+            "artifact_path": artifact_relative,
+            "sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+            "created_by": _TRUSTED_LIVE_EVIDENCE_CREATED_BY,
+            "captured_at": captured_at,
+        }
+    return state
+
+
+def _live_evidence_ids_from_manifest(manifest_payload: Mapping[str, Any]) -> set[str]:
+    entries = manifest_payload.get("items")
+    if entries is None:
+        entries = manifest_payload.get("evidence")
+    if not isinstance(entries, list):
+        return set()
+    evidence_ids: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        raw_evidence_id = str(entry.get("evidence_id", "")).strip().lower()
+        normalized = re.sub(r"[^a-z0-9]+", "-", raw_evidence_id).strip("-")
+        stable_id = _required_evidence_id(raw_evidence_id)
+        for candidate in (raw_evidence_id, normalized, stable_id):
+            if candidate in _LIVE_SEMANTIC_EVIDENCE_IDS:
+                evidence_ids.add(candidate)
+    return evidence_ids
+
+
+def _capture_live_evidence_payload(evidence_id: str, *, run: Mapping[str, Any], captured_at: str) -> dict[str, Any]:
+    if evidence_id == "service-availability":
+        return check_service_availability(
+            [
+                {"service": "crawler-backend", "url": "http://127.0.0.1:8765/api/health"},
+                {"service": "crawler-frontend", "url": "http://127.0.0.1:5173/"},
+                {"service": "loop-dashboard", "url": "http://127.0.0.1:8766/api/health"},
+            ]
+        )
+    if evidence_id == "crawler-workbench-freshness":
+        details = {
+            "sources": _http_probe("http://127.0.0.1:8765/api/sources"),
+            "channels": _http_probe("http://127.0.0.1:8765/api/channels?domain=ai_infra"),
+            "queue": _http_probe("http://127.0.0.1:8765/api/runs"),
+            "wiki": _http_probe("http://127.0.0.1:8765/api/wiki/pages?domain=ai_infra"),
+            "search": _http_probe("http://127.0.0.1:8765/api/search?q=ai_infra&domain=ai_infra"),
+        }
+        return _freshness_probe_payload(details, captured_at=captured_at)
+    if evidence_id == "loop-dashboard-freshness":
+        run_id = str(run.get("run_id", "")).strip()
+        details = {
+            "current_run": _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}"),
+            "child_tasks": _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}"),
+            "agent_actions": _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/events"),
+            "evaluator_scenarios": _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/logs"),
+            "completed_history": _http_probe("http://127.0.0.1:8766/api/runs"),
+        }
+        return _freshness_probe_payload(details, captured_at=captured_at)
+    if evidence_id == "search-api-visibility":
+        probe = _http_probe("http://127.0.0.1:8765/api/search?q=ai_infra&domain=ai_infra")
+        visible_results = _visible_result_count(probe.get("json"))
+        return {
+            "status": "pass" if probe["status"] == "pass" and visible_results > 0 else "blocked",
+            "query": "ai_infra",
+            "visible_results": visible_results,
+            "visible_items": _visible_result_items(probe.get("json")),
+            "probe": probe,
+            "summary": "search API returned visible ai_infra results"
+            if probe["status"] == "pass" and visible_results > 0
+            else "search API visibility probe did not return visible ai_infra results",
+            "captured_at": captured_at,
+        }
+    if evidence_id == "frontend-visibility":
+        probe = _http_probe("http://127.0.0.1:5173/")
+        visible_text = ["crawler workbench frontend loaded"] if probe["status"] == "pass" and probe.get("body_excerpt") else []
+        return {
+            "status": "pass" if visible_text else "blocked",
+            "page_url": "http://127.0.0.1:5173/",
+            "visible_text": visible_text,
+            "probe": probe,
+            "summary": "frontend returned a non-empty page"
+            if visible_text
+            else "frontend visibility probe did not return a non-empty page",
+            "captured_at": captured_at,
+        }
+    return {
+        "status": "blocked",
+        "summary": f"unsupported live evidence id {evidence_id}",
+        "captured_at": captured_at,
+    }
+
+
+def _freshness_probe_payload(details: Mapping[str, Any], *, captured_at: str) -> dict[str, Any]:
+    passed = all(isinstance(value, Mapping) and value.get("status") == "pass" for value in details.values())
+    return {
+        "status": "pass" if passed else "blocked",
+        "summary": "live freshness probes passed" if passed else "one or more live freshness probes failed",
+        "details": dict(details),
+        "captured_at": captured_at,
+    }
+
+
+def _http_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, Any]:
+    probe: dict[str, Any] = {
+        "url": url,
+        "status": "fail",
+        "http_status": None,
+        "error": "",
+    }
+    try:
+        with urlopen(url, timeout=timeout_seconds) as response:
+            http_status = int(getattr(response, "status", 0) or 0)
+            body = response.read(65536)
+            probe["http_status"] = http_status
+            probe["status"] = "pass" if 200 <= http_status < 400 else "fail"
+            probe["body_excerpt"] = body[:2048].decode("utf-8", errors="replace")
+            try:
+                probe["json"] = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                probe["json"] = None
+            if probe["status"] != "pass":
+                probe["error"] = f"unexpected HTTP status {http_status}"
+    except HTTPError as exc:
+        probe["http_status"] = int(exc.code)
+        probe["error"] = str(exc)
+    except (URLError, OSError) as exc:
+        probe["error"] = str(getattr(exc, "reason", exc))
+    return probe
+
+
+def _visible_result_count(payload: Any) -> int:
+    if isinstance(payload, list):
+        return len(payload)
+    if not isinstance(payload, Mapping):
+        return 0
+    for key in ("results", "items", "pages"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return len(value)
+    count = payload.get("count")
+    return count if isinstance(count, int) and count > 0 else 0
+
+
+def _visible_result_items(payload: Any) -> list[str]:
+    if isinstance(payload, list):
+        candidates = payload
+    elif isinstance(payload, Mapping):
+        candidates = next(
+            (value for key in ("results", "items", "pages") if isinstance((value := payload.get(key)), list)),
+            [],
+        )
+    else:
+        candidates = []
+    items: list[str] = []
+    for candidate in candidates[:5]:
+        if isinstance(candidate, Mapping):
+            text = str(candidate.get("title") or candidate.get("path") or candidate.get("url") or "").strip()
+        else:
+            text = str(candidate).strip()
+        if text:
+            items.append(text)
+    return items
+
+
+def _record_trusted_live_evidence_state(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    trusted_live_state: Mapping[str, Mapping[str, str]],
+) -> None:
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    run_json_path = run_dir / "run.json"
+    if run_json_path.exists():
+        run_payload = read_json_file(run_json_path)
+        run_payload["trusted_live_evidence_state"] = dict(trusted_live_state)
+        write_json_file(run_json_path, run_payload)
+    if isinstance(run, dict):
+        run["trusted_live_evidence_state"] = dict(trusted_live_state)
+
+
 def _validate_required_evidence(
     repo_root: Path,
     run: Mapping[str, Any],
@@ -2628,12 +2838,22 @@ def _validate_required_evidence(
         findings.append("missing required-evidence-manifest.json")
 
     if manifest_payload is not None:
+        trusted_live_state = _capture_trusted_live_evidence_for_manifest(repo_root, run, manifest_payload)
+        if trusted_live_state:
+            _record_trusted_live_evidence_state(repo_root, run, trusted_live_state)
+        else:
+            trusted_live_state = (
+                run.get("trusted_live_evidence_state")
+                if isinstance(run.get("trusted_live_evidence_state"), Mapping)
+                else {}
+            )
         findings.extend(
             validate_required_evidence_manifest(
                 required_evidence,
                 manifest_payload,
                 repo_root,
                 run_dir,
+                trusted_live_evidence_state=trusted_live_state,
             )
         )
 
