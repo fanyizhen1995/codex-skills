@@ -1791,7 +1791,24 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(commit_result["status"], "pass")
             self.assertTrue(generator_result["commit"])
             self.assertIn("scripts/ai_infra_expanded_runtime_smoke.txt", generator_result["changed_paths"])
+            self.assertIn("personal-wiki/domains/ai_infra/coverage-map.json", generator_result["changed_paths"])
             self.assertTrue((repo_root / "scripts" / "ai_infra_expanded_runtime_smoke.txt").exists())
+            coverage_map = read_json_file(repo_root / "personal-wiki" / "domains" / "ai_infra" / "coverage-map.json")
+            self.assertEqual(coverage_map["domain"], "ai_infra")
+            self.assertEqual(coverage_map["domain_goal"], "Expand wiki")
+            self.assertEqual(set(coverage_map["layers"]), {
+                "training-distributed",
+                "inference-runtime",
+                "orchestration-scheduling",
+                "data-rag-vector",
+                "eval-observability-reliability",
+                "security-governance-cost",
+                "hardware-accelerator",
+                "network-storage-cluster",
+            })
+            for layer_payload in coverage_map["layers"].values():
+                self.assertEqual(layer_payload["status"], "covered")
+                self.assertEqual(layer_payload["candidate_gaps"], [])
             expected_ids = {
                 self.REQUIRED_EVIDENCE_STABLE_IDS[str(requirement).lower()]
                 for requirement in run["required_evidence"]
@@ -1877,6 +1894,80 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             max_eval_attempts=2,
                             max_tasks=1,
                         )
+
+    def test_run_autonomous_rejects_expanded_fake_drivers_with_marker_evidence_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            generic_policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge.json",
+            )
+            expanded_policy = read_json_file(
+                Path(__file__).resolve().parents[2]
+                / "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=generic_policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            run = load_run(repo_root, "demo-run")
+            run["required_evidence"] = list(expanded_policy["required_evidence"])
+            write_json_file(run_dir_for(repo_root, "demo-run") / "run.json", run)
+
+            for generator_driver in ("fake-expanded-code", "fake-missing-evidence"):
+                with self.subTest(generator_driver=generator_driver):
+                    with self.assertRaisesRegex(ValueError, "expanded ai_infra policy"):
+                        run_autonomous(
+                            repo_root,
+                            "demo-run",
+                            planner_driver="fake",
+                            generator_driver=generator_driver,
+                            evaluator_driver="fake",
+                            max_eval_attempts=2,
+                            max_tasks=1,
+                        )
+
+    def test_run_autonomous_expanded_policy_blocks_denylist_changed_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            status = run_autonomous(
+                repo_root,
+                "expanded-run",
+                planner_driver="fake",
+                generator_driver="fake-denylist",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            run = read_json_file(run_dir_for(repo_root, "expanded-run") / "run.json")
+            scope_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "autonomous-scope-result.json")
+            self.assertEqual(run["next_action"], "inspect_autonomous_scope")
+            self.assertIn(".env", scope_result["denied_paths"])
 
     def test_run_autonomous_accepts_direct_gap_proof_file_for_current_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

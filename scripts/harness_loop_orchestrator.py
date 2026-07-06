@@ -1802,11 +1802,6 @@ _EXPANDED_REQUIRED_EVIDENCE_IDS = {
 }
 
 _EXPANDED_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
-_EXPANDED_POLICY_MARKERS = {
-    "confirmed ai_infra autonomous expansion preflight",
-    "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
-    "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
-}
 _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE = {
     "search-api-visibility": "Synthetic smoke placeholder: search/API visibility requires live ingest verification.",
     "frontend-visibility": "Synthetic smoke placeholder: frontend visibility requires live UI verification.",
@@ -1824,20 +1819,22 @@ def _required_evidence_id(requirement: str) -> str:
     )
 
 
+def _normalize_repo_relative_policy_path(policy_file: str) -> str:
+    normalized = Path(policy_file.strip()).as_posix()
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
 def _run_uses_expanded_ai_infra_policy(run: Mapping[str, Any]) -> bool:
     if str(run.get("policy", "")).strip() != "autonomous_knowledge":
         return False
     if str(run.get("domain", "")).strip() != "ai_infra":
         return False
     policy_file = str(run.get("policy_file", "")).strip()
-    if policy_file == _EXPANDED_POLICY_FILE:
-        return True
-    required_evidence = {
-        str(item).strip().lower()
-        for item in run.get("required_evidence", [])
-        if isinstance(item, str) and str(item).strip()
-    }
-    return _EXPANDED_POLICY_MARKERS.issubset(required_evidence)
+    if not policy_file:
+        return False
+    return _normalize_repo_relative_policy_path(policy_file) == _EXPANDED_POLICY_FILE
 
 
 def _write_expanded_fake_evidence(
@@ -2030,7 +2027,21 @@ def _write_fake_autonomous_generator_result(
             }
         ]
         write_loop_state(repo_root, domain, state)
-        changed_paths = [smoke_relative]
+        coverage_map = create_default_coverage_map(domain, state["domain_goal"])
+        for layer_name, layer_payload in coverage_map["layers"].items():
+            layer_payload["status"] = "covered"
+            layer_payload["covered_pages"] = [f"wiki/{layer_name}.md"]
+            layer_payload["raw_evidence"] = [smoke_relative]
+            layer_payload["candidate_gaps"] = []
+            layer_payload["blocked_reason"] = ""
+            layer_payload["last_scanned_at"] = state["last_scan_at"]
+            layer_payload["notes"] = "Synthetic expanded runtime smoke coverage."
+        write_coverage_map(repo_root, domain, coverage_map)
+        changed_paths = [
+            smoke_relative,
+            f"personal-wiki/domains/{domain}/loop-state.json",
+            f"personal-wiki/domains/{domain}/coverage-map.json",
+        ]
         _write_expanded_fake_evidence(
             repo_root,
             run,

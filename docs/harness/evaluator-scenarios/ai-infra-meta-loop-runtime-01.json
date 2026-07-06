@@ -41,17 +41,19 @@
         "run_autonomous accepts fake-expanded-code and fake-missing-evidence as autonomous generator drivers.",
         "Stable required evidence IDs are available for manifest emission."
       ],
-      "entrypoint": "python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_allows_code_path_with_evidence scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks -v",
+      "entrypoint": "python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_rejects_expanded_fake_drivers_with_marker_evidence_only scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_blocks_denylist_changed_path scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks -v",
       "steps": [
-        "Run the expanded policy allow-path test.",
+        "Run the marker-only expanded driver rejection test to prove wrong or missing policy_file cannot unlock expanded fake drivers.",
+        "Run the expanded policy denylist test and verify a denylisted path is blocked by autonomous scope.",
         "Run the missing required evidence block test."
       ],
       "expected_outcomes": [
-        "fake-expanded-code writes scripts/ai_infra_expanded_runtime_smoke.txt and commits only after required evidence passes.",
+        "fake-expanded-code and fake-missing-evidence are rejected when required_evidence markers exist but policy_file is missing or points at the non-expanded autonomous policy.",
+        "Under the expanded policy, a denylisted .env write is blocked with inspect_autonomous_scope.",
         "fake-missing-evidence blocks before commit with inspect_required_evidence."
       ],
       "failure_signals": [
-        "Expanded runtime code path is rejected as an unsupported driver.",
+        "Marker-only required_evidence unlocks an expanded fake driver without the expanded policy file.",
         "Expanded runtime code path commits without required evidence.",
         "Expanded runtime path touches denylist or live service processes."
       ],
