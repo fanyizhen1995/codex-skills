@@ -1,0 +1,74 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r3-task-3",
+  "run_id": "ai-infra-expansion-2026-07-06-r3",
+  "layer": "data-rag-vector",
+  "candidate": {
+    "title": "Add source-backed data, RAG, and vector infrastructure coverage",
+    "source_type": "official_docs_set",
+    "identity_key": "urlset:milvus-qdrant-weaviate-pgvector-faiss-vector-infrastructure-20260707"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "find/rg scan of personal-wiki/domains/ai_infra/raw found no dedicated Milvus, Qdrant, Weaviate, pgvector, FAISS, vector database, RAG data-infrastructure, or embedding-pipeline corpus. Matches were limited to the Hitchhiker arXiv capture, unrelated compute accelerator storage text, and pre-existing baseline-dirty compute captures that are explicitly out of scope.",
+    "wiki_search": "rg scan of personal-wiki/domains/ai_infra/wiki found no dedicated vector database, Milvus, Qdrant, Weaviate, pgvector, FAISS, embedding pipeline, or data/RAG infrastructure page. Existing hits were coverage-map gap text, Hitchhiker paper context, and generic retrieval notes in unrelated corpus pages.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md had no data-rag-vector reference page before this task; only the Hitchhiker paper was indexed for the weak data-rag-vector layer."
+  },
+  "gap_reason": "coverage-map.json marked data-rag-vector as weak and cited only the Hitchhiker paper. The planner required primary system sources for vector database, retrieval, and embedding-index infrastructure; local duplicate checks found no curated primary corpus for that layer.",
+  "duplicate_policy": {
+    "baseline_dirty_compute_captures_excluded": true,
+    "excluded_reason": "Pre-existing untracked 20260706 compute accelerator crawler captures are hardware-accelerator evidence and were not staged, curated, or used as source evidence for this data-rag-vector task.",
+    "hitchhiker_context_only": true
+  },
+  "selected_sources": [
+    {
+      "name": "Milvus Architecture Overview",
+      "url": "https://milvus.io/docs/architecture_overview.md",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/milvus-architecture-overview-20260707.md",
+      "reason": "Primary architecture evidence for distributed vector database proxy, coordinator, worker, storage, WAL, sealed/growing data, and index-build flow."
+    },
+    {
+      "name": "Qdrant Indexing Documentation",
+      "url": "https://qdrant.tech/documentation/manage-data/indexing/",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
+      "reason": "Primary evidence for dense HNSW, payload indexes, filterable HNSW, full-text payload indexing, sparse vectors, and memory/disk index placement."
+    },
+    {
+      "name": "Weaviate Vector Indexing Documentation",
+      "url": "https://docs.weaviate.io/weaviate/concepts/vector-index",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
+      "reason": "Primary evidence for HNSW, flat, dynamic, HFresh, memory footprint, asynchronous indexing, and small-collection tradeoffs."
+    },
+    {
+      "name": "pgvector README",
+      "url": "https://github.com/pgvector/pgvector",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
+      "reason": "Primary evidence for PostgreSQL-native vector storage, exact search, HNSW, IVFFlat, distance operators, filtering behavior, and relational integration."
+    },
+    {
+      "name": "FAISS README and indexes wiki",
+      "url": "https://github.com/facebookresearch/faiss",
+      "secondary_urls": [
+        "https://github.com/facebookresearch/faiss/wiki/Faiss-indexes"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md",
+      "reason": "Primary library evidence for dense-vector similarity search, flat/HNSW/IVF/PQ index families, compression, CPU/GPU support, and scale/search tradeoffs."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/raw/links/milvus-architecture-overview-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-3-verification.json"
+  ],
+  "link_probe_evidence": {
+    "method": "main-environment curl HEAD probes plus browser retrieval for official primary URLs",
+    "status": "partial_pass",
+    "notes": "Qdrant, Weaviate, pgvector, FAISS README, and FAISS indexes wiki returned HTTP 200 from the main shell. Milvus returned HTTP 403/challenge to shell probes from the current network, but the official URL remains recorded and was readable through the browser retrieval channel during curation."
+  }
+}

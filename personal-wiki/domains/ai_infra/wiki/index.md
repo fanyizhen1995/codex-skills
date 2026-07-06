@@ -36,6 +36,7 @@ _No pages yet._
 - [Compute Accelerator Field Glossary](references/compute-accelerator-field-glossary.md) - Canonical field names, units, and scope applicability for accelerator specifications.
 - [Compute Accelerator Parameter Comparison](references/compute-accelerator-parameter-comparison.md) - Current cross-vendor parameter comparison for accelerator, cloud offering, system, DPU, and SmartNIC records captured in ai_infra.
 - [Compute Accelerator Spec Sources](references/compute-accelerator-spec-sources.md) - Source ranking and provenance policy for the compute accelerator specification catalog.
+- [Data RAG Vector Infrastructure](references/data-rag-vector-infrastructure.md) - Source-backed reference for vector database, retrieval, and embedding-index infrastructure across Milvus, Qdrant, Weaviate, pgvector, and FAISS.
 - [Kubernetes, Volcano, And Kueue GitHub Closed Issues](references/kubernetes-volcano-kueue-github-closed-issues.md) - Local raw corpus and monthly sync setup for closed GitHub issues from Kubernetes, Volcano, and Kueue.
 - [NCCL GitHub Closed Issues](references/nccl-github-closed-issues.md) - Local raw corpus and curated operational signals from closed NVIDIA/nccl GitHub issues and issue comments.
 - [NCCL Release Notes](references/nccl-release-notes.md) - Complete local catalog of official NVIDIA NCCL release-note pages from 2.30.7 back to 2.0.2.

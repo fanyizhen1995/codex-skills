@@ -25,10 +25,16 @@ source_refs:
   - ../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
+  - ../../raw/links/milvus-architecture-overview-20260707.md
+  - ../../raw/links/qdrant-indexing-official-docs-20260707.md
+  - ../../raw/links/weaviate-vector-indexing-official-docs-20260707.md
+  - ../../raw/links/pgvector-readme-official-20260707.md
+  - ../../raw/links/faiss-readme-and-indexes-official-20260707.md
 updated: 2026-07-07
 related:
   - ../projects/nccl.md
   - ../references/nccl-technical-blog-network-observability.md
+  - ../references/data-rag-vector-infrastructure.md
   - ../projects/sglang.md
   - ../references/kubernetes-volcano-kueue-github-closed-issues.md
   - ../references/compute-accelerator-crawl-inventory.md
@@ -38,7 +44,7 @@ related:
 
 This page makes the autonomous `ai_infra` coverage scan discoverable from the curated wiki. The machine-readable state lives in [coverage-map.json](../../coverage-map.json) and [loop-state.json](../../loop-state.json); this page is the human navigation entry point.
 
-The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, SGLang inference-runtime evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Data/RAG/vector infrastructure remains the weakest layer; security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
+The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, SGLang inference-runtime evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Data/RAG/vector infrastructure now has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes; security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
 
 # Layer Status
 
@@ -47,7 +53,7 @@ The scan reuses existing local evidence rather than recrawling the baseline-dirt
 | `training-distributed` | NCCL release notes, closed GitHub issues, and technical-blog captures cover collective communication, SHARP offload, dynamic communicators, reliability, and cost-estimation hooks. | Add source-backed training framework, checkpointing, and elastic training pages beyond NCCL. |
 | `inference-runtime` | SGLang issue/PR corpora and CUDA Green Context evidence cover serving runtime behavior and compatibility risks. | Add vLLM, TensorRT-LLM, Triton, llama.cpp, and ONNX Runtime GenAI coverage after duplicate checks. |
 | `orchestration-scheduling` | Kubernetes, Volcano, and Kueue closed-issue corpora cover scheduler, queueing, and cluster operations with comment-completeness caveats. | Add Ray, Slurm-on-Kubernetes, device plugins, and GPU quota/operator sources. |
-| `data-rag-vector` | The Hitchhiker paper gives a broad map of RAG, memory systems, and agent harness infrastructure. | Add primary-source vector database, embedding pipeline, and AI data pipeline pages. |
+| `data-rag-vector` | The Hitchhiker paper gives broad RAG context, and [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md) adds primary-source Milvus, Qdrant, Weaviate, pgvector, and FAISS coverage for vector database architecture, indexing, filtered retrieval, sparse retrieval, and embedding-index lifecycle. | Add Kafka/Flink/object-store ingestion, embedding worker, re-embedding, metadata governance, and RAG observability evidence. |
 | `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora now supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. | Add LLM evaluation/tracing platforms, benchmark environment state, SLO, and incident sources beyond NCCL/SGLang. |
 | `security-governance-cost` | NCCL 2.22 cost-estimation and resource-efficiency evidence now complements adjacent NCCL GPU sharing/virtualization issues, DPU security positioning, and Kueue quota-aware scheduling. | Add tenant isolation, MIG/vGPU, confidential computing, cost attribution, and capacity planning sources. |
 | `hardware-accelerator` | Compute accelerator inventory, field glossary, spec catalog, and parameter comparison cover GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC evidence. | Reconcile or intentionally ignore the baseline-dirty 20260706 compute captures before using them. |
@@ -70,6 +76,12 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Hitchhiker paper raw markdown](../../raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md)
 - [NVIDIA product discovery raw capture](../../raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md)
 - [NCCL technical blog network observability reference](nccl-technical-blog-network-observability.md)
+- [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md)
 - [NCCL Inspector with Prometheus raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md)
 - [AI fabric resiliency raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md)
 - [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
+- [Milvus architecture source note](../../raw/links/milvus-architecture-overview-20260707.md)
+- [Qdrant indexing source note](../../raw/links/qdrant-indexing-official-docs-20260707.md)
+- [Weaviate vector indexing source note](../../raw/links/weaviate-vector-indexing-official-docs-20260707.md)
+- [pgvector README source note](../../raw/links/pgvector-readme-official-20260707.md)
+- [FAISS README and indexes source note](../../raw/links/faiss-readme-and-indexes-official-20260707.md)

@@ -1,0 +1,136 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r3-task-3",
+  "run_id": "ai-infra-expansion-2026-07-06-r3",
+  "generated_at": "2026-07-06T23:00:42Z",
+  "summary": "Task 3 added source-backed data/RAG/vector coverage from official Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes. Main-environment validators, backend/search visibility, frontend availability, and loop-dashboard health passed. The generator child sandbox later hung while trying service visibility checks, so this task was manually closed out from the main environment.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/milvus-architecture-overview-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-3-verification.json"
+  ],
+  "baseline_dirty_exclusions": [
+    "pre-existing untracked personal-wiki/domains/ai_infra/raw/crawler/compute-* 20260706 hardware accelerator captures were not used, modified, staged, or declared as task-3 outputs"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md and indexed Data RAG Vector Infrastructure."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness schemas and ai_infra coverage timestamp semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-3 gap proof parses as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-06-r3-task-3') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-3 gap proof satisfies the harness gap-proof validator."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "targeted credential-shaped sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No credential-shaped findings. A preliminary naive substring scan matched harmless technical words like tokenization and was replaced with credential-shaped patterns."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "All declared non-run-artifact changed paths are allowed by the run policy and no manual-confirm paths were required."
+    },
+    {
+      "command": "supply-chain dependency change check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No dependency files changed."
+    },
+    {
+      "command": "link probe over official Milvus/Qdrant/Weaviate/pgvector/FAISS URLs using urllib HEAD",
+      "status": "partial_pass",
+      "exit_code": 0,
+      "summary": "Main-environment curl HEAD probes returned HTTP 200 for Qdrant, Weaviate, pgvector, FAISS README, and FAISS indexes wiki. Milvus returned HTTP 403/challenge to shell probes from the current network, but the official URL was readable through the browser retrieval channel and is recorded in raw source notes."
+    },
+    {
+      "command": "curl --noproxy \"*\" -fsS http://127.0.0.1:8765/api/health and /api/search visibility checks",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Main-environment backend health returned ok. Search for 'vector database RAG embedding' and 'Milvus Qdrant Weaviate pgvector FAISS' returned Data RAG Vector Infrastructure and AI Infra Coverage Map results."
+    },
+    {
+      "command": "curl --noproxy \"*\" -fsSI http://127.0.0.1:5173/",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Main-environment frontend returned HTTP 200 through Vite on port 5173."
+    },
+    {
+      "command": "curl --noproxy \"*\" -fsS http://127.0.0.1:8766/api/health",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Main-environment Loop Dashboard health returned ok on port 8766."
+    },
+    {
+      "command": "git status --short -- personal-wiki/domains/ai_infra .codex/loop-runs/ai-infra-expansion-2026-07-06-r3",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Declared task-3 paths are present; pre-existing untracked 20260706 compute accelerator crawler captures remain separate baseline-dirty files."
+    }
+  ],
+  "live_service_notes": {
+    "generator_child_sandbox": "The interrupted generator child could not reliably observe local services and hung while closing out its verification; the main environment completed the checks instead.",
+    "backend": "http://127.0.0.1:8765/api/health returned ok and /api/search returned the new Data RAG Vector Infrastructure page.",
+    "frontend": "http://127.0.0.1:5173/ returned HTTP 200.",
+    "loop_dashboard": "http://127.0.0.1:8766/api/health returned ok."
+  },
+  "source_urls": [
+    "https://milvus.io/docs/architecture_overview.md",
+    "https://qdrant.tech/documentation/manage-data/indexing/",
+    "https://docs.weaviate.io/weaviate/concepts/vector-index",
+    "https://github.com/pgvector/pgvector",
+    "https://github.com/facebookresearch/faiss",
+    "https://github.com/facebookresearch/faiss/wiki/Faiss-indexes"
+  ]
+}

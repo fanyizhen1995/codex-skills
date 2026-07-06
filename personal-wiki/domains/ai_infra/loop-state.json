@@ -3,18 +3,18 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-06T22:06:03Z",
+  "last_scan_at": "2026-07-06T23:00:42Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
     {
-      "id": "data-rag-vector-primary-sources",
-      "title": "Add source-backed data, RAG, and vector infrastructure coverage",
+      "id": "data-rag-vector-data-pipeline-broadening",
+      "title": "Broaden data/RAG/vector coverage beyond vector indexes into ingestion, embedding, governance, and observability pipelines",
       "source": "coverage-map:data-rag-vector",
       "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
+      "updated_at": "2026-07-06T23:00:42Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md"
       ]
     },
     {
@@ -182,6 +182,21 @@
       "evidence": [
         "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
+      ]
+    },
+    {
+      "id": "data-rag-vector-official-primary-sources",
+      "title": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official vector infrastructure sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T23:00:42Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/milvus-architecture-overview-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md"
       ]
     }
   ],

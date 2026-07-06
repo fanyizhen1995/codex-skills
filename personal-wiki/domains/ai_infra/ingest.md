@@ -32,6 +32,8 @@ No active ingest.
   - Organized daily scheduled crawler snapshots for NCCL issue #2226 and #2024 as page-level discovery leads after the 2026-06-24 API corpus cutoff.
 - [x] `raw/crawler/nccl-technical-blog/` -> `wiki/references/nccl-technical-blog-network-observability.md`, `wiki/projects/nccl.md`, `wiki/references/ai-infra-coverage-map.md`
   - Organized existing local NVIDIA technical-blog captures for NCCL Inspector/Prometheus, communication observability, NCCL 2.24 RAS/NIC Fusion, dynamic communicators, Spectrum-X/RoCE fabric telemetry and convergence, NVBandwidth, SHARP, and NCCL 2.22 cost-estimation evidence. The overlapping `raw/crawler/nccl-nvidia-blog-wide/` Inspector and NVBandwidth captures were treated as duplicate local evidence and were not promoted as separate curated sources.
+- [x] `raw/links/{milvus-architecture-overview-20260707,qdrant-indexing-official-docs-20260707,weaviate-vector-indexing-official-docs-20260707,pgvector-readme-official-20260707,faiss-readme-and-indexes-official-20260707}.md` -> `wiki/references/data-rag-vector-infrastructure.md`, `wiki/references/ai-infra-coverage-map.md`
+  - Captured concise official primary-source notes for vector database and retrieval infrastructure after confirming no existing dedicated Milvus, Qdrant, Weaviate, pgvector, FAISS, embedding-pipeline, or data/RAG corpus was curated locally. The page covers vector database architecture, HNSW/IVFFlat/IVF/PQ index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk index placement, and embedding-index lifecycle. The pre-existing untracked 20260706 compute accelerator captures remain out of scope.
 
 ## Rejected
 
