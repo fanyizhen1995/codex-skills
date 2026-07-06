@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 try:
-    from scripts.harness_ai_infra_evidence import validate_gap_proof_file
+    from scripts.harness_ai_infra_evidence import validate_gap_proof_file, validate_required_evidence_manifest
     from scripts.harness_loop_contracts import (
         default_limits,
         load_loop_policy,
@@ -41,7 +41,7 @@ try:
         write_loop_state,
     )
 except ModuleNotFoundError:
-    from harness_ai_infra_evidence import validate_gap_proof_file  # type: ignore[no-redef]
+    from harness_ai_infra_evidence import validate_gap_proof_file, validate_required_evidence_manifest  # type: ignore[no-redef]
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
         load_loop_policy,
@@ -2080,10 +2080,10 @@ def _commit_autonomous_changes(
         return False
 
     required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
-    if any("gap proof" in item.lower() for item in required_evidence):
-        gap_proof_result = _validate_gap_proof_evidence(repo_root, run)
-        write_json_file(run_dir / "gap-proof-result.json", gap_proof_result)
-        if gap_proof_result["status"] != "pass":
+    if required_evidence:
+        required_evidence_result = _validate_required_evidence(repo_root, run, required_evidence)
+        write_json_file(run_dir / "required-evidence-result.json", required_evidence_result)
+        if required_evidence_result["status"] != "pass":
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_required_evidence", last_result="blocked")
             return False
 
@@ -2134,6 +2134,53 @@ def _commit_autonomous_changes(
         write_json_file(run_dir / "generator-result.json", generator_result)
 
     return _finish_autonomous_cleanup(repo_root, run["run_id"])
+
+
+def _validate_required_evidence(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    required_evidence: list[str],
+) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    manifest_path = run_dir / "required-evidence-manifest.json"
+    findings: list[str] = []
+    manifest_payload: dict[str, Any] = {}
+    if manifest_path.exists():
+        payload = read_json_file(manifest_path)
+        if isinstance(payload, dict):
+            manifest_payload = payload
+        else:
+            findings.append("required-evidence-manifest.json must contain an object payload")
+    else:
+        findings.append("missing required-evidence-manifest.json")
+
+    if manifest_payload:
+        findings.extend(
+            validate_required_evidence_manifest(
+                required_evidence,
+                manifest_payload,
+                repo_root,
+                run_dir,
+            )
+        )
+
+    gap_proof_result: dict[str, Any] | None = None
+    if any("gap proof" in item.lower() for item in required_evidence):
+        gap_proof_result = _validate_gap_proof_evidence(repo_root, run)
+        write_json_file(run_dir / "gap-proof-result.json", gap_proof_result)
+        if gap_proof_result["status"] != "pass":
+            findings.extend(str(item) for item in gap_proof_result["findings"])
+
+    return {
+        "status": "pass" if not findings else "blocked",
+        "manifest_path": (
+            manifest_path.relative_to(repo_root).as_posix()
+            if manifest_path.exists()
+            else "required-evidence-manifest.json"
+        ),
+        "gap_proof_result_path": "gap-proof-result.json" if gap_proof_result is not None else "",
+        "findings": findings,
+    }
 
 
 def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dict[str, Any]:
@@ -2217,9 +2264,11 @@ def _load_required_evidence_manifest_entries(path: Path, findings: list[str]) ->
     if not path.exists():
         return []
     payload = read_json_file(path)
-    entries = payload.get("evidence")
+    entries = payload.get("items")
+    if entries is None:
+        entries = payload.get("evidence")
     if not isinstance(entries, list):
-        findings.append("required-evidence-manifest.json must contain an evidence list")
+        findings.append("required-evidence-manifest.json must contain an items list")
         return []
     return [entry for entry in entries if isinstance(entry, dict)]
 

@@ -1,8 +1,13 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from scripts.harness_ai_infra_evidence import (
     canonicalize_url,
+    check_service_availability,
     identity_key_for_candidate,
+    validate_required_evidence_manifest,
     validate_gap_proof_payload,
 )
 
@@ -55,3 +60,68 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
         self.assertIn("missing local_checks.domain_index_scan", findings)
         self.assertIn("missing gap_reason", findings)
         self.assertIn("planned_outputs must be a non-empty list", findings)
+
+    def test_required_evidence_manifest_blocks_missing_items(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "gap-proofs" / "task.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "gap proof with duplicate checks before each task",
+                    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "gap-proof",
+                            "status": "pass",
+                            "summary": "gap proof validated",
+                            "artifacts": [".codex/loop-runs/demo/gap-proofs/task.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("service availability evidence" in finding for finding in findings),
+                findings,
+            )
+
+    def test_check_service_availability_records_http_status(self) -> None:
+        class _Response:
+            def __init__(self, status: int) -> None:
+                self.status = status
+
+            def __enter__(self) -> "_Response":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+        with patch("scripts.harness_ai_infra_evidence.urlopen", return_value=_Response(204)):
+            result = check_service_availability(
+                [
+                    {"service": "crawler backend", "url": "http://127.0.0.1:8765/api/health"},
+                ]
+            )
+
+        self.assertEqual(result["overall_status"], "pass")
+        self.assertEqual(
+            result["services"],
+            [
+                {
+                    "service": "crawler backend",
+                    "url": "http://127.0.0.1:8765/api/health",
+                    "status": "pass",
+                    "http_status": 204,
+                    "error": "",
+                }
+            ],
+        )

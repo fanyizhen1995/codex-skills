@@ -181,24 +181,32 @@ an AI infrastructure expansion policy fixture. It records the stricter
 preflight/evaluator contract for repo-wide autonomous repair during
 `ai_infra` knowledge expansion: gap proofs, duplicate checks, search/frontend
 visibility, link probes, secret scans, and code tests when crawler, harness,
-frontend, or backend files change. The current Phase 3 runtime still uses the
-hardcoded conservative `autonomous-knowledge` scope in
-`scripts/harness_loop_autonomous.py` and `scripts/harness_loop_orchestrator.py`;
-the expanded fixture is therefore a confirmed run contract, not active runtime
-behavior, until the orchestrator is extended to read policy fixtures or a
-dedicated expanded autonomous mode is implemented.
+frontend, or backend files change. The runtime now enforces the fixture's
+`required_evidence` list at the autonomous commit gate through
+`.codex/loop-runs/<run-id>/required-evidence-manifest.json`, while unchanged
+scope defaults still come from the existing conservative
+`autonomous-knowledge` runtime helpers.
 
-When an autonomous run carries policy `required_evidence` containing `gap
-proof`, the commit gate now requires either
-`.codex/loop-runs/<run-id>/gap-proofs/<task-id>.json` or a matching
-`required-evidence-manifest.json` entry for the current task. Manifest fallback
-prefers an explicit `task_id` field equal to the current task id; legacy
-fallback only applies when `evidence_id` contains both `gap-proof` and the
-exact current task id. A matching manifest entry must also be `status: pass`
-and reference a resolvable artifact file inside the repo, because the runtime
-re-validates that artifact payload before continuing. The gate writes
-`gap-proof-result.json` with `pass` or `blocked` before supply-chain checks or
-commit.
+When an autonomous run carries any policy `required_evidence`, the commit gate
+requires `.codex/loop-runs/<run-id>/required-evidence-manifest.json` with an
+`items` list (legacy `evidence` still reads for older artifacts). Each required
+policy line must be represented by a matching manifest item with `status:
+pass|blocked` and at least one artifact path that resolves inside the repo or
+the current run directory. The gate writes
+`.codex/loop-runs/<run-id>/required-evidence-result.json` before supply-chain
+checks or commit and blocks the run with
+`next_action=inspect_required_evidence` when findings exist.
+
+When a required evidence policy line mentions `gap proof`, the same commit gate
+also writes `.codex/loop-runs/<run-id>/gap-proof-result.json` and re-validates
+the referenced payload for the current task. Direct gap-proof files under
+`.codex/loop-runs/<run-id>/gap-proofs/<task-id>.json` remain valid artifacts,
+but they no longer bypass the required manifest.
+
+Service health evidence can be generated with
+`scripts.harness_ai_infra_evidence.check_service_availability()`, which records
+per-service status, URL, HTTP status, and error text without raising on
+connection failures.
 
 Start an autonomous run with an explicit domain and confirmed preflight:
 

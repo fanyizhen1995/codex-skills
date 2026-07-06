@@ -282,6 +282,50 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             "planned_outputs": ["personal-wiki/domains/ai_infra/raw/synthetic-gap-proof.md"],
         }
 
+    def _write_required_evidence_manifest(
+        self,
+        repo_root: Path,
+        run: dict[str, object],
+        *,
+        include_service_availability: bool = True,
+        gap_proof_artifact_relative: str | None = None,
+        gap_proof_payload_task_id: str | None = None,
+    ) -> None:
+        run_id = str(run["run_id"])
+        task_id = str(run["task_id"])
+        run_dir = run_dir_for(repo_root, run_id)
+        items: list[dict[str, object]] = []
+        for index, requirement in enumerate(run.get("required_evidence", []), start=1):
+            requirement_text = str(requirement)
+            if (not include_service_availability) and "service availability evidence" in requirement_text.lower():
+                continue
+            if "gap proof" in requirement_text.lower():
+                artifact_relative = gap_proof_artifact_relative or f".codex/loop-runs/{run_id}/gap-proofs/{task_id}.json"
+                write_json_file(
+                    repo_root / artifact_relative,
+                    self._valid_gap_proof_payload(gap_proof_payload_task_id or task_id),
+                )
+                items.append(
+                    {
+                        "evidence_id": "gap-proof",
+                        "status": "pass",
+                        "summary": requirement_text,
+                        "artifacts": [artifact_relative],
+                    }
+                )
+                continue
+            artifact_relative = f".codex/loop-runs/{run_id}/artifacts/evidence-{index:02d}.txt"
+            write_json_file(repo_root / artifact_relative, {"requirement": requirement_text})
+            items.append(
+                {
+                    "evidence_id": requirement_text.lower().replace(" ", "-"),
+                    "status": "pass",
+                    "summary": requirement_text,
+                    "artifacts": [artifact_relative],
+                }
+            )
+        write_json_file(run_dir / "required-evidence-manifest.json", {"items": items})
+
     def test_create_preflight_run_without_confirmation_writes_run_state_and_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1235,6 +1279,61 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["phase"], "stopped_blocked")
             self.assertEqual(status["next_action"], "inspect_required_evidence")
 
+    def test_run_autonomous_blocks_expanded_policy_missing_required_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_direct_gap_proof_only(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                task_id = str(run["task_id"])
+                gap_proof_relative = f".codex/loop-runs/{run['run_id']}/gap-proofs/{task_id}.json"
+                write_json_file(repo_root_arg / gap_proof_relative, self._valid_gap_proof_payload(task_id))
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_direct_gap_proof_only,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertFalse(
+                (run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json").exists()
+            )
+
     def test_run_autonomous_accepts_task_specific_gap_proof_manifest_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1260,20 +1359,19 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 task_id = str(run["task_id"])
                 artifact_relative = "artifacts/gap-proofs/current-task-gap-proof.json"
-                write_json_file(repo_root_arg / artifact_relative, self._valid_gap_proof_payload(task_id))
-                write_json_file(
-                    run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json",
-                    {
-                        "evidence": [
-                            {
-                                "evidence_id": f"{task_id}-gap-proof",
-                                "task_id": task_id,
-                                "status": "pass",
-                                "artifacts": [artifact_relative],
-                            }
-                        ]
-                    },
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=artifact_relative,
                 )
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                for item in manifest["items"]:
+                    if "gap proof" in str(item.get("summary", "")).lower():
+                        item["evidence_id"] = f"{task_id}-gap-proof"
+                        item["task_id"] = task_id
+                        item["artifacts"] = [artifact_relative]
+                write_json_file(manifest_path, manifest)
                 payload["changed_paths"] = [*list(payload["changed_paths"]), artifact_relative]
                 payload["artifacts"] = [*list(payload["artifacts"]), artifact_relative]
                 write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
@@ -1299,6 +1397,105 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
             self.assertEqual(gap_proof_result["artifact_path"], "artifacts/gap-proofs/current-task-gap-proof.json")
             self.assertEqual(gap_proof_result["findings"], [])
+
+    def test_run_autonomous_blocks_expanded_policy_missing_service_availability_manifest_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_manifest(repo_root_arg: Path, run: dict[str, object], *, driver: str, task_number: int) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                self._write_required_evidence_manifest(repo_root_arg, run, include_service_availability=False)
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            required_evidence_result = read_json_file(
+                run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
+            )
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertTrue(
+                any("service availability evidence" in finding for finding in required_evidence_result["findings"]),
+                required_evidence_result,
+            )
+
+    def test_run_autonomous_allows_expanded_policy_with_required_evidence_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_manifest(repo_root_arg: Path, run: dict[str, object], *, driver: str, task_number: int) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                self._write_required_evidence_manifest(repo_root_arg, run)
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            required_evidence_result = read_json_file(
+                run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
+            )
+            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(required_evidence_result["status"], "pass")
+            self.assertEqual(required_evidence_result["findings"], [])
 
     def test_run_autonomous_accepts_direct_gap_proof_file_for_current_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1331,7 +1528,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 task_id = str(run["task_id"])
                 gap_proof_relative = f".codex/loop-runs/{run['run_id']}/gap-proofs/{task_id}.json"
-                write_json_file(repo_root_arg / gap_proof_relative, self._valid_gap_proof_payload(task_id))
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=gap_proof_relative,
+                )
                 write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
                 return payload
 
@@ -1387,7 +1588,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 task_id = str(run["task_id"])
                 gap_proof_relative = f".codex/loop-runs/{run['run_id']}/gap-proofs/{task_id}.json"
-                write_json_file(repo_root_arg / gap_proof_relative, self._valid_gap_proof_payload("other-task-9"))
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=gap_proof_relative,
+                    gap_proof_payload_task_id="other-task-9",
+                )
                 write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
                 return payload
 
@@ -1447,20 +1653,20 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             ) -> dict[str, object]:
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 artifact_relative = "artifacts/gap-proofs/wrong-task-gap-proof.json"
-                write_json_file(repo_root_arg / artifact_relative, self._valid_gap_proof_payload("other-task-9"))
-                write_json_file(
-                    run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json",
-                    {
-                        "evidence": [
-                            {
-                                "evidence_id": "other-task-9-gap-proof",
-                                "task_id": "other-task-9",
-                                "status": "pass",
-                                "artifacts": [artifact_relative],
-                            }
-                        ]
-                    },
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=artifact_relative,
+                    gap_proof_payload_task_id="other-task-9",
                 )
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                for item in manifest["items"]:
+                    if "gap proof" in str(item.get("summary", "")).lower():
+                        item["evidence_id"] = "other-task-9-gap-proof"
+                        item["task_id"] = "other-task-9"
+                        item["artifacts"] = [artifact_relative]
+                write_json_file(manifest_path, manifest)
                 payload["changed_paths"] = [*list(payload["changed_paths"]), artifact_relative]
                 payload["artifacts"] = [*list(payload["artifacts"]), artifact_relative]
                 write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
@@ -1523,20 +1729,20 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 task_id = str(run["task_id"])
                 artifact_relative = "artifacts/gap-proofs/current-task-gap-proof.json"
-                write_json_file(repo_root_arg / artifact_relative, self._valid_gap_proof_payload("other-task-9"))
-                write_json_file(
-                    run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json",
-                    {
-                        "evidence": [
-                            {
-                                "evidence_id": f"{task_id}-gap-proof",
-                                "task_id": task_id,
-                                "status": "pass",
-                                "artifacts": [artifact_relative],
-                            }
-                        ]
-                    },
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=artifact_relative,
+                    gap_proof_payload_task_id="other-task-9",
                 )
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                for item in manifest["items"]:
+                    if "gap proof" in str(item.get("summary", "")).lower():
+                        item["evidence_id"] = f"{task_id}-gap-proof"
+                        item["task_id"] = task_id
+                        item["artifacts"] = [artifact_relative]
+                write_json_file(manifest_path, manifest)
                 payload["changed_paths"] = [*list(payload["changed_paths"]), artifact_relative]
                 payload["artifacts"] = [*list(payload["artifacts"]), artifact_relative]
                 write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
@@ -1599,19 +1805,20 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             ) -> dict[str, object]:
                 payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
                 artifact_relative = "artifacts/gap-proofs/task-10-gap-proof.json"
-                write_json_file(repo_root_arg / artifact_relative, self._valid_gap_proof_payload("expanded-run-task-10"))
-                write_json_file(
-                    run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json",
-                    {
-                        "evidence": [
-                            {
-                                "evidence_id": "expanded-run-task-10-gap-proof",
-                                "status": "pass",
-                                "artifacts": [artifact_relative],
-                            }
-                        ]
-                    },
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=artifact_relative,
+                    gap_proof_payload_task_id="expanded-run-task-10",
                 )
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                for item in manifest["items"]:
+                    if "gap proof" in str(item.get("summary", "")).lower():
+                        item["evidence_id"] = "expanded-run-task-10-gap-proof"
+                        item.pop("task_id", None)
+                        item["artifacts"] = [artifact_relative]
+                write_json_file(manifest_path, manifest)
                 payload["changed_paths"] = [*list(payload["changed_paths"]), artifact_relative]
                 payload["artifacts"] = [*list(payload["artifacts"]), artifact_relative]
                 write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
