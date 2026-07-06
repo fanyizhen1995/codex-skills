@@ -2803,12 +2803,8 @@ def run_autonomous(
         if run["phase"] == "cleanup":
             generator_result = read_json_file(run_dir_for(root, run_id) / "generator-result.json")
             validate_generator_result_payload(generator_result)
-            if not generator_result["commit"]:
-                if not _commit_autonomous_changes(root, run, generator_result):
-                    return status_for_run(root, run_id)
-            else:
-                if not _finish_autonomous_cleanup(root, run_id):
-                    return status_for_run(root, run_id)
+            if not _commit_autonomous_changes(root, run, generator_result):
+                return status_for_run(root, run_id)
             tasks_completed += 1
 
 
