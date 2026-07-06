@@ -466,6 +466,9 @@ def _loop_dashboard_child_state_present(payload: Mapping[str, Any]) -> bool:
         return True
     if payload.get("has_children") is False:
         return True
+    children_summary = payload.get("children_summary")
+    if isinstance(children_summary, Mapping) and children_summary.get("total") == 0:
+        return True
     child_state = str(payload.get("child_state", "")).strip().lower()
     return child_state in {"none", "no-children", "no_children"}
 

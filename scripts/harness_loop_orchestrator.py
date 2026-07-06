@@ -2738,8 +2738,31 @@ def _materialize_embedded_required_evidence_manifest(
     manifest = generator_result.get("required_evidence_manifest")
     if not isinstance(manifest, Mapping):
         return None
+    materialized = dict(manifest)
+    entries = materialized.get("items")
+    if entries is None:
+        entries = materialized.get("evidence")
+    if isinstance(entries, list):
+        copied_entries: list[Any] = []
+        task_id = str(run.get("task_id", "")).strip()
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                copied_entries.append(entry)
+                continue
+            copied_entry = dict(entry)
+            if (
+                task_id
+                and str(copied_entry.get("evidence_id", "")).strip().lower() == "gap-proof"
+                and not str(copied_entry.get("task_id", "")).strip()
+            ):
+                copied_entry["task_id"] = task_id
+            copied_entries.append(copied_entry)
+        if "items" in materialized:
+            materialized["items"] = copied_entries
+        else:
+            materialized["evidence"] = copied_entries
     manifest_path = run_dir_for(repo_root, str(run["run_id"])) / "required-evidence-manifest.json"
-    write_json_file(manifest_path, dict(manifest))
+    write_json_file(manifest_path, materialized)
     return manifest_path
 
 
@@ -2785,9 +2808,9 @@ def _capture_trusted_live_evidence_for_manifest(
 
 def _repo_root_for_live_evidence(run: Mapping[str, Any], repo_root: Path | None = None) -> Path:
     if repo_root is not None:
-        return repo_root
+        return repo_root.resolve()
     worktree = str(run.get("worktree", "")).strip()
-    return Path(worktree) if worktree else Path.cwd()
+    return Path(worktree).resolve() if worktree else Path.cwd().resolve()
 
 
 def _generator_result_for_visibility(repo_root: Path, run_id: str) -> dict[str, Any]:
@@ -3443,6 +3466,9 @@ def _capture_live_evidence_payload(
                 return "pass"
             if payload.get("no_children") is True or payload.get("has_children") is False:
                 return "pass"
+            children_summary = payload.get("children_summary")
+            if isinstance(children_summary, Mapping) and children_summary.get("total") == 0:
+                return "pass"
             child_state = str(payload.get("child_state", "")).strip().lower()
             return "pass" if child_state in {"none", "no-children", "no_children"} else "blocked"
 
@@ -3569,7 +3595,7 @@ def _freshness_probe_payload(details: Mapping[str, Any], *, captured_at: str) ->
     }
 
 
-def _http_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, Any]:
+def _http_probe(url: str, timeout_seconds: float = 2.0, max_body_bytes: int = 4 * 1024 * 1024) -> dict[str, Any]:
     probe: dict[str, Any] = {
         "url": url,
         "status": "fail",
@@ -3579,7 +3605,7 @@ def _http_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, Any]:
     try:
         with urlopen(url, timeout=timeout_seconds) as response:
             http_status = int(getattr(response, "status", 0) or 0)
-            body = response.read(65536)
+            body = response.read(max_body_bytes)
             probe["http_status"] = http_status
             probe["status"] = "pass" if 200 <= http_status < 400 else "fail"
             probe["body_excerpt"] = body[:2048].decode("utf-8", errors="replace")

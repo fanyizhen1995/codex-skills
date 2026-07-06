@@ -2646,6 +2646,71 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(required_evidence_result["status"], "pass")
             self.assertTrue((run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json").exists())
 
+    def test_run_autonomous_materializes_embedded_gap_proof_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_embedded_manifest(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                self._write_required_evidence_manifest(repo_root_arg, run)
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                for item in manifest["items"]:
+                    if item.get("evidence_id") == "gap-proof":
+                        item.pop("task_id", None)
+                payload["required_evidence_manifest"] = manifest
+                manifest_path.unlink()
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_embedded_manifest,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            manifest = read_json_file(run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json")
+            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(gap_proof_result["status"], "pass")
+            gap_proof_items = [item for item in manifest["items"] if item.get("evidence_id") == "gap-proof"]
+            self.assertEqual(len(gap_proof_items), 1)
+            self.assertEqual(gap_proof_items[0]["task_id"], "expanded-run-task-1")
+
     def test_run_autonomous_expanded_policy_blocks_synthetic_live_gate_placeholders(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -3708,6 +3773,38 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["completed_history"]["status"], "blocked")
             self.assertEqual(payload["details"]["project"]["status"], "blocked")
 
+    def test_http_probe_parses_large_json_response(self) -> None:
+        body = json.dumps(
+            {
+                "run_id": "expanded-run",
+                "logs": [
+                    {
+                        "source": "large.log",
+                        "stream": "stdout",
+                        "content": "x" * 70000,
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self, size: int = -1) -> bytes:
+                return body if size < 0 else body[:size]
+
+        with patch.object(harness_loop_orchestrator, "urlopen", return_value=FakeResponse()):
+            payload = harness_loop_orchestrator._http_probe("http://127.0.0.1:8766/api/runs/expanded-run/logs")
+
+        self.assertEqual(payload["status"], "pass")
+        self.assertEqual(payload["json"]["run_id"], "expanded-run")
+
     def test_capture_live_loop_dashboard_freshness_blocks_empty_current_child_id_without_child_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -3771,6 +3868,92 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["run_id"], "expanded-run")
             self.assertEqual(payload["details"]["current_run"]["status"], "pass")
             self.assertEqual(payload["details"]["child_tasks"]["status"], "blocked")
+
+    def test_capture_live_loop_dashboard_freshness_accepts_relative_repo_root_and_empty_children_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            init_git_repo(repo_root)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                if url.endswith("/api/runs/expanded-run"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {
+                            "run_id": "expanded-run",
+                            "project_root": str(repo_root),
+                            "source_path": ".codex/loop-runs/expanded-run",
+                            "children_summary": {
+                                "total": 0,
+                                "passed": 0,
+                                "failed": 0,
+                                "blocked": 0,
+                                "pending": 0,
+                            },
+                            "current_child_run_id": "",
+                        },
+                    }
+                if url.endswith("/api/runs/expanded-run/events"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"run_id": "expanded-run", "events": []},
+                    }
+                if url.endswith("/api/runs/expanded-run/logs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"run_id": "expanded-run", "logs": []},
+                    }
+                if url.endswith("/api/projects/current"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"project_root": str(repo_root)},
+                    }
+                if url.endswith("/api/runs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": [
+                            {
+                                "run_id": "expanded-run",
+                                "project_root": str(repo_root),
+                                "source_path": ".codex/loop-runs/expanded-run",
+                            }
+                        ],
+                    }
+                return {"url": url, "status": "pass", "http_status": 200, "json": {}}
+
+            original_cwd = Path.cwd()
+            try:
+                os.chdir(repo_root)
+                with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                    payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                        "loop-dashboard-freshness",
+                        run=run,
+                        captured_at="2026-07-07T00:00:00Z",
+                        repo_root=Path("."),
+                    )
+            finally:
+                os.chdir(original_cwd)
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["worktree"], str(repo_root))
+            self.assertEqual(payload["details"]["current_run"]["status"], "pass")
+            self.assertEqual(payload["details"]["child_tasks"]["status"], "pass")
 
     def test_run_autonomous_rejects_expanded_fake_drivers_without_expanded_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
