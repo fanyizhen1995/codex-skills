@@ -67,6 +67,7 @@ FRESHNESS_EVIDENCE_IDS = {
     "crawler-workbench-freshness",
     "loop-dashboard-freshness",
 }
+SEMANTIC_GATE_EVIDENCE_IDS = FRESHNESS_EVIDENCE_IDS | {"service-availability"}
 
 
 def canonicalize_url(url: str) -> str:
@@ -296,9 +297,9 @@ def _validate_service_availability_payload(
                 f"{evidence_id} artifact {artifact_path} must record {canonical_name} as pass"
             )
         http_status = matched.get("http_status")
-        if http_status != 200:
+        if not isinstance(http_status, int) or not 200 <= http_status < 400:
             findings.append(
-                f"{evidence_id} artifact {artifact_path} must record HTTP 200 for {canonical_name}"
+                f"{evidence_id} artifact {artifact_path} must record HTTP 2xx/3xx for {canonical_name}"
             )
 
     if overall_status != "pass":
@@ -332,7 +333,7 @@ def _validate_semantic_evidence_artifacts(
     evidence_id: str,
     resolved_artifacts: Sequence[tuple[str, Path]],
 ) -> list[str]:
-    if evidence_id not in FRESHNESS_EVIDENCE_IDS and evidence_id != "service-availability":
+    if evidence_id not in SEMANTIC_GATE_EVIDENCE_IDS:
         return []
     if not resolved_artifacts:
         return [f"{evidence_id} must reference at least one artifact"]
@@ -371,7 +372,7 @@ def validate_required_evidence_manifest(
     if item_findings:
         return findings
 
-    indexed_items: list[tuple[dict[str, Any], str, set[str], str, bool]] = []
+    indexed_items: list[dict[str, Any]] = []
     for item in items:
         status = str(item.get("status", "")).strip().lower()
         if status not in {"pass", "blocked"}:
@@ -406,22 +407,38 @@ def validate_required_evidence_manifest(
         evidence_text = " ".join(
             str(item.get(key, "")).strip() for key in ("evidence_id", "summary") if str(item.get(key, "")).strip()
         )
-        indexed_items.append((item, evidence_id, _keyword_tokens(evidence_text), status, not semantic_findings))
+        indexed_items.append(
+            {
+                "item": item,
+                "evidence_id": evidence_id,
+                "tokens": _keyword_tokens(evidence_text),
+                "status": status,
+                "semantic_ok": not semantic_findings,
+                "resolved_artifacts": resolved_artifacts,
+            }
+        )
 
     for requirement in policy_required:
         requirement_text = str(requirement).strip()
         if not requirement_text:
             continue
         accepted_ids = _aliases_for_requirement(requirement_text)
+        inferred_semantic_evidence_id = next(
+            (accepted_id for accepted_id in accepted_ids if accepted_id in SEMANTIC_GATE_EVIDENCE_IDS),
+            "",
+        )
         matching_items = [
-            (item, item_evidence_id, item_status, item_semantic_ok)
-            for item, item_evidence_id, _, item_status, item_semantic_ok in indexed_items
-            if item_evidence_id and _evidence_id_matches_alias(item_evidence_id, accepted_ids)
+            indexed_item
+            for indexed_item in indexed_items
+            if indexed_item["evidence_id"] and _evidence_id_matches_alias(indexed_item["evidence_id"], accepted_ids)
         ]
         if matching_items:
-            if any(item_status == "pass" and item_semantic_ok for _, _, item_status, item_semantic_ok in matching_items):
+            if any(item["status"] == "pass" and item["semantic_ok"] for item in matching_items):
                 continue
-            for item, item_evidence_id, item_status, _ in matching_items:
+            for indexed_item in matching_items:
+                item = indexed_item["item"]
+                item_evidence_id = indexed_item["evidence_id"]
+                item_status = indexed_item["status"]
                 if item_status != "pass":
                     findings.append(
                         f"required evidence item {item_evidence_id or str(item.get('evidence_id', '')).strip() or '<unknown>'} has non-pass status {item_status}"
@@ -430,12 +447,26 @@ def validate_required_evidence_manifest(
         requirement_tokens = _keyword_tokens(requirement_text)
         if not requirement_tokens:
             continue
-        if not any(
-            not item_evidence_id
-            and item_status == "pass"
-            and requirement_tokens.issubset(item_tokens)
-            for _, item_evidence_id, item_tokens, item_status, _ in indexed_items
-        ):
+        summary_only_matches = [
+            indexed_item
+            for indexed_item in indexed_items
+            if not indexed_item["evidence_id"]
+            and indexed_item["status"] == "pass"
+            and requirement_tokens.issubset(indexed_item["tokens"])
+        ]
+        if inferred_semantic_evidence_id:
+            validated_summary_matches: list[dict[str, Any]] = []
+            for indexed_item in summary_only_matches:
+                inferred_findings = _validate_semantic_evidence_artifacts(
+                    evidence_id=inferred_semantic_evidence_id,
+                    resolved_artifacts=indexed_item["resolved_artifacts"],
+                )
+                if inferred_findings:
+                    findings.extend(inferred_findings)
+                    continue
+                validated_summary_matches.append(indexed_item)
+            summary_only_matches = validated_summary_matches
+        if not summary_only_matches:
             findings.append(f"missing required evidence manifest item for: {requirement_text}")
 
     return findings

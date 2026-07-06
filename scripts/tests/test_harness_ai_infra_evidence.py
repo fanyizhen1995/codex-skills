@@ -17,7 +17,12 @@ from scripts.harness_ai_infra_evidence import (
 class HarnessAiInfraEvidenceTests(unittest.TestCase):
     def _service_availability_payload(self, *, statuses: dict[str, tuple[str, int | None]]) -> dict:
         return {
-            "overall_status": "pass" if all(status == "pass" and http_status == 200 for status, http_status in statuses.values()) else "fail",
+            "overall_status": "pass"
+            if all(
+                status == "pass" and isinstance(http_status, int) and 200 <= http_status < 400
+                for status, http_status in statuses.values()
+            )
+            else "fail",
             "services": [
                 {
                     "service": service,
@@ -300,6 +305,54 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_required_evidence_manifest_rejects_summary_only_service_match_with_blocked_artifact(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "service-availability.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    self._service_availability_payload(
+                        statuses={
+                            "crawler-backend": ("pass", 200),
+                            "crawler-frontend": ("pass", 200),
+                            "loop-dashboard": ("blocked", None),
+                        }
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            requirement = (
+                "service availability evidence for crawler backend, crawler frontend, "
+                "and loop dashboard during each round"
+            )
+            findings = validate_required_evidence_manifest(
+                [requirement],
+                {
+                    "items": [
+                        {
+                            "status": "pass",
+                            "summary": requirement,
+                            "artifacts": ["artifacts/service-availability.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("service-availability artifact" in finding for finding in findings),
+                findings,
+            )
+            self.assertIn(
+                f"missing required evidence manifest item for: {requirement}",
+                findings,
+            )
+
     def test_required_evidence_manifest_blocks_service_availability_placeholder_payload(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -450,6 +503,46 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 any("loop-dashboard-freshness artifact" in finding for finding in findings),
                 findings,
             )
+
+    def test_required_evidence_manifest_accepts_service_availability_http_302(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "service-availability.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    self._service_availability_payload(
+                        statuses={
+                            "crawler-backend": ("pass", 302),
+                            "crawler-frontend": ("pass", 204),
+                            "loop-dashboard": ("pass", 200),
+                        }
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "service availability evidence for crawler backend, crawler frontend, and loop dashboard during each round",
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "service-availability",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/service-availability.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertEqual(findings, [])
 
     def test_check_service_availability_records_http_status(self) -> None:
         class _Response:
