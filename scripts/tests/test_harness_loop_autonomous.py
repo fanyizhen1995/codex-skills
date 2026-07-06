@@ -147,6 +147,41 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
         self.assertTrue(result.allowed)
         self.assertFalse(check_autonomous_scope([".codex/secret.log"], allowed, denied, manual).allowed)
 
+    def test_policy_patterns_fall_back_to_conservative_defaults_for_legacy_empty_lists(self) -> None:
+        allowed, denied, manual = policy_patterns_for_run(
+            {
+                "allowed_paths": [],
+                "denylist_paths": [],
+                "manual_confirm_paths": [],
+            },
+            domain="ai_infra",
+        )
+
+        wiki_result = check_autonomous_scope(
+            ["personal-wiki/domains/ai_infra/raw/source.md"],
+            allowed,
+            denied,
+            manual,
+        )
+        scripts_result = check_autonomous_scope(
+            ["scripts/harness_loop_orchestrator.py"],
+            allowed,
+            denied,
+            manual,
+        )
+        env_result = check_autonomous_scope(
+            [".env"],
+            allowed,
+            denied,
+            manual,
+        )
+
+        self.assertTrue(wiki_result.allowed)
+        self.assertFalse(scripts_result.allowed)
+        self.assertEqual(scripts_result.manual_confirm_paths, ["scripts/harness_loop_orchestrator.py"])
+        self.assertFalse(env_result.allowed)
+        self.assertEqual(env_result.denied_paths, [".env"])
+
     def test_supply_chain_check_requires_explanation_for_dependency_paths(self) -> None:
         result = check_supply_chain(["requirements.txt"], explanation="", verification=["pytest"])
 
