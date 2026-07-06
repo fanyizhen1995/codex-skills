@@ -2496,9 +2496,15 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
     findings: list[str] = []
     artifact_path = ""
 
+    def _append_gap_proof_findings(path: Path, *, artifact_label: str) -> None:
+        try:
+            findings.extend(validate_gap_proof_file(path, expected_task_id=task_id))
+        except (OSError, ValueError) as exc:
+            findings.append(f"malformed or unreadable gap proof artifact {artifact_label}: {exc}")
+
     if gap_proof_path.exists():
         artifact_path = gap_proof_path.relative_to(repo_root).as_posix()
-        findings.extend(validate_gap_proof_file(gap_proof_path, expected_task_id=task_id))
+        _append_gap_proof_findings(gap_proof_path, artifact_label=artifact_path)
     else:
         manifest_path = run_dir / "required-evidence-manifest.json"
         manifest_entries = _load_required_evidence_manifest_entries(manifest_path, findings)
@@ -2537,7 +2543,7 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
                 elif not resolved_artifact.exists():
                     findings.append(f"missing gap proof artifact file: {artifact_path}")
                 else:
-                    findings.extend(validate_gap_proof_file(resolved_artifact, expected_task_id=task_id))
+                    _append_gap_proof_findings(resolved_artifact, artifact_label=artifact_path)
             else:
                 findings.append(f"gap proof manifest entry missing artifact path for task {task_id}")
 
