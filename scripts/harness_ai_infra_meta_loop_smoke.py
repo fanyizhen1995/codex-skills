@@ -21,6 +21,9 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
 
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
+NON_ISOLATED_REFUSAL = (
+    "non-isolated ai infra smoke is refused; rerun with --isolate-clone"
+)
 SERVICE_TARGETS = (
     {"service": "crawler-backend", "url": "http://127.0.0.1:8765/api/health"},
     {"service": "crawler-frontend", "url": "http://127.0.0.1:5173/"},
@@ -313,10 +316,7 @@ def run_ai_infra_meta_loop_smoke(repo_root: Path | str, run_id: str, *, isolate_
             payload["repo_root"] = str(clone_root)
             return payload
 
-    payload = _run_smoke_in_repo(source_root, run_id, configure_git_identity=False)
-    payload["isolated_clone"] = False
-    payload["repo_root"] = str(source_root)
-    return payload
+    raise ValueError(NON_ISOLATED_REFUSAL)
 
 
 def _build_parser() -> argparse.ArgumentParser:

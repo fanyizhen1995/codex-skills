@@ -1819,13 +1819,6 @@ def _required_evidence_id(requirement: str) -> str:
     )
 
 
-def _normalize_repo_relative_policy_path(policy_file: str) -> str:
-    normalized = Path(policy_file.strip()).as_posix()
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    return normalized
-
-
 def _run_uses_expanded_ai_infra_policy(run: Mapping[str, Any]) -> bool:
     if str(run.get("policy", "")).strip() != "autonomous_knowledge":
         return False
@@ -1834,7 +1827,7 @@ def _run_uses_expanded_ai_infra_policy(run: Mapping[str, Any]) -> bool:
     policy_file = str(run.get("policy_file", "")).strip()
     if not policy_file:
         return False
-    return _normalize_repo_relative_policy_path(policy_file) == _EXPANDED_POLICY_FILE
+    return policy_file == _EXPANDED_POLICY_FILE
 
 
 def _write_expanded_fake_evidence(

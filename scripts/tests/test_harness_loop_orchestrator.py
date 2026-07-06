@@ -1934,6 +1934,41 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             max_tasks=1,
                         )
 
+    def test_run_autonomous_rejects_expanded_fake_drivers_with_prefixed_policy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            run = load_run(repo_root, "demo-run")
+            run["policy_file"] = f"./{policy_file}"
+            write_json_file(run_dir_for(repo_root, "demo-run") / "run.json", run)
+
+            for generator_driver in ("fake-expanded-code", "fake-missing-evidence"):
+                with self.subTest(generator_driver=generator_driver):
+                    with self.assertRaisesRegex(ValueError, "expanded ai_infra policy"):
+                        run_autonomous(
+                            repo_root,
+                            "demo-run",
+                            planner_driver="fake",
+                            generator_driver=generator_driver,
+                            evaluator_driver="fake",
+                            max_eval_attempts=2,
+                            max_tasks=1,
+                        )
+
     def test_run_autonomous_expanded_policy_blocks_denylist_changed_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -3999,27 +4034,40 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             repo_root = Path(tmp)
             init_git_repo(repo_root)
 
-            section_pass = {"status": "pass"}
-            section_blocked = {"status": "blocked", "summary": "synthetic", "artifacts": []}
-
-            with (
-                patch.object(smoke, "_seed_ai_infra_candidate"),
-                patch.object(smoke, "_run_preflight", return_value={"policy_file": smoke.POLICY_FILE}),
-                patch.object(smoke, "_run_missing_evidence_round", return_value=section_pass),
-                patch.object(smoke, "_reset_to_clean_head"),
-                patch.object(smoke, "_run_expanded_code_round", return_value=section_pass),
-                patch.object(smoke, "_service_availability_summary", return_value=section_pass),
-                patch.object(smoke, "_manifest_item_summary", side_effect=[section_blocked, section_blocked]),
-                patch.object(smoke, "_configure_git_identity") as configure_git_identity,
-            ):
+            with patch.object(smoke, "_run_smoke_in_repo", return_value={"overall_status": "pass"}) as run_smoke_in_repo:
                 payload = smoke.run_ai_infra_meta_loop_smoke(
                     repo_root,
                     "evaluator-scenario-ai-infra-meta-loop-runtime-test",
-                    isolate_clone=False,
+                    isolate_clone=True,
                 )
 
-            self.assertFalse(payload["isolated_clone"])
-            self.assertEqual(configure_git_identity.call_count, 0)
+            self.assertTrue(payload["isolated_clone"])
+            self.assertEqual(payload["source_repo_root"], str(repo_root.resolve()))
+            clone_root, clone_run_id = run_smoke_in_repo.call_args.args
+            self.assertNotEqual(clone_root, repo_root.resolve())
+            self.assertEqual(clone_run_id, "evaluator-scenario-ai-infra-meta-loop-runtime-test")
+            self.assertTrue(run_smoke_in_repo.call_args.kwargs["configure_git_identity"])
+
+    def test_ai_infra_meta_loop_smoke_helper_refuses_non_isolated_mode_before_repo_mutation(self) -> None:
+        from scripts import harness_ai_infra_meta_loop_smoke as smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+
+            with (
+                patch.object(smoke, "_reset_to_clean_head") as reset_to_clean_head,
+                patch.object(smoke, "_configure_git_identity") as configure_git_identity,
+            ):
+                with self.assertRaisesRegex(ValueError, "--isolate-clone"):
+                    smoke.run_ai_infra_meta_loop_smoke(
+                        repo_root,
+                        "evaluator-scenario-ai-infra-meta-loop-runtime-test",
+                        isolate_clone=False,
+                    )
+
+            reset_to_clean_head.assert_not_called()
+            configure_git_identity.assert_not_called()
 
 
 class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
