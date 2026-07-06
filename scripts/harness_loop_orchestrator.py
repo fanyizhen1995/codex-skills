@@ -2997,6 +2997,8 @@ def _visibility_target_for_changed_path(repo_root: Path, domain: str, changed_pa
     kind = ""
     content_terms: list[str] = []
     wiki_api_path = ""
+    if normalized_path in {f"{domain_prefix}ingest.md", f"{domain_prefix}DOMAIN.md"}:
+        return None
     if normalized_path.endswith(".md") and "/raw/" not in normalized_path and "/sources/" not in normalized_path:
         kind = "wiki_page"
         title = _read_markdown_title(repo_root / normalized_path)
@@ -3595,7 +3597,7 @@ def _freshness_probe_payload(details: Mapping[str, Any], *, captured_at: str) ->
     }
 
 
-def _http_probe(url: str, timeout_seconds: float = 2.0, max_body_bytes: int = 4 * 1024 * 1024) -> dict[str, Any]:
+def _http_probe(url: str, timeout_seconds: float = 2.0, max_body_bytes: int = 16 * 1024 * 1024) -> dict[str, Any]:
     probe: dict[str, Any] = {
         "url": url,
         "status": "fail",

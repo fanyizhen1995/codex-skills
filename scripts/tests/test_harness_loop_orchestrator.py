@@ -3031,6 +3031,60 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["matched_targets"][0]["path"], relative_path)
             self.assertEqual(payload["missing_targets"], [])
 
+    def test_capture_live_search_visibility_ignores_domain_ingest_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(
+                repo_root,
+                run_id=run_id,
+                relative_path="personal-wiki/domains/ai_infra/wiki/references/expanded-runtime-smoke.md",
+            )
+            ingest_path = "personal-wiki/domains/ai_infra/ingest.md"
+            (repo_root / ingest_path).write_text("# Ingest Log\n\n- pending progress active\n", encoding="utf-8")
+            generator_result = read_json_file(run_dir_for(repo_root, run_id) / "generator-result.json")
+            generator_result["changed_paths"] = [ingest_path, relative_path]
+            write_json_file(run_dir_for(repo_root, run_id) / "generator-result.json", generator_result)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
+                            }
+                        ]
+                    },
+                }
+
+            context = harness_loop_orchestrator._visibility_context(repo_root, run)
+            self.assertNotIn(ingest_path, [target["path"] for target in context["expected_targets"]])
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["matched_targets"][0]["path"], relative_path)
+            self.assertEqual(payload["missing_targets"], [])
+
     def test_capture_live_search_visibility_blocks_stale_generic_ai_infra_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -3804,6 +3858,39 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "pass")
         self.assertEqual(payload["json"]["run_id"], "expanded-run")
+
+    def test_http_probe_parses_multimegabyte_json_response(self) -> None:
+        body = json.dumps(
+            {
+                "run_id": "expanded-run",
+                "logs": [
+                    {
+                        "source": "large.log",
+                        "stream": "stdout",
+                        "content": "x" * (5 * 1024 * 1024),
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self, size: int = -1) -> bytes:
+                return body if size < 0 else body[:size]
+
+        with patch.object(harness_loop_orchestrator, "urlopen", return_value=FakeResponse()):
+            payload = harness_loop_orchestrator._http_probe("http://127.0.0.1:8766/api/runs/expanded-run/logs")
+
+        self.assertEqual(payload["status"], "pass")
+        self.assertEqual(payload["json"]["run_id"], "expanded-run")
+        self.assertEqual(len(payload["json"]["logs"][0]["content"]), 5 * 1024 * 1024)
 
     def test_capture_live_loop_dashboard_freshness_blocks_empty_current_child_id_without_child_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
