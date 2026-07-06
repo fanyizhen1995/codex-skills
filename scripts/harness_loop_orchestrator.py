@@ -34,6 +34,7 @@ try:
         load_or_create_loop_state,
         policy_patterns_for_run,
         run_git_commit,
+        validate_ai_infra_coverage_map_semantics,
         write_coverage_map,
         write_loop_state,
     )
@@ -64,6 +65,7 @@ except ModuleNotFoundError:
         load_or_create_loop_state,
         policy_patterns_for_run,
         run_git_commit,
+        validate_ai_infra_coverage_map_semantics,
         write_coverage_map,
         write_loop_state,
     )
@@ -1622,12 +1624,14 @@ def _load_ai_infra_coverage_map(
         }
         write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
         return None, result
-    if payload.get("domain") != run["domain"]:
+    try:
+        validate_ai_infra_coverage_map_semantics(payload, expected_domain=run["domain"])
+    except ValueError as exc:
         result = {
             "status": "blocked",
             "domain": run["domain"],
             "coverage_map_path": str(coverage_path.relative_to(repo_root)),
-            "error": "coverage_map domain does not match loop state",
+            "error": str(exc),
         }
         write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
         return None, result
@@ -1822,22 +1826,20 @@ def _write_fake_autonomous_generator_result(
         state["last_scan_at"] = _timestamp()
         state["last_planner_decision"] = "planned"
         write_loop_state(repo_root, domain, state)
-        coverage_map = create_default_coverage_map(domain, run["requirement"])
-        coverage_map["domain_goal"] = state["domain_goal"]
-        for layer_name, layer_payload in coverage_map["layers"].items():
-            layer_payload["status"] = "covered"
-            layer_payload["covered_pages"] = [f"wiki/{layer_name}.md"]
-            layer_payload["raw_evidence"] = [raw_relative]
-            layer_payload["candidate_gaps"] = []
-            layer_payload["blocked_reason"] = ""
-            layer_payload["last_scanned_at"] = state["last_scan_at"]
-            layer_payload["notes"] = "Synthetic fake-generator coverage for autonomous smoke."
-        write_coverage_map(repo_root, domain, coverage_map)
-        changed_paths = [
-            raw_relative,
-            f"personal-wiki/domains/{domain}/loop-state.json",
-            f"personal-wiki/domains/{domain}/coverage-map.json",
-        ]
+        changed_paths = [raw_relative, f"personal-wiki/domains/{domain}/loop-state.json"]
+        if domain == "ai_infra":
+            coverage_map = create_default_coverage_map(domain, run["requirement"])
+            coverage_map["domain_goal"] = state["domain_goal"]
+            for layer_name, layer_payload in coverage_map["layers"].items():
+                layer_payload["status"] = "covered"
+                layer_payload["covered_pages"] = [f"wiki/{layer_name}.md"]
+                layer_payload["raw_evidence"] = [raw_relative]
+                layer_payload["candidate_gaps"] = []
+                layer_payload["blocked_reason"] = ""
+                layer_payload["last_scanned_at"] = state["last_scan_at"]
+                layer_payload["notes"] = "Synthetic fake-generator coverage for autonomous smoke."
+            write_coverage_map(repo_root, domain, coverage_map)
+            changed_paths.append(f"personal-wiki/domains/{domain}/coverage-map.json")
         artifacts = [raw_relative]
     elif driver == "fake-denylist":
         denied_relative = ".env"

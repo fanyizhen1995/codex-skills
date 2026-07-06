@@ -154,6 +154,25 @@ def write_coverage_map(repo_root: Path | str, domain: str, payload: Mapping[str,
     return write_json_file(_coverage_map_path(repo_root, domain), coverage_payload)
 
 
+def validate_ai_infra_coverage_map_semantics(
+    payload: Mapping[str, Any],
+    *,
+    expected_domain: str,
+) -> None:
+    coverage_map = dict(payload)
+    validate_coverage_map_payload(coverage_map)
+    if coverage_map["domain"] != expected_domain:
+        raise ValueError("coverage_map domain does not match loop state")
+    for layer in AI_INFRA_COVERAGE_LAYERS:
+        timestamp = str(coverage_map["layers"][layer]["last_scanned_at"])
+        if not timestamp.strip():
+            raise ValueError(f"coverage_map invalid timestamp for layer {layer}: blank last_scanned_at")
+        try:
+            _parse_utc(timestamp)
+        except ValueError as exc:
+            raise ValueError(f"coverage_map invalid timestamp for layer {layer}: {timestamp}") from exc
+
+
 def decide_no_action(
     state: Mapping[str, Any],
     now: datetime | None = None,
@@ -456,9 +475,6 @@ def _coverage_map_no_action_reasons(
         if not reasons:
             reasons.append(f"coverage_map invalid: {exc}")
         return reasons
-
-    if payload["domain"] != state["domain"]:
-        reasons.append("coverage_map domain does not match loop state")
 
     stale_layers = [
         layer

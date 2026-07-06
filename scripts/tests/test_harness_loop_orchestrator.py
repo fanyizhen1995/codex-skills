@@ -555,6 +555,42 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(coverage_result["status"], "blocked")
             self.assertIn("domain does not match loop state", coverage_result["error"])
 
+    def test_run_autonomous_blocks_ai_infra_coverage_map_with_invalid_last_scanned_at(self) -> None:
+        for invalid_timestamp in ("", "not-a-timestamp"):
+            with self.subTest(last_scanned_at=invalid_timestamp):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo_root = Path(tmp)
+                    init_git_repo(repo_root)
+                    create_preflight_run(
+                        repo_root=repo_root,
+                        mode="autonomous-knowledge",
+                        requirement="Expand wiki",
+                        run_id="ai-run",
+                        domain="ai_infra",
+                        confirm=True,
+                    )
+                    seed_no_action_loop_state(repo_root, "ai_infra")
+                    coverage_map_path = repo_root / "personal-wiki" / "domains" / "ai_infra" / "coverage-map.json"
+                    coverage_map = read_json_file(coverage_map_path)
+                    coverage_map["layers"]["hardware-accelerator"]["last_scanned_at"] = invalid_timestamp
+                    write_json_file(coverage_map_path, coverage_map)
+
+                    status = run_autonomous(
+                        repo_root,
+                        "ai-run",
+                        planner_driver="fake",
+                        generator_driver="fake",
+                        evaluator_driver="fake",
+                        max_eval_attempts=2,
+                        max_tasks=3,
+                    )
+
+                    self.assertEqual(status["phase"], "stopped_blocked")
+                    self.assertEqual(load_run(repo_root, "ai-run")["next_action"], "inspect_ai_infra_coverage_map")
+                    coverage_result = read_json_file(run_dir_for(repo_root, "ai-run") / "coverage-map-result.json")
+                    self.assertEqual(coverage_result["status"], "blocked")
+                    self.assertIn("invalid timestamp", coverage_result["error"])
+
     def test_run_autonomous_commits_allowlisted_change_then_returns_to_planning_and_stops_no_action(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -604,6 +640,66 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["attempts"]["planner"], 2)
             self.assertEqual(run["attempts"]["generator"], 1)
             self.assertEqual(run["attempts"]["evaluator"], 1)
+
+    def test_run_autonomous_non_ai_infra_fake_generator_does_not_write_coverage_map(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="ml-run",
+                domain="ml_platform",
+                confirm=True,
+            )
+            state = create_default_loop_state("ml_platform", "Expand wiki")
+            state["known_sources"] = [
+                {
+                    "id": "src-1",
+                    "title": "Source",
+                    "source": "manual",
+                    "status": "scanned",
+                    "updated_at": state["last_scan_at"],
+                    "evidence": ["checked"],
+                }
+            ]
+            state["candidate_backlog"] = [
+                {
+                    "id": "candidate-1",
+                    "title": "Capture synthetic source",
+                    "source": "planner",
+                    "status": "pending",
+                    "updated_at": state["last_scan_at"],
+                    "evidence": ["seeded candidate"],
+                }
+            ]
+            write_loop_state(repo_root, "ml_platform", state)
+            status = run_autonomous(
+                repo_root,
+                "ml-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            self.assertEqual(status["phase"], "stopped_budget")
+            generator_result = read_json_file(run_dir_for(repo_root, "ml-run") / "generator-result.json")
+            changed_paths = set(generator_result["changed_paths"])
+            coverage_map_relative = "personal-wiki/domains/ml_platform/coverage-map.json"
+            self.assertNotIn(coverage_map_relative, changed_paths)
+            self.assertFalse((repo_root / coverage_map_relative).exists())
+            committed_files = subprocess.run(
+                ["git", "show", "--name-only", "--format=", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertNotIn(coverage_map_relative, committed_files.stdout.splitlines())
 
     def test_run_autonomous_blocks_declared_paths_that_were_dirty_at_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
