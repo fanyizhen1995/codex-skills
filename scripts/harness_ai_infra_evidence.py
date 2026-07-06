@@ -212,10 +212,13 @@ def _normalized_evidence_id(value: Any) -> str:
 
 def _aliases_for_requirement(requirement: str) -> set[str]:
     normalized = requirement.strip().lower()
-    aliases = {_normalized_evidence_id(requirement)}
+    aliases: set[str] = set()
     for evidence_id, markers in EVIDENCE_REQUIREMENT_ALIAS_RULES:
         if any(marker in normalized for marker in markers):
             aliases.add(evidence_id)
+    if aliases:
+        return aliases
+    aliases.add(_normalized_evidence_id(requirement))
     return aliases
 
 
@@ -224,10 +227,6 @@ def _evidence_id_matches_alias(evidence_id: str, accepted_ids: set[str]) -> bool
         if not accepted_id:
             continue
         if evidence_id == accepted_id:
-            return True
-        if evidence_id.startswith(f"{accepted_id}-") or evidence_id.endswith(f"-{accepted_id}"):
-            return True
-        if f"-{accepted_id}-" in evidence_id:
             return True
     return False
 

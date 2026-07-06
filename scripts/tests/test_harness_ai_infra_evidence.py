@@ -207,6 +207,44 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_required_evidence_manifest_blocks_prose_slug_evidence_id_for_known_requirement(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+
+            artifact_path = run_dir / "artifacts" / "service-availability.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            requirement = (
+                "service availability evidence for crawler backend, crawler frontend, "
+                "and loop dashboard during each round"
+            )
+            findings = validate_required_evidence_manifest(
+                [requirement],
+                {
+                    "items": [
+                        {
+                            "evidence_id": (
+                                "service-availability-evidence-for-crawler-backend-"
+                                "crawler-frontend-and-loop-dashboard-during-each-round"
+                            ),
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/service-availability.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertIn(
+                f"missing required evidence manifest item for: {requirement}",
+                findings,
+            )
+
     def test_check_service_availability_records_http_status(self) -> None:
         class _Response:
             def __init__(self, status: int) -> None:

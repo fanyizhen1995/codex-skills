@@ -1360,7 +1360,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 (run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json").exists()
             )
 
-    def test_run_autonomous_accepts_task_specific_gap_proof_manifest_entry(self) -> None:
+    def test_run_autonomous_accepts_gap_proof_manifest_entry_for_current_task_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             init_git_repo(repo_root)
@@ -1394,7 +1394,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 manifest = read_json_file(manifest_path)
                 for item in manifest["items"]:
                     if "gap proof" in str(item.get("summary", "")).lower():
-                        item["evidence_id"] = f"{task_id}-gap-proof"
+                        item["evidence_id"] = "gap-proof"
                         item["task_id"] = task_id
                         item["artifacts"] = [artifact_relative]
                 write_json_file(manifest_path, manifest)
