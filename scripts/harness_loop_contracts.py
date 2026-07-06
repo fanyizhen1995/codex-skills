@@ -33,7 +33,7 @@ ALLOWED_PHASES = frozenset(
 )
 ALLOWED_RUN_KINDS = frozenset({"single", "parent", "child"})
 PARENT_ONLY_PHASES = frozenset({"planning", "child_running", "passed_waiting_human_merge"})
-CHILD_ONLY_PHASES = frozenset({"planned", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
+CHILD_ONLY_PHASES = frozenset({"planned", "planning", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
 SHARED_PARENT_CHILD_PHASES = frozenset({"repair_needed", "stopped_budget", "stopped_blocked"})
 ALLOWED_PHASES = ALLOWED_PHASES | frozenset({"child_running", "passed"})
 ALLOWED_TASK_KINDS = frozenset(

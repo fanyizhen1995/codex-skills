@@ -399,7 +399,8 @@ python3 scripts/harness_loop_orchestrator.py transition-meta \
 
 The parent run must already be in `passed_waiting_human_merge`. The transition
 verifies the checkpoint commit exists, refuses missing or out-of-repo evidence
-paths, creates a confirmed `autonomous_knowledge` child run for `ai_infra`, and
+paths, creates a confirmed `autonomous_knowledge` child run for `ai_infra` with
+`run_kind=child` and `parent_run_id=<meta-run-id>`, and
 updates the parent to `phase=child_running` with a `phase_transition` event in
 `.codex/loop-runs/<run-id>/events.jsonl`. The parent `run.json` records
 `phase_transition=development_to_expansion`, `source_phase_commit`,

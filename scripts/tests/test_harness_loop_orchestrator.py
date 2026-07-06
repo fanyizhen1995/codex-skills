@@ -4169,11 +4169,15 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertEqual(expansion["policy"], "autonomous_knowledge")
             self.assertEqual(expansion["domain"], "ai_infra")
             self.assertEqual(expansion["phase"], "planning")
+            self.assertEqual(expansion["run_kind"], "child")
+            self.assertEqual(expansion["parent_run_id"], "ai-meta")
+            self.assertEqual(expansion["child_index"], 1)
             self.assertEqual(
                 expansion["policy_file"],
                 "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
             )
             self.assertEqual(expansion["next_action"], "run_autonomous_planner")
+            validate_run_payload(expansion)
             events = (run_dir_for(repo_root, "ai-meta") / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("phase_transition", events)
             self.assertIn("ai-meta-expansion", events)

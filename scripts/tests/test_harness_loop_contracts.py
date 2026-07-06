@@ -600,6 +600,27 @@ class HarnessLoopContractsTests(unittest.TestCase):
         )
         validate_run_payload(child)
 
+        autonomous_child = self._run_payload()
+        autonomous_child.update(
+            {
+                "policy": "autonomous_knowledge",
+                "run_kind": "child",
+                "parent_run_id": "demo-parent",
+                "child_index": 2,
+                "phase": "planning",
+                "domain": "ai_infra",
+                "next_action": "run_autonomous_planner",
+                "reader_summary": {
+                    "purpose": "Expansion child",
+                    "planner_action": "",
+                    "generator_action": "",
+                    "evaluator_action": "",
+                    "acceptance_result": "",
+                },
+            }
+        )
+        validate_run_payload(autonomous_child)
+
     def test_validate_run_payload_rejects_parent_child_phase_mismatch(self) -> None:
         parent = self._run_payload()
         parent.update(

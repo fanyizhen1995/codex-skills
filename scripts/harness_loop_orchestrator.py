@@ -754,6 +754,18 @@ def transition_meta_loop_to_expansion(
         policy_file=policy_file,
         confirm=True,
     )
+    child = load_run(root, expansion_run_id)
+    child["run_kind"] = "child"
+    child["parent_run_id"] = meta_run_id
+    child["child_index"] = len(parent["child_run_ids"]) + 1
+    child["reader_summary"] = {
+        "purpose": str(parent["requirement"]),
+        "planner_action": "",
+        "generator_action": "",
+        "evaluator_action": "",
+        "acceptance_result": "",
+    }
+    save_run(root, child)
 
     parent["run_kind"] = "parent"
     parent["phase"] = "child_running"
