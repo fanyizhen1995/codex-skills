@@ -338,13 +338,19 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         details: dict[str, object]
         if evidence_id == "crawler-workbench-freshness":
             details = {
-                "checked_endpoints": ["sources", "channels", "queue", "wiki", "search"],
-                "refreshed_at": "2026-07-06T00:00:00Z",
+                "sources": {"status": "pass"},
+                "channels": {"status": "pass"},
+                "queue": {"status": "pass"},
+                "wiki": {"status": "pass"},
+                "search": {"status": "pass"},
             }
         else:
             details = {
-                "checked_views": ["current-run", "child-tasks", "agent-actions", "evaluator-scenarios", "completed-history"],
-                "refreshed_at": "2026-07-06T00:00:00Z",
+                "current_run": {"status": "pass"},
+                "child_tasks": {"status": "pass"},
+                "agent_actions": {"status": "pass"},
+                "evaluator_scenarios": {"status": "pass"},
+                "completed_history": {"status": "pass"},
             }
         return {
             "status": "pass",

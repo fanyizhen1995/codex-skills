@@ -39,17 +39,35 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
         self,
         *,
         status: str,
+        evidence_id: str = "crawler-workbench-freshness",
         synthetic_smoke: bool = False,
         details: dict[str, object] | None = None,
     ) -> dict:
         payload = {
             "status": status,
             "summary": "freshness verified" if status == "pass" else "freshness blocked",
-            "details": details or {"checked_endpoints": ["sources", "channels", "queue", "wiki", "search"]},
+            "details": details or self._valid_freshness_details(evidence_id),
         }
         if synthetic_smoke:
             payload["synthetic_smoke"] = True
         return payload
+
+    def _valid_freshness_details(self, evidence_id: str) -> dict[str, object]:
+        if evidence_id == "crawler-workbench-freshness":
+            return {
+                "sources": {"status": "pass"},
+                "channels": {"status": "pass"},
+                "queue": {"status": "pass"},
+                "wiki": {"status": "pass"},
+                "search": {"status": "pass"},
+            }
+        return {
+            "current_run": {"status": "pass"},
+            "child_tasks": {"status": "pass"},
+            "agent_actions": {"status": "pass"},
+            "evaluator_scenarios": {"status": "pass"},
+            "completed_history": {"status": "pass"},
+        }
 
     def _search_visibility_payload(
         self,
@@ -200,7 +218,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                     )
                 elif evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness"}:
                     artifact_path.write_text(
-                        json.dumps(self._freshness_payload(status="pass")),
+                        json.dumps(self._freshness_payload(status="pass", evidence_id=evidence_id)),
                         encoding="utf-8",
                     )
                 elif evidence_id == "search-api-visibility":
@@ -549,6 +567,144 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 any("loop-dashboard-freshness artifact" in finding for finding in findings),
                 findings,
             )
+
+    def test_required_evidence_manifest_blocks_synthetic_smoke_crawler_freshness_payload(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "crawler-workbench-freshness.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    self._freshness_payload(
+                        status="pass",
+                        evidence_id="crawler-workbench-freshness",
+                        synthetic_smoke=True,
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["crawler workbench api freshness evidence for sources, channels, queue, wiki, and search"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "crawler-workbench-freshness",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/crawler-workbench-freshness.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("cannot use synthetic_smoke placeholders" in finding for finding in findings),
+                findings,
+            )
+
+    def test_required_evidence_manifest_blocks_loop_dashboard_freshness_with_generic_details(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "loop-dashboard-freshness.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    self._freshness_payload(
+                        status="pass",
+                        evidence_id="loop-dashboard-freshness",
+                        details={"checked_views": ["current-run", "child-tasks"]},
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/loop-dashboard-freshness.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("must include pass details for" in finding for finding in findings),
+                findings,
+            )
+
+    def test_required_evidence_manifest_accepts_crawler_freshness_with_required_dimensions(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "crawler-workbench-freshness.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(self._freshness_payload(status="pass", evidence_id="crawler-workbench-freshness")),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["crawler workbench api freshness evidence for sources, channels, queue, wiki, and search"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "crawler-workbench-freshness",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/crawler-workbench-freshness.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertEqual(findings, [])
+
+    def test_required_evidence_manifest_accepts_loop_dashboard_freshness_with_required_dimensions(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "loop-dashboard-freshness.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(self._freshness_payload(status="pass", evidence_id="loop-dashboard-freshness")),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/loop-dashboard-freshness.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertEqual(findings, [])
 
     def test_required_evidence_manifest_blocks_empty_search_visibility_payload(self) -> None:
         with TemporaryDirectory() as tmp:

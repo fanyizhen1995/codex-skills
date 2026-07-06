@@ -67,6 +67,16 @@ FRESHNESS_EVIDENCE_IDS = {
     "crawler-workbench-freshness",
     "loop-dashboard-freshness",
 }
+FRESHNESS_REQUIRED_DIMENSIONS: dict[str, tuple[str, ...]] = {
+    "crawler-workbench-freshness": ("sources", "channels", "queue", "wiki", "search"),
+    "loop-dashboard-freshness": (
+        "current_run",
+        "child_tasks",
+        "agent_actions",
+        "evaluator_scenarios",
+        "completed_history",
+    ),
+}
 VISIBILITY_EVIDENCE_IDS = {
     "search-api-visibility",
     "frontend-visibility",
@@ -326,10 +336,37 @@ def _validate_freshness_payload(
     summary = str(payload.get("summary", "")).strip()
     if not summary:
         findings.append(f"{evidence_id} artifact {artifact_path} must include a non-empty summary")
+    if bool(payload.get("synthetic_smoke")):
+        findings.append(f"{evidence_id} artifact {artifact_path} cannot use synthetic_smoke placeholders")
     details = payload.get("details")
     if not isinstance(details, Mapping) or not details:
         findings.append(f"{evidence_id} artifact {artifact_path} must include meaningful details")
+        return findings
+
+    required_dimensions = FRESHNESS_REQUIRED_DIMENSIONS.get(evidence_id, ())
+    missing_dimensions = [
+        dimension for dimension in required_dimensions if not _freshness_detail_is_pass_like(details.get(dimension))
+    ]
+    if missing_dimensions:
+        findings.append(
+            f"{evidence_id} artifact {artifact_path} must include pass details for: {', '.join(missing_dimensions)}"
+        )
     return findings
+
+
+def _freshness_detail_is_pass_like(value: Any) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in {"pass", "passed", "ok", "success", "true"}
+    if isinstance(value, Mapping):
+        for key in ("status", "check"):
+            candidate = value.get(key)
+            if candidate is True:
+                return True
+            if isinstance(candidate, str) and candidate.strip().lower() in {"pass", "passed", "ok", "success", "true"}:
+                return True
+    return False
 
 
 def _non_empty_string(value: Any) -> bool:

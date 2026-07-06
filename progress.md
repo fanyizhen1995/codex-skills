@@ -37,7 +37,7 @@
   - `feat(harness): transition ai infra meta loops to expansion`
 - Evidence:
   - `python3 -m unittest scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_autonomous scripts.tests.test_harness_loop_orchestrator scripts.tests.test_harness_ai_infra_evidence -v` -> 211 tests passed
-  - `python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone` -> `overall_status=pass`, `missing_evidence_gate.status=pass`, `expanded_code_scope.status=pass`
+  - `python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone` -> `overall_status=pass`, `missing_evidence_gate.status=pass`, `expanded_code_scope.status=pass` [stale before 2026-07-06 hardened placeholder freshness gate; current expected result is blocked]
   - `python3 -m json.tool tasks.json >/dev/null`
   - `python3 -m json.tool docs/harness/evaluator-scenarios/ai-infra-meta-loop-runtime-01.json >/dev/null`
   - `python3 - <<'PY' ... validate_loop_policy_payload(...) ... PY`
