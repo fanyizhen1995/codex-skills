@@ -1,0 +1,87 @@
+{
+  "run_id": "ai-infra-expansion-2026-07-06-r3",
+  "task_id": "ai-infra-expansion-2026-07-06-r3-task-1",
+  "generated_at": "2026-07-06T21:23:08Z",
+  "summary": "Local non-network validation passed. Live service checks are deferred to orchestrator-owned trusted-live-evidence artifacts because this sandbox prevents durable local service binding.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md"
+  ],
+  "baseline_dirty_notice": "Pre-existing untracked 20260706 compute accelerator crawler captures remain untouched and are not declared as changed paths for this task.",
+  "dependency_files_changed": false,
+  "code_paths_changed": false,
+  "external_sources_fetched": false,
+  "domain_channels_changed": false,
+  "no_action_claimed": false,
+  "commands": [
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload ... validate_coverage_map_payload ... validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "evidence": "coverage-map.json and loop-state.json satisfy harness contracts and parseable layer timestamps."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "evidence": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "evidence": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "evidence": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "evidence": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r3-gap-proof.json') ... PY",
+      "status": "pass",
+      "evidence": "Gap proof file satisfies the duplicate-check evidence contract for the current task."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "evidence": "No sensitive patterns were found in the changed files."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health",
+      "status": "blocked",
+      "evidence": "Standalone curl could not connect; an in-command uvicorn startup logged success, but this sandbox did not expose the bound local port to curl."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/wiki/pages",
+      "status": "blocked",
+      "evidence": "Blocked by the same local service binding restriction as backend health."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=coverage%20map'",
+      "status": "blocked",
+      "evidence": "Blocked by the same local service binding restriction as backend health."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p'",
+      "status": "blocked",
+      "evidence": "Vite startup in this sandbox failed with listen EPERM on 0.0.0.0:5173."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "blocked",
+      "evidence": "Dashboard uvicorn startup logged success, but this sandbox did not expose the bound local port to curl."
+    }
+  ]
+}

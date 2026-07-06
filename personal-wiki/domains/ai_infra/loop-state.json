@@ -1,0 +1,173 @@
+{
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
+  "last_planner_decision": "planned",
+  "last_scan_at": "2026-07-06T21:23:08Z",
+  "scan_ttl_days": 30,
+  "candidate_backlog": [
+    {
+      "id": "data-rag-vector-primary-sources",
+      "title": "Add source-backed data, RAG, and vector infrastructure coverage",
+      "source": "coverage-map:data-rag-vector",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
+      ]
+    },
+    {
+      "id": "eval-observability-reliability-primary-sources",
+      "title": "Add dedicated evaluation, observability, and reliability tooling coverage",
+      "source": "coverage-map:eval-observability-reliability",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md"
+      ]
+    },
+    {
+      "id": "security-governance-cost-primary-sources",
+      "title": "Add AI platform security, governance, and cost sources",
+      "source": "coverage-map:security-governance-cost",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
+      ]
+    },
+    {
+      "id": "network-storage-cluster-primary-sources",
+      "title": "Add cluster fabric and storage infrastructure coverage",
+      "source": "coverage-map:network-storage-cluster",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+      ]
+    },
+    {
+      "id": "inference-runtime-broadening",
+      "title": "Broaden inference runtime coverage beyond SGLang",
+      "source": "coverage-map:inference-runtime",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
+        "personal-wiki/domains/ai_infra/wiki/concepts/nvidia-green-context.md"
+      ]
+    },
+    {
+      "id": "training-distributed-broadening",
+      "title": "Broaden distributed training coverage beyond NCCL communication evidence",
+      "source": "coverage-map:training-distributed",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md"
+      ]
+    },
+    {
+      "id": "orchestration-scheduling-broadening",
+      "title": "Broaden orchestration and scheduling coverage beyond Kubernetes, Volcano, and Kueue",
+      "source": "coverage-map:orchestration-scheduling",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md"
+      ]
+    },
+    {
+      "id": "hardware-accelerator-baseline-dirty-reconciliation",
+      "title": "Reconcile or intentionally ignore baseline-dirty 20260706 compute accelerator captures",
+      "source": "coverage-map:hardware-accelerator",
+      "status": "candidate",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/coverage-map.json",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+      ]
+    }
+  ],
+  "coverage_gaps": [],
+  "known_sources": [
+    {
+      "id": "nccl-release-and-issue-evidence",
+      "title": "NCCL release notes and closed issue corpus",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz"
+      ]
+    },
+    {
+      "id": "sglang-runtime-evidence",
+      "title": "SGLang runtime, issue, PR, and CUDA Green Context evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/concepts/nvidia-green-context.md",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json"
+      ]
+    },
+    {
+      "id": "kubernetes-volcano-kueue-scheduling-evidence",
+      "title": "Kubernetes, Volcano, and Kueue scheduling issue corpora",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/projects/kubernetes.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/volcano.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md",
+        "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-evidence",
+      "title": "Compute accelerator inventory, catalog, and parameter comparison",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md"
+      ]
+    },
+    {
+      "id": "hitchhiker-agentic-ai-evidence",
+      "title": "Hitchhiker's Guide to Agentic AI paper",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T21:23:08Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
+      ]
+    }
+  ],
+  "blocked_items": [],
+  "no_action_evidence": []
+}

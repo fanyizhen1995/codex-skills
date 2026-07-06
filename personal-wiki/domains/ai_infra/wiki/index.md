@@ -31,6 +31,7 @@ _No pages yet._
 
 ## References
 
+- [AI Infra Coverage Map](references/ai-infra-coverage-map.md) - Durable navigation point for the autonomous AI infrastructure coverage scan and remaining gaps.
 - [Compute Accelerator Crawl Inventory](references/compute-accelerator-crawl-inventory.md) - Inventory of raw crawler captures for compute accelerator discovery and specification evidence.
 - [Compute Accelerator Field Glossary](references/compute-accelerator-field-glossary.md) - Canonical field names, units, and scope applicability for accelerator specifications.
 - [Compute Accelerator Parameter Comparison](references/compute-accelerator-parameter-comparison.md) - Current cross-vendor parameter comparison for accelerator, cloud offering, system, DPU, and SmartNIC records captured in ai_infra.

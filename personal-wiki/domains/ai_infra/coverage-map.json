@@ -1,0 +1,179 @@
+{
+  "domain": "ai_infra",
+  "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
+  "layers": {
+    "training-distributed": {
+      "status": "partial",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-index-html.md",
+        "personal-wiki/domains/ai_infra/raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-30-7-html.md",
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
+      ],
+      "candidate_gaps": [
+        "Add source-backed pages for distributed training frameworks beyond NCCL, such as Megatron, DeepSpeed, PyTorch FSDP, checkpointing, and elastic training.",
+        "Separate communication library evidence from training job lifecycle, checkpoint, and fault-tolerance evidence."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "NCCL provides strong collective-communication and field-issue coverage, while the broader distributed-training stack remains thin."
+    },
+    "inference-runtime": {
+      "status": "partial",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/concepts/nvidia-green-context.md",
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
+      ],
+      "candidate_gaps": [
+        "Add source-backed runtime coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, and ONNX Runtime GenAI.",
+        "Promote SGLang scheduled crawler supplement leads only after deciding whether a full API refresh is needed."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "SGLang and CUDA Green Context give strong local inference-runtime evidence, but this layer is not yet multi-project."
+    },
+    "orchestration-scheduling": {
+      "status": "partial",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/projects/kubernetes.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/volcano.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md",
+        "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz"
+      ],
+      "candidate_gaps": [
+        "Add Ray, Slurm-on-Kubernetes, device plugin, and GPU quota/operator evidence if local scans show no duplicate coverage.",
+        "Clarify where Kubernetes issue evidence is sampled because comment joins are incomplete."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "Kubernetes, Volcano, and Kueue are covered by local closed-issue corpora, with comment-completeness caveats."
+    },
+    "data-rag-vector": {
+      "status": "weak",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.pdf"
+      ],
+      "candidate_gaps": [
+        "Add primary-source pages for vector databases and retrieval infrastructure such as Milvus, Weaviate, Qdrant, pgvector, and FAISS service patterns.",
+        "Add AI data pipeline evidence for Kafka, Flink, object-store ingestion, embedding pipelines, and feature or metadata infrastructure."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "The local Hitchhiker paper names RAG and memory systems, but there is no dedicated source-backed vector or data-pipeline coverage yet."
+    },
+    "eval-observability-reliability": {
+      "status": "partial",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json"
+      ],
+      "candidate_gaps": [
+        "Add LLM observability and evaluation infrastructure sources such as OpenTelemetry for LLM apps, Langfuse, LangSmith, prompt/model eval harnesses, and benchmark environment state.",
+        "Add GPU and cluster profiling/debug evidence such as NVIDIA Nsight, NCCL observability, and incident/SLO patterns."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "Evaluation and reliability are visible in the Hitchhiker paper and issue corpora, but dedicated observability tooling coverage is still missing."
+    },
+    "security-governance-cost": {
+      "status": "weak",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json"
+      ],
+      "candidate_gaps": [
+        "Add tenant isolation, MIG/vGPU, confidential computing, quota governance, cost attribution, and capacity planning sources.",
+        "Separate security/governance claims from adjacent DPU, GPU-sharing, and scheduling evidence."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "Current evidence is adjacent: NCCL GPU sharing and virtualization issues, DPU/security positioning, and Kueue quota-aware scheduling."
+    },
+    "hardware-accelerator": {
+      "status": "partial",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-crawler.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-field-glossary.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-spec-sources.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md"
+      ],
+      "candidate_gaps": [
+        "Reconcile or intentionally ignore the baseline-dirty 20260706 compute accelerator crawler captures before using them.",
+        "Fill unresolved fields in the parameter comparison only when product-specific pages, tables, datasheets, or PDFs provide source-backed values."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "This is the broadest local coverage area, but many records intentionally keep missing values unresolved."
+    },
+    "network-storage-cluster": {
+      "status": "partial",
+      "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md"
+      ],
+      "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md"
+      ],
+      "candidate_gaps": [
+        "Add source-backed coverage for InfiniBand, RoCE, Spectrum-X, EFA, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem behavior in AI clusters.",
+        "Distinguish cluster networking and storage architecture evidence from accelerator SKU tables."
+      ],
+      "blocked_reason": "",
+      "last_scanned_at": "2026-07-06T21:23:08Z",
+      "notes": "NCCL issue evidence and DPU/SmartNIC raw captures cover network/offload signals, but storage and cluster fabric coverage needs expansion."
+    }
+  }
+}

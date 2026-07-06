@@ -1,0 +1,21 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r3-task-1",
+  "layer": "coverage-map",
+  "candidate": {
+    "title": "Initialize ai_infra coverage map and loop state",
+    "source_type": "local_bookkeeping",
+    "identity_key": "local:ai_infra:coverage-map-loop-state:ai-infra-expansion-2026-07-06-r3"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Existing local wiki/raw evidence was reused; baseline-dirty 20260706 compute accelerator captures were intentionally not planned as new raw evidence.",
+    "wiki_search": "Current ai_infra index had no coverage overview page and no coverage-map.json entry before this task.",
+    "domain_index_scan": "Current ai_infra index listed concepts, projects, papers, and references but no durable coverage scan page."
+  },
+  "gap_reason": "The autonomous expansion loop could not make no-action or next-gap decisions without a machine-readable coverage map, domain loop state, and a discoverable curated overview.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md"
+  ]
+}
