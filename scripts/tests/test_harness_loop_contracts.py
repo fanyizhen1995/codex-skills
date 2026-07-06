@@ -609,6 +609,7 @@ class HarnessLoopContractsTests(unittest.TestCase):
                 "child_index": 2,
                 "phase": "planning",
                 "domain": "ai_infra",
+                "policy_file": "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
                 "next_action": "run_autonomous_planner",
                 "reader_summary": {
                     "purpose": "Expansion child",
@@ -620,6 +621,28 @@ class HarnessLoopContractsTests(unittest.TestCase):
             }
         )
         validate_run_payload(autonomous_child)
+
+    def test_validate_run_payload_rejects_demand_child_planning_phase(self) -> None:
+        child = self._run_payload()
+        child.update(
+            {
+                "run_kind": "child",
+                "parent_run_id": "demo-parent",
+                "child_index": 1,
+                "phase": "planning",
+                "next_action": "run_planner",
+                "reader_summary": {
+                    "purpose": "Demand child",
+                    "planner_action": "",
+                    "generator_action": "",
+                    "evaluator_action": "",
+                    "acceptance_result": "",
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "child phase"):
+            validate_run_payload(child)
 
     def test_validate_run_payload_rejects_parent_child_phase_mismatch(self) -> None:
         parent = self._run_payload()

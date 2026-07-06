@@ -33,9 +33,10 @@ ALLOWED_PHASES = frozenset(
 )
 ALLOWED_RUN_KINDS = frozenset({"single", "parent", "child"})
 PARENT_ONLY_PHASES = frozenset({"planning", "child_running", "passed_waiting_human_merge"})
-CHILD_ONLY_PHASES = frozenset({"planned", "planning", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
+CHILD_ONLY_PHASES = frozenset({"planned", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
 SHARED_PARENT_CHILD_PHASES = frozenset({"repair_needed", "stopped_budget", "stopped_blocked"})
 ALLOWED_PHASES = ALLOWED_PHASES | frozenset({"child_running", "passed"})
+AI_INFRA_EXPANDED_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
 ALLOWED_TASK_KINDS = frozenset(
     {
         "registered_task",
@@ -182,9 +183,13 @@ def _optional_run_kind(payload: dict[str, Any]) -> str:
     return run_kind
 
 
-def _validate_run_kind_phase(run_kind: str, phase: str) -> None:
+def _validate_run_kind_phase(run_kind: str, phase: str, payload: dict[str, Any]) -> None:
     if run_kind == "parent" and phase not in (PARENT_ONLY_PHASES | SHARED_PARENT_CHILD_PHASES):
         raise ValueError(f"parent phase is not allowed: {phase}")
+    if run_kind == "child" and phase == "planning":
+        if not _is_autonomous_expansion_child(payload):
+            raise ValueError(f"child phase is not allowed: {phase}")
+        return
     if run_kind == "child" and phase not in (CHILD_ONLY_PHASES | SHARED_PARENT_CHILD_PHASES):
         raise ValueError(f"child phase is not allowed: {phase}")
 
@@ -212,9 +217,20 @@ def _validate_child_run_payload(payload: dict[str, Any]) -> None:
     if not payload["parent_run_id"]:
         raise ValueError("child run requires parent_run_id")
     _require_int(payload, "child_index")
+    if payload["phase"] == "planning" and not _is_autonomous_expansion_child(payload):
+        raise ValueError("child phase is not allowed: planning")
     _require_reader_summary(
         payload,
         {"purpose", "planner_action", "generator_action", "evaluator_action", "acceptance_result"},
+    )
+
+
+def _is_autonomous_expansion_child(payload: dict[str, Any]) -> bool:
+    return (
+        normalize_policy_id(payload["policy"]) == "autonomous_knowledge"
+        and payload.get("domain") == "ai_infra"
+        and payload.get("next_action") == "run_autonomous_planner"
+        and payload.get("policy_file") == AI_INFRA_EXPANDED_POLICY_FILE
     )
 
 
@@ -250,7 +266,7 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
     normalize_policy_id(payload["policy"])
     _require_enum(payload, "phase", ALLOWED_PHASES)
     run_kind = _optional_run_kind(payload)
-    _validate_run_kind_phase(run_kind, payload["phase"])
+    _validate_run_kind_phase(run_kind, payload["phase"], payload)
     for key in ("task_id", "domain", "branch", "worktree", "requirement", "last_result", "next_action"):
         _require_string(payload, key)
     _require_enum(payload, "last_result", ALLOWED_LAST_RESULTS)
