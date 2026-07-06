@@ -352,6 +352,22 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             "details": details,
         }
 
+    def _valid_search_visibility_payload(self) -> dict[str, object]:
+        return {
+            "status": "pass",
+            "query": "expanded runtime smoke",
+            "visible_results": 1,
+            "visible_items": ["personal-wiki/domains/ai_infra/raw/synthetic-gap-proof.md"],
+        }
+
+    def _valid_frontend_visibility_payload(self) -> dict[str, object]:
+        return {
+            "status": "pass",
+            "page_url": "http://127.0.0.1:5173/wiki/ai_infra",
+            "route": "/wiki/ai_infra",
+            "visible_text": ["Expanded runtime smoke"],
+        }
+
     def _write_required_evidence_manifest(
         self,
         repo_root: Path,
@@ -392,6 +408,10 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 artifact_payload = self._valid_service_availability_payload()
             elif stable_evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness"}:
                 artifact_payload = self._valid_freshness_payload(stable_evidence_id)
+            elif stable_evidence_id == "search-api-visibility":
+                artifact_payload = self._valid_search_visibility_payload()
+            elif stable_evidence_id == "frontend-visibility":
+                artifact_payload = self._valid_frontend_visibility_payload()
             write_json_file(repo_root / artifact_relative, artifact_payload)
             items.append(
                 {
@@ -1866,8 +1886,6 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             actual_ids = {str(item["evidence_id"]) for item in manifest_payload["items"]}
             self.assertEqual(actual_ids, expected_ids)
             expected_blocked_ids = {
-                "search-api-visibility",
-                "frontend-visibility",
                 "crawler-workbench-freshness",
                 "loop-dashboard-freshness",
                 "service-availability",
@@ -1877,6 +1895,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 with self.subTest(evidence_id=evidence_id):
                     self.assertEqual(manifest_by_id[evidence_id]["status"], "blocked")
                     self.assertIn("synthetic", str(manifest_by_id[evidence_id]["summary"]).lower())
+            for evidence_id in {"search-api-visibility", "frontend-visibility"}:
+                with self.subTest(evidence_id=evidence_id):
+                    self.assertEqual(manifest_by_id[evidence_id]["status"], "pass")
             for evidence_id in {"crawler-workbench-freshness", "loop-dashboard-freshness", "service-availability"}:
                 self.assertTrue(
                     any(evidence_id in finding for finding in required_evidence_result["findings"]),

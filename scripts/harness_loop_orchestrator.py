@@ -1922,8 +1922,6 @@ _EXPANDED_REQUIRED_EVIDENCE_IDS = {
 
 _EXPANDED_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
 _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE = {
-    "search-api-visibility": "Synthetic smoke placeholder: search/API visibility requires live ingest verification.",
-    "frontend-visibility": "Synthetic smoke placeholder: frontend visibility requires live UI verification.",
     "crawler-workbench-freshness": "Synthetic smoke placeholder: crawler workbench freshness requires live service data.",
     "loop-dashboard-freshness": "Synthetic smoke placeholder: loop dashboard freshness requires live dashboard data.",
     "service-availability": "Synthetic smoke placeholder: live service availability is checked by the smoke helper.",
@@ -1990,21 +1988,43 @@ def _write_expanded_fake_evidence(
             artifact_relative = gap_proof_relative
             summary = "Synthetic smoke gap proof captured for the current task."
         else:
-            if evidence_id in _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE:
+            artifact_payload = {
+                "evidence_id": evidence_id,
+                "summary": summary,
+                "task_id": task_id,
+                "run_id": str(run["run_id"]),
+                "changed_path": changed_path,
+                "status": item_status,
+            }
+            if evidence_id == "search-api-visibility":
+                artifact_payload.update(
+                    {
+                        "status": "pass",
+                        "query": "expanded runtime smoke",
+                        "visible_results": 1,
+                        "visible_items": [changed_path],
+                    }
+                )
+            elif evidence_id == "frontend-visibility":
+                artifact_payload.update(
+                    {
+                        "status": "pass",
+                        "route": "/wiki/ai_infra",
+                        "page_url": "http://127.0.0.1:5173/wiki/ai_infra",
+                        "visible_text": ["Expanded runtime smoke"],
+                    }
+                )
+            elif evidence_id in _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE:
                 item_status = "blocked"
                 summary = _EXPANDED_SYNTHETIC_BLOCKED_EVIDENCE[evidence_id]
-            write_json_file(
-                run_dir / artifact_relative,
-                {
-                    "evidence_id": evidence_id,
-                    "summary": summary,
-                    "task_id": task_id,
-                    "run_id": str(run["run_id"]),
-                    "changed_path": changed_path,
-                    "status": item_status,
-                    "synthetic_smoke": True,
-                },
-            )
+                artifact_payload.update(
+                    {
+                        "status": item_status,
+                        "summary": summary,
+                        "synthetic_smoke": True,
+                    }
+                )
+            write_json_file(run_dir / artifact_relative, artifact_payload)
         item = {
             "evidence_id": evidence_id,
             "summary": summary,

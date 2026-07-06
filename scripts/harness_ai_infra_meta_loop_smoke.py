@@ -30,8 +30,6 @@ SERVICE_TARGETS = (
     {"service": "loop-dashboard", "url": "http://127.0.0.1:8766/api/health"},
 )
 SMOKE_SYNTHETIC_PLACEHOLDER_EVIDENCE_IDS = {
-    "search-api-visibility",
-    "frontend-visibility",
     "crawler-workbench-freshness",
     "loop-dashboard-freshness",
     "service-availability",

@@ -67,7 +67,11 @@ FRESHNESS_EVIDENCE_IDS = {
     "crawler-workbench-freshness",
     "loop-dashboard-freshness",
 }
-SEMANTIC_GATE_EVIDENCE_IDS = FRESHNESS_EVIDENCE_IDS | {"service-availability"}
+VISIBILITY_EVIDENCE_IDS = {
+    "search-api-visibility",
+    "frontend-visibility",
+}
+SEMANTIC_GATE_EVIDENCE_IDS = FRESHNESS_EVIDENCE_IDS | VISIBILITY_EVIDENCE_IDS | {"service-availability"}
 
 
 def canonicalize_url(url: str) -> str:
@@ -328,6 +332,67 @@ def _validate_freshness_payload(
     return findings
 
 
+def _non_empty_string(value: Any) -> bool:
+    return bool(str(value).strip())
+
+
+def _non_empty_sequence(value: Any) -> bool:
+    return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)) and any(
+        _non_empty_string(item) for item in value
+    )
+
+
+def _validate_search_visibility_payload(
+    payload: Mapping[str, Any],
+    *,
+    evidence_id: str,
+    artifact_path: str,
+) -> list[str]:
+    findings: list[str] = []
+    status = str(payload.get("status", "")).strip().lower()
+    if status not in {"pass", "fail", "blocked"}:
+        findings.append(f"{evidence_id} artifact {artifact_path} must contain status pass/fail/blocked")
+    elif status != "pass":
+        findings.append(f"{evidence_id} artifact {artifact_path} must report status pass")
+    if bool(payload.get("synthetic_smoke")):
+        findings.append(f"{evidence_id} artifact {artifact_path} cannot use synthetic_smoke placeholders")
+    if not _non_empty_string(payload.get("query", "")):
+        findings.append(f"{evidence_id} artifact {artifact_path} must include a non-empty query")
+    visible_results = payload.get("visible_results")
+    has_visible_result_count = isinstance(visible_results, int) and visible_results > 0
+    has_visible_items = _non_empty_sequence(payload.get("visible_items"))
+    if not has_visible_result_count and not has_visible_items:
+        findings.append(
+            f"{evidence_id} artifact {artifact_path} must include visible_results > 0 or non-empty visible_items"
+        )
+    return findings
+
+
+def _validate_frontend_visibility_payload(
+    payload: Mapping[str, Any],
+    *,
+    evidence_id: str,
+    artifact_path: str,
+) -> list[str]:
+    findings: list[str] = []
+    status = str(payload.get("status", "")).strip().lower()
+    if status not in {"pass", "fail", "blocked"}:
+        findings.append(f"{evidence_id} artifact {artifact_path} must contain status pass/fail/blocked")
+    elif status != "pass":
+        findings.append(f"{evidence_id} artifact {artifact_path} must report status pass")
+    if bool(payload.get("synthetic_smoke")):
+        findings.append(f"{evidence_id} artifact {artifact_path} cannot use synthetic_smoke placeholders")
+    if not (_non_empty_string(payload.get("page_url", "")) or _non_empty_string(payload.get("route", ""))):
+        findings.append(f"{evidence_id} artifact {artifact_path} must include a non-empty page_url or route")
+    has_visible_text = _non_empty_sequence(payload.get("visible_text"))
+    has_assertions = _non_empty_sequence(payload.get("assertions"))
+    if not has_visible_text and not has_assertions:
+        findings.append(
+            f"{evidence_id} artifact {artifact_path} must include non-empty visible_text or assertions"
+        )
+    return findings
+
+
 def _validate_semantic_evidence_artifacts(
     *,
     evidence_id: str,
@@ -349,6 +414,10 @@ def _validate_semantic_evidence_artifacts(
             _validate_service_availability_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
             if evidence_id == "service-availability"
             else _validate_freshness_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
+            if evidence_id in FRESHNESS_EVIDENCE_IDS
+            else _validate_search_visibility_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
+            if evidence_id == "search-api-visibility"
+            else _validate_frontend_visibility_payload(payload, evidence_id=evidence_id, artifact_path=artifact_path)
         )
         if artifact_findings:
             findings.extend(artifact_findings)

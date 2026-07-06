@@ -51,6 +51,40 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             payload["synthetic_smoke"] = True
         return payload
 
+    def _search_visibility_payload(
+        self,
+        *,
+        status: str,
+        query: str = "vllm runtime",
+        visible_results: int = 1,
+        synthetic_smoke: bool = False,
+    ) -> dict:
+        payload = {
+            "status": status,
+            "query": query,
+            "visible_results": visible_results,
+        }
+        if synthetic_smoke:
+            payload["synthetic_smoke"] = True
+        return payload
+
+    def _frontend_visibility_payload(
+        self,
+        *,
+        status: str,
+        page_url: str = "http://127.0.0.1:5173/wiki",
+        visible_text: list[str] | None = None,
+        synthetic_smoke: bool = False,
+    ) -> dict:
+        payload = {
+            "status": status,
+            "page_url": page_url,
+            "visible_text": visible_text or ["AI infra runtime smoke"],
+        }
+        if synthetic_smoke:
+            payload["synthetic_smoke"] = True
+        return payload
+
     def test_canonicalize_url_normalizes_tracking_noise_and_case(self) -> None:
         self.assertEqual(
             canonicalize_url("HTTPS://Docs.VLLM.AI/en/latest/foo/?utm_source=x#section"),
@@ -146,6 +180,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 ("crawler-workbench-freshness", "artifacts/crawler-workbench-freshness.json"),
                 ("loop-dashboard-freshness", "artifacts/loop-dashboard-freshness.json"),
                 ("search-api-visibility", "artifacts/search-api-visibility.json"),
+                ("frontend-visibility", "artifacts/frontend-visibility.json"),
             ]
             for evidence_id, relative_path in aliases:
                 artifact_path = run_dir / relative_path
@@ -168,6 +203,16 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                         json.dumps(self._freshness_payload(status="pass")),
                         encoding="utf-8",
                     )
+                elif evidence_id == "search-api-visibility":
+                    artifact_path.write_text(
+                        json.dumps(self._search_visibility_payload(status="pass")),
+                        encoding="utf-8",
+                    )
+                elif evidence_id == "frontend-visibility":
+                    artifact_path.write_text(
+                        json.dumps(self._frontend_visibility_payload(status="pass")),
+                        encoding="utf-8",
+                    )
                 else:
                     artifact_path.write_text("{}", encoding="utf-8")
 
@@ -180,6 +225,7 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                     "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
                     "loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history",
                     "search API visibility after ingestion",
+                    "frontend visibility evidence when services are running",
                 ],
                 {
                     "items": [
@@ -503,6 +549,126 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 any("loop-dashboard-freshness artifact" in finding for finding in findings),
                 findings,
             )
+
+    def test_required_evidence_manifest_blocks_empty_search_visibility_payload(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "search-api-visibility.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/search-api-visibility.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("search-api-visibility artifact" in finding for finding in findings),
+                findings,
+            )
+
+    def test_required_evidence_manifest_blocks_empty_frontend_visibility_payload(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "frontend-visibility.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["frontend visibility evidence when services are running"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "frontend-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/frontend-visibility.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertTrue(
+                any("frontend-visibility artifact" in finding for finding in findings),
+                findings,
+            )
+
+    def test_required_evidence_manifest_accepts_valid_search_visibility_payload(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "search-api-visibility.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(self._search_visibility_payload(status="pass")),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/search-api-visibility.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertEqual(findings, [])
+
+    def test_required_evidence_manifest_accepts_valid_frontend_visibility_payload(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = run_dir / "artifacts" / "frontend-visibility.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(self._frontend_visibility_payload(status="pass")),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["frontend visibility evidence when services are running"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "frontend-visibility",
+                            "status": "pass",
+                            "summary": "validated",
+                            "artifacts": ["artifacts/frontend-visibility.json"],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+            )
+
+            self.assertEqual(findings, [])
 
     def test_required_evidence_manifest_accepts_service_availability_http_302(self) -> None:
         with TemporaryDirectory() as tmp:
