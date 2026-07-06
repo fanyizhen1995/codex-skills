@@ -2877,6 +2877,215 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["matched_targets"], [])
             self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
 
+    def test_content_terms_from_markdown_returns_empty_for_title_only_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            page_path = Path(tmp) / "title-only.md"
+            page_path.write_text("# Expanded Runtime Smoke\n", encoding="utf-8")
+
+            terms = harness_loop_orchestrator._content_terms_from_markdown(
+                page_path,
+                title="Expanded Runtime Smoke",
+            )
+
+            self.assertEqual(terms, [])
+
+    def test_content_terms_from_markdown_returns_empty_when_body_only_repeats_title_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            page_path = Path(tmp) / "duplicate-title.md"
+            page_path.write_text(
+                "# Expanded Runtime Smoke\n\nExpanded runtime smoke runtime expanded smoke.\n",
+                encoding="utf-8",
+            )
+
+            terms = harness_loop_orchestrator._content_terms_from_markdown(
+                page_path,
+                title="Expanded Runtime Smoke",
+            )
+
+            self.assertEqual(terms, [])
+
+    def test_content_terms_from_markdown_returns_empty_for_non_ascii_body_without_ascii_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            page_path = Path(tmp) / "non-ascii-body.md"
+            page_path.write_text(
+                "# 模型运行时可见性\n\n这是最新的运行时证据，没有英文关键词。\n",
+                encoding="utf-8",
+            )
+
+            terms = harness_loop_orchestrator._content_terms_from_markdown(
+                page_path,
+                title="模型运行时可见性",
+            )
+
+            self.assertEqual(terms, [])
+
+    def test_match_visibility_target_rejects_wiki_page_without_body_derived_content_terms(self) -> None:
+        target = {
+            "target_id": "wiki:personal-wiki/domains/ai_infra/wiki/expanded-runtime-smoke.md",
+            "kind": "wiki_page",
+            "path": "personal-wiki/domains/ai_infra/wiki/expanded-runtime-smoke.md",
+            "title": "Expanded Runtime Smoke",
+            "identity_terms": [
+                "personal-wiki/domains/ai_infra/wiki/expanded-runtime-smoke.md",
+                "Expanded Runtime Smoke",
+            ],
+            "content_terms": [],
+        }
+
+        match = harness_loop_orchestrator._match_visibility_target(
+            {
+                "results": [
+                    {
+                        "title": "Expanded Runtime Smoke",
+                        "path": "personal-wiki/domains/ai_infra/wiki/expanded-runtime-smoke.md",
+                        "snippet": "Expanded runtime smoke legacy summary",
+                    }
+                ]
+            },
+            target,
+            query="Expanded Runtime Smoke",
+        )
+
+        self.assertIsNone(match)
+
+    def test_capture_live_search_visibility_blocks_title_only_wiki_page_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(
+                repo_root,
+                run_id=run_id,
+                title="Expanded Runtime Smoke",
+                body="",
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Expanded runtime smoke legacy summary",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
+
+    def test_capture_live_search_visibility_blocks_duplicate_title_token_body_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(
+                repo_root,
+                run_id=run_id,
+                title="Expanded Runtime Smoke",
+                body="Expanded runtime smoke runtime expanded smoke.\n",
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Expanded runtime smoke legacy summary",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
+
+    def test_capture_live_search_visibility_blocks_non_ascii_wiki_page_without_ascii_body_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(
+                repo_root,
+                run_id=run_id,
+                title="模型运行时可见性",
+                body="这是最新的运行时证据，没有英文关键词。\n",
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "模型运行时可见性",
+                                "path": relative_path,
+                                "snippet": "模型运行时可见性 旧索引摘要",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
+
     def test_capture_live_frontend_visibility_blocks_loaded_root_without_current_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

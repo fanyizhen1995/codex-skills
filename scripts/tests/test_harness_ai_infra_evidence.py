@@ -1419,6 +1419,60 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
 
             self.assertTrue(any("content_terms" in finding for finding in findings), findings)
 
+    def test_required_evidence_manifest_blocks_search_visibility_payload_with_empty_expected_wiki_page_content_terms(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            current_target = dict(self._current_target())
+            current_target["content_terms"] = []
+            current_target["content_fingerprint"] = ""
+            payload = self._search_visibility_payload(
+                status="pass",
+                expected_targets=[current_target],
+                matched_targets=[
+                    {
+                        "target_id": current_target["target_id"],
+                        "path": current_target["path"],
+                        "title": current_target["title"],
+                        "query": current_target["query"],
+                        "matched_on": current_target["path"],
+                        "result_value": current_target["path"],
+                        "matched_content_terms": [],
+                    }
+                ],
+                missing_targets=[],
+            )
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "search-api-visibility",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertTrue(any("empty content_terms" in finding for finding in findings), findings)
+
     def test_required_evidence_manifest_blocks_empty_frontend_visibility_payload(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

@@ -2792,8 +2792,11 @@ def _content_terms_from_markdown(path: Path, *, title: str) -> list[str]:
         "smoke",
         "that",
         "this",
+        "title",
+        "what",
         "when",
         "with",
+        "wiki",
     }
     seen: set[str] = set()
     terms: list[str] = []
@@ -2804,10 +2807,7 @@ def _content_terms_from_markdown(path: Path, *, title: str) -> list[str]:
         terms.append(token)
         if len(terms) >= 3:
             break
-    if terms:
-        return terms
-    fallback = [token for token in re.findall(r"[a-z0-9]{4,}", normalized_body) if token not in seen]
-    return fallback[:3]
+    return terms
 
 
 def _query_from_path(path: str) -> str:
@@ -2974,6 +2974,9 @@ def _match_visibility_target(
     *,
     query: str,
 ) -> dict[str, Any] | None:
+    required_content_terms = [str(term).strip() for term in target.get("content_terms", []) if str(term).strip()]
+    if str(target.get("kind", "")).strip() == "wiki_page" and not required_content_terms:
+        return None
     for candidate in _result_candidates(payload):
         haystack = _flatten_probe_text(candidate)
         matched_on = ""
@@ -2989,7 +2992,6 @@ def _match_visibility_target(
             for term in target.get("content_terms", [])
             if str(term).strip() and str(term).strip().lower() in haystack
         ]
-        required_content_terms = [str(term).strip() for term in target.get("content_terms", []) if str(term).strip()]
         if str(target.get("kind", "")).strip() == "wiki_page" and required_content_terms:
             if len(matched_content_terms) != len(required_content_terms):
                 continue

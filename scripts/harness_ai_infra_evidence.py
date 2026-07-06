@@ -515,6 +515,9 @@ def _validate_visibility_target_consistency(
             if str(term).strip()
         }
         if not expected_terms:
+            findings.append(
+                f"{evidence_id} artifact {artifact_path} {label}wiki_page target {expected_id or '<missing>'} has empty content_terms and cannot prove current body-derived visibility"
+            )
             continue
         matched = matched_by_id.get(expected_id)
         if not isinstance(matched, Mapping):
