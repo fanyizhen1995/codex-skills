@@ -395,13 +395,20 @@ def _validate_freshness_payload(
                 project_root = str(current_payload.get("project_root", "")).strip()
                 if project_root and project_root != expected_worktree:
                     findings.append(f"{evidence_id} artifact {artifact_path} current run_id binding must match worktree")
-        if isinstance(child_tasks, Mapping):
+        if not isinstance(child_tasks, Mapping):
+            findings.append(f"{evidence_id} artifact {artifact_path} details.child_tasks must be a mapping")
+        else:
             child_payload = child_tasks.get("json")
             if not (
                 isinstance(child_payload, Mapping)
                 and str(child_payload.get("run_id", "")).strip() == expected_run_id
             ):
                 findings.append(f"{evidence_id} artifact {artifact_path} must bind current run_id to details.child_tasks")
+            elif not _loop_dashboard_child_state_present(child_payload):
+                findings.append(
+                    f"{evidence_id} artifact {artifact_path} details.child_tasks must include child state "
+                    "fields or an explicit no-children state"
+                )
         if isinstance(agent_actions, Mapping):
             agent_payload = agent_actions.get("json")
             if not (
@@ -446,6 +453,21 @@ def _freshness_detail_is_pass_like(value: Any) -> bool:
             if isinstance(candidate, str) and candidate.strip().lower() in {"pass", "passed", "ok", "success", "true"}:
                 return True
     return False
+
+
+def _loop_dashboard_child_state_present(payload: Mapping[str, Any]) -> bool:
+    if isinstance(payload.get("children"), list):
+        return True
+    if isinstance(payload.get("child_run_ids"), list):
+        return True
+    if isinstance(payload.get("current_child_run_id"), str) and payload.get("current_child_run_id", "").strip():
+        return True
+    if payload.get("no_children") is True:
+        return True
+    if payload.get("has_children") is False:
+        return True
+    child_state = str(payload.get("child_state", "")).strip().lower()
+    return child_state in {"none", "no-children", "no_children"}
 
 
 def _non_empty_string(value: Any) -> bool:
@@ -655,6 +677,9 @@ def _validate_semantic_evidence_artifacts(
         return []
     if not resolved_artifacts:
         return [f"{evidence_id} must reference at least one artifact"]
+    if len(resolved_artifacts) > 1:
+        artifact_list = ", ".join(artifact_path for artifact_path, _resolved in resolved_artifacts)
+        return [f"{evidence_id} must reference exactly one trusted live evidence artifact, got: {artifact_list}"]
 
     findings: list[str] = []
     semantic_valid = False

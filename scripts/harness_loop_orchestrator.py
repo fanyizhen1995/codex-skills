@@ -2473,6 +2473,23 @@ def _commit_state_changed_paths(payload: Mapping[str, Any]) -> list[str]:
     return [str(path).strip() for path in paths if str(path).strip()]
 
 
+def _commit_path_coverage_error(
+    *,
+    committed_paths: Sequence[str],
+    declared_changed_paths: Sequence[str],
+    label: str,
+) -> str:
+    committed = {str(path).strip() for path in committed_paths if str(path).strip()}
+    declared = {str(path).strip() for path in declared_changed_paths if str(path).strip()}
+    undeclared_paths = sorted(path for path in committed if path not in declared)
+    if undeclared_paths:
+        return f"{label} contains undeclared paths: {', '.join(undeclared_paths)}"
+    missing_paths = sorted(path for path in declared if path not in committed)
+    if missing_paths:
+        return f"{label} is missing declared changed_paths: {', '.join(missing_paths)}"
+    return ""
+
+
 def _verify_orchestrator_commit_resume_state(
     repo_root: Path,
     run: Mapping[str, Any],
@@ -2515,10 +2532,13 @@ def _verify_orchestrator_commit_resume_state(
     committed_paths = _commit_changed_paths(repo_root, commit_sha)
     if not committed_paths:
         return "commit has no changed paths"
-    declared = set(state_changed_paths)
-    undeclared_paths = sorted(path for path in committed_paths if path not in declared)
-    if undeclared_paths:
-        return f"commit contains paths outside autonomous commit state: {', '.join(undeclared_paths)}"
+    path_error = _commit_path_coverage_error(
+        committed_paths=committed_paths,
+        declared_changed_paths=state_changed_paths,
+        label="commit",
+    )
+    if path_error:
+        return path_error
     return ""
 
 
@@ -2530,11 +2550,11 @@ def _diagnose_generator_supplied_commit_paths(
     committed_paths = _commit_changed_paths(repo_root, commit_sha)
     if not committed_paths:
         return ""
-    declared = {str(path).strip() for path in declared_changed_paths if str(path).strip()}
-    undeclared_paths = sorted(path for path in committed_paths if path not in declared)
-    if not undeclared_paths:
-        return ""
-    return f"commit contains undeclared paths: {', '.join(undeclared_paths)}"
+    return _commit_path_coverage_error(
+        committed_paths=committed_paths,
+        declared_changed_paths=declared_changed_paths,
+        label="commit",
+    )
 
 
 def _commit_autonomous_changes(
@@ -2645,6 +2665,26 @@ def _commit_autonomous_changes(
             )
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
             return False
+        committed_paths = _commit_changed_paths(repo_root, commit_sha)
+        commit_path_error = _commit_path_coverage_error(
+            committed_paths=committed_paths,
+            declared_changed_paths=changed_paths,
+            label="commit",
+        )
+        if commit_path_error:
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "blocked",
+                    "commit": commit_sha,
+                    "error": commit_path_error,
+                    "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                    "changed_paths": changed_paths,
+                    "committed_paths": committed_paths,
+                },
+            )
+            _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
+            return False
         commit_result = {
             "status": "pass",
             "commit": commit_sha,
@@ -2713,18 +2753,60 @@ def _repo_root_for_live_evidence(run: Mapping[str, Any], repo_root: Path | None 
     return Path(worktree) if worktree else Path.cwd()
 
 
-def _generator_changed_paths_for_visibility(repo_root: Path, run_id: str) -> list[str]:
+def _generator_result_for_visibility(repo_root: Path, run_id: str) -> dict[str, Any]:
     generator_result_path = run_dir_for(repo_root, run_id) / "generator-result.json"
     if not generator_result_path.exists():
-        return []
+        return {}
     try:
         generator_result = read_json_file(generator_result_path)
     except (OSError, ValueError, json.JSONDecodeError):
+        return {}
+    return generator_result if isinstance(generator_result, dict) else {}
+
+
+def _generator_changed_paths_for_visibility(repo_root: Path, run_id: str) -> list[str]:
+    generator_result = _generator_result_for_visibility(repo_root, run_id)
+    if not generator_result:
         return []
     changed_paths = generator_result.get("changed_paths")
     if not isinstance(changed_paths, list):
         return []
     return [str(path).strip() for path in changed_paths if str(path).strip()]
+
+
+def _git_worktree_available(repo_root: Path) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0 and result.stdout.strip().lower() == "true"
+
+
+def _current_visibility_changed_paths(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+) -> list[str]:
+    declared_paths = _generator_changed_paths_for_visibility(repo_root, str(run.get("run_id", "")).strip())
+    if not declared_paths:
+        return []
+    declared = {path for path in declared_paths if path}
+    commit_sha = str(generator_result.get("commit", "")).strip()
+    if commit_sha and _git_commit_exists(repo_root, commit_sha):
+        run_dir = run_dir_for(repo_root, str(run.get("run_id", "")).strip())
+        if not _verify_orchestrator_commit_resume_state(repo_root, run, run_dir, commit_sha):
+            return sorted(path for path in _commit_changed_paths(repo_root, commit_sha) if path in declared)
+    if not _git_worktree_available(repo_root):
+        return []
+    baseline_paths = _baseline_dirty_relative_paths(dict(run))
+    actual_dirty = set(_git_dirty_paths(repo_root))
+    return sorted(path for path in declared if path in actual_dirty and path not in baseline_paths)
 
 
 def _read_markdown_title(path: Path) -> str:
@@ -2903,7 +2985,9 @@ def _visibility_context(
     run_id = str(run.get("run_id", "")).strip()
     task_id = str(run.get("task_id", "")).strip()
     domain = str(run.get("domain", "")).strip()
-    changed_paths = _generator_changed_paths_for_visibility(root, run_id)
+    generator_result = _generator_result_for_visibility(root, run_id)
+    declared_changed_paths = _generator_changed_paths_for_visibility(root, run_id)
+    changed_paths = _current_visibility_changed_paths(root, run, generator_result)
     targets: list[dict[str, Any]] = []
     seen_target_ids: set[str] = set()
     for changed_path in changed_paths:
@@ -2920,6 +3004,7 @@ def _visibility_context(
         "run_id": run_id,
         "task_id": task_id,
         "domain": domain,
+        "declared_changed_paths": declared_changed_paths,
         "changed_paths": changed_paths,
         "targets": targets,
         "expected_targets": [_public_visibility_target(target) for target in targets],
@@ -3066,7 +3151,13 @@ def _capture_targeted_search_visibility(
             "visible_items": [],
             "expected_targets": [],
             "matched_targets": [],
-            "missing_targets": [{"reason": missing_reason, "changed_paths": context["changed_paths"]}],
+            "missing_targets": [
+                {
+                    "reason": missing_reason,
+                    "declared_changed_paths": context["declared_changed_paths"],
+                    "changed_paths": context["changed_paths"],
+                }
+            ],
             "probes": [],
             "summary": missing_reason,
             "captured_at": captured_at,
@@ -3137,7 +3228,13 @@ def _capture_targeted_wiki_visibility(
             "visible_items": [],
             "expected_targets": [],
             "matched_targets": [],
-            "missing_targets": [{"reason": missing_reason, "changed_paths": context["changed_paths"]}],
+            "missing_targets": [
+                {
+                    "reason": missing_reason,
+                    "declared_changed_paths": context["declared_changed_paths"],
+                    "changed_paths": context["changed_paths"],
+                }
+            ],
             "probes": [],
             "summary": missing_reason,
             "captured_at": captured_at,
@@ -3295,9 +3392,26 @@ def _capture_live_evidence_payload(
                 return "pass"
             return "blocked"
 
+        def child_probe_status(probe: Mapping[str, Any]) -> str:
+            if run_probe_status(probe) != "pass":
+                return "blocked"
+            payload = probe.get("json")
+            if not isinstance(payload, Mapping):
+                return "blocked"
+            if isinstance(payload.get("children"), list):
+                return "pass"
+            if isinstance(payload.get("child_run_ids"), list):
+                return "pass"
+            if isinstance(payload.get("current_child_run_id"), str) and payload.get("current_child_run_id", "").strip():
+                return "pass"
+            if payload.get("no_children") is True or payload.get("has_children") is False:
+                return "pass"
+            child_state = str(payload.get("child_state", "")).strip().lower()
+            return "pass" if child_state in {"none", "no-children", "no_children"} else "blocked"
+
         details = {
             "current_run": {**current_run, "status": run_probe_status(current_run)},
-            "child_tasks": {**child_tasks, "status": run_probe_status(child_tasks)},
+            "child_tasks": {**child_tasks, "status": child_probe_status(child_tasks)},
             "agent_actions": {
                 **agent_actions,
                 "status": "pass"
@@ -3502,6 +3616,7 @@ def _validate_required_evidence(
 ) -> dict[str, Any]:
     run_dir = run_dir_for(repo_root, str(run["run_id"]))
     manifest_path = run_dir / "required-evidence-manifest.json"
+    _record_trusted_live_evidence_state(repo_root, run, {})
     findings: list[str] = []
     manifest_payload: dict[str, Any] | None = None
     if manifest_path.exists():
@@ -3670,7 +3785,6 @@ def _check_autonomous_dirty_paths(
     actual_paths = _git_dirty_paths(repo_root)
     baseline_paths = _baseline_dirty_relative_paths(run)
     declared = set(declared_changed_paths)
-    declared.add(f"personal-wiki/domains/{run['domain']}/loop-state.json")
     baseline_changed_paths = sorted(path for path in declared if path in baseline_paths)
     ignored_paths = [
         path

@@ -153,6 +153,9 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                     "run_id": "expanded-run",
                     "project_root": "/tmp/current-project",
                     "source_path": ".worktrees/ai-infra-meta-loop-runtime/.codex/loop-runs/expanded-run",
+                    "children": [],
+                    "child_run_ids": [],
+                    "current_child_run_id": "",
                 },
             },
             "agent_actions": {"status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "events": []}},
@@ -1161,6 +1164,142 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_required_evidence_manifest_blocks_loop_dashboard_child_tasks_without_child_state(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("loop-dashboard-freshness")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            details = self._valid_freshness_details("loop-dashboard-freshness")
+            details["child_tasks"]["json"] = {
+                "run_id": "expanded-run",
+                "project_root": "/tmp/current-project",
+                "source_path": ".worktrees/ai-infra-meta-loop-runtime/.codex/loop-runs/expanded-run",
+            }
+            payload = self._freshness_payload(
+                status="pass",
+                evidence_id="loop-dashboard-freshness",
+                details=details,
+            )
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "loop-dashboard-freshness",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertTrue(any("child_tasks" in finding and "child state" in finding for finding in findings), findings)
+
+    def test_required_evidence_manifest_blocks_loop_dashboard_empty_current_child_id_without_child_state(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("loop-dashboard-freshness")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            details = self._valid_freshness_details("loop-dashboard-freshness")
+            details["child_tasks"]["json"] = {
+                "run_id": "expanded-run",
+                "current_child_run_id": "",
+            }
+            payload = self._freshness_payload(
+                status="pass",
+                evidence_id="loop-dashboard-freshness",
+                details=details,
+            )
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "loop-dashboard-freshness",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertTrue(any("child_tasks" in finding and "child state" in finding for finding in findings), findings)
+
+    def test_required_evidence_manifest_blocks_loop_dashboard_pass_like_child_tasks_scalar(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("loop-dashboard-freshness")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            details = self._valid_freshness_details("loop-dashboard-freshness")
+            details["child_tasks"] = "pass"
+            payload = self._freshness_payload(
+                status="pass",
+                evidence_id="loop-dashboard-freshness",
+                details=details,
+            )
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                ["loop dashboard freshness evidence for current run, child tasks, agent actions, evaluator scenarios, and completed history"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "loop-dashboard-freshness",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertTrue(
+                any("details.child_tasks must be a mapping" in finding for finding in findings),
+                findings,
+            )
+
     def test_required_evidence_manifest_accepts_crawler_freshness_with_required_dimensions(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1238,6 +1377,56 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
             )
 
             self.assertEqual(findings, [])
+
+    def test_required_evidence_manifest_blocks_valid_semantic_artifact_with_extra_forged_artifact(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._search_visibility_payload(status="pass")
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+            forged_relative = "artifacts/forged-search-api-visibility.json"
+            forged_path = run_dir / forged_relative
+            forged_path.parent.mkdir(parents=True, exist_ok=True)
+            forged_path.write_text(
+                json.dumps(
+                    {
+                        "status": "pass",
+                        "query": "ai_infra",
+                        "visible_results": 1,
+                        "visible_items": ["personal-wiki/domains/ai_infra/index.md"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            findings = validate_required_evidence_manifest(
+                ["search API visibility after ingestion"],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                            "summary": "validated",
+                            "artifacts": [artifact_relative, forged_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "search-api-visibility",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertTrue(any("multiple artifacts" in finding or forged_relative in finding for finding in findings), findings)
 
     def test_required_evidence_manifest_blocks_empty_search_visibility_payload(self) -> None:
         with TemporaryDirectory() as tmp:

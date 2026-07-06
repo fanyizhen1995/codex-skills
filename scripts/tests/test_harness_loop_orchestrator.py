@@ -366,6 +366,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "run_id": "expanded-run",
                         "project_root": "/tmp/current-project",
                         "source_path": ".worktrees/ai-infra-meta-loop-runtime/.codex/loop-runs/expanded-run",
+                        "children": [],
+                        "child_run_ids": [],
+                        "current_child_run_id": "",
                     },
                 },
                 "agent_actions": {"status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "events": []}},
@@ -1105,6 +1108,47 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["next_action"], "inspect_autonomous_dirty_paths")
             self.assertIn("personal-wiki/domains/ai_infra/loop-state.json", dirty_result["baseline_changed_paths"])
 
+    def test_check_autonomous_dirty_paths_blocks_dirty_loop_state_omitted_from_changed_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            seed_no_action_loop_state(repo_root, "ai_infra")
+            loop_state_relative = "personal-wiki/domains/ai_infra/loop-state.json"
+            subprocess.run(
+                ["git", "add", "--", "personal-wiki/domains/ai_infra"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: seed loop state", "--", "personal-wiki/domains/ai_infra"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            loop_state_path = repo_root / loop_state_relative
+            loop_state = read_json_file(loop_state_path)
+            loop_state["no_action_evidence"] = ["dirty current loop state"]
+            write_json_file(loop_state_path, loop_state)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-task",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                ["personal-wiki/domains/ai_infra/raw/loop-autonomous/new-note.md"],
+            )
+
+            self.assertFalse(dirty_result["allowed"])
+            self.assertIn(loop_state_relative, dirty_result["unexpected_paths"])
+            self.assertNotIn(loop_state_relative, dirty_result["declared_paths"])
+
     def test_run_autonomous_supports_codex_exec_agents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1155,7 +1199,6 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "status": "implemented",
                             "changed_paths": [
                                 "personal-wiki/domains/ai_infra/raw/loop-autonomous/codex-task.md",
-                                "personal-wiki/domains/ai_infra/loop-state.json",
                             ],
                             "commit": "",
                             "verify_commands": [],
@@ -1854,6 +1897,71 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertNotEqual(status["phase"], "stopped_no_action")
             self.assertEqual(run["next_action"], "inspect_autonomous_commit")
             self.assertEqual(commit_result["status"], "blocked")
+
+    def test_autonomous_commit_resume_state_rejects_declared_path_missing_from_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "demo-run"
+            run_dir = run_dir_for(repo_root, run_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            committed_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/committed.md"
+            declared_but_clean_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/declared-clean.md"
+            path = repo_root / committed_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Committed\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", committed_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: commit one declared path", "--", committed_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            commit_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout.strip()
+            declared_paths = [committed_path, declared_but_clean_path]
+            run = {
+                "run_id": run_id,
+                "phase": "cleanup",
+                "autonomous_commit_state": {
+                    "status": "committed",
+                    "commit": commit_sha,
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": declared_paths,
+                },
+            }
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "pass",
+                    "commit": commit_sha,
+                    "error": "",
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": declared_paths,
+                },
+            )
+
+            error = harness_loop_orchestrator._verify_orchestrator_commit_resume_state(
+                repo_root,
+                run,
+                run_dir,
+                commit_sha,
+            )
+
+            self.assertIn(declared_but_clean_path, error)
 
     def test_run_autonomous_blocks_and_records_commit_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2685,9 +2793,41 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(persisted_run["trusted_live_evidence_state"], {})
             self.assertEqual(run["trusted_live_evidence_state"], {})
 
+    def test_required_evidence_gate_clears_stale_live_state_when_manifest_missing_or_unparseable(self) -> None:
+        for manifest_contents in (None, "{not-json"):
+            with self.subTest(manifest_contents=manifest_contents), tempfile.TemporaryDirectory() as tmp:
+                repo_root = Path(tmp)
+                run_dir = run_dir_for(repo_root, "expanded-run")
+                run_dir.mkdir(parents=True, exist_ok=True)
+                stale_state = {"search-api-visibility": {"artifact_path": "stale.json"}}
+                write_json_file(
+                    run_dir / "run.json",
+                    {"run_id": "expanded-run", "trusted_live_evidence_state": stale_state},
+                )
+                if manifest_contents is not None:
+                    (run_dir / "required-evidence-manifest.json").write_text(manifest_contents, encoding="utf-8")
+                run = {
+                    "run_id": "expanded-run",
+                    "task_id": "expanded-task",
+                    "domain": "ai_infra",
+                    "trusted_live_evidence_state": stale_state,
+                }
+
+                result = harness_loop_orchestrator._validate_required_evidence(
+                    repo_root,
+                    run,
+                    ["search API visibility after ingestion"],
+                )
+
+                self.assertEqual(result["status"], "blocked")
+                persisted_run = read_json_file(run_dir / "run.json")
+                self.assertEqual(persisted_run["trusted_live_evidence_state"], {})
+                self.assertEqual(run["trusted_live_evidence_state"], {})
+
     def test_capture_live_search_visibility_matches_current_changed_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
@@ -2734,6 +2874,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_search_visibility_blocks_stale_generic_ai_infra_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
@@ -2773,9 +2914,218 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["matched_targets"], [])
             self.assertEqual(payload["missing_targets"][0]["path"], relative_path)
 
+    def test_capture_live_search_visibility_blocks_declared_target_when_git_worktree_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
+                            }
+                        ]
+                    },
+                }
+
+            with (
+                patch.object(harness_loop_orchestrator, "_git_worktree_available", return_value=False),
+                patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe),
+            ):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["expected_targets"], [])
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertEqual(payload["probes"], [])
+            self.assertIn("no current knowledge targets", payload["summary"])
+            self.assertEqual(payload["missing_targets"][0]["changed_paths"], [])
+            self.assertIn(relative_path, payload["missing_targets"][0]["declared_changed_paths"])
+
+    def test_capture_live_search_visibility_blocks_declared_clean_wiki_target_with_old_indexed_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            subprocess.run(
+                ["git", "add", "--", relative_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: seed old indexed wiki page", "--", relative_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+                "baseline_dirty_paths": [],
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["expected_targets"], [])
+            self.assertEqual(payload["matched_targets"], [])
+            self.assertIn(relative_path, str(payload["missing_targets"]))
+
+    def test_visibility_blocks_historical_generator_commit_without_current_dirty_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            subprocess.run(
+                ["git", "add", "--", relative_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: historical visibility target", "--", relative_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            historical_commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout.strip()
+            (repo_root / "README.md").write_text("temporary repo\ncurrent head\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "commit", "-am", "test: advance current head"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            generator_result_path = run_dir_for(repo_root, run_id) / "generator-result.json"
+            generator_result = read_json_file(generator_result_path)
+            generator_result["commit"] = historical_commit
+            write_json_file(generator_result_path, generator_result)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+                "baseline_dirty_paths": [],
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                if url == "http://127.0.0.1:5173/":
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "body_excerpt": "<html>Crawler Workbench</html>",
+                        "json": None,
+                    }
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
+                            }
+                        ]
+                    },
+                }
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                search_payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+                wiki_payload = harness_loop_orchestrator._capture_targeted_wiki_visibility(
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                    wiki_page_base_url="http://127.0.0.1:8765/api/wiki/page",
+                    fallback_search_base_url="http://127.0.0.1:8765/api/search",
+                    repo_root=repo_root,
+                )
+                frontend_payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "frontend-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                    repo_root=repo_root,
+                )
+
+            for payload in (search_payload, wiki_payload, frontend_payload):
+                with self.subTest(summary=payload["summary"]):
+                    self.assertEqual(payload["status"], "blocked")
+                    self.assertEqual(payload["expected_targets"], [])
+                    self.assertEqual(payload["matched_targets"], [])
+                    self.assertEqual(payload["missing_targets"][0]["changed_paths"], [])
+                    self.assertIn(relative_path, payload["missing_targets"][0]["declared_changed_paths"])
+
     def test_capture_live_search_visibility_blocks_partial_match_across_two_changed_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_paths = self._seed_visibility_targets(
@@ -2834,6 +3184,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_search_visibility_blocks_path_title_match_without_current_content_terms(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(
@@ -2951,6 +3302,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_search_visibility_blocks_title_only_wiki_page_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(
@@ -2997,6 +3349,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_search_visibility_blocks_duplicate_title_token_body_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(
@@ -3043,6 +3396,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_search_visibility_blocks_non_ascii_wiki_page_without_ascii_body_proof(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(
@@ -3089,6 +3443,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_frontend_visibility_blocks_loaded_root_without_current_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
@@ -3140,6 +3495,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
     def test_capture_live_crawler_freshness_blocks_http_200_without_current_target_discoverability(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             run_id = "expanded-run"
             run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
             relative_path = self._seed_visibility_target(repo_root, run_id=run_id)
@@ -3256,6 +3612,70 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["current_run"]["status"], "blocked")
             self.assertEqual(payload["details"]["completed_history"]["status"], "blocked")
             self.assertEqual(payload["details"]["project"]["status"], "blocked")
+
+    def test_capture_live_loop_dashboard_freshness_blocks_empty_current_child_id_without_child_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+                del timeout_seconds
+                if url.endswith("/api/runs/expanded-run"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {
+                            "run_id": "expanded-run",
+                            "current_child_run_id": "",
+                        },
+                    }
+                if url.endswith("/api/runs/expanded-run/events"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"run_id": "expanded-run", "events": []},
+                    }
+                if url.endswith("/api/runs/expanded-run/logs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"run_id": "expanded-run", "logs": []},
+                    }
+                if url.endswith("/api/projects/current"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {"project_root": str(repo_root)},
+                    }
+                if url.endswith("/api/runs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": [{"run_id": "expanded-run"}],
+                    }
+                return {"url": url, "status": "pass", "http_status": 200, "json": {}}
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "loop-dashboard-freshness",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["run_id"], "expanded-run")
+            self.assertEqual(payload["details"]["current_run"]["status"], "pass")
+            self.assertEqual(payload["details"]["child_tasks"]["status"], "blocked")
 
     def test_run_autonomous_rejects_expanded_fake_drivers_without_expanded_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
