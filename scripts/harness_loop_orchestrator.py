@@ -2152,7 +2152,7 @@ def _validate_required_evidence(
     run_dir = run_dir_for(repo_root, str(run["run_id"]))
     manifest_path = run_dir / "required-evidence-manifest.json"
     findings: list[str] = []
-    manifest_payload: dict[str, Any] = {}
+    manifest_payload: dict[str, Any] | None = None
     if manifest_path.exists():
         payload = _read_required_evidence_manifest(manifest_path, findings)
         if payload is not None:
@@ -2160,7 +2160,7 @@ def _validate_required_evidence(
     else:
         findings.append("missing required-evidence-manifest.json")
 
-    if manifest_payload:
+    if manifest_payload is not None:
         findings.extend(
             validate_required_evidence_manifest(
                 required_evidence,

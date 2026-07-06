@@ -1611,6 +1611,85 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         required_evidence_result,
                     )
 
+    def test_validate_required_evidence_blocks_empty_manifest_object(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {"run_id": "demo-run"}
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(run_dir / "required-evidence-manifest.json", {})
+
+            result = harness_loop_orchestrator._validate_required_evidence(
+                repo_root,
+                run,
+                ["service availability evidence"],
+            )
+
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(
+                any("must contain an items list" in finding for finding in result["findings"]),
+                result,
+            )
+
+    def test_run_autonomous_blocks_expanded_policy_empty_required_evidence_manifest_object(self) -> None:
+        original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            shutil.rmtree(run_dir_for(repo_root, "expanded-run"), ignore_errors=True)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            def inject_manifest(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                write_json_file(manifest_path, {})
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            required_evidence_result = read_json_file(
+                run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
+            )
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(required_evidence_result["status"], "blocked")
+            self.assertTrue(
+                any("must contain an items list" in finding for finding in required_evidence_result["findings"]),
+                required_evidence_result,
+            )
+
     def test_run_autonomous_allows_expanded_policy_with_required_evidence_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
