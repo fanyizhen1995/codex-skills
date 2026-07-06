@@ -16,6 +16,11 @@ keeps planning until no-action, budget, or blocked stop conditions apply.
 - `preflight` creates `.codex/loop-runs/<run-id>/run.json` and `preflight.md`.
   The run contract records the requirement, repeatable constraints, and stop
   conditions. Phase 1 defaults to `passed_waiting_human_merge`.
+  Autonomous preflights may also record `--policy-file` fixture data into
+  `run.json`, including `allowed_paths`, `denylist_paths`,
+  `manual_confirm_paths`, `required_evidence`, merged `limits`, and the
+  fixture path itself. When no policy fixture is supplied, autonomous runtime
+  scope falls back to the existing conservative defaults.
 - `plan` writes `planner-output.json` and advances to `generating`.
 - `generate` writes `generator-result.json` and advances to `evaluating`.
 - `evaluate` calls `scripts/harness_evaluator_orchestrator.py`, copies the
@@ -59,6 +64,21 @@ python3 scripts/harness_loop_orchestrator.py run \
 python3 scripts/harness_loop_orchestrator.py status \
   --repo-root . \
   --run-id smoke-phase-1
+```
+
+For expanded autonomous knowledge runs, point `preflight` at a repo-relative
+policy fixture. The fixture must stay inside the repository, be JSON, and
+declare the same policy as `--mode`:
+
+```bash
+python3 scripts/harness_loop_orchestrator.py preflight \
+  --repo-root . \
+  --mode autonomous-knowledge \
+  --requirement "Expand ai_infra" \
+  --run-id ai-infra-expanded \
+  --domain ai_infra \
+  --policy-file docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json \
+  --confirm
 ```
 
 Fake evaluator runs require scenario metadata at

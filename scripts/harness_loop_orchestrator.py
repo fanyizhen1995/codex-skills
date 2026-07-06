@@ -10,6 +10,7 @@ from typing import Any
 try:
     from scripts.harness_loop_contracts import (
         default_limits,
+        load_loop_policy,
         normalize_policy_id,
         read_json_file,
         run_dir_for,
@@ -25,19 +26,18 @@ try:
     from scripts.harness_loop_agents import run_codex_prompt
     from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
     from scripts.harness_loop_autonomous import (
-        autonomous_allowed_paths,
-        autonomous_denylist_paths,
-        autonomous_manual_confirm_paths,
         check_autonomous_scope,
         check_supply_chain,
         decide_no_action,
         load_or_create_loop_state,
+        policy_patterns_for_run,
         run_git_commit,
         write_loop_state,
     )
 except ModuleNotFoundError:
     from harness_loop_contracts import (  # type: ignore[no-redef]
         default_limits,
+        load_loop_policy,
         normalize_policy_id,
         read_json_file,
         run_dir_for,
@@ -53,13 +53,11 @@ except ModuleNotFoundError:
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
     from harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands  # type: ignore[no-redef]
     from harness_loop_autonomous import (  # type: ignore[no-redef]
-        autonomous_allowed_paths,
-        autonomous_denylist_paths,
-        autonomous_manual_confirm_paths,
         check_autonomous_scope,
         check_supply_chain,
         decide_no_action,
         load_or_create_loop_state,
+        policy_patterns_for_run,
         run_git_commit,
         write_loop_state,
     )
@@ -573,6 +571,7 @@ def create_preflight_run(
     domain: str = "",
     constraints: list[str] | None = None,
     stop_conditions: list[str] | None = None,
+    policy_file: str = "",
 ) -> dict[str, Any]:
     root = Path(repo_root)
     validate_run_id(run_id)
@@ -591,6 +590,11 @@ def create_preflight_run(
         phase = "planned" if confirm else "preflight"
         next_action = "run_planner" if confirm else "await_preflight_confirmation"
     baseline_dirty_paths = _baseline_dirty_paths(root)
+    policy_payload: dict[str, Any] | None = None
+    if policy_file:
+        policy_payload = load_loop_policy(root, policy_file)
+        if policy_payload["policy"] != policy:
+            raise ValueError("policy_file policy must match requested mode")
     run_dir = run_dir_for(root, run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "preflight.md").write_text(
@@ -628,6 +632,18 @@ def create_preflight_run(
             "retained_artifacts": [],
         },
     }
+    if policy == "autonomous_knowledge":
+        payload["allowed_paths"], payload["denylist_paths"], payload["manual_confirm_paths"] = policy_patterns_for_run(
+            {},
+            domain=domain,
+        )
+    if policy_payload is not None:
+        payload["allowed_paths"] = list(policy_payload["allowed_paths"])
+        payload["denylist_paths"] = list(policy_payload["denylist_paths"])
+        payload["manual_confirm_paths"] = list(policy_payload["manual_confirm_paths"])
+        payload["required_evidence"] = list(policy_payload["required_evidence"])
+        payload["limits"] = {**default_limits(), **policy_payload["limits"]}
+        payload["policy_file"] = policy_file
     return save_run(root, payload)
 
 
@@ -1591,6 +1607,7 @@ def _run_fake_autonomous_planner(
         return False
 
     task_id = _autonomous_task_id(run["run_id"], task_number)
+    allowed_patterns, denied_patterns, _manual_patterns = policy_patterns_for_run(run, domain=domain)
     planner_payload = {
         "task_id": task_id,
         "policy": "autonomous_knowledge",
@@ -1598,8 +1615,8 @@ def _run_fake_autonomous_planner(
         "title": f"Autonomous knowledge task {task_number}",
         "goal": run["requirement"],
         "non_goals": [],
-        "allowed_paths": autonomous_allowed_paths() + [f"personal-wiki/domains/{domain}/loop-state.json"],
-        "denylist_paths": autonomous_denylist_paths(),
+        "allowed_paths": allowed_patterns,
+        "denylist_paths": denied_patterns,
         "verify_commands": [],
         "evaluator_scenarios_path": "",
         "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
@@ -1943,11 +1960,12 @@ def _commit_autonomous_changes(
         "package-lock.json",
         "package*.json",
     ]
+    allowed_patterns, denied_patterns, manual_patterns = policy_patterns_for_run(run, domain=run["domain"])
     scope = check_autonomous_scope(
         changed_paths,
-        autonomous_allowed_paths() + dependency_allowed_paths + [f"personal-wiki/domains/{run['domain']}/loop-state.json"],
-        autonomous_denylist_paths(),
-        autonomous_manual_confirm_paths(),
+        allowed_patterns + dependency_allowed_paths,
+        denied_patterns,
+        manual_patterns,
     )
     write_json_file(
         run_dir / "autonomous-scope-result.json",
@@ -2229,6 +2247,7 @@ def _build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--run-id", required=True)
     preflight.add_argument("--task-id", default="")
     preflight.add_argument("--domain", default="")
+    preflight.add_argument("--policy-file", default="")
     preflight.add_argument("--constraint", action="append", default=[])
     preflight.add_argument("--stop-condition", action="append", default=[])
     preflight.add_argument("--confirm", action="store_true")
@@ -2318,6 +2337,7 @@ def main(argv: list[str] | None = None) -> int:
             run_id=args.run_id,
             task_id=args.task_id,
             domain=args.domain,
+            policy_file=args.policy_file,
             constraints=args.constraint,
             stop_conditions=args.stop_condition or None,
             confirm=args.confirm,

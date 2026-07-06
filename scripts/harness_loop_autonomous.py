@@ -155,6 +155,19 @@ def autonomous_denylist_paths() -> list[str]:
     ]
 
 
+def policy_patterns_for_run(run: Mapping[str, Any], *, domain: str) -> tuple[list[str], list[str], list[str]]:
+    loop_state_path = f"personal-wiki/domains/{domain}/loop-state.json"
+    if "allowed_paths" in run:
+        allowed = list(run.get("allowed_paths") or [])
+    else:
+        allowed = autonomous_allowed_paths()
+    if loop_state_path not in allowed:
+        allowed.append(loop_state_path)
+    denied = list(run["denylist_paths"]) if "denylist_paths" in run else autonomous_denylist_paths()
+    manual = list(run["manual_confirm_paths"]) if "manual_confirm_paths" in run else autonomous_manual_confirm_paths()
+    return allowed, denied, manual
+
+
 def check_autonomous_scope(
     changed_paths: Sequence[str],
     allowed_patterns: Sequence[str],

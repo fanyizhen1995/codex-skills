@@ -12,6 +12,7 @@ from scripts.harness_loop_autonomous import (
     create_default_loop_state,
     decide_no_action,
     load_or_create_loop_state,
+    policy_patterns_for_run,
     run_git_commit,
     write_loop_state,
 )
@@ -130,6 +131,21 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
 
         self.assertFalse(result.allowed)
         self.assertEqual(result.manual_confirm_paths, ["tasks.json"])
+
+    def test_policy_patterns_allow_repo_wide_repairs_but_keep_denylist(self) -> None:
+        allowed, denied, manual = policy_patterns_for_run(
+            {
+                "allowed_paths": ["**"],
+                "denylist_paths": [".codex/**", "generated/**"],
+                "manual_confirm_paths": [],
+            },
+            domain="ai_infra",
+        )
+
+        result = check_autonomous_scope(["scripts/harness_loop_orchestrator.py"], allowed, denied, manual)
+
+        self.assertTrue(result.allowed)
+        self.assertFalse(check_autonomous_scope([".codex/secret.log"], allowed, denied, manual).allowed)
 
     def test_supply_chain_check_requires_explanation_for_dependency_paths(self) -> None:
         result = check_supply_chain(["requirements.txt"], explanation="", verification=["pytest"])

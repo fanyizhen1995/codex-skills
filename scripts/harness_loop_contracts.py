@@ -1,5 +1,6 @@
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -141,6 +142,27 @@ def write_json_file(path: Path | str, payload: Mapping[str, Any]) -> Path:
     return json_path
 
 
+def load_loop_policy(repo_root: Path | str, policy_file: str) -> dict[str, Any]:
+    if not isinstance(policy_file, str) or not policy_file.strip():
+        raise ValueError("policy_file must be a non-empty repo-relative JSON path")
+    raw_path = Path(policy_file)
+    if raw_path.is_absolute() or ".." in raw_path.parts or raw_path.suffix != ".json":
+        raise ValueError("policy_file must be a repo-relative JSON path inside the repository")
+
+    repo = Path(repo_root).resolve()
+    policy_path = (repo / raw_path).resolve()
+    try:
+        policy_path.relative_to(repo)
+    except ValueError as exc:
+        raise ValueError("policy_file must be a repo-relative JSON path inside the repository") from exc
+
+    payload = read_json_file(policy_path)
+    validate_loop_policy_payload(payload)
+    policy_copy = deepcopy(payload)
+    policy_copy["policy"] = normalize_policy_id(policy_copy["policy"])
+    return policy_copy
+
+
 def _optional_run_kind(payload: dict[str, Any]) -> str:
     run_kind = payload.get("run_kind", "single")
     if not isinstance(run_kind, str):
@@ -238,6 +260,11 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
     cleanup = _require_object(payload["cleanup"], "cleanup")
     for key in ("worktrees_removed", "processes_stopped", "retained_artifacts"):
         _require_list(cleanup, key)
+    if "policy_file" in payload:
+        _require_string(payload, "policy_file")
+    for key in ("manual_confirm_paths", "required_evidence"):
+        if key in payload:
+            _require_string_list(payload, key)
     if run_kind == "parent":
         _validate_parent_run_payload(payload)
     elif run_kind == "child":

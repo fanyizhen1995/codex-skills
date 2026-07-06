@@ -165,6 +165,12 @@ def seed_candidate_loop_state(repo_root: Path, domain: str) -> dict[str, object]
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
+    def _seed_policy_fixture(self, repo_root: Path, relative_path: str) -> str:
+        source_root = Path(__file__).resolve().parents[2]
+        payload = read_json_file(source_root / relative_path)
+        write_json_file(repo_root / relative_path, payload)
+        return relative_path
+
     def test_create_preflight_run_without_confirmation_writes_run_state_and_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -302,6 +308,49 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn("stopped_no_action", payload["stop_conditions"])
             saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             validate_run_payload(saved_payload)
+
+    def test_create_preflight_run_records_expanded_policy_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+
+            payload = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand ai_infra",
+                run_id="expanded-run",
+                confirm=True,
+                domain="ai_infra",
+                policy_file=policy_file,
+            )
+
+            self.assertEqual(
+                payload["policy_file"],
+                policy_file,
+            )
+            self.assertIn("**", payload["allowed_paths"])
+            self.assertIn(".codex/**", payload["denylist_paths"])
+            self.assertIn("service availability evidence", " ".join(payload["required_evidence"]))
+            self.assertEqual(payload["limits"]["max_rounds_per_invocation"], 4)
+
+    def test_create_preflight_run_rejects_policy_fixture_for_wrong_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            policy_file = self._seed_policy_fixture(repo_root, "docs/harness/loop-policies/demand-development.json")
+
+            with self.assertRaisesRegex(ValueError, "policy_file.*mode"):
+                create_preflight_run(
+                    repo_root=repo_root,
+                    mode="autonomous-knowledge",
+                    requirement="Expand ai_infra",
+                    run_id="expanded-run",
+                    confirm=True,
+                    domain="ai_infra",
+                    policy_file=policy_file,
+                )
 
     def test_confirm_preflight_preserves_autonomous_knowledge_start_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

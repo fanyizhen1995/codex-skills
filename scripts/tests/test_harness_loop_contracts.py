@@ -5,6 +5,7 @@ from pathlib import Path
 
 from scripts.harness_loop_contracts import (
     default_limits,
+    load_loop_policy,
     normalize_policy_id,
     read_json_file,
     run_dir_for,
@@ -781,6 +782,42 @@ class HarnessLoopContractsTests(unittest.TestCase):
                 "required_evidence": ["task_evaluator"],
             }
         )
+
+    def test_validate_run_payload_accepts_optional_policy_runtime_metadata(self) -> None:
+        payload = self._run_payload()
+        payload["policy_file"] = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
+        payload["manual_confirm_paths"] = ["tasks.json", "scripts/**"]
+        payload["required_evidence"] = ["service availability evidence"]
+
+        validate_run_payload(payload)
+
+    def test_load_loop_policy_rejects_path_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            with self.assertRaisesRegex(ValueError, "repo-relative"):
+                load_loop_policy(repo_root, "../outside.json")
+
+    def test_load_loop_policy_rejects_mismatched_policy_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            policy_path = repo_root / "policy.json"
+            write_json_file(
+                policy_path,
+                {
+                    "policy": "demand-development",
+                    "auto_commit": True,
+                    "auto_merge_main": False,
+                    "allowed_paths": ["**"],
+                    "manual_confirm_paths": [],
+                    "denylist_paths": [".codex/**"],
+                    "limits": default_limits(),
+                    "required_evidence": [],
+                },
+            )
+
+            payload = load_loop_policy(repo_root, "policy.json")
+
+            self.assertEqual(payload["policy"], "demand_development")
 
     def test_default_limits_returns_phase_1_limit_keys(self) -> None:
         self.assertEqual(
