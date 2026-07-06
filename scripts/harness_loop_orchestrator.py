@@ -28,10 +28,13 @@ try:
     from scripts.harness_loop_autonomous import (
         check_autonomous_scope,
         check_supply_chain,
+        create_default_coverage_map,
         decide_no_action,
+        load_or_create_coverage_map,
         load_or_create_loop_state,
         policy_patterns_for_run,
         run_git_commit,
+        write_coverage_map,
         write_loop_state,
     )
 except ModuleNotFoundError:
@@ -55,10 +58,13 @@ except ModuleNotFoundError:
     from harness_loop_autonomous import (  # type: ignore[no-redef]
         check_autonomous_scope,
         check_supply_chain,
+        create_default_coverage_map,
         decide_no_action,
+        load_or_create_coverage_map,
         load_or_create_loop_state,
         policy_patterns_for_run,
         run_git_commit,
+        write_coverage_map,
         write_loop_state,
     )
 
@@ -1585,6 +1591,61 @@ def _autonomous_task_id(run_id: str, task_number: int) -> str:
     return f"{run_id}-task-{task_number}"
 
 
+def _coverage_map_result_path(repo_root: Path, run_id: str) -> Path:
+    return run_dir_for(repo_root, run_id) / "coverage-map-result.json"
+
+
+def _load_ai_infra_coverage_map(
+    repo_root: Path,
+    run: dict[str, Any],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if run["domain"] != "ai_infra":
+        return None, None
+    coverage_path = repo_root / "personal-wiki" / "domains" / run["domain"] / "coverage-map.json"
+    if not coverage_path.exists():
+        result = {
+            "status": "blocked",
+            "domain": run["domain"],
+            "coverage_map_path": str(coverage_path.relative_to(repo_root)),
+            "error": "coverage-map.json is missing",
+        }
+        write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
+        return None, result
+    try:
+        payload = load_or_create_coverage_map(repo_root, run["domain"], run["requirement"])
+    except ValueError as exc:
+        result = {
+            "status": "blocked",
+            "domain": run["domain"],
+            "coverage_map_path": str(coverage_path.relative_to(repo_root)),
+            "error": str(exc),
+        }
+        write_json_file(_coverage_map_result_path(repo_root, run["run_id"]), result)
+        return None, result
+    return payload, None
+
+
+def _stop_for_ai_infra_coverage_map(
+    repo_root: Path,
+    run: dict[str, Any],
+    result: dict[str, Any],
+) -> bool:
+    run["phase"] = "stopped_blocked"
+    run["next_action"] = "inspect_ai_infra_coverage_map"
+    run["last_result"] = "blocked"
+    save_run(repo_root, run)
+    append_loop_event(
+        repo_root,
+        run_id=run["run_id"],
+        actor="orchestrator",
+        event_type="blocked",
+        summary=f"AI infra coverage map blocked autonomous no-action: {result.get('error', 'invalid coverage map')}",
+        details=result,
+        artifact_paths=[str(_coverage_map_result_path(repo_root, run["run_id"]).relative_to(repo_root))],
+    )
+    return True
+
+
 def _run_fake_autonomous_planner(
     repo_root: Path,
     run: dict[str, Any],
@@ -1594,8 +1655,13 @@ def _run_fake_autonomous_planner(
     run_dir = run_dir_for(repo_root, run["run_id"])
     domain = run["domain"]
     state = load_or_create_loop_state(repo_root, domain, run["requirement"])
-    decision = decide_no_action(state)
+    coverage_map, coverage_result = _load_ai_infra_coverage_map(repo_root, run)
     run["attempts"]["planner"] = int(run["attempts"]["planner"]) + 1
+    if coverage_result is not None:
+        save_run(repo_root, run)
+        _stop_for_ai_infra_coverage_map(repo_root, run, coverage_result)
+        return False
+    decision = decide_no_action(state, coverage_map=coverage_map)
 
     if decision.no_action:
         state["last_planner_decision"] = "no_action"
@@ -1636,7 +1702,10 @@ def _run_fake_autonomous_planner(
 def _stop_if_autonomous_no_action(repo_root: Path, run: dict[str, Any]) -> bool:
     domain = run["domain"]
     state = load_or_create_loop_state(repo_root, domain, run["requirement"])
-    decision = decide_no_action(state)
+    coverage_map, coverage_result = _load_ai_infra_coverage_map(repo_root, run)
+    if coverage_result is not None:
+        return _stop_for_ai_infra_coverage_map(repo_root, run, coverage_result)
+    decision = decide_no_action(state, coverage_map=coverage_map)
     if not decision.no_action:
         return False
     state["last_planner_decision"] = "no_action"
@@ -1735,16 +1804,31 @@ def _write_fake_autonomous_generator_result(
             {
                 "id": f"{run['run_id']}-scan-{task_number}",
                 "title": "Autonomous scan completed",
-                "source": "fake-generator",
+                "source": "coverage-map",
                 "status": "complete",
                 "updated_at": _timestamp(),
-                "evidence": ["candidate backlog exhausted"],
+                "evidence": ["coverage-map scan confirmed no remaining candidates"],
             }
         ]
         state["last_scan_at"] = _timestamp()
         state["last_planner_decision"] = "planned"
         write_loop_state(repo_root, domain, state)
-        changed_paths = [raw_relative, f"personal-wiki/domains/{domain}/loop-state.json"]
+        coverage_map = create_default_coverage_map(domain, run["requirement"])
+        coverage_map["domain_goal"] = state["domain_goal"]
+        for layer_name, layer_payload in coverage_map["layers"].items():
+            layer_payload["status"] = "covered"
+            layer_payload["covered_pages"] = [f"wiki/{layer_name}.md"]
+            layer_payload["raw_evidence"] = [raw_relative]
+            layer_payload["candidate_gaps"] = []
+            layer_payload["blocked_reason"] = ""
+            layer_payload["last_scanned_at"] = state["last_scan_at"]
+            layer_payload["notes"] = "Synthetic fake-generator coverage for autonomous smoke."
+        write_coverage_map(repo_root, domain, coverage_map)
+        changed_paths = [
+            raw_relative,
+            f"personal-wiki/domains/{domain}/loop-state.json",
+            f"personal-wiki/domains/{domain}/coverage-map.json",
+        ]
         artifacts = [raw_relative]
     elif driver == "fake-denylist":
         denied_relative = ".env"
@@ -2165,7 +2249,7 @@ def run_autonomous(
                 planned = _run_codex_autonomous_planner(root, run)
             if not planned:
                 current = load_run(root, run_id)
-                if current["phase"] == "stopped_no_action":
+                if current["phase"] in {"stopped_no_action", "stopped_blocked"}:
                     return status_for_run(root, run_id)
                 return _stop_run(root, current, phase="stopped_blocked", next_action="inspect_autonomous_planner", last_result="blocked")
             continue

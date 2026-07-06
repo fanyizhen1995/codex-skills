@@ -89,6 +89,16 @@ REQUIRED_BLOCKED_ITEM_KEYS = REQUIRED_LOOP_STATE_ITEM_KEYS | frozenset(
         "requires_user_input",
     }
 )
+AI_INFRA_COVERAGE_LAYERS = (
+    "training-distributed",
+    "inference-runtime",
+    "orchestration-scheduling",
+    "data-rag-vector",
+    "eval-observability-reliability",
+    "security-governance-cost",
+    "hardware-accelerator",
+    "network-storage-cluster",
+)
 SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
@@ -502,6 +512,44 @@ def validate_loop_policy_payload(payload: dict[str, Any]) -> None:
     limits = _require_object(payload["limits"], "limits")
     for key in default_limits():
         _require_int(limits, key)
+
+
+def validate_coverage_map_payload(payload: dict[str, Any]) -> None:
+    _require_object(payload, "coverage map payload")
+    _require_keys(payload, {"domain", "domain_goal", "layers"}, "coverage map payload")
+    _require_string(payload, "domain")
+    _require_string(payload, "domain_goal")
+    layers = _require_object(payload.get("layers"), "layers")
+    expected = set(AI_INFRA_COVERAGE_LAYERS)
+    actual = set(layers.keys())
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        details: list[str] = []
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        if extra:
+            details.append(f"extra: {', '.join(extra)}")
+        raise ValueError(f"layers must match AI_INFRA_COVERAGE_LAYERS exactly ({'; '.join(details)})")
+    for layer in AI_INFRA_COVERAGE_LAYERS:
+        entry = _require_object(layers.get(layer), f"layers.{layer}")
+        _require_keys(
+            entry,
+            {
+                "status",
+                "covered_pages",
+                "raw_evidence",
+                "candidate_gaps",
+                "blocked_reason",
+                "last_scanned_at",
+                "notes",
+            },
+            f"layers.{layer}",
+        )
+        for key in ("status", "blocked_reason", "last_scanned_at", "notes"):
+            _require_string(entry, key)
+        for key in ("covered_pages", "raw_evidence", "candidate_gaps"):
+            _require_string_list(entry, key)
 
 
 def validate_scenario_command_result_payload(payload: dict[str, Any]) -> None:

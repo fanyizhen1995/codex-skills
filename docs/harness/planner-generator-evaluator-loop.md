@@ -225,8 +225,30 @@ The domain state file is
 fresh `last_scan_at` within `scan_ttl_days`, and non-empty
 `no_action_evidence`.
 
+For `ai_infra`, no-action also requires a valid coverage file at
+`personal-wiki/domains/ai_infra/coverage-map.json`. The map must contain all
+eight coverage layers:
+
+- `training-distributed`
+- `inference-runtime`
+- `orchestration-scheduling`
+- `data-rag-vector`
+- `eval-observability-reliability`
+- `security-governance-cost`
+- `hardware-accelerator`
+- `network-storage-cluster`
+
+Each layer records `status`, `covered_pages`, `raw_evidence`,
+`candidate_gaps`, `blocked_reason`, `last_scanned_at`, and `notes`. Missing or
+invalid coverage maps stop the run at `stopped_blocked` with
+`next_action=inspect_ai_infra_coverage_map` and write
+`.codex/loop-runs/<run-id>/coverage-map-result.json`. Even with a valid file,
+no-action is denied if any layer still has `candidate_gaps`, any layer scan is
+stale, or `no_action_evidence` does not reference `coverage-map`.
+
 Autonomous commits are restricted to personal-wiki domain wiki/raw/source and
-manifest paths plus that domain's `loop-state.json`. Changes under
+manifest paths plus that domain's `loop-state.json` and `coverage-map.json`.
+Changes under
 `tasks.json`, `progress.md`, `docs/**`, or `scripts/**` require manual
 confirmation and stop the run. Denylist paths such as `.env`, secrets, tokens,
 or credential paths always stop the run. Dependency files require supply-chain

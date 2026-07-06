@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import scripts.harness_loop_autonomous as harness_loop_autonomous
 from scripts.harness_loop_autonomous import (
     autonomous_allowed_paths,
     autonomous_denylist_paths,
@@ -20,6 +21,34 @@ from scripts.harness_loop_contracts import validate_loop_state_payload
 
 
 class HarnessLoopAutonomousTests(unittest.TestCase):
+    def _full_ai_infra_coverage_map(self, *, last_scanned_at: str | None = None) -> dict:
+        scanned_at = last_scanned_at or "2026-07-02T00:00:00Z"
+        return {
+            "domain": "ai_infra",
+            "domain_goal": "Expand wiki",
+            "layers": {
+                layer: {
+                    "status": "covered",
+                    "covered_pages": [f"wiki/{layer}.md"],
+                    "raw_evidence": [f"raw/{layer}.json"],
+                    "candidate_gaps": [],
+                    "blocked_reason": "",
+                    "last_scanned_at": scanned_at,
+                    "notes": "",
+                }
+                for layer in (
+                    "training-distributed",
+                    "inference-runtime",
+                    "orchestration-scheduling",
+                    "data-rag-vector",
+                    "eval-observability-reliability",
+                    "security-governance-cost",
+                    "hardware-accelerator",
+                    "network-storage-cluster",
+                )
+            },
+        }
+
     def test_create_default_loop_state_records_confirmed_no_action_standards(self) -> None:
         state = create_default_loop_state("ai_infra", "Expand wiki", scan_ttl_days=30)
 
@@ -49,14 +78,19 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
             {
                 "id": "scan-1",
                 "title": "Scan",
-                "source": "planner",
+                "source": "coverage-map",
                 "status": "complete",
                 "updated_at": state["last_scan_at"],
-                "evidence": ["no candidates"],
+                "evidence": ["coverage-map scan confirmed no candidates"],
             }
         ]
 
-        self.assertTrue(decide_no_action(state).no_action)
+        self.assertTrue(
+            decide_no_action(
+                state,
+                coverage_map=self._full_ai_infra_coverage_map(last_scanned_at=state["last_scan_at"]),
+            ).no_action
+        )
 
     def test_decide_no_action_rejects_missing_evidence(self) -> None:
         state = create_default_loop_state("ai_infra", "Expand wiki", scan_ttl_days=30)
@@ -73,7 +107,10 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
             }
         ]
 
-        decision = decide_no_action(state)
+        decision = decide_no_action(
+            state,
+            coverage_map=self._full_ai_infra_coverage_map(last_scanned_at=state["last_scan_at"]),
+        )
 
         self.assertFalse(decision.no_action)
         self.assertIn("no_action_evidence is empty", decision.reasons)
@@ -99,17 +136,88 @@ class HarnessLoopAutonomousTests(unittest.TestCase):
             {
                 "id": "scan-1",
                 "title": "Scan",
+                "source": "coverage-map",
+                "status": "complete",
+                "updated_at": state["last_scan_at"],
+                "evidence": ["coverage-map scan confirmed no candidates"],
+            }
+        ]
+
+        decision = decide_no_action(
+            state,
+            now=now,
+            coverage_map=self._full_ai_infra_coverage_map(last_scanned_at=state["last_scan_at"]),
+        )
+
+        self.assertFalse(decision.no_action)
+        self.assertIn("last_scan_at is stale", decision.reasons)
+
+    def test_decide_no_action_requires_ai_infra_coverage_map(self) -> None:
+        now = datetime(2026, 7, 2, 12, 0, tzinfo=timezone.utc)
+        state = create_default_loop_state("ai_infra", "Expand wiki", scan_ttl_days=30)
+        state["candidate_backlog"] = []
+        state["coverage_gaps"] = []
+        state["known_sources"] = [
+            {
+                "id": "src-1",
+                "title": "Source",
+                "source": "manual",
+                "status": "scanned",
+                "updated_at": state["last_scan_at"],
+                "evidence": ["checked"],
+            }
+        ]
+        state["no_action_evidence"] = [
+            {
+                "id": "scan-1",
+                "title": "Coverage scan",
+                "source": "coverage-map",
+                "status": "complete",
+                "updated_at": state["last_scan_at"],
+                "evidence": ["coverage-map scan confirmed"],
+            }
+        ]
+
+        missing_map = harness_loop_autonomous.decide_no_action(state, now=now, coverage_map=None)
+        self.assertFalse(missing_map.no_action)
+        self.assertIn("coverage_map is required for ai_infra no-action", missing_map.reasons)
+
+        missing_layer_map = self._full_ai_infra_coverage_map(last_scanned_at=state["last_scan_at"])
+        missing_layer_map["layers"].pop("hardware-accelerator")
+        missing_layer = harness_loop_autonomous.decide_no_action(state, now=now, coverage_map=missing_layer_map)
+        self.assertFalse(missing_layer.no_action)
+        self.assertIn("coverage_map missing required layers", missing_layer.reasons)
+
+        gap_map = self._full_ai_infra_coverage_map(last_scanned_at=state["last_scan_at"])
+        gap_map["layers"]["hardware-accelerator"]["candidate_gaps"] = ["missing vendor coverage"]
+        gap_decision = harness_loop_autonomous.decide_no_action(state, now=now, coverage_map=gap_map)
+        self.assertFalse(gap_decision.no_action)
+        self.assertIn("coverage_map has actionable candidate_gaps", gap_decision.reasons)
+
+        stale_timestamp = (now - timedelta(days=31)).isoformat().replace("+00:00", "Z")
+        stale_map = self._full_ai_infra_coverage_map(last_scanned_at=stale_timestamp)
+        stale_decision = harness_loop_autonomous.decide_no_action(state, now=now, coverage_map=stale_map)
+        self.assertFalse(stale_decision.no_action)
+        self.assertIn("coverage_map has stale layers", stale_decision.reasons)
+
+        non_reference_state = dict(state)
+        non_reference_state["no_action_evidence"] = [
+            {
+                "id": "scan-2",
+                "title": "Planner scan",
                 "source": "planner",
                 "status": "complete",
                 "updated_at": state["last_scan_at"],
                 "evidence": ["no candidates"],
             }
         ]
-
-        decision = decide_no_action(state, now=now)
-
-        self.assertFalse(decision.no_action)
-        self.assertIn("last_scan_at is stale", decision.reasons)
+        evidence_decision = harness_loop_autonomous.decide_no_action(
+            non_reference_state,
+            now=now,
+            coverage_map=self._full_ai_infra_coverage_map(last_scanned_at=state["last_scan_at"]),
+        )
+        self.assertFalse(evidence_decision.no_action)
+        self.assertIn("no_action_evidence must reference coverage-map", evidence_decision.reasons)
 
     def test_scope_check_rejects_denylist_even_when_allowlist_matches(self) -> None:
         result = check_autonomous_scope(

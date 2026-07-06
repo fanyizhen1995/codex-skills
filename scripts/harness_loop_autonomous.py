@@ -7,9 +7,21 @@ import re
 from typing import Any, Mapping, Sequence
 
 try:
-    from scripts.harness_loop_contracts import read_json_file, validate_loop_state_payload, write_json_file
+    from scripts.harness_loop_contracts import (
+        AI_INFRA_COVERAGE_LAYERS,
+        read_json_file,
+        validate_coverage_map_payload,
+        validate_loop_state_payload,
+        write_json_file,
+    )
 except ModuleNotFoundError:  # pragma: no cover - direct script import fallback
-    from harness_loop_contracts import read_json_file, validate_loop_state_payload, write_json_file  # type: ignore[no-redef]
+    from harness_loop_contracts import (  # type: ignore[no-redef]
+        AI_INFRA_COVERAGE_LAYERS,
+        read_json_file,
+        validate_coverage_map_payload,
+        validate_loop_state_payload,
+        write_json_file,
+    )
 
 
 DEPENDENCY_PATH_PATTERNS = (
@@ -104,7 +116,49 @@ def write_loop_state(repo_root: Path | str, domain: str, state: Mapping[str, Any
     return write_json_file(_loop_state_path(repo_root, domain), payload)
 
 
-def decide_no_action(state: Mapping[str, Any], now: datetime | None = None) -> NoActionDecision:
+def create_default_coverage_map(domain: str, domain_goal: str) -> dict[str, Any]:
+    return {
+        "domain": domain,
+        "domain_goal": domain_goal,
+        "layers": {
+            layer: {
+                "status": "missing",
+                "covered_pages": [],
+                "raw_evidence": [],
+                "candidate_gaps": [],
+                "blocked_reason": "",
+                "last_scanned_at": "",
+                "notes": "",
+            }
+            for layer in AI_INFRA_COVERAGE_LAYERS
+        },
+    }
+
+
+def load_or_create_coverage_map(
+    repo_root: Path | str,
+    domain: str,
+    domain_goal: str,
+) -> dict[str, Any]:
+    path = _coverage_map_path(repo_root, domain)
+    if path.exists():
+        payload = read_json_file(path)
+        validate_coverage_map_payload(payload)
+        return payload
+    return create_default_coverage_map(domain, domain_goal)
+
+
+def write_coverage_map(repo_root: Path | str, domain: str, payload: Mapping[str, Any]) -> Path:
+    coverage_payload = dict(payload)
+    validate_coverage_map_payload(coverage_payload)
+    return write_json_file(_coverage_map_path(repo_root, domain), coverage_payload)
+
+
+def decide_no_action(
+    state: Mapping[str, Any],
+    now: datetime | None = None,
+    coverage_map: Mapping[str, Any] | None = None,
+) -> NoActionDecision:
     reasons: list[str] = []
     try:
         validate_loop_state_payload(dict(state))
@@ -121,6 +175,8 @@ def decide_no_action(state: Mapping[str, Any], now: datetime | None = None) -> N
         reasons.append("no_action_evidence is empty")
     if _scan_is_stale(str(state["last_scan_at"]), int(state["scan_ttl_days"]), now=now):
         reasons.append("last_scan_at is stale")
+    if state["domain"] == "ai_infra":
+        reasons.extend(_coverage_map_no_action_reasons(state, coverage_map=coverage_map, now=now))
     return NoActionDecision(not reasons, reasons)
 
 
@@ -130,6 +186,7 @@ def autonomous_allowed_paths() -> list[str]:
         "personal-wiki/domains/**/raw/**",
         "personal-wiki/domains/**/sources*.yaml",
         "personal-wiki/domains/**/manifest*.json",
+        "personal-wiki/domains/**/coverage-map.json",
     ]
 
 
@@ -157,6 +214,7 @@ def autonomous_denylist_paths() -> list[str]:
 
 def policy_patterns_for_run(run: Mapping[str, Any], *, domain: str) -> tuple[list[str], list[str], list[str]]:
     loop_state_path = f"personal-wiki/domains/{domain}/loop-state.json"
+    coverage_map_path = f"personal-wiki/domains/{domain}/coverage-map.json"
     has_allowed_override = "allowed_paths" in run
     has_denied_override = "denylist_paths" in run
     has_manual_override = "manual_confirm_paths" in run
@@ -178,6 +236,8 @@ def policy_patterns_for_run(run: Mapping[str, Any], *, domain: str) -> tuple[lis
         allowed = autonomous_allowed_paths()
     if loop_state_path not in allowed:
         allowed.append(loop_state_path)
+    if coverage_map_path not in allowed:
+        allowed.append(coverage_map_path)
     denied = denied_override or autonomous_denylist_paths()
     if has_manual_override and not legacy_empty_scope:
         manual = manual_override
@@ -339,6 +399,18 @@ def _loop_state_path(repo_root: Path | str, domain: str) -> Path:
     return path
 
 
+def _coverage_map_path(repo_root: Path | str, domain: str) -> Path:
+    if not DOMAIN_SLUG_PATTERN.fullmatch(domain):
+        raise ValueError("domain must be a safe slug")
+    domains_root = Path(repo_root) / "personal-wiki" / "domains"
+    path = domains_root / domain / "coverage-map.json"
+    try:
+        path.resolve().relative_to(domains_root.resolve())
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError("domain must stay inside personal-wiki/domains") from exc
+    return path
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -359,6 +431,60 @@ def _parse_utc(value: str) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _coverage_map_no_action_reasons(
+    state: Mapping[str, Any],
+    *,
+    coverage_map: Mapping[str, Any] | None,
+    now: datetime | None,
+) -> list[str]:
+    reasons: list[str] = []
+    if coverage_map is None:
+        return ["coverage_map is required for ai_infra no-action"]
+    payload = dict(coverage_map)
+    layers = payload.get("layers")
+    if not isinstance(layers, dict):
+        return ["coverage_map invalid: layers must be an object"]
+    expected = set(AI_INFRA_COVERAGE_LAYERS)
+    actual = set(layers.keys())
+    if actual != expected:
+        reasons.append("coverage_map missing required layers")
+    try:
+        validate_coverage_map_payload(payload)
+    except ValueError as exc:
+        if not reasons:
+            reasons.append(f"coverage_map invalid: {exc}")
+        return reasons
+
+    if payload["domain"] != state["domain"]:
+        reasons.append("coverage_map domain does not match loop state")
+
+    stale_layers = [
+        layer
+        for layer in AI_INFRA_COVERAGE_LAYERS
+        if _scan_is_stale(str(payload["layers"][layer]["last_scanned_at"]), int(state["scan_ttl_days"]), now=now)
+    ]
+    if stale_layers:
+        reasons.append("coverage_map has stale layers")
+
+    if any(payload["layers"][layer]["candidate_gaps"] for layer in AI_INFRA_COVERAGE_LAYERS):
+        reasons.append("coverage_map has actionable candidate_gaps")
+
+    has_reference = any(
+        isinstance(item, dict)
+        and (
+            item.get("source") == "coverage-map"
+            or any(
+                isinstance(evidence, str) and "coverage-map" in evidence
+                for evidence in item.get("evidence", [])
+            )
+        )
+        for item in state.get("no_action_evidence", [])
+    )
+    if not has_reference:
+        reasons.append("no_action_evidence must reference coverage-map")
+    return reasons
 
 
 def _matches_any(path: str, patterns: Sequence[str]) -> bool:

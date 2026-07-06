@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import scripts.harness_loop_contracts as harness_loop_contracts
 from scripts.harness_loop_contracts import (
     default_limits,
     load_loop_policy,
@@ -107,6 +108,34 @@ class HarnessLoopContractsTests(unittest.TestCase):
                     "evidence": ["no candidates found"],
                 }
             ],
+        }
+
+    def _coverage_map_payload(self) -> dict:
+        now = "2026-07-02T00:00:00Z"
+        return {
+            "domain": "ai_infra",
+            "domain_goal": "Expand wiki coverage",
+            "layers": {
+                layer: {
+                    "status": "covered",
+                    "covered_pages": [f"wiki/{layer}.md"],
+                    "raw_evidence": [f"raw/{layer}.json"],
+                    "candidate_gaps": [],
+                    "blocked_reason": "",
+                    "last_scanned_at": now,
+                    "notes": "",
+                }
+                for layer in (
+                    "training-distributed",
+                    "inference-runtime",
+                    "orchestration-scheduling",
+                    "data-rag-vector",
+                    "eval-observability-reliability",
+                    "security-governance-cost",
+                    "hardware-accelerator",
+                    "network-storage-cluster",
+                )
+            },
         }
 
     def _agent_attempt_payload(self) -> dict:
@@ -258,6 +287,11 @@ class HarnessLoopContractsTests(unittest.TestCase):
             path.write_text(json.dumps([1, 2]), encoding="utf-8")
             with self.assertRaises(ValueError):
                 read_json_file(path)
+
+    def test_validate_coverage_map_payload_accepts_ai_infra_layers(self) -> None:
+        payload = self._coverage_map_payload()
+
+        harness_loop_contracts.validate_coverage_map_payload(payload)
 
     def test_run_dir_for_uses_repo_root_codex_loop_runs(self) -> None:
         root = Path("/tmp/repo")

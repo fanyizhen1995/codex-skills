@@ -23,6 +23,7 @@ from scripts.harness_loop_autonomous import create_default_loop_state, write_loo
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
     create_preflight_run,
+    load_run,
     main,
     run_autonomous,
     run_demand_multi,
@@ -110,6 +111,39 @@ def init_git_repo(repo_root: Path) -> None:
     )
 
 
+def commit_seeded_autonomous_state(repo_root: Path, domain: str) -> None:
+    if not (repo_root / ".git").exists():
+        return
+    loop_runs_root = repo_root / ".codex" / "loop-runs"
+    if not loop_runs_root.exists():
+        return
+    loop_state = f"personal-wiki/domains/{domain}/loop-state.json"
+    coverage_map = f"personal-wiki/domains/{domain}/coverage-map.json"
+    subprocess.run(
+        ["git", "add", "--", loop_state, coverage_map],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    status = subprocess.run(
+        ["git", "diff", "--cached", "--quiet", "--", loop_state, coverage_map],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if status.returncode == 0:
+        return
+    subprocess.run(
+        ["git", "commit", "-m", f"test: seed {domain} autonomous state", "--", loop_state, coverage_map],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
 def seed_no_action_loop_state(repo_root: Path, domain: str) -> dict[str, object]:
     state = create_default_loop_state(domain, "Expand wiki")
     state["candidate_backlog"] = []
@@ -128,13 +162,42 @@ def seed_no_action_loop_state(repo_root: Path, domain: str) -> dict[str, object]
         {
             "id": "scan-1",
             "title": "Scan",
-            "source": "planner",
+            "source": "coverage-map",
             "status": "complete",
             "updated_at": state["last_scan_at"],
-            "evidence": ["no candidates"],
+            "evidence": ["coverage-map scan confirmed no candidates"],
         }
     ]
     write_loop_state(repo_root, domain, state)
+    write_json_file(
+        repo_root / "personal-wiki" / "domains" / domain / "coverage-map.json",
+        {
+            "domain": domain,
+            "domain_goal": state["domain_goal"],
+            "layers": {
+                layer: {
+                    "status": "covered",
+                    "covered_pages": [f"wiki/{layer}.md"],
+                    "raw_evidence": [f"raw/{layer}.json"],
+                    "candidate_gaps": [],
+                    "blocked_reason": "",
+                    "last_scanned_at": state["last_scan_at"],
+                    "notes": "",
+                }
+                for layer in (
+                    "training-distributed",
+                    "inference-runtime",
+                    "orchestration-scheduling",
+                    "data-rag-vector",
+                    "eval-observability-reliability",
+                    "security-governance-cost",
+                    "hardware-accelerator",
+                    "network-storage-cluster",
+                )
+            },
+        },
+    )
+    commit_seeded_autonomous_state(repo_root, domain)
     return state
 
 
@@ -161,6 +224,35 @@ def seed_candidate_loop_state(repo_root: Path, domain: str) -> dict[str, object]
         }
     ]
     write_loop_state(repo_root, domain, state)
+    write_json_file(
+        repo_root / "personal-wiki" / "domains" / domain / "coverage-map.json",
+        {
+            "domain": domain,
+            "domain_goal": state["domain_goal"],
+            "layers": {
+                layer: {
+                    "status": "covered",
+                    "covered_pages": [f"wiki/{layer}.md"],
+                    "raw_evidence": [f"raw/{layer}.json"],
+                    "candidate_gaps": [],
+                    "blocked_reason": "",
+                    "last_scanned_at": state["last_scan_at"],
+                    "notes": "",
+                }
+                for layer in (
+                    "training-distributed",
+                    "inference-runtime",
+                    "orchestration-scheduling",
+                    "data-rag-vector",
+                    "eval-observability-reliability",
+                    "security-governance-cost",
+                    "hardware-accelerator",
+                    "network-storage-cluster",
+                )
+            },
+        },
+    )
+    commit_seeded_autonomous_state(repo_root, domain)
     return state
 
 
@@ -399,6 +491,35 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(run["attempts"]["planner"], 1)
             self.assertEqual(run["attempts"]["generator"], 0)
+
+    def test_run_autonomous_requires_ai_infra_coverage_map_before_no_action(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="ai-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_no_action_loop_state(repo_root, "ai_infra")
+            (repo_root / "personal-wiki" / "domains" / "ai_infra" / "coverage-map.json").unlink()
+
+            status = run_autonomous(
+                repo_root,
+                "ai-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            self.assertNotEqual(status["phase"], "stopped_no_action")
+            self.assertEqual(status["phase"], "stopped_blocked")
+            self.assertEqual(load_run(repo_root, "ai-run")["next_action"], "inspect_ai_infra_coverage_map")
 
     def test_run_autonomous_commits_allowlisted_change_then_returns_to_planning_and_stops_no_action(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
