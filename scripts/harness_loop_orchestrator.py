@@ -2154,11 +2154,9 @@ def _validate_required_evidence(
     findings: list[str] = []
     manifest_payload: dict[str, Any] = {}
     if manifest_path.exists():
-        payload = read_json_file(manifest_path)
-        if isinstance(payload, dict):
+        payload = _read_required_evidence_manifest(manifest_path, findings)
+        if payload is not None:
             manifest_payload = payload
-        else:
-            findings.append("required-evidence-manifest.json must contain an object payload")
     else:
         findings.append("missing required-evidence-manifest.json")
 
@@ -2265,10 +2263,22 @@ def _legacy_gap_proof_evidence_matches_task(evidence_id: str, task_id: str) -> b
     return False
 
 
+def _read_required_evidence_manifest(path: Path, findings: list[str]) -> dict[str, Any] | None:
+    try:
+        return read_json_file(path)
+    except json.JSONDecodeError as exc:
+        findings.append(f"required-evidence-manifest.json could not be parsed as JSON: {exc.msg}")
+    except ValueError:
+        findings.append("required-evidence-manifest.json must contain an object payload")
+    return None
+
+
 def _load_required_evidence_manifest_entries(path: Path, findings: list[str]) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    payload = read_json_file(path)
+    payload = _read_required_evidence_manifest(path, findings)
+    if payload is None:
+        return []
     entries = payload.get("items")
     if entries is None:
         entries = payload.get("evidence")
