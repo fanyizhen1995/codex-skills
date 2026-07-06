@@ -174,11 +174,36 @@ Gap proof 必填字段：
 - `wiki/index.md` 或索引产物反映新增/更新页面。
 - 搜索/API 可见性：通过 `/api/wiki/pages`、`/api/wiki/page` 或 `/api/search` 能查到新增内容；如果本轮未启动服务，必须记录原因。
 - 前端可见性：知识工作台或 Wiki 浏览页至少验证一个新关键词或新页面标题；涉及 UI 变更时必须用 Playwright 模拟用户操作。
+- Crawler Workbench 及时刷新：新 source、fetch run、queue 状态、raw capture、wiki 页面和 search 结果必须能通过 backend API 读到；如果长驻 backend/frontend 正在运行，Evaluator 必须验证页面无需人工重建仓库状态即可看到最新数据，必要时记录已重启的服务和原因。
+- Loop Dashboard 及时刷新：每个子任务至少写入 reader summary、agent action、scenario result、错误/阻塞和用户决策字段；Dashboard 必须能显示当前 run、已完成 run、子任务进度、Planner/Generator/Evaluator 正在做什么，以及 evaluator 模拟用户验收过哪些场景。
 - 链接检查：新引入的外部链接至少执行连接性探测；失败需要记录 HTTP 状态、DNS/TLS/timeout 原因或 blocked/auth 原因。
 - secrets scan：本次 changed paths 中不能出现 GitHub token、Authorization bearer、cookie、private key 或 `.env` 内容。
 - 若修改代码：运行对应单元测试、集成测试或 UI 测试，不能只跑 wiki validate。
 - 若修改 crawler source profile：执行连接探测或 fetch dry-run，并记录是否需要鉴权。
-- Loop Dashboard：run artifact 需要包含给人读的 task summary、planner/generator/evaluator actions、scenario results、errors/blockers 和 user decision。
+- 若新增或修改来源订阅：必须走新 Domain Channels 模型，而不是只改旧 `sources.yaml`。Planner/Generator 需要确定 target domain、channel、base URL trust、secret/probe readiness、child source 关系、fetcher_type 和 scheduler cadence；Evaluator 需要验证 `/domains`、`/channels`、`/sources?domain=...`、probe API、source run continuity 和前端 Domain Channels 页面。
+
+## Domain Channels 和来源订阅约束
+
+AI infra 扩充会频繁新增来源，必须使用新开发的 Domain Channels 功能作为来源管理入口：
+
+- `ai_infra` 是本次默认 target domain。跨 domain 资料只能在 Planner 明确说明边界后加入。
+- 每个长期来源必须属于一个 channel；临时 one-shot URL 可进入 inbox 或临时 channel，但不能绕过 domain/source 可见性。
+- 如果 base URL 已被用户标记可信，新增同 base URL 子来源可以继承信任，但仍要记录 canonical URL、source id 和去重键。
+- 需要鉴权的 channel 只保存 synthetic/metadata readiness，不把 token 写入仓库；缺少凭据时写入 `blocked_items`。
+- 新增 channel/source 后必须执行 probe 或 fetch dry-run。失败要记录 DNS、TLS、HTTP、timeout、auth、rate limit 或 robots/反爬原因。
+- 调度规则：已有型号/已有静态规格不需要高频重复抓；新型号/新规格发现默认月度扫描。高频 release notes 或 GitHub closed issue 同步必须单独说明 cadence。
+- Crawler Workbench 前端验收必须覆盖 Domain Channels 页面的 domain 筛选、channel/source 可见性、probe 结果、child source 创建或展示，以及旧 Sources/Queue 页不会丢失新 source。
+
+## 运行可见性和刷新约束
+
+每轮知识入库后，loop 不只要提交文件，还要证明用户能在 UI 和 API 里看到变化：
+
+- Crawler backend：验证 `/api/wiki/pages`、`/api/wiki/page`、`/api/search`、`/api/sources`、`/api/channels`、`/api/queue` 或对应 run API 返回最新数据。
+- Crawler frontend：用 Playwright 搜索一个新关键词，打开新 wiki 页面，查看相关 source/channel 或 queue 记录。
+- Search/index：优先验证自动刷新；只有自动刷新失败或 schema/index 逻辑变更时才手动 `/api/search/rebuild`，并记录原因。
+- 服务重启：修改 backend 代码、schema、搜索索引逻辑或运行配置后重启 crawler backend；修改 frontend 代码或 Vite 配置后重启 crawler frontend；只改 wiki/raw 时不默认重启，但必须验证 API/前端读到新内容。
+- Loop Dashboard：验证当前 run 出现在运行列表，子任务状态和事件随 artifact 更新而变化，完成后的 run 仍能从历史中看到。
+- 报告格式：每个 run 的最终摘要必须让不了解项目背景的人读懂任务是什么、进展到哪里、验收了哪些用户场景、是否有错误、是否需要用户决策。
 
 ## 测试方案
 
