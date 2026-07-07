@@ -1338,6 +1338,47 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["next_action"], "inspect_autonomous_generator")
             self.assertEqual(run["attempts"]["generator"], 2)
 
+    def test_run_autonomous_falls_back_to_deterministic_planner_after_codex_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            def timeout_planner(**kwargs: object) -> dict[str, object]:
+                return {
+                    "status": "timeout",
+                    "run_id": "demo-run",
+                    "role": "planner",
+                    "attempt": int(kwargs["attempt"]),
+                }
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=timeout_planner):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="codex-exec",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            self.assertEqual(status["phase"], "stopped_budget")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            planner_output = read_json_file(run_dir / "planner-output.json")
+            self.assertEqual(run["attempts"]["planner"], 1)
+            self.assertEqual(planner_output["task_id"], "demo-run-task-1")
+            self.assertEqual(planner_output["policy"], "autonomous_knowledge")
+
     def test_run_autonomous_generator_retry_limit_is_per_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

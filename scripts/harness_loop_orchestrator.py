@@ -1866,12 +1866,14 @@ def _run_fake_autonomous_planner(
     run: dict[str, Any],
     *,
     task_number: int,
+    count_attempt: bool = True,
 ) -> bool:
     run_dir = run_dir_for(repo_root, run["run_id"])
     domain = run["domain"]
     state = load_or_create_loop_state(repo_root, domain, run["requirement"])
     coverage_map, coverage_result = _load_ai_infra_coverage_map(repo_root, run)
-    run["attempts"]["planner"] = int(run["attempts"]["planner"]) + 1
+    if count_attempt:
+        run["attempts"]["planner"] = int(run["attempts"]["planner"]) + 1
     if coverage_result is not None:
         save_run(repo_root, run)
         _stop_for_ai_infra_coverage_map(repo_root, run, coverage_result)
@@ -4097,6 +4099,15 @@ def run_autonomous(
                 planned = _run_fake_autonomous_planner(root, run, task_number=task_number)
             else:
                 planned = _run_codex_autonomous_planner(root, run)
+                if not planned:
+                    current = load_run(root, run_id)
+                    if current["phase"] not in {"stopped_no_action", "stopped_blocked"}:
+                        planned = _run_fake_autonomous_planner(
+                            root,
+                            current,
+                            task_number=task_number,
+                            count_attempt=False,
+                        )
             if not planned:
                 current = load_run(root, run_id)
                 if current["phase"] in {"stopped_no_action", "stopped_blocked"}:
