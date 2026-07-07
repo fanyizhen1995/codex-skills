@@ -1517,6 +1517,46 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
             self.assertEqual(status["phase"], "stopped_no_action")
 
+    def test_run_autonomous_resume_budget_counts_previously_completed_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "planning"
+            run["next_action"] = "run_autonomous_planner"
+            run["task_id"] = "demo-run-task-3"
+            run["_autonomous_generator_attempts_by_task"] = {
+                "demo-run-task-1": 1,
+                "demo-run-task-2": 1,
+                "demo-run-task-3": 1,
+            }
+            write_json_file(run_dir / "run.json", run)
+
+            with patch(
+                "scripts.harness_loop_orchestrator._run_fake_autonomous_planner",
+                side_effect=AssertionError("planner should not run after resumed budget is exhausted"),
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=3,
+                )
+
+            self.assertEqual(status["phase"], "stopped_budget")
+
     def test_run_autonomous_blocks_undeclared_dirty_denylist_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

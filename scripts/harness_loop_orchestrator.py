@@ -2378,6 +2378,48 @@ def _record_generator_attempt_for_task(run: dict[str, Any]) -> None:
     run["_autonomous_generator_attempts_by_task"] = attempts_by_task
 
 
+_AUTONOMOUS_COMPLETED_TASK_IDS_KEY = "_autonomous_completed_task_ids"
+
+
+def _completed_autonomous_task_ids(run: Mapping[str, Any]) -> list[str]:
+    completed = run.get(_AUTONOMOUS_COMPLETED_TASK_IDS_KEY)
+    if isinstance(completed, list):
+        task_ids: list[str] = []
+        seen: set[str] = set()
+        for value in completed:
+            task_id = str(value).strip()
+            if task_id and task_id not in seen:
+                task_ids.append(task_id)
+                seen.add(task_id)
+        return task_ids
+
+    # Backward-compatible recovery for runs created before completed task ids
+    # were persisted. In planning phase, generator-attempt entries correspond
+    # to tasks that already returned to planning after cleanup.
+    attempts_by_task = run.get("_autonomous_generator_attempts_by_task")
+    if run.get("phase") == "planning" and isinstance(attempts_by_task, dict):
+        return sorted(
+            str(task_id).strip()
+            for task_id, attempts in attempts_by_task.items()
+            if str(task_id).strip() and isinstance(attempts, int) and attempts > 0
+        )
+    return []
+
+
+def _completed_autonomous_task_count(run: Mapping[str, Any]) -> int:
+    return len(_completed_autonomous_task_ids(run))
+
+
+def _record_completed_autonomous_task(run: dict[str, Any]) -> None:
+    task_id = str(run.get("task_id", "")).strip()
+    if not task_id:
+        return
+    task_ids = _completed_autonomous_task_ids(run)
+    if task_id not in task_ids:
+        task_ids.append(task_id)
+    run[_AUTONOMOUS_COMPLETED_TASK_IDS_KEY] = task_ids
+
+
 def _run_fake_autonomous_evaluator(
     repo_root: Path,
     run: dict[str, Any],
@@ -3919,6 +3961,7 @@ def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
     save_run(repo_root, run)
     run_cleanup(repo_root, run_id)
     run = load_run(repo_root, run_id)
+    _record_completed_autonomous_task(run)
     run["phase"] = "planning"
     run["next_action"] = "run_autonomous_planner"
     run["last_result"] = "pass"
@@ -4029,7 +4072,7 @@ def run_autonomous(
     if evaluator_driver not in {"fake", "codex-exec"}:
         raise ValueError(f"unsupported autonomous evaluator driver: {evaluator_driver}")
 
-    tasks_completed = 0
+    tasks_completed = _completed_autonomous_task_count(load_run(root, run_id))
     while True:
         run = load_run(root, run_id)
         if run["policy"] != "autonomous_knowledge":
@@ -4102,7 +4145,7 @@ def run_autonomous(
             validate_generator_result_payload(generator_result)
             if not _commit_autonomous_changes(root, run, generator_result):
                 return status_for_run(root, run_id)
-            tasks_completed += 1
+            tasks_completed = _completed_autonomous_task_count(load_run(root, run_id))
 
 
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
