@@ -34,21 +34,31 @@
         "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
         "personal-wiki/domains/ai_infra/wiki/concepts/nvidia-green-context.md",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json",
         "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json",
+        "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+        "personal-wiki/domains/ai_infra/raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704292802Z-developer-nvidia-com-blog-scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-6fabda0844.md",
+        "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
       ],
       "candidate_gaps": [
-        "Add source-backed runtime coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, and ONNX Runtime GenAI.",
+        "Add source-backed production router, admission-control, autoscaling, model-placement, canary rollout, and runtime incident/postmortem evidence beyond core runtime mechanics.",
+        "Add serving benchmark harness, tracing, and runtime observability sources that are not limited to health or metrics endpoints.",
         "Promote SGLang scheduled crawler supplement leads only after deciding whether a full API refresh is needed."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T21:23:08Z",
-      "notes": "SGLang and CUDA Green Context give strong local inference-runtime evidence, but this layer is not yet multi-project."
+      "last_scanned_at": "2026-07-06T23:46:40Z",
+      "notes": "SGLang and CUDA Green Context remain strong local evidence, and inference-runtime now has multi-project primary-source coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM runtime captures. The layer remains partial because production routing, autoscaling, rollout, benchmark, tracing, and incident evidence are still thin."
     },
     "orchestration-scheduling": {
       "status": "partial",

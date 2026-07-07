@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-06T23:00:42Z",
+  "last_scan_at": "2026-07-06T23:46:40Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
     {
@@ -55,18 +55,6 @@
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
-      ]
-    },
-    {
-      "id": "inference-runtime-broadening",
-      "title": "Broaden inference runtime coverage beyond SGLang",
-      "source": "coverage-map:inference-runtime",
-      "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
-        "personal-wiki/domains/ai_infra/wiki/concepts/nvidia-green-context.md"
       ]
     },
     {
@@ -197,6 +185,24 @@
         "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md"
+      ]
+    },
+    {
+      "id": "inference-runtime-official-primary-sources",
+      "title": "vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, and TensorRT runtime sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-06T23:46:40Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+        "personal-wiki/domains/ai_infra/raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704292802Z-developer-nvidia-com-blog-scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-6fabda0844.md",
+        "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md"
       ]
     }
   ],

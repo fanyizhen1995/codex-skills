@@ -1,0 +1,142 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r4-task-1",
+  "run_id": "ai-infra-expansion-2026-07-06-r4",
+  "generated_at": "2026-07-06T23:46:40Z",
+  "summary": "Task 1 broadened inference-runtime coverage beyond SGLang with official source notes and reused local vLLM/TensorRT captures. Non-live validators passed. Local service and socket checks were intentionally delegated to orchestrator trusted live evidence per the generator instructions.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-1-verification.json"
+  ],
+  "baseline_dirty_exclusions": [
+    "Pre-existing untracked personal-wiki/domains/ai_infra/raw/crawler/compute-* 20260706 hardware accelerator captures were not used, modified, staged, or declared as task-1 outputs."
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md and indexed Inference Runtime Infrastructure."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness schemas and ai_infra coverage timestamp semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-1-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-1 gap proof parses as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-06-r4-task-1') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-1 gap proof satisfies the harness gap-proof validator."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 1,
+      "summary": "rg returned no matches for credential-shaped tokens, API keys, bearer values, private-key headers, or GitHub token patterns."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "All declared non-run-artifact changed paths are allowed by run.json allowed_paths and no manual-confirm paths are required."
+    },
+    {
+      "command": "supply-chain dependency change check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No dependency files changed."
+    },
+    {
+      "command": "python3 - <<'PY' ... urllib HEAD probes for official vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI URLs ... PY",
+      "status": "blocked",
+      "exit_code": 0,
+      "summary": "Sandbox shell probes failed with Temporary failure in name resolution for all official external URLs; browser retrieval opened the official pages during curation, so link evidence is recorded as partial_pass in the gap proof."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health and /api/search visibility checks",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/search-api-visibility.json and crawler-workbench-freshness.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/frontend-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/loop-dashboard-freshness.json and service-availability.json."
+    },
+    {
+      "command": "code test requirement check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No crawler, harness, frontend, backend, or dependency files changed; code-test requirement is not triggered by this wiki-only task."
+    }
+  ],
+  "delegated_live_evidence": {
+    "service-availability": "trusted-live-evidence/service-availability.json",
+    "crawler-workbench-freshness": "trusted-live-evidence/crawler-workbench-freshness.json",
+    "loop-dashboard-freshness": "trusted-live-evidence/loop-dashboard-freshness.json",
+    "search-api-visibility": "trusted-live-evidence/search-api-visibility.json",
+    "frontend-visibility": "trusted-live-evidence/frontend-visibility.json"
+  },
+  "source_urls": [
+    "https://github.com/vllm-project/vllm",
+    "https://vllm.ai/blog/2026-05-28-native-rl-apis",
+    "https://vllm.ai/blog/2026-05-18-pegaflow",
+    "https://nvidia.github.io/TensorRT-LLM/features/kvcache.html",
+    "https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve.html",
+    "https://developer.nvidia.com/blog/scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-with-multi-device-inference-support/",
+    "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/model_repository.html",
+    "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html",
+    "https://github.com/ggml-org/llama.cpp",
+    "https://onnxruntime.ai/docs/genai/reference/config.html",
+    "https://onnxruntime.ai/docs/genai/api/python.html"
+  ]
+}

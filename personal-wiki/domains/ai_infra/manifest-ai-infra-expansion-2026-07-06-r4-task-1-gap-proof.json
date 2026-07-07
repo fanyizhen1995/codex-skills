@@ -1,0 +1,107 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r4-task-1",
+  "run_id": "ai-infra-expansion-2026-07-06-r4",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "Broaden inference runtime coverage beyond SGLang",
+    "source_type": "official_docs_plus_existing_local_captures",
+    "identity_key": "urlset:vllm-tensorrt-llm-triton-llama-cpp-onnx-runtime-genai-inference-runtime-20260707"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "rg/find scan of personal-wiki/domains/ai_infra/raw found existing local vLLM blog captures under raw/crawler/nccl-vllm-blog and duplicate NVIDIA TensorRT multi-device inference captures under raw/crawler/nccl-technical-blog and raw/crawler/nccl-nvidia-blog-wide. No existing local raw/links notes were found for dedicated official vLLM README, TensorRT-LLM KV-cache/serve docs, Triton model repository/batcher docs, llama.cpp README, or ONNX Runtime GenAI config/API docs. Pre-existing untracked 20260706 compute accelerator captures were observed in git status and excluded.",
+    "wiki_search": "rg scan of personal-wiki/domains/ai_infra/wiki found SGLang, CUDA Green Context, Hitchhiker, NCCL, and coverage-map references, but no dedicated curated page for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, or ONNX Runtime GenAI runtime infrastructure.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md indexed SGLang and SGLang/NCCL/reference pages before this task, but did not index a multi-runtime inference infrastructure reference page."
+  },
+  "gap_reason": "coverage-map.json marked inference-runtime as partial and explicitly requested source-backed coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, and ONNX Runtime GenAI. Local curated coverage was SGLang-heavy, while existing vLLM and TensorRT raw captures were not promoted into a durable multi-runtime inference serving reference.",
+  "duplicate_policy": {
+    "baseline_dirty_compute_captures_excluded": true,
+    "excluded_reason": "Pre-existing untracked 20260706 compute accelerator crawler captures are hardware-accelerator evidence and were not staged, curated, or used as source evidence for this inference-runtime task.",
+    "sglang_duplicate_avoided": true,
+    "vllm_local_reuse": true,
+    "tensorrt_duplicate_deduped": true,
+    "tensorrt_deduped_paths": [
+      {
+        "selected": "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704292802Z-developer-nvidia-com-blog-scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-6fabda0844.md",
+        "duplicate_not_selected": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260626T015710840847Z-developer-nvidia-com-blog-scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-6fabda0844.md",
+        "reason": "Both local captures share the same content hash suffix; the narrower nccl-technical-blog capture is cited once to avoid duplicate evidence."
+      }
+    ]
+  },
+  "selected_sources": [
+    {
+      "name": "vLLM README",
+      "url": "https://github.com/vllm-project/vllm",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+      "reason": "Primary project evidence for vLLM serving, PagedAttention, continuous batching, chunked prefill, prefix caching, OpenAI-compatible serving, parallelism, and disaggregated serving surfaces."
+    },
+    {
+      "name": "vLLM Native RL APIs blog",
+      "url": "https://vllm.ai/blog/2026-05-28-native-rl-apis",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+      "reason": "Existing local primary blog evidence for native RL weight syncing, NCCL and CUDA IPC transfer backends, and pause/resume support."
+    },
+    {
+      "name": "vLLM PegaFlow external KV cache blog",
+      "url": "https://vllm.ai/blog/2026-05-18-pegaflow",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+      "reason": "Existing local primary blog evidence for an external KV cache process boundary, CUDA IPC, RDMA, SSD cache hierarchy, and cache sharing across vLLM instances."
+    },
+    {
+      "name": "TensorRT-LLM KV cache and serve documentation",
+      "url": "https://nvidia.github.io/TensorRT-LLM/features/kvcache.html",
+      "secondary_urls": [
+        "https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve.html"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md",
+      "reason": "Primary NVIDIA TensorRT-LLM evidence for KV-cache blocks, reuse, offload, OpenAI-compatible serving, metrics, and runtime parallelism knobs."
+    },
+    {
+      "name": "NVIDIA TensorRT multi-device inference blog",
+      "url": "https://developer.nvidia.com/blog/scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-with-multi-device-inference-support/",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704292802Z-developer-nvidia-com-blog-scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-6fabda0844.md",
+      "reason": "Existing local primary NVIDIA evidence for TensorRT 11.0 multi-device inference, NCCL collectives, tensor/context parallelism, and long-sequence distributed inference strategies."
+    },
+    {
+      "name": "Triton Inference Server model repository and batcher documentation",
+      "url": "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/model_repository.html",
+      "secondary_urls": [
+        "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
+      "reason": "Primary NVIDIA Triton evidence for model repository layout, backend families, versioned model loading, scheduling, dynamic batching, queue controls, and ensemble serving."
+    },
+    {
+      "name": "llama.cpp README",
+      "url": "https://github.com/ggml-org/llama.cpp",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
+      "reason": "Primary project evidence for local C/C++ inference, server mode, OpenAI-compatible API surface, quantization, GGUF model loading, and hardware backend range."
+    },
+    {
+      "name": "ONNX Runtime GenAI config and Python API documentation",
+      "url": "https://onnxruntime.ai/docs/genai/reference/config.html",
+      "secondary_urls": [
+        "https://onnxruntime.ai/docs/genai/api/python.html"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md",
+      "reason": "Primary ONNX Runtime GenAI evidence for model/runtime configuration, provider selection, KV-cache input/output naming, search controls, graph capture, and generation lifecycle APIs."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-1-verification.json"
+  ],
+  "link_probe_evidence": {
+    "method": "browser retrieval plus sandbox urllib HEAD probe",
+    "status": "partial_pass",
+    "notes": "The browser retrieval channel opened the official primary URLs during curation. A sandbox urllib HEAD probe for the same URLs failed with Temporary failure in name resolution, so shell-level link probes are recorded as blocked by DNS in this generator environment."
+  }
+}
