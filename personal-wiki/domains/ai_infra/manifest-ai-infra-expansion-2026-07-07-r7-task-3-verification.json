@@ -1,0 +1,208 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r7-task-3",
+  "run_id": "ai-infra-expansion-2026-07-07-r7",
+  "domain": "ai_infra",
+  "created_at": "2026-07-07T08:28:39Z",
+  "status": "verified",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/non-nvidia-platform-observability-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-verification.json"
+  ],
+  "duplicate_boundaries": [
+    {
+      "target": "evaluation-observability-reliability-infrastructure.md",
+      "result": "reused as the primary page for OpenTelemetry, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight; updated only with alerting/SLO and non-NVIDIA platform observability mechanics."
+    },
+    {
+      "target": "nccl-technical-blog-network-observability.md",
+      "result": "reused as duplicate boundary for NCCL Inspector, Prometheus/Grafana dashboards, RAS, NVBandwidth, Spectrum-X, and NVIDIA fabric observability; not edited."
+    },
+    {
+      "target": "inference-runtime-infrastructure.md",
+      "result": "reused as duplicate boundary for runtime metrics and SGLang/vLLM operational signals; not edited."
+    },
+    {
+      "target": "data-rag-pipeline-infrastructure.md",
+      "result": "reused as duplicate boundary for Langfuse RAG tracing and evaluation dataset versioning; not edited."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
+  ],
+  "new_external_sources": [
+    "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/non-nvidia-platform-observability-official-sources-20260707.md"
+  ],
+  "new_crawler_subscriptions": [],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard availability captured by orchestrator-owned live probes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness for current changed knowledge targets"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "loop dashboard visibility for current run, child tasks, agent actions, evaluator scenarios, and history"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search API returns current evaluation SLO, alerting, and non-NVIDIA observability targets"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "frontend proxy/user-visible search sees current evaluation SLO, alerting, and non-NVIDIA observability targets"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Rebuilt personal-wiki/domains/ai_infra/wiki/index.md; the index description for the evaluation page changed with the page frontmatter."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json and coverage-map.json satisfy harness schema and ai_infra coverage semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "gap-proof manifest parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-verification.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "verification manifest parses as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r7-task-3') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "gap-proof manifest passed harness_ai_infra_evidence validation for the current task."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Dirty path scope check allowed the declared ai_infra domain paths; there were no denied or manual-confirm paths."
+    },
+    {
+      "command": "raw source note structure and bounded-use check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Both new raw notes include Source, Captured Facts, Use In Wiki, concise/non-mirrored capture guidance, and anti-overclaim boundaries."
+    },
+    {
+      "command": "source visibility check for SLO, alert threshold, alert routing, evaluation reliability, benchmark environment, OpenTelemetry, Prometheus, Grafana, SGLang, NCCL, DCGM, Nsight, LangSmith, Phoenix, Ragas, and non-NVIDIA observability terms",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Curated pages, raw notes, and coverage state contain the required evaluation SLO, alerting, duplicate-boundary, and non-NVIDIA observability terms."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No credential, token, API-key, private-key, password, or secret assignment patterns in the 10 declared changed paths, including this verification manifest."
+    },
+    {
+      "command": "link probe or blocked/auth evidence for new evaluation SLO, alerting, benchmark, incident, postmortem, or non-NVIDIA observability primary sources",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Gap proof records web.open pass evidence for the eight official URLs cited by the two new raw notes and records Google TPU monitoring as skipped because the probe did not return reliable content."
+    },
+    {
+      "command": "supply-chain dependency gate",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No package, lockfile, pyproject, requirements, or other dependency files changed; dependency verification was not triggered."
+    },
+    {
+      "command": "code test gate",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No crawler backend, crawler frontend, loop dashboard, harness, or script code changed; code tests were not triggered."
+    },
+    {
+      "command": "Domain Channels evidence for crawler source subscriptions",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No new or changed crawler source subscription was added; new_crawler_subscriptions is empty."
+    },
+    {
+      "command": "live service, search API, frontend, and loop dashboard checks",
+      "status": "delegated",
+      "exit_code": 0,
+      "summary": "Per generator instructions, no localhost curl checks, tmux, uvicorn, npm, Vite, or other long-lived services were run. Manifest delegates service-availability, crawler-workbench-freshness, loop-dashboard-freshness, search-api-visibility, and frontend-visibility to orchestrator trusted-live-evidence artifacts."
+    },
+    {
+      "command": "run-dir read-only fallback for required evidence and generator result",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run directory is read-only in this environment; required_evidence_manifest is embedded in the final generator-result payload per task instruction."
+    }
+  ],
+  "residual_gaps": [
+    "Service-specific production SLO definitions with SLI target, window, owner, routing path, and observed production context.",
+    "Validated alert thresholds and escalation/routing ownership tied to actual LLM service behavior.",
+    "Production incident/postmortem evidence with impact, timeline, remediation, and follow-up ownership.",
+    "Benchmark environment manifests with captured local results and trace/profiling comparison artifacts.",
+    "TPU/XPU production observability and evaluation dataset retention/access audit run evidence beyond dataset versioning."
+  ],
+  "notes": "Live service checks were intentionally delegated per generator instructions; no commit was created and no commit field was filled by the generator. Run directory is read-only, so required_evidence_manifest and generator-result are returned in the final JSON payload instead of written there."
+}

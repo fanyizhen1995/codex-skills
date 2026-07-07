@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T07:48:26Z",
+  "last_scan_at": "2026-07-07T08:21:28Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "coverage_gaps": [],
@@ -307,6 +307,20 @@
         "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
         "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
+      ]
+    },
+    {
+      "id": "eval-slo-alerting-non-nvidia-observability-primary-sources",
+      "title": "Evaluation SLO, alerting, and non-NVIDIA platform observability sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T08:21:28Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/non-nvidia-platform-observability-official-sources-20260707.md"
       ]
     }
   ],

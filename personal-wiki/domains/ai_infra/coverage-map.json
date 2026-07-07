@@ -182,16 +182,18 @@
         "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/non-nvidia-platform-observability-official-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ],
       "candidate_gaps": [
-        "Add production SLO definitions, alert thresholds, incident/postmortem evidence, and alert routing sources for LLM platforms.",
+        "Add service-specific production SLO definitions, validated alert thresholds, routing/escalation ownership, and incident/postmortem evidence for LLM platforms; current Prometheus, Alertmanager, Grafana, and Grafana AI Observability notes cover mechanics, not production choices.",
         "Add benchmark environment manifests with captured local results and compare them with trace/profiling artifacts before promoting benchmark claims.",
-        "Add non-NVIDIA platform observability and retention/access audit evidence around evaluation datasets beyond Langfuse dataset versioning."
+        "Add TPU/XPU production observability and retention/access audit evidence around evaluation datasets beyond Langfuse dataset versioning."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T07:48:26Z",
-      "notes": "General eval-observability coverage includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation mechanics, and NVIDIA DCGM/Nsight platform telemetry/profiling. R7 task 2 adds adjacent Langfuse evaluation dataset governance through dataset items, metadata, source trace links, schema validation, and dataset versions that capture add/update/delete/archive operations. The layer remains partial because SLO, alerting, incident, benchmark-environment, non-NVIDIA platform, and evaluation dataset retention/access audit evidence are still thin."
+      "last_scanned_at": "2026-07-07T08:21:28Z",
+      "notes": "General eval-observability coverage includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation mechanics, NVIDIA DCGM/Nsight platform telemetry/profiling, and adjacent Langfuse evaluation dataset governance from r7 task 2. R7 task 3 adds bounded SLO and alerting mechanics from Prometheus alerting rules, Alertmanager routing, Grafana notification policies, Grafana SLOs, and Grafana AI Observability LLM metrics/alert examples, plus non-NVIDIA platform observability mechanics from AMD Device Metrics Exporter, ROCm/AMD SMI, and Intel Gaudi Prometheus Metric Exporter. The layer remains partial because local sources do not prove service-specific production SLOs, validated alert thresholds, routing ownership, incidents/postmortems, benchmark environment manifests with local results, TPU/XPU production observability, or evaluation dataset retention/access audit runs."
     },
     "security-governance-cost": {
       "status": "partial",
