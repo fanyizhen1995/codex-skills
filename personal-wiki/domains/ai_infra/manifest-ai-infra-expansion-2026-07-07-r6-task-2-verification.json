@@ -1,0 +1,185 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r6-task-2",
+  "status": "pass",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-2-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/apache-airflow-workflow-scheduling-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/apache-iceberg-table-governance-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/dagster-assets-runs-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/delta-lake-table-lifecycle-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kafka-connect-streams-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/prefect-flow-task-scheduling-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md"
+  ],
+  "validation_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Index command completed and wrote personal-wiki/domains/ai_infra/wiki/index.md; Data RAG Pipeline Infrastructure now advertises workflow orchestration and table lifecycle coverage."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json validate and pass ai_infra coverage-map semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-2-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "Gap-proof JSON parsed successfully."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r6-task-2') ... PY",
+      "status": "pass",
+      "summary": "Gap proof validator returned no findings."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No tracked diff whitespace errors reported."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-2-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "Task-2 verification manifest parsed successfully."
+    },
+    {
+      "command": "autonomous scope check over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "All 16 changed/untracked domain paths matched planner allowed_paths and none matched planner denylist_paths.",
+      "details": {
+        "allowed": true,
+        "denied_paths": [],
+        "manual_confirm_paths": [],
+        "findings": []
+      }
+    },
+    {
+      "command": "targeted sensitive-pattern scan over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "No assignment-like API key, token, credential, password, authorization, bearer, or secret patterns found across 16 changed/untracked domain paths.",
+      "findings": []
+    },
+    {
+      "command": "custom whitespace scan over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "No trailing whitespace found across 16 changed/untracked domain paths.",
+      "findings": []
+    },
+    {
+      "command": "source visibility check for data/RAG workflow and table lifecycle terms",
+      "status": "pass",
+      "summary": "Curated pages and index contain expected terms for Kafka Connect, Kafka Streams, Airflow, Dagster, Prefect, Iceberg, Delta Lake, Hudi, table lifecycle, retention, and source-to-vector deletion."
+    },
+    {
+      "command": "link probe or blocked/auth evidence for new data/RAG workflow, Kafka, table-format, deletion, retention, or governance primary sources",
+      "status": "pass",
+      "summary": "Official primary-source URLs for Kafka, Airflow, Dagster, Prefect, Iceberg, Delta Lake, and Hudi were selected through browser-tool source opening; the restricted exec environment recorded concrete blocked evidence when curl could not resolve kafka.apache.org.",
+      "details": {
+        "browser_tool_opened_sources": [
+          "https://kafka.apache.org/documentation/",
+          "https://kafka.apache.org/documentation/streams/",
+          "https://kafka.apache.org/43/documentation.html#connect",
+          "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dags.html",
+          "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/tasks.html",
+          "https://docs.dagster.io/guides/build/assets/",
+          "https://docs.dagster.io/guides/operate/schedules/",
+          "https://docs.prefect.io/v3/concepts/flows",
+          "https://docs.prefect.io/v3/concepts/deployments",
+          "https://iceberg.apache.org/docs/latest/",
+          "https://iceberg.apache.org/docs/latest/evolution/",
+          "https://iceberg.apache.org/docs/latest/maintenance/",
+          "https://docs.delta.io/latest/index.html",
+          "https://docs.delta.io/latest/delta-utility.html",
+          "https://docs.delta.io/latest/delta-batch.html",
+          "https://hudi.apache.org/docs/overview/",
+          "https://hudi.apache.org/docs/table_types/",
+          "https://hudi.apache.org/docs/schema_evolution/",
+          "https://hudi.apache.org/docs/cleaning/"
+        ],
+        "blocked_or_auth_sources": [
+          {
+            "url": "https://kafka.apache.org/documentation/",
+            "status": "blocked",
+            "evidence": "curl -L --max-time 12 -I https://kafka.apache.org/documentation/ failed with 'Could not resolve host: kafka.apache.org' in the restricted exec environment."
+          }
+        ]
+      }
+    }
+  ],
+  "delegated_live_checks": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler backend, crawler frontend, and loop dashboard respond with pass-like HTTP status during this round"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler workbench API freshness covers sources, channels, queue, wiki, and search dimensions for the new data/RAG workflow and table-governance knowledge targets"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "loop dashboard binds the current run, child tasks, agent actions, evaluator scenarios, and completed history to this worktree/run"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "search API can find Data RAG Pipeline Infrastructure using current body terms such as Kafka Connect, Kafka Streams, Airflow, Dagster, Prefect, Iceberg, Delta Lake, Hudi, retention, and source-to-vector deletion"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler workbench frontend exposes the updated wiki/search content for Data RAG Pipeline Infrastructure and table lifecycle source terms"
+    }
+  ],
+  "dependency_changes": {
+    "status": "not_applicable",
+    "summary": "No requirements, package, lockfile, or dependency metadata changed.",
+    "dependency_paths": []
+  },
+  "code_changes": {
+    "status": "not_applicable",
+    "summary": "No crawler backend/frontend, loop dashboard, harness, or executable code changed; code test evidence is not required beyond unchanged-code note."
+  },
+  "domain_channels": {
+    "status": "not_applicable",
+    "summary": "No crawler source subscription or domain channel configuration changed."
+  },
+  "commit": {
+    "status": "delegated_to_orchestrator",
+    "summary": "Generator did not run git commit and leaves generator-result commit empty as requested."
+  },
+  "no_action_evidence": {
+    "status": "not_applicable",
+    "summary": "Generator status is implemented; this is not a stopped_no_action task."
+  }
+}

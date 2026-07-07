@@ -149,6 +149,24 @@
       ]
     },
     {
+      "id": "data-rag-workflow-table-governance-primary-sources",
+      "title": "Kafka, workflow scheduler, and table-format lifecycle sources for RAG data pipelines",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T05:37:19Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/kafka-connect-streams-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-airflow-workflow-scheduling-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/dagster-assets-runs-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/prefect-flow-task-scheduling-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-iceberg-table-governance-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/delta-lake-table-lifecycle-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md"
+      ]
+    },
+    {
       "id": "inference-runtime-official-primary-sources",
       "title": "vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, and TensorRT runtime sources",
       "source": "local wiki/raw",

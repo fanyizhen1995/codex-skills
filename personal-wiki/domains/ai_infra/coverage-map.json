@@ -111,15 +111,22 @@
         "personal-wiki/domains/ai_infra/raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md"
+        "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kafka-connect-streams-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-airflow-workflow-scheduling-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/dagster-assets-runs-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/prefect-flow-task-scheduling-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-iceberg-table-governance-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/delta-lake-table-lifecycle-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md"
       ],
       "candidate_gaps": [
-        "Add direct Kafka Connect or Kafka Streams primary-source coverage, Airflow/Dagster/Prefect orchestration evidence, object-store table-format governance, deletion and retention propagation, and embedding model/version drift policies.",
-        "Add retrieval-quality alerting, production incident evidence, access policy, tenant isolation, PII controls, and cost attribution for RAG data pipelines."
+        "Add source-to-vector deletion and retention propagation evidence that proves table deletes, retention, and cleanup events are reflected in embedding stores, vector indexes, caches, and evaluation datasets.",
+        "Add embedding model/version drift policies, retrieval-quality alerting, production incident evidence, access policy, tenant isolation, PII controls, and cost attribution for RAG data pipelines."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T00:45:00Z",
-      "notes": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official source notes provide primary coverage for vector database architecture, index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk placement, and embedding-index lifecycle. Data RAG Pipeline Infrastructure now adds source-backed coverage for Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, Hugging Face Text Embeddings Inference worker boundaries, DataHub/OpenLineage metadata lineage, and Langfuse RAG traces/evaluation. The layer remains partial because direct Kafka pipeline docs, workflow scheduler evidence, deletion/retention propagation, embedding drift policy, retrieval-quality alerting, and RAG incident evidence remain thin."
+      "last_scanned_at": "2026-07-07T05:37:19Z",
+      "notes": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official source notes provide primary coverage for vector database architecture, index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk placement, and embedding-index lifecycle. Data RAG Pipeline Infrastructure now adds source-backed coverage for Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, Kafka Connect/Streams connector and stream-processor boundaries, Airflow/Dagster/Prefect workflow scheduling, Hugging Face Text Embeddings Inference worker boundaries, DataHub/OpenLineage metadata lineage, Iceberg/Delta/Hudi table lifecycle controls, and Langfuse RAG traces/evaluation. The layer remains partial because source-to-vector deletion/retention propagation, embedding drift policy, retrieval-quality alerting, RAG access policy/PII controls, cost attribution, and incident evidence remain thin."
     },
     "eval-observability-reliability": {
       "status": "partial",
