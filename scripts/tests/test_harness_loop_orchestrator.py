@@ -6996,6 +6996,120 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 self.assertEqual(child["phase"], "passed")
                 self.assertEqual(child["parent_run_id"], "parent-run")
 
+    def test_run_demand_multi_codex_exec_runs_parent_child_and_evaluator_without_real_codex(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root, "codex-parent")
+            agent_calls: list[tuple[str, str, int]] = []
+            evaluator_commands: list[list[str]] = []
+
+            def write_agent_output(**kwargs: object) -> dict[str, object]:
+                role = str(kwargs["role"])
+                run_id = str(kwargs["run_id"])
+                output_path = Path(str(kwargs["output_json_path"]))
+                agent_calls.append((role, run_id, int(kwargs["attempt"])))
+                if role == "planner":
+                    write_json_file(
+                        output_path,
+                        {
+                            "task_id": "codex-parent-task",
+                            "policy": "demand_development",
+                            "task_kind": "registered_task",
+                            "title": "Codex demand parent planner",
+                            "goal": "Build multi child feature",
+                            "non_goals": [],
+                            "allowed_paths": [],
+                            "denylist_paths": [],
+                            "verify_commands": [],
+                            "evaluator_scenarios_path": "",
+                            "stop_conditions": [
+                                "passed_waiting_human_merge",
+                                "stopped_blocked",
+                                "stopped_budget",
+                            ],
+                            "next_planning_hint": "",
+                            "backlog": [],
+                            "planner_decision": "next_child",
+                            "next_child_task": {
+                                "child_id": "child-001",
+                                "title": "Codex child 1",
+                                "description": "Implement codex child 1",
+                                "allowed_paths": ["generated/codex-child-001.txt"],
+                                "denylist_paths": [".env"],
+                                "verify_commands": [],
+                                "scenario_commands": [],
+                                "done_criteria": ["codex child passes evaluator"],
+                            },
+                            "blocked_reason": "",
+                            "done_criteria": [],
+                            "reader_summary": {
+                                "purpose": "Build multi child feature",
+                                "current_progress": "0 children passed",
+                                "next_step": "Run codex child",
+                                "decision_needed": "No",
+                            },
+                            "decision_required": False,
+                        },
+                    )
+                elif role == "generator":
+                    generated_path = repo_root / "generated" / "codex-child-001.txt"
+                    generated_path.parent.mkdir(parents=True, exist_ok=True)
+                    generated_path.write_text("codex child\n", encoding="utf-8")
+                    write_json_file(
+                        output_path,
+                        {
+                            "task_id": "codex-parent-child-001-task",
+                            "status": "implemented",
+                            "changed_paths": ["generated/codex-child-001.txt"],
+                            "commit": "",
+                            "verify_commands": [],
+                            "verify_results": [{"command": "codex child verification", "status": "pass"}],
+                            "artifacts": [],
+                            "cleanup_required": False,
+                            "notes": "codex demand child generated",
+                        },
+                    )
+                else:
+                    self.fail(f"unexpected codex prompt role: {role}")
+                return {"status": "pass", "run_id": run_id, "role": role, "attempt": int(kwargs["attempt"])}
+
+            def fake_command_runner(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+                if command[:2] == ["git", "status"]:
+                    return subprocess.CompletedProcess(command, 128, "", "")
+                evaluator_commands.append(command)
+                self.assertIn("run-task-auto-gate", command)
+                self.assertIn("--driver", command)
+                self.assertIn("codex-exec", command)
+                self.assertIn("--task-contract", command)
+                return subprocess.CompletedProcess(command, 0, "codex evaluator pass\n", "")
+
+            with (
+                patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=write_agent_output),
+                patch("scripts.harness_loop_orchestrator.subprocess.run", side_effect=fake_command_runner),
+            ):
+                payload = run_demand_multi(
+                    repo_root=repo_root,
+                    run_id="codex-parent",
+                    planner_driver="codex-exec",
+                    generator_driver="codex-exec",
+                    evaluator_driver="codex-exec",
+                    max_eval_attempts=2,
+                    max_children=1,
+                )
+
+            parent = read_json_file(run_dir_for(repo_root, "codex-parent") / "run.json")
+            child_run_id = parent["child_run_ids"][0]
+            child = read_json_file(run_dir_for(repo_root, child_run_id) / "run.json")
+            evaluator_result = read_json_file(run_dir_for(repo_root, child_run_id) / "evaluator-result.json")
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
+            self.assertEqual(parent["aggregate_acceptance"]["passed"], 1)
+            self.assertEqual(parent["aggregate_acceptance"]["pending"], 0)
+            self.assertEqual(parent["accepted_changed_paths"], ["generated/codex-child-001.txt"])
+            self.assertEqual(child["phase"], "passed")
+            self.assertEqual(evaluator_result["driver"], "codex-exec")
+            self.assertEqual(agent_calls, [("planner", "codex-parent", 1), ("generator", child_run_id, 1)])
+            self.assertEqual(len(evaluator_commands), 1)
+
     def test_run_demand_multi_fake_in_git_repo_ignores_previous_child_internal_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

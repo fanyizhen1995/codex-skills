@@ -40,6 +40,15 @@ keeps planning until no-action, budget, or blocked stop conditions apply.
   `stopped_budget`, or `stopped_blocked`.
   It accepts fake drivers for smoke tests and `codex-exec` drivers for real
   planner, generator, and evaluator agent calls.
+- `run-demand-multi` executes a parent demand-development loop. The parent
+  planner emits `planner_decision` and `next_child_task`; each child writes its
+  own `planner-output.json`, `task-contract.json`, `generator-result.json`,
+  and `evaluator-result.json`; passed children use `phase=passed`, then the
+  parent planner continues until the parent reaches
+  `passed_waiting_human_merge`, `stopped_budget`, or `stopped_blocked`.
+  It accepts fake drivers for deterministic smoke tests and `codex-exec`
+  drivers for real parent planner, child generator, and evaluator auto-gate
+  calls.
 
 ## Commands
 
@@ -65,6 +74,27 @@ python3 scripts/harness_loop_orchestrator.py status \
   --repo-root . \
   --run-id smoke-phase-1
 ```
+
+For multi-child demand development, start with a confirmed
+`demand-development` preflight and run the parent/child loop:
+
+```bash
+python3 scripts/harness_loop_orchestrator.py run-demand-multi \
+  --repo-root . \
+  --run-id <run-id> \
+  --planner-driver codex-exec \
+  --generator-driver codex-exec \
+  --evaluator-driver codex-exec \
+  --max-children 3 \
+  --max-eval-attempts 2
+```
+
+The `codex-exec` parent planner must write a planner payload that satisfies
+`validate_planner_output_payload` and includes the multi-task fields:
+`planner_decision`, `next_child_task`, `backlog`, `blocked_reason`,
+`done_criteria`, `reader_summary`, and `decision_required`. A passing child
+does not wait for human merge by itself; the child returns `phase=passed` and
+the parent records accepted changed paths before planning the next child.
 
 For expanded autonomous knowledge runs, point `preflight` at a repo-relative
 policy fixture. The fixture must stay inside the repository, be JSON, and

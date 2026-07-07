@@ -279,6 +279,7 @@ def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dic
     expected_paths = {
         f".codex/loop-runs/{parent_run_id}/events.jsonl",
         f".codex/loop-runs/{parent_run_id}/planner-output.json",
+        f".codex/loop-runs/{parent_run_id}/planner-prompt.md",
         f".codex/loop-runs/{parent_run_id}/preflight.md",
         f".codex/loop-runs/{parent_run_id}/run.json",
     }
@@ -288,6 +289,7 @@ def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dic
                 f".codex/loop-runs/{child_run_id}/events.jsonl",
                 f".codex/loop-runs/{child_run_id}/evaluator-result.json",
                 f".codex/loop-runs/{child_run_id}/generator-result.json",
+                f".codex/loop-runs/{child_run_id}/generator-prompt.md",
                 f".codex/loop-runs/{child_run_id}/planner-output.json",
                 f".codex/loop-runs/{child_run_id}/run.json",
                 f".codex/loop-runs/{child_run_id}/task-contract.json",
@@ -1013,6 +1015,8 @@ def _apply_evaluator_result_to_run(
     passed = evaluator_payload["returncode"] == 0 and evaluator_payload["status"] == "pass"
     if has_artifacts:
         run["phase"] = "artifact_hygiene"
+    elif passed and run.get("run_kind") == "child":
+        run["phase"] = "passed"
     elif passed:
         run["phase"] = "passed_waiting_human_merge"
     else:
@@ -1026,6 +1030,8 @@ def _apply_evaluator_result_to_run(
     )
     if has_artifacts:
         run["next_action"] = "run_artifact_hygiene"
+    elif passed and run.get("run_kind") == "child":
+        run["next_action"] = "return_to_parent_planner"
     elif passed:
         run["next_action"] = "await_human_merge_confirmation"
     else:
@@ -1584,6 +1590,212 @@ def _run_fake_demand_child(
         return
 
 
+def _demand_parent_planner_prompt(parent: dict[str, Any]) -> str:
+    run_id = str(parent["run_id"])
+    output_path = f".codex/loop-runs/{run_id}/planner-output.json"
+    return "\n".join(
+        [
+            "Demand-development parent planner agent task.",
+            f"Write {output_path} only.",
+            "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
+            "Include the multi-task planner fields: planner_decision, next_child_task, backlog, blocked_reason, done_criteria, reader_summary, and decision_required.",
+            "Use planner_decision=next_child when another child task is actionable.",
+            "Use planner_decision=parent_done only when the whole demand is complete and ready for human merge.",
+            "Use planner_decision=blocked or failed when no safe automated next step exists.",
+            f"Run ID: {run_id}",
+            f"Requirement: {parent.get('requirement', '')}",
+            f"Current child run IDs: {json.dumps(parent.get('child_run_ids', []), ensure_ascii=False)}",
+            f"Aggregate acceptance: {json.dumps(parent.get('aggregate_acceptance', {}), ensure_ascii=False, sort_keys=True)}",
+            f"Backlog: {json.dumps(parent.get('backlog', []), ensure_ascii=False, sort_keys=True)}",
+            "",
+        ]
+    )
+
+
+def _run_codex_demand_parent_planner(repo_root: Path, parent: dict[str, Any]) -> dict[str, Any]:
+    run_id = str(parent["run_id"])
+    run_dir = run_dir_for(repo_root, run_id)
+    output_path = run_dir / "planner-output.json"
+    prompt_path = run_dir / "planner-prompt.md"
+    prompt_path.write_text(_demand_parent_planner_prompt(parent), encoding="utf-8")
+    output_path.unlink(missing_ok=True)
+    attempt = int(parent["attempts"]["planner"]) + 1
+    attempt_payload = run_codex_prompt(
+        role="planner",
+        run_id=run_id,
+        repo_root=repo_root,
+        run_dir=run_dir,
+        prompt_path=prompt_path,
+        output_json_path=output_path,
+        attempt=attempt,
+        timeout_seconds=int(parent["limits"]["agent_timeout_minutes"]) * 60,
+    )
+    parent["attempts"]["planner"] = attempt
+    save_run(repo_root, parent)
+    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+        status = attempt_payload.get("status") if isinstance(attempt_payload, dict) else type(attempt_payload).__name__
+        raise RuntimeError(f"demand parent planner codex-exec attempt failed with status {status}")
+    planner_payload = read_json_file(output_path)
+    validate_planner_output_payload(planner_payload)
+    return planner_payload
+
+
+def _run_demand_parent_planner(
+    repo_root: Path,
+    parent: dict[str, Any],
+    *,
+    planner_driver: str,
+    max_children: int,
+) -> dict[str, Any]:
+    if planner_driver == "codex-exec":
+        return _run_codex_demand_parent_planner(repo_root, parent)
+
+    decision = {"fake-blocked": "blocked", "fake-failed": "failed"}.get(planner_driver, "next_child")
+    planner_payload = _fake_parent_planner_payload(parent, decision=decision, max_children=max_children)
+    validate_planner_output_payload(planner_payload)
+    write_json_file(run_dir_for(repo_root, str(parent["run_id"])) / "planner-output.json", planner_payload)
+    parent["attempts"]["planner"] = int(parent["attempts"]["planner"]) + 1
+    save_run(repo_root, parent)
+    return planner_payload
+
+
+def _complete_passed_demand_child(
+    repo_root: Path,
+    parent: dict[str, Any],
+    child: dict[str, Any],
+    generator_payload: dict[str, Any],
+    *,
+    evaluator_action: str,
+) -> None:
+    child["phase"] = "passed"
+    child["last_result"] = "pass"
+    child["next_action"] = "return_to_parent_planner"
+    child["reader_summary"]["evaluator_action"] = evaluator_action
+    child["reader_summary"]["acceptance_result"] = "Passed"
+    save_run(repo_root, child)
+    append_loop_event(
+        repo_root,
+        run_id=child["run_id"],
+        parent_run_id=parent["run_id"],
+        child_id=f"child-{int(child['child_index']):03d}",
+        actor="evaluator",
+        event_type="evaluate",
+        summary="Evaluator passed child",
+    )
+
+    parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    parent["accepted_changed_paths"] = sorted(set(parent["accepted_changed_paths"] + generator_payload["changed_paths"]))
+    parent["aggregate_acceptance"]["passed"] = int(parent["aggregate_acceptance"]["passed"]) + 1
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
+    parent["current_child_run_id"] = child["run_id"]
+    parent["phase"] = "planning"
+    parent["next_action"] = "run_parent_planner"
+    parent["reader_summary"]["current_progress"] = f"{parent['aggregate_acceptance']['passed']} children passed"
+    parent["reader_summary"]["next_step"] = "Run parent planner"
+    parent["reader_summary"]["decision_needed"] = "No"
+    save_run(repo_root, parent)
+
+
+def _run_codex_demand_child(
+    repo_root: Path,
+    parent: dict[str, Any],
+    child: dict[str, Any],
+    *,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+) -> None:
+    child_index = int(child["child_index"])
+    parent_for_dirty = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    planned_paths = sorted(set(str(path) for path in child.get("allowed_paths", [])))
+    baseline_overlap = _baseline_dirty_overlap(parent_for_dirty, planned_paths)
+    if baseline_overlap:
+        reason = f"baseline dirty path overlaps child allowed paths: {', '.join(baseline_overlap)}"
+        _block_child(repo_root, child, reason)
+        _block_parent(repo_root, parent_for_dirty, reason)
+        return
+
+    try:
+        run_generator(repo_root, child["run_id"], driver="codex-exec")
+    except (OSError, RuntimeError, ValueError) as exc:
+        reason = f"child {child_index} generator failed: {exc}"
+        _block_child(repo_root, child, reason, actor="generator")
+        _block_parent(repo_root, parent_for_dirty, reason, actor="generator")
+        return
+
+    child = load_run(repo_root, child["run_id"])
+    generator_payload = read_json_file(run_dir_for(repo_root, child["run_id"]) / "generator-result.json")
+    validate_generator_result_payload(generator_payload)
+    child["reader_summary"]["generator_action"] = "Codex generator wrote generator-result.json"
+    save_run(repo_root, child)
+    append_loop_event(
+        repo_root,
+        run_id=child["run_id"],
+        parent_run_id=parent["run_id"],
+        child_id=f"child-{child_index:03d}",
+        actor="generator",
+        event_type="implement",
+        summary="Codex generator completed child implementation",
+        artifact_paths=list(generator_payload["changed_paths"]),
+    )
+
+    parent_for_dirty = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    unexpected_dirty = _dirty_paths_after_baseline(repo_root, parent_for_dirty, child)
+    if unexpected_dirty:
+        reason = f"unexpected dirty path: {', '.join(unexpected_dirty)}"
+        _block_child(repo_root, child, reason)
+        _block_parent(repo_root, parent_for_dirty, reason)
+        return
+
+    try:
+        run_evaluator(repo_root, child["run_id"], driver=evaluator_driver, max_attempts=max_eval_attempts)
+    except (OSError, RuntimeError, ValueError) as exc:
+        reason = f"child {child_index} evaluator failed: {exc}"
+        _block_child(repo_root, child, reason, actor="evaluator")
+        _block_parent(repo_root, parent_for_dirty, reason, actor="evaluator")
+        return
+
+    child = load_run(repo_root, child["run_id"])
+    evaluator_payload = read_json_file(run_dir_for(repo_root, child["run_id"]) / "evaluator-result.json")
+    validate_evaluator_result_payload(evaluator_payload)
+    if evaluator_payload["status"] == "pass" and int(evaluator_payload["returncode"]) == 0:
+        _complete_passed_demand_child(
+            repo_root,
+            parent,
+            child,
+            generator_payload,
+            evaluator_action=f"{evaluator_driver} evaluator passed",
+        )
+        return
+
+    child["phase"] = "repair_needed"
+    child["last_result"] = "fail" if evaluator_payload["status"] == "fail" else "blocked"
+    child["next_action"] = "repair_child"
+    child["reader_summary"]["evaluator_action"] = f"{evaluator_driver} evaluator did not pass"
+    child["reader_summary"]["acceptance_result"] = "Repair needed"
+    save_run(repo_root, child)
+    parent = _ensure_parent_fields(load_run(repo_root, parent["run_id"]))
+    parent["phase"] = "stopped_blocked"
+    parent["last_result"] = "blocked"
+    parent["next_action"] = "inspect_child_evaluator_attempts"
+    parent["aggregate_acceptance"]["blocked"] = int(parent["aggregate_acceptance"]["blocked"]) + 1
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
+    parent["aggregate_acceptance"]["user_decision_required"] = True
+    parent["reader_summary"]["current_progress"] = f"Child {child_index} evaluator failed"
+    parent["reader_summary"]["next_step"] = "Inspect child evaluator attempts"
+    parent["reader_summary"]["decision_needed"] = "Yes"
+    save_run(repo_root, parent)
+    append_loop_event(
+        repo_root,
+        run_id=parent["run_id"],
+        actor="evaluator",
+        event_type="blocked",
+        summary=f"Evaluator failed child {child_index}",
+        child_id=f"child-{child_index:03d}",
+        details={"child_run_id": child["run_id"], "status": evaluator_payload["status"]},
+    )
+
+
 def run_demand_multi(
     repo_root: Path | str,
     run_id: str,
@@ -1604,8 +1816,8 @@ def run_demand_multi(
         raise RuntimeError("run_demand_multi requires confirmed preflight")
     if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
         return status_for_run(root, run_id)
-    if planner_driver not in {"fake", "fake-blocked", "fake-failed"}:
-        raise ValueError("run_demand_multi initially supports fake planner drivers")
+    if planner_driver not in {"fake", "fake-blocked", "fake-failed", "codex-exec"}:
+        raise ValueError("unsupported demand multi planner driver")
     if generator_driver not in {
         "fake",
         "fake-fail-child-2-once",
@@ -1614,10 +1826,13 @@ def run_demand_multi(
         "fake-invalid-json",
         "fake-missing-artifact",
         "fake-stop-after-child-1",
+        "codex-exec",
     }:
-        raise ValueError("run_demand_multi initially supports fake generator drivers")
-    if evaluator_driver != "fake":
-        raise ValueError("run_demand_multi initially supports fake evaluator driver")
+        raise ValueError("unsupported demand multi generator driver")
+    if evaluator_driver not in {"fake", "codex-exec"}:
+        raise ValueError("unsupported demand multi evaluator driver")
+    if generator_driver != "codex-exec" and evaluator_driver != "fake":
+        raise ValueError("codex-exec demand multi evaluator requires codex-exec generator")
 
     while True:
         parent = _ensure_parent_fields(load_run(root, run_id))
@@ -1700,11 +1915,13 @@ def run_demand_multi(
             )
             return status_for_run(root, run_id)
 
-        decision = {"fake-blocked": "blocked", "fake-failed": "failed"}.get(planner_driver, "next_child")
-        planner_payload = _fake_parent_planner_payload(parent, decision=decision, max_children=max_children)
-        validate_planner_output_payload(planner_payload)
-        write_json_file(run_dir_for(root, run_id) / "planner-output.json", planner_payload)
-        parent["attempts"]["planner"] = int(parent["attempts"]["planner"]) + 1
+        planner_payload = _run_demand_parent_planner(
+            root,
+            parent,
+            planner_driver=planner_driver,
+            max_children=max_children,
+        )
+        parent = _ensure_parent_fields(load_run(root, run_id))
         parent["reader_summary"] = planner_payload["reader_summary"]
 
         if planner_payload["planner_decision"] in {"blocked", "failed"}:
@@ -1748,13 +1965,22 @@ def run_demand_multi(
         parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
         save_run(root, parent)
 
-        _run_fake_demand_child(
-            root,
-            parent,
-            child,
-            generator_driver=generator_driver,
-            max_eval_attempts=max_eval_attempts,
-        )
+        if generator_driver == "codex-exec":
+            _run_codex_demand_child(
+                root,
+                parent,
+                child,
+                evaluator_driver=evaluator_driver,
+                max_eval_attempts=max_eval_attempts,
+            )
+        else:
+            _run_fake_demand_child(
+                root,
+                parent,
+                child,
+                generator_driver=generator_driver,
+                max_eval_attempts=max_eval_attempts,
+            )
         parent_after_child = load_run(root, run_id)
         if parent_after_child["phase"] in {"stopped_blocked", "stopped_budget"}:
             return status_for_run(root, run_id)
