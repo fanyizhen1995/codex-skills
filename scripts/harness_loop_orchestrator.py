@@ -2415,6 +2415,10 @@ def _completed_autonomous_task_count(run: Mapping[str, Any]) -> int:
     return len(_completed_autonomous_task_ids(run))
 
 
+def _next_autonomous_task_number(run: Mapping[str, Any]) -> int:
+    return _completed_autonomous_task_count(run) + 1
+
+
 def _record_completed_autonomous_task(run: dict[str, Any]) -> None:
     task_id = str(run.get("task_id", "")).strip()
     if not task_id:
@@ -4092,7 +4096,7 @@ def run_autonomous(
             raise RuntimeError(f"run_autonomous unsupported phase {run['phase']}")
 
         if run["phase"] == "planning":
-            task_number = int(run["attempts"]["generator"]) + 1
+            task_number = _next_autonomous_task_number(run)
             if planner_driver != "fake" and _stop_if_autonomous_no_action(root, run):
                 return status_for_run(root, run_id)
             if planner_driver == "fake":
@@ -4124,7 +4128,7 @@ def run_autonomous(
                 if generator_result is None:
                     continue
             else:
-                task_number = int(run["attempts"]["generator"]) + 1
+                task_number = _next_autonomous_task_number(run)
                 _write_fake_autonomous_generator_result(
                     root,
                     run,

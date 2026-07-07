@@ -1379,6 +1379,63 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(planner_output["task_id"], "demo-run-task-1")
             self.assertEqual(planner_output["policy"], "autonomous_knowledge")
 
+    def test_run_autonomous_next_task_number_ignores_generator_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "planning"
+            run["next_action"] = "run_autonomous_planner"
+            run["task_id"] = "demo-run-task-1"
+            run["attempts"]["generator"] = 2
+            run["_autonomous_completed_task_ids"] = ["demo-run-task-1"]
+            write_json_file(run_dir / "run.json", run)
+
+            def timeout_planner(**kwargs: object) -> dict[str, object]:
+                return {
+                    "status": "timeout",
+                    "run_id": "demo-run",
+                    "role": "planner",
+                    "attempt": int(kwargs["attempt"]),
+                }
+
+            with patch("scripts.harness_loop_orchestrator.run_codex_prompt", side_effect=timeout_planner):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="codex-exec",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=2,
+                )
+
+            self.assertEqual(status["phase"], "stopped_budget")
+            planner_output = read_json_file(run_dir / "planner-output.json")
+            self.assertEqual(planner_output["task_id"], "demo-run-task-2")
+            self.assertTrue(
+                (
+                    repo_root
+                    / "personal-wiki/domains/ai_infra/raw/loop-autonomous/demo-run-task-2.md"
+                ).exists()
+            )
+            self.assertFalse(
+                (
+                    repo_root
+                    / "personal-wiki/domains/ai_infra/raw/loop-autonomous/demo-run-task-3.md"
+                ).exists()
+            )
+
     def test_run_autonomous_generator_retry_limit_is_per_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
