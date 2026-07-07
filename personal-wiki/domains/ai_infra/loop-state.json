@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T06:13:47Z",
+  "last_scan_at": "2026-07-07T07:06:03Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "coverage_gaps": [],
@@ -263,6 +263,34 @@
         "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz",
         "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
         "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json"
+      ]
+    },
+    {
+      "id": "inference-runtime-production-operations-evidence",
+      "title": "Inference runtime production operations evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T07:06:03Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
       ]
     }
   ],

@@ -1,0 +1,176 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r7-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r7",
+  "domain": "ai_infra",
+  "created_at": "2026-07-07T07:06:03Z",
+  "status": "verified",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md"
+  ],
+  "duplicate_boundaries": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "duplicate boundary for core runtime mechanics; updated only with operations-specific local evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+      "result": "duplicate boundary for corpus scope and caveats; added selected item-level operational leads without changing API corpus counts."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md and runtime official notes",
+      "result": "duplicate boundary for design/source mechanics; not repeated as production operations evidence."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json",
+    "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+    "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
+  ],
+  "new_external_sources": [],
+  "new_crawler_subscriptions": [],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard availability captured by orchestrator-owned live probes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness for current changed knowledge targets"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "loop dashboard visibility for current run, agent actions, evaluator logs, and history"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search API returns current inference-runtime operational targets"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "frontend proxy/user-visible search sees current inference-runtime operational targets"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Rebuilt personal-wiki/domains/ai_infra/wiki/index.md; no additional index diff remained."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json and coverage-map.json satisfy harness schema and ai_infra layer semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "gap-proof manifest parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-verification.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "verification manifest parses as JSON after recording command results."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r7-task-1') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "gap-proof manifest passed harness_ai_infra_evidence validation for the current task."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 1,
+      "summary": "rg found no credential, token, API-key, private-key, password, or secret assignment patterns in changed files."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Dirty path check allowed the eight declared ai_infra domain paths; there were no baseline or unexpected paths."
+    },
+    {
+      "command": "source visibility check for inference-runtime operational terms",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Curated pages and coverage state contain PegaFlow, external KV, abort_request, router_reason, Mooncake, HiCache, DeepGEMM, KV-event, profiling, weight-sync, pause/resume, and DPEP terms."
+    },
+    {
+      "command": "link probe or blocked/auth evidence for new inference-runtime primary source",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No new external primary-source capture was selected; local raw evidence was sufficient and the gap proof records this policy decision."
+    },
+    {
+      "command": "Domain Channels evidence for crawler source subscriptions",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No new or changed crawler source subscription was added; new_crawler_subscriptions is empty."
+    },
+    {
+      "command": "code/dependency test gate",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No crawler, harness, frontend, backend, package, lockfile, or dependency files changed; code and supply-chain test gates are not triggered."
+    },
+    {
+      "command": "live service, search API, frontend, and loop dashboard checks",
+      "status": "delegated",
+      "exit_code": 0,
+      "summary": "Per generator instructions, no localhost curl checks or long-lived services were run. Manifest delegates service-availability, crawler-workbench-freshness, loop-dashboard-freshness, search-api-visibility, and frontend-visibility to orchestrator trusted-live-evidence artifacts."
+    }
+  ],
+  "notes": "Live service checks were intentionally delegated per generator instructions; no tmux, uvicorn, npm, Vite, or curl live checks were run by the generator."
+}

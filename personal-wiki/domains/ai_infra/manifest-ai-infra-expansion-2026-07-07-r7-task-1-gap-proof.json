@@ -1,0 +1,73 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r7-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r7",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "Inference-runtime production operations evidence from local vLLM and SGLang sources",
+    "source_type": "local_raw_corpus",
+    "identity_key": "local:ai_infra:inference-runtime-production-ops:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "cd75cc5",
+    "checked_at": "2026-07-07T07:06:03Z"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Checked local vLLM captures, SGLang scheduled crawler manifest, SGLang API summary/index, and selected page snapshots for router, admission, rollout, benchmark, tracing, observability, incident, external KV cache, PegaFlow, abort_request, model-gateway, disaggregation, warmup, and regression terms.",
+    "wiki_search": "Existing Inference Runtime Infrastructure covered core vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, TensorRT, and basic PegaFlow/vLLM RL mechanics, but did not promote router abort observability, PD/Mooncake failure handling, warmup/startup regressions, or benchmark/profiling leads.",
+    "domain_index_scan": "ai_infra wiki/index.md already routed inference-runtime and SGLang pages; no separate page was needed because the durable target is the existing inference-runtime reference plus SGLang corpus reference."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "duplicate boundary for core runtime mechanics; updated only with operations-specific local evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+      "result": "duplicate boundary for corpus scope and caveats; added selected item-level operational leads without changing API corpus counts."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md and runtime official notes",
+      "result": "duplicate boundary for design/source mechanics; not repeated as production operations evidence."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json",
+    "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+    "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-summary.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "reason": "Local raw evidence was sufficient for the narrow operations update; no new primary-source capture was attempted.",
+      "policy": "Stop before external capture when local evidence is sufficient."
+    },
+    {
+      "reason": "A full SGLang API refresh with joined comments/review comments is deferred unless a later planner proves page-level scheduled supplement evidence is insufficient.",
+      "policy": "Do not treat scheduled crawler snapshots as a full refreshed API corpus."
+    }
+  ],
+  "gap_reason": "The inference-runtime layer had local raw evidence for external KV-cache process boundaries, rollout/weight-sync control, router abort observability, PD disaggregation failures, benchmark/profiling leads, and warmup/startup regressions that were not fully promoted into curated coverage. Autoscaling, model placement, canary rollout, full postmortems, live trace/SLO artifacts, and optional full SGLang API refresh remain open gaps.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-verification.json"
+  ]
+}

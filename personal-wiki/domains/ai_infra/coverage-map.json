@@ -57,16 +57,28 @@
         "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
       ],
       "candidate_gaps": [
-        "Add source-backed production router, admission-control, autoscaling, model-placement, canary rollout, and runtime incident/postmortem evidence beyond core runtime mechanics.",
-        "Add serving benchmark harness, tracing, and runtime observability sources that are not limited to health or metrics endpoints.",
-        "Promote SGLang scheduled crawler supplement leads only after deciding whether a full API refresh is needed."
+        "Add source-backed autoscaling, model-placement, and canary rollout evidence with concrete control-plane behavior, deployment shape, and failure/rollback context.",
+        "Add full production incident/postmortem evidence for inference serving with service impact, timeline, remediation, and follow-up ownership; current SGLang issue/PR records are incident-shaped operational leads, not complete postmortems.",
+        "Add live trace/profiling artifacts tied to SLOs or alert thresholds, and decide whether selected SGLang scheduled crawler supplement leads need a full API refresh with joined comments and PR review comments."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T23:46:40Z",
-      "notes": "SGLang and CUDA Green Context remain strong local evidence, and inference-runtime now has multi-project primary-source coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM runtime captures. The layer remains partial because production routing, autoscaling, rollout, benchmark, tracing, and incident evidence are still thin."
+      "last_scanned_at": "2026-07-07T07:06:03Z",
+      "notes": "SGLang and CUDA Green Context remain strong local runtime evidence, and inference-runtime has multi-project primary-source coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM runtime captures. R7 task 1 promotes local production-operations evidence: PegaFlow external KV-cache process boundaries, restart/rolling-upgrade implications, cache admission and HLL observability, vLLM rollout weight-sync and pause/resume controls, SGLang router request-id and abort-reason observability, PD/Mooncake failure handling, decode warmup readiness failures, DeepGEMM startup regression, KV-event publisher collisions, HiCache DRAM/SSD backend validation, and benchmark/profiling harness leads. The layer remains partial for autoscaling, model placement, canary rollout, full production postmortems, live trace/SLO artifacts, and optional full SGLang API refresh."
     },
     "orchestration-scheduling": {
       "status": "partial",

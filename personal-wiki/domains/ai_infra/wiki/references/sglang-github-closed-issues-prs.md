@@ -21,7 +21,17 @@ source_refs:
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest.json
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json
-updated: 2026-07-04
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md
+updated: 2026-07-07
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -90,6 +100,17 @@ Keyword-derived themes are retrieval aids rather than mutually exclusive taxonom
 
 In the 2026-07 scheduled crawler supplement, the strongest new operational surfaces are CI and merge workflow (`run-ci`, `run-ci-extra`, `bypass-fastfail`), accelerator-specific backend work (`amd`, `npu`, `intel`, `xpu`, `blackwell`), DeepSeek and GLM-family serving work, diffusion serving, JIT/kernel work, quantization, and documentation. Representative page snapshots include AMD/ROCm disaggregation and MI300X/MI355X issues, Ascend NPU DeepSeek work, Intel XPU graph and kernel support, Blackwell FP8/prefill work, and memory/KV-cache regressions. Treat these as discovery leads until a full API refresh joins comments and review comments.
 
+Selected 2026-07 page-level leads now promoted into [Inference Runtime Infrastructure](inference-runtime-infrastructure.md):
+
+| Item | Surface | Operational signal | Caveat |
+| --- | --- | --- | --- |
+| #24220 | Router tracing | Request ids are independent across router, prefill worker, and decode worker, making single-request troubleshooting difficult. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md) | Closed issue snapshot only; not proof of implementation. |
+| #29915 | Router abort observability | Adds per-abort WARN logs, `router_reason`, and `sgl_router_engine_aborts_total{reason}` after a production incident where premature abort volume lacked cause attribution. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md) | Page-level PR evidence after API cutoff; merged state is from the snapshot. |
+| #29017 | PD router failure handling | Cancels paired decode when prefill fails, with live 1P1D Mooncake validation showing decode freed in roughly 4-8 seconds instead of the 300 second default wait. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md) | Covers HTTP PD router behavior, not every engine-side transfer failure. |
+| #23272 and #23342 | PD/Mooncake incidents | Record sustained-load KV transfer failures on L40S and an MI300X Mooncake/TCP router hang with worker registration and environment details. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md) | Incident-shaped issue reports, not full postmortems. |
+| #29812 and #29954 | Warmup/startup regressions | Show decode warmup readiness stuck in HiCache restore state and a Blackwell GLM-5.2 FP8 startup crash after a DeepGEMM dependency bump. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md) | Startup failure leads need linked fixes or API refresh for final lifecycle accounting. |
+| #27704, #29211, #25377 | Benchmark, profiling, and KV-event operations | Add offline throughput profiling, fix pure-DP KV-event publisher port collisions, and add HiCache UMBP DRAM/SSD L3 validation with cache-hit and TTFT measurements. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md) | Useful for local operational coverage; not a production SLO or alerting source. |
+
 # Retrieval Notes
 
 Use the joined raw corpus for exact lookup by issue or PR number. Use the summary JSON for aggregate counts, theme examples, label counts, top-discussed items, and capture caveats.
@@ -125,3 +146,13 @@ High-discussion examples in the captured corpus include:
 - [SGLang PR review comment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz)
 - [SGLang crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
 - [SGLang scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
+- [SGLang issue #24220 request-id tracing](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md)
+- [SGLang PR #29915 router abort observability](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md)
+- [SGLang PR #29017 PD router paired-decode cancellation](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md)
+- [SGLang issue #23272 Mooncake KV transfer failure](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md)
+- [SGLang issue #23342 Mooncake TCP router hang](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md)
+- [SGLang issue #29812 decode warmup hang](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md)
+- [SGLang issue #29954 DeepGEMM startup regression](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md)
+- [SGLang PR #27704 benchmark profiling support](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md)
+- [SGLang PR #29211 KV-event publisher port collision fix](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md)
+- [SGLang PR #25377 HiCache UMBP storage backend](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md)

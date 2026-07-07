@@ -23,6 +23,17 @@ source_refs:
   - ../../raw/links/triton-inference-server-batcher-official-docs-20260707.md
   - ../../raw/links/llama-cpp-server-official-docs-20260707.md
   - ../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
@@ -76,16 +87,26 @@ ONNX Runtime GenAI provides a configuration-driven runtime surface. Its config r
 
 The Python API adds generation lifecycle evidence through `Config`, `Model`, `GeneratorParams`, `Generator`, and `Tokenizer`. `GeneratorParams` can set inputs, search options, and graph-capture settings; `Generator` can generate the next token, expose logits and generated tokens, rewind, check completion, and apply adapters. This is useful for local or embedded runtime configuration coverage, not for claims about centralized cluster admission or fleet autoscaling. [raw](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
 
+# Production Operations Evidence
+
+The local vLLM and SGLang evidence adds operational coverage beyond runtime feature lists:
+
+- `external KV-cache lifecycle`: PegaFlow treats the host KV pool, SSD spill tier, RDMA resources, indexing state, and background tasks as a separate daemon-owned service. The source ties that boundary to engine crashes, rolling upgrades, model switches, multi-engine sharing, cache-admission policy, HLL hit-rate ceilings, an internal RDMA production-cluster transfer measurement, and a public H800 benchmark. Keep the performance numbers scoped to those documented workloads and setups. [raw](../../raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md)
+- `rollout and weight-sync control`: the vLLM native RL API capture standardizes trainer-to-inference weight transfer into initialization, start, update, and finish phases with NCCL or CUDA IPC backends. It also adds pause/resume keep mode and a DPEP two-phase pause protocol so asynchronous RL deployments can update weights without discarding in-flight requests or deadlocking data-parallel ranks. The validation source describes a P/D disaggregated 16 x 8-H200 node inference setup, vLLM router, CPU KV offload, and 100+ training steps, so it is useful as deployment-shaped evidence rather than a generic reliability guarantee. [raw](../../raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md)
+- `router trace and abort observability`: SGLang issue #24220 records the operator need for a unified request id across router, prefill worker, and decode worker. PR #29915 turns router-to-engine `/abort_request` calls into WARN-level per-event logs plus a Prometheus counter labeled by abort reason, and explicitly cites a production incident where premature aborts were visible only as volume, not cause. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md)
+- `PD disaggregation failure handling`: issue #23272 records sustained-load KV transfer failures in SGLang Model Gateway with Mooncake on L40S, while issue #23342 records an MI300X Mooncake/TCP router hang with healthy workers and network checks. PR #29017 narrows one router recovery path by cancelling the paired decode request when prefill fails, reducing the documented stuck decode path from the 300 second default timeout to roughly 4-8 seconds in its live 1P1D Mooncake validation. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md)
+- `startup, cache, benchmark, and tracing leads`: issue #29812 shows decode warmup readiness blocked by UnifiedRadixCache plus HiCache restore state; issue #29954 shows a Blackwell/GLM-5.2 FP8 startup crash after a DeepGEMM dependency bump; PR #29211 fixes KV-event publisher port collisions under pure data parallelism; PR #25377 adds a HiCache DRAM/SSD L3 backend with cache-hit, TTFT, correctness, and reproduction details; and PR #27704 adds profiling support plus benchmark argument fixes for diffusion offline throughput. These are issue-level and PR-level operational leads, not replacements for full incident postmortems. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md)
+
 # Coverage Use
 
 Use this page as source-backed coverage for:
 
-- `inference-runtime`: multi-project serving runtime mechanics, batching, KV-cache lifecycle, model loading/configuration, provider/hardware selection, OpenAI-compatible serving surfaces, and distributed inference knobs.
+- `inference-runtime`: multi-project serving runtime mechanics, batching, KV-cache lifecycle, model loading/configuration, provider/hardware selection, OpenAI-compatible serving surfaces, distributed inference knobs, external KV-cache operations, rollout weight-sync control, router abort observability, PD disaggregation failure handling, benchmark/profiling harness leads, and warmup/startup regression leads.
 - `training-distributed`: only where vLLM RL weight syncing touches trainer-to-inference weight transfer; this page does not replace distributed training framework evidence.
 - `network-storage-cluster`: only where PegaFlow's RDMA/SSD cache hierarchy or TensorRT NCCL collectives touch serving data movement; this page does not replace cluster storage or fabric coverage.
 - `eval-observability-reliability`: only where TensorRT-LLM/Triton metrics or health endpoints are serving surfaces; this page does not replace observability platform or incident evidence.
 
-Remaining gaps include production router/admission-control sources, autoscaling and model-placement evidence, canary or rollout mechanics, live serving incident postmortems, benchmark harness configuration, and broader runtime observability/tracing sources.
+Remaining gaps include autoscaling, model-placement, and canary rollout sources; full production postmortems with service impact and remediation; live trace/profiling artifacts tied to SLOs; and a decision on whether SGLang scheduled crawler supplement leads need a full API refresh with comments and review comments.
 
 # Citations
 
@@ -97,3 +118,14 @@ Remaining gaps include production router/admission-control sources, autoscaling 
 - [Triton model repository and batcher source note](../../raw/links/triton-inference-server-batcher-official-docs-20260707.md)
 - [llama.cpp source note](../../raw/links/llama-cpp-server-official-docs-20260707.md)
 - [ONNX Runtime GenAI config/API source note](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
+- [SGLang scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
+- [SGLang issue #24220 request-id tracing](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md)
+- [SGLang PR #29915 router abort observability](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md)
+- [SGLang PR #29017 PD router paired-decode cancellation](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md)
+- [SGLang issue #23272 Mooncake KV transfer failure](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208950785Z-github-com-sgl-project-sglang-issues-23272-cd18614391.md)
+- [SGLang issue #23342 Mooncake TCP router hang](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208948083Z-github-com-sgl-project-sglang-issues-23342-a8af43b120.md)
+- [SGLang issue #29812 decode warmup hang](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227249888Z-github-com-sgl-project-sglang-issues-29812-e36ce78cbc.md)
+- [SGLang issue #29954 DeepGEMM startup regression](../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md)
+- [SGLang PR #27704 benchmark profiling support](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md)
+- [SGLang PR #29211 KV-event publisher port collision fix](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md)
+- [SGLang PR #25377 HiCache UMBP storage backend](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md)
