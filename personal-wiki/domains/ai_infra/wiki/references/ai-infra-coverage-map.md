@@ -47,6 +47,9 @@ source_refs:
   - ../../raw/links/lm-evaluation-harness-official-20260707.md
   - ../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md
   - ../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md
+  - ../../manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json
+  - ../../raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md
+  - ../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md
 updated: 2026-07-07
 related:
   - ../projects/nccl.md
@@ -64,7 +67,7 @@ related:
 
 This page makes the autonomous `ai_infra` coverage scan discoverable from the curated wiki. The machine-readable state lives in [coverage-map.json](../../coverage-map.json) and [loop-state.json](../../loop-state.json); this page is the human navigation entry point.
 
-The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
+The scan reuses existing local evidence and now treats the tracked 20260706 compute accelerator baseline as reconciled hardware evidence rather than unreconciled input. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
 
 # Layer Status
 
@@ -76,7 +79,7 @@ The scan reuses existing local evidence rather than recrawling the baseline-dirt
 | `data-rag-vector` | The Hitchhiker paper gives broad RAG context. [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md) covers vector database architecture, indexing, filtered retrieval, sparse retrieval, and embedding-index lifecycle. [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md) adds Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, TEI embedding worker boundaries, DataHub/OpenLineage metadata lineage, and Langfuse RAG tracing/evaluation. | Add direct Kafka Connect/Streams, workflow scheduler, object-store table-format governance, deletion/retention propagation, embedding drift policy, retrieval-quality alerting, and RAG incident sources. |
 | `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md) adds OpenTelemetry GenAI telemetry schemas, LangSmith/Phoenix trace stores and experiments, Ragas and lm-evaluation-harness evaluation mechanics, and DCGM/Nsight platform telemetry/profiling. | Add production SLO, alerting, incident/postmortem, benchmark environment, non-NVIDIA platform, and evaluation data governance sources. |
 | `security-governance-cost` | NCCL 2.22 cost-estimation and resource-efficiency evidence now complements adjacent NCCL GPU sharing/virtualization issues, DPU security positioning, and Kueue quota-aware scheduling. | Add tenant isolation, MIG/vGPU, confidential computing, cost attribution, and capacity planning sources. |
-| `hardware-accelerator` | Compute accelerator inventory, field glossary, spec catalog, and parameter comparison cover GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC evidence. | Reconcile or intentionally ignore the baseline-dirty 20260706 compute captures before using them. |
+| `hardware-accelerator` | Compute accelerator inventory, field glossary, spec catalog, parameter comparison, and tracked July 6 baseline reconciliation cover GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC evidence. | Fill unresolved fields only when product-specific pages, tables, datasheets, or PDFs provide source-backed values. |
 | `network-storage-cluster` | NCCL issue evidence, DPU/SmartNIC captures, and NCCL technical-blog captures now cover RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry. | Add EFA, storage, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem evidence. |
 
 # Use
@@ -95,6 +98,9 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Kueue closed issues summary](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json)
 - [Hitchhiker paper raw markdown](../../raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md)
 - [NVIDIA product discovery raw capture](../../raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md)
+- [r5 gap proof](../../manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json)
+- [July 6 AMD Instinct discovery capture](../../raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md)
+- [July 6 Cambricon MLU370-S4/S8 capture](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md)
 - [NCCL technical blog network observability reference](nccl-technical-blog-network-observability.md)
 - [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md)
 - [NCCL Inspector with Prometheus raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md)

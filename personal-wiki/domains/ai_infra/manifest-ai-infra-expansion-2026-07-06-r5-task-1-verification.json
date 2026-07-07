@@ -1,0 +1,145 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r5-task-1",
+  "status": "pass",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "validation_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Index command completed and wrote personal-wiki/domains/ai_infra/wiki/index.md; git status shows no index diff."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "summary": "No accelerator catalog validation issues."
+    },
+    {
+      "command": "validate_loop_state_payload + validate_coverage_map_payload + validate_ai_infra_coverage_map_semantics",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json schemas and ai_infra timestamp semantics passed."
+    },
+    {
+      "command": "python3 -m json.tool coverage-map.json loop-state.json gap-proof.json",
+      "status": "pass",
+      "summary": "All checked JSON artifacts parsed successfully."
+    },
+    {
+      "command": "validate_gap_proof_file(...expected_task_id=ai-infra-expansion-2026-07-06-r5-task-1)",
+      "status": "pass",
+      "summary": "Gap proof payload passed the harness evidence validator."
+    },
+    {
+      "command": "test \"$(git show --name-only --format= HEAD | rg '^personal-wiki/domains/ai_infra/raw/crawler/compute-.*20260706.*' | wc -l | tr -d ' ')\" = \"43\"",
+      "status": "pass",
+      "summary": "Latest commit contains exactly 43 tracked July 6 compute accelerator raw files."
+    },
+    {
+      "command": "rg -n '20260706|tracked baseline|July 6' compute pages, coverage-map.json, loop-state.json, ingest.md",
+      "status": "pass",
+      "summary": "Search found current July 6 reconciliation text and citations in inventory, parameter comparison, coverage map, loop state, and ingest log."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "summary": "All declared changed paths are under planner allowed personal-wiki/domains/ai_infra/** paths and no denylist/manual paths were hit.",
+      "details": {
+        "allowed": true,
+        "allowed_paths": [
+          "personal-wiki/domains/ai_infra/coverage-map.json",
+          "personal-wiki/domains/ai_infra/ingest.md",
+          "personal-wiki/domains/ai_infra/loop-state.json",
+          "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
+          "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-verification.json",
+          "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+          "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+          "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+        ],
+        "denied_paths": [],
+        "manual_confirm_paths": [],
+        "findings": []
+      }
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "summary": "No assignment-like API key, token, credential, password, authorization, bearer, or secret patterns found.",
+      "findings": []
+    }
+  ],
+  "delegated_live_checks": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler backend, crawler frontend, and loop dashboard respond with pass-like HTTP status during this round"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "search API can find current 20260706 compute accelerator baseline wiki/state content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler workbench frontend exposes the updated wiki/search content to a user-visible route"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler workbench API freshness covers sources, channels, queue, wiki, and search dimensions"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "loop dashboard binds the current run, child tasks, agent actions, evaluator scenarios, and completed history to this worktree/run"
+    }
+  ],
+  "dependency_changes": {
+    "status": "not_applicable",
+    "summary": "No requirements, package, lockfile, or dependency metadata changed.",
+    "dependency_paths": []
+  },
+  "code_changes": {
+    "status": "not_applicable",
+    "summary": "No crawler backend/frontend, loop dashboard, harness, or executable code changed; code test evidence is not required beyond unchanged-code note."
+  },
+  "domain_channels": {
+    "status": "not_applicable",
+    "summary": "No crawler source subscription or domain channel configuration changed."
+  },
+  "link_probe": {
+    "status": "not_applicable",
+    "summary": "No new external source was fetched; the task reused tracked local raw evidence only."
+  },
+  "commit": {
+    "status": "delegated_to_orchestrator",
+    "summary": "Generator did not run git commit and leaves generator-result commit empty as requested."
+  },
+  "no_action_evidence": {
+    "status": "not_applicable",
+    "summary": "Generator status is implemented; this is not a stopped_no_action task."
+  }
+}

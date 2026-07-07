@@ -69,6 +69,17 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-vastaitech-va10/20260628T060659001491Z-www-vastaitech-com-product-general-va10-0a749592fe.md
   - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
   - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
+  - ../../raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md
+  - ../../raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md
+  - ../../raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md
+  - ../../raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md
+  - ../../raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md
+  - ../../raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md
+  - ../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md
+  - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md
+  - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
+  - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
+  - ../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md
 ---
 
 # Summary
@@ -93,6 +104,18 @@ before becoming normalized catalog facts.
 - DPU, IPU, and SmartNIC records are infrastructure accelerators. Compare them
   on network rate, offload engines, PCIe generation, memory, IOPS, and latency
   rather than FLOPS.
+
+# 20260706 Baseline Reconciliation
+
+The July 6 tracked baseline is a refresh of existing compute accelerator source profiles, not a new standalone catalog. It removes the former unreconciled-baseline boundary for `raw/crawler/compute-*20260706*`, but it does not relax the evidence rule: a field is promoted only when a product-specific page, table, datasheet, PDF, or comparable source exposes an unambiguous value.
+
+| July 6 capture group | Reconciliation action |
+| --- | --- |
+| AMD Instinct and Alveo refreshes | Track as portfolio/source-monitoring evidence. The local July text advertises MI350/MI300/MI200 and Alveo families, but the task does not promote per-SKU numeric fields from the portfolio pages. [AMD Instinct discovery](../../raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md), [MI350P source profile](../../raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md) |
+| Biren 106B, 106M, 166L, and 166M | Refresh existing form-factor and peak-power rows; no new compute or memory fields are added because the visible local text still does not expose those values. [106B](../../raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md), [106M](../../raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md), [166L](../../raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md), [166M](../../raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md) |
+| Cambricon MLU370-S4/S8 and MLU370-X8 | Exact content-hash refreshes for already-curated product tables. Existing compute, memory, interface, and power rows remain source-backed and require no duplicate row. [S4/S8](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md), [X8](../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md) |
+| Corigine Agilio CX PDF and Asterfusion DPU captures | Exact content-hash refreshes for existing SmartNIC/DPU rows; cite as tracked July evidence without adding new normalized fields. [Corigine](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md), [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
+| Enflame S60 July capture | Intentionally not used to replace the older S60-specific citation because the July capture resolves to the Enflame homepage and does not expose the old PCIe 5.0 field in local text. [July homepage capture](../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md) |
 
 # Quick Read
 

@@ -1,0 +1,1236 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r5-task-1",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Tracked 20260706 compute accelerator crawler baseline",
+    "source_type": "hardware",
+    "identity_key": "hardware:compute-accelerator:20260706-baseline"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "git show --name-only --format= HEAD matched 43 personal-wiki/domains/ai_infra/raw/crawler/compute-*20260706* files, and git ls-files confirmed all 43 are tracked in commit bebfebd.",
+    "wiki_search": "Before this reconciliation, targeted rg scans found 20260706/baseline-dirty language in ingest.md, coverage-map.json, loop-state.json, ai-infra-coverage-map.md, and prior r3/r4 manifests; Compute Accelerator Crawl Inventory and Compute Accelerator Parameter Comparison cited June captures but no July 6 baseline paths.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md already links Compute Accelerator Crawl Inventory, Compute Accelerator Parameter Comparison, Compute Accelerator Spec Catalog, Compute Accelerator Field Glossary, and Compute Accelerator Spec Sources, so no duplicate compute accelerator page is needed."
+  },
+  "gap_reason": "State and curated hardware pages still treated the July 6 compute accelerator baseline as baseline-dirty or out-of-scope even though commit bebfebd now tracks the captures. The gap is reconciliation and duplicate-boundary proof, not new crawling.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-verification.json"
+  ],
+  "tracked_baseline": {
+    "commit": "bebfebd",
+    "raw_file_count": 43,
+    "markdown_capture_count": 42,
+    "pdf_attachment_count": 1,
+    "all_tracked": true,
+    "raw_files": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-aws-ec2-accelerators/20260706T203710277365Z-aws-amazon-com-ec2-instance-types-e470dee679.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-biren-products/20260706T203710688887Z-www-birentech-com-5790940dd2.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-cambricon-products/20260706T203710992985Z-www-cambricon-com-index-php-48e8df5ac0.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-enflame-products/20260706T203711270267Z-www-enflame-tech-com-7d7fdd552a.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-dsa-docs/20260706T204111722265Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-gaudi/20260706T204112017606Z-www-intel-com-content-www-us-en-products-details-processors-ai-accelerators-gaudi-html-98a7955f62.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-ipu-products/20260706T204112485133Z-www-intel-com-content-www-us-en-products-details-network-io-ipu-html-64f7b5221e.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260706T204112855829Z-www-kunlunxin-com-wp-sitemap-posts-product-1-xml-8ff079dde3.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-metax-products/20260706T204113105010Z-www-metax-tech-com-product-ec80f91f69.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-moore-threads-products/20260706T204113514969Z-www-mthreads-com-product-936130a123.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-bluefield-dpu/20260706T204114045276Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d230068aa5.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260706T204114345382Z-www-nvidia-com-en-us-data-center-products-c287448c37.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-alveox3/20260706T204114506407Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi200/20260706T204114628660Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi210/20260706T204114731629Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250/20260706T204114853553Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250x/20260706T204114959917Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300/20260706T204115076816Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300a/20260706T204115180553Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300x/20260706T204115291061Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi325x/20260706T204115464367Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350/20260706T204115583595Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350x/20260706T204115791222Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi355x/20260706T204115902815Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v26/20260706T204116029435Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v80/20260706T204116140273Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.pdf",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260706T204120804028Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260706T204121233024Z-denglinai-com-h-col-299-html-8fa5856573.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260706T204121479350Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260706T204121735530Z-www-enflame-tech-com-ds-server-c95070751b.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md"
+    ]
+  },
+  "duplicate_boundaries": {
+    "source_profiles_with_july_markdown": 42,
+    "discovery_capture_count": 13,
+    "one_shot_or_pdf_backed_capture_count": 29,
+    "exact_content_hash_duplicate_markdown_count": 16,
+    "changed_refresh_markdown_count": 26,
+    "existing_pages_with_older_only_citations_before_task": [
+      "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+      "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+      "personal-wiki/domains/ai_infra/coverage-map.json",
+      "personal-wiki/domains/ai_infra/loop-state.json"
+    ]
+  },
+  "capture_classification": [
+    {
+      "source_id": "compute-accelerator-discovery-amd-instinct",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260628T061613249013Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-aws-ec2-accelerators",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-aws-ec2-accelerators/20260706T203710277365Z-aws-amazon-com-ec2-instance-types-e470dee679.md",
+      "content_hash": "e470dee67995743ee39693d3b40f4e3bd5a27eedd594dc9096bee3f2e842b241",
+      "canonical_url": "https://aws.amazon.com/ec2/instance-types/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-aws-ec2-accelerators/20260628T060226068518Z-aws-amazon-com-ec2-instance-types-b42b7857dd.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-biren-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-biren-products/20260706T203710688887Z-www-birentech-com-5790940dd2.md",
+      "content_hash": "5790940dd2863deadb8cefda45a41ef6d0ec56434241762900ff6a591f9e1502",
+      "canonical_url": "https://www.birentech.com/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-biren-products/20260628T061613577537Z-www-birentech-com-b60546fbcb.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-cambricon-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-cambricon-products/20260706T203710992985Z-www-cambricon-com-index-php-48e8df5ac0.md",
+      "content_hash": "48e8df5ac0e106e064cd80858b50496a47d09d704c7d5e6905d0935e4ae30cdc",
+      "canonical_url": "https://www.cambricon.com/index.php?a=lists&c=index&catid=11&m=content",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-cambricon-products/20260628T060226864594Z-www-cambricon-com-index-php-48e8df5ac0.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-enflame-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-enflame-products/20260706T203711270267Z-www-enflame-tech-com-7d7fdd552a.md",
+      "content_hash": "7d7fdd552ad6126218f50f4d20c177af4864f5c6fddaea3fc437ce39442a620d",
+      "canonical_url": "https://www.enflame-tech.com/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-enflame-products/20260628T061613841369Z-www-enflame-tech-com-7d7fdd552a.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-intel-dsa-docs",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-dsa-docs/20260706T204111722265Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md",
+      "content_hash": "5bd93e0cd0b33addde577121aa83c766f682ec59f8dd05d44ea6018405e8b09e",
+      "canonical_url": "https://www.intel.com/content/www/us/en/content-details/671116/intel-data-streaming-accelerator-architecture-specification.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-dsa-docs/20260628T061614766937Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-intel-gaudi",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-gaudi/20260706T204112017606Z-www-intel-com-content-www-us-en-products-details-processors-ai-accelerators-gaudi-html-98a7955f62.md",
+      "content_hash": "98a7955f627b75bdd31bad6c47a5482e022c7054baa32e92629c4fa55b8ebb51",
+      "canonical_url": "https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-gaudi/20260628T060432364265Z-www-intel-com-content-www-us-en-products-details-processors-ai-accelerators-gaudi-html-98a7955f62.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-intel-ipu-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-ipu-products/20260706T204112485133Z-www-intel-com-content-www-us-en-products-details-network-io-ipu-html-64f7b5221e.md",
+      "content_hash": "64f7b5221e86efbc2431072c372cbcb25f00362bd51657cd81fc5df29ab65439",
+      "canonical_url": "https://www.intel.com/content/www/us/en/products/details/network-io/ipu.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-ipu-products/20260628T060435009782Z-www-intel-com-content-www-us-en-products-details-network-io-ipu-html-64f7b5221e.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-kunlunxin-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260706T204112855829Z-www-kunlunxin-com-wp-sitemap-posts-product-1-xml-8ff079dde3.md",
+      "content_hash": "8ff079dde3b0ebc36887c964c7201768fa9fb7a4f825f284c51337eb640f2660",
+      "canonical_url": "https://www.kunlunxin.com/wp-sitemap-posts-product-1.xml",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260628T061614188995Z-www-kunlunxin-com-282f93d3d3.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260628T062917757073Z-www-kunlunxin-com-wp-sitemap-posts-product-1-xml-8ff079dde3.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-metax-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-metax-products/20260706T204113105010Z-www-metax-tech-com-product-ec80f91f69.md",
+      "content_hash": "ec80f91f695b78dae887689b338556eff1d1522e3f5dcad0b00c3dd6405b4413",
+      "canonical_url": "https://www.metax-tech.com/product",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-metax-products/20260628T060435701676Z-www-metax-tech-com-product-ec80f91f69.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-moore-threads-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-moore-threads-products/20260706T204113514969Z-www-mthreads-com-product-936130a123.md",
+      "content_hash": "936130a12304251a11f2d481b8efa2503aac7654bacc15ccfc5a5f46342cf980",
+      "canonical_url": "https://www.mthreads.com/product",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-moore-threads-products/20260628T060436039043Z-www-mthreads-com-product-d9b8fa6645.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-nvidia-bluefield-dpu",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-bluefield-dpu/20260706T204114045276Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d230068aa5.md",
+      "content_hash": "d230068aa517d4d3d91178a0d5d8a2259760e180309f61939532e863cdcbd46d",
+      "canonical_url": "https://www.nvidia.com/en-us/networking/products/data-processing-unit/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-bluefield-dpu/20260628T060437636619Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-nvidia-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260706T204114345382Z-www-nvidia-com-en-us-data-center-products-c287448c37.md",
+      "content_hash": "c287448c37b0c6b551b3872956674cbb6963e40992100999773ee0108b3d65d4",
+      "canonical_url": "https://www.nvidia.com/en-us/data-center/products/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-alveox3",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-alveox3/20260706T204114506407Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "content_hash": "710caa1209195ebee855b7f559fe11c574cd51094d5d74f369a14a55cf347dac",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/alveo.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-alveox3/20260629T055306820321Z-www-amd-com-en-products-accelerators-alveo-html-cb53594e39.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi200",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi200/20260706T204114628660Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi200/20260629T055407435650Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi210",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi210/20260706T204114731629Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi210/20260629T055407600597Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi250",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250/20260706T204114853553Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250/20260629T055407740927Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi250x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250x/20260706T204114959917Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250x/20260629T055407895979Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi300",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300/20260706T204115076816Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300/20260629T055408042010Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi300a",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300a/20260706T204115180553Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300a/20260629T055408201588Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi300x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300x/20260706T204115291061Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300x/20260629T055408364636Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi325x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi325x/20260706T204115464367Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi325x/20260629T055408511786Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi350",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350/20260706T204115583595Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350/20260629T055408655008Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi350p",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350p/20260629T055408807670Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi350x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350x/20260706T204115791222Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350x/20260629T055408953921Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi355x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi355x/20260706T204115902815Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi355x/20260629T055409104045Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-v26",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v26/20260706T204116029435Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "content_hash": "710caa1209195ebee855b7f559fe11c574cd51094d5d74f369a14a55cf347dac",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/alveo.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v26/20260629T055409279594Z-www-amd-com-en-products-accelerators-alveo-html-cb53594e39.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-v80",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v80/20260706T204116140273Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "content_hash": "710caa1209195ebee855b7f559fe11c574cd51094d5d74f369a14a55cf347dac",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/alveo.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v80/20260629T055409423518Z-www-amd-com-en-products-accelerators-alveo-html-cb53594e39.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-asterfusion-cx102s-dpu",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md",
+      "content_hash": "b77dd4635a1eddcd4af0e82ed662475bb9bece4212673d29e83a3dfe0e5de7f5",
+      "canonical_url": "https://asterfusion.com/product/cx102s-dpu/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260627T153533153563Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260628T060437955885Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-asterfusion-helium-dpu",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+      "content_hash": "121181ec672754b3a7b7ed29c2e47deedb8757d0fcbf113785ce7f9a4d089a07",
+      "canonical_url": "https://asterfusion.com/product/helium_dpu/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260627T153532810671Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-biren-106b",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md",
+      "content_hash": "b7fa1c7a802037a8a5db477599cd25d4a1226a8293ecf1eebd0c6c7ebbf0ac5e",
+      "canonical_url": "https://www.birentech.com/product/hardware/106b/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260627T153523095541Z-www-birentech-com-product-hardware-106b-8e22110248.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-biren-106m",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md",
+      "content_hash": "65554c3ddd5a8bf4c8375316bcaade32a8994674aa1e0be796453717b1791725",
+      "canonical_url": "https://www.birentech.com/product/hardware/106m/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260627T153522824029Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-biren-166l",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md",
+      "content_hash": "f208dc4baf5f03b8738dbcab37af43f2cb235036fede07bf02bdb7c332a86f47",
+      "canonical_url": "https://www.birentech.com/product/hardware/166l/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260627T153521807474Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-biren-166m",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md",
+      "content_hash": "01b6a2d386d621e70eb2b55d041229405991a42c639b261cce624670458668eb",
+      "canonical_url": "https://www.birentech.com/product/hardware/166m/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260627T153522065834Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-cambricon-mlu370-s4-s8",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md",
+      "content_hash": "dd51e6b9e98dd5535b6db4763e73161ff5fb03035916047572ad6a2c19f4993f",
+      "canonical_url": "https://www.cambricon.com/index.php?a=lists&c=index&catid=365&m=content",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260627T153517695667Z-www-cambricon-com-index-php-dd51e6b9e9.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260628T060442871520Z-www-cambricon-com-index-php-dd51e6b9e9.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-cambricon-mlu370-x8",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md",
+      "content_hash": "da315093d5a3d2043f45c9608b309ba1e669c2e2d886f4ae8fc96b7e8a2d1305",
+      "canonical_url": "https://www.cambricon.com/index.php?a=lists&c=index&catid=406&m=content",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260627T153518579704Z-www-cambricon-com-index-php-da315093d5.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-corigine-agilio-cx-pdf",
+      "role": "pdf-backed",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+      "content_hash": "a138a8aa071c770e8fc90ddaffba5583bf6afe1b376d2cbbde82d83f37556b7b",
+      "canonical_url": "https://storage.corigine.com.cn/UploadFiles/pdf/2022-01-24/1-Agilio__%20CX%202x25GbE%20SmartNIC%20%E4%BA%A7%E5%93%81%E7%AE%80%E4%BB%8B.pdf",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260627T153532497334Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-dayu-paratus1",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260706T204120804028Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+      "content_hash": "70c58cfadc9ff519ca5b8ef0b9a2b5d206e1fdd0ec4cc0efb17c6e2d5ab41b68",
+      "canonical_url": "https://www.dayudpu.com/product/paratus1",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260627T153531657028Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-denglin-goldwasser-ii-gs",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260706T204121233024Z-denglinai-com-h-col-299-html-8fa5856573.md",
+      "content_hash": "8fa5856573198b5129215823f0d090f3c95a76772e6086be30ca55f2de51a973",
+      "canonical_url": "https://denglinai.com/h-col-299.html",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260627T153526572877Z-denglinai-com-h-col-299-html-8fa5856573.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260628T060446185315Z-denglinai-com-h-col-299-html-8fa5856573.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-enflame-cloudblazer-matrix",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260706T204121479350Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md",
+      "content_hash": "acb13f343ec52f78a71399c553ca08f3da42375d20bc975426e93061a7d3e2d6",
+      "canonical_url": "https://www.enflame-tech.com/cloudblazer-matrix/268",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260627T153524918133Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260628T060446419609Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-enflame-ds-server",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260706T204121735530Z-www-enflame-tech-com-ds-server-c95070751b.md",
+      "content_hash": "c95070751be1bbf0637017559cbd86119e0fd4c2daa779419d71d8989abac8d1",
+      "canonical_url": "https://www.enflame-tech.com/DS-server",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260627T153524649904Z-www-enflame-tech-com-ds-server-c95070751b.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260628T060446676491Z-www-enflame-tech-com-ds-server-c95070751b.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-enflame-s60",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md",
+      "content_hash": "7d7fdd552ad6126218f50f4d20c177af4864f5c6fddaea3fc437ce39442a620d",
+      "canonical_url": "https://www.enflame-tech.com/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260627T153524385465Z-www-enflame-tech-com-s60-7ee9e26bdb.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260628T060446917641Z-www-enflame-tech-com-s60-7ee9e26bdb.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "tracked as source-profile refresh, but not used for the S60 PCIe field because this capture resolved to the vendor homepage"
+    },
+    {
+      "source_id": "compute-accelerators-corigine-agilio-cx-pdf",
+      "role": "pdf-attachment",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.pdf",
+      "content_hash": "",
+      "canonical_url": "",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260627T153532497334Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.pdf",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.pdf"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "tracked attachment for the PDF-backed Corigine markdown capture"
+    }
+  ],
+  "field_promotable_or_refreshed_captures": [
+    {
+      "source_id": "compute-accelerators-asterfusion-cx102s-dpu",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md",
+      "content_hash": "b77dd4635a1eddcd4af0e82ed662475bb9bece4212673d29e83a3dfe0e5de7f5",
+      "canonical_url": "https://asterfusion.com/product/cx102s-dpu/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260627T153533153563Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260628T060437955885Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-asterfusion-helium-dpu",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+      "content_hash": "121181ec672754b3a7b7ed29c2e47deedb8757d0fcbf113785ce7f9a4d089a07",
+      "canonical_url": "https://asterfusion.com/product/helium_dpu/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260627T153532810671Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-biren-106b",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md",
+      "content_hash": "b7fa1c7a802037a8a5db477599cd25d4a1226a8293ecf1eebd0c6c7ebbf0ac5e",
+      "canonical_url": "https://www.birentech.com/product/hardware/106b/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260627T153523095541Z-www-birentech-com-product-hardware-106b-8e22110248.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-biren-106m",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md",
+      "content_hash": "65554c3ddd5a8bf4c8375316bcaade32a8994674aa1e0be796453717b1791725",
+      "canonical_url": "https://www.birentech.com/product/hardware/106m/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260627T153522824029Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-biren-166l",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md",
+      "content_hash": "f208dc4baf5f03b8738dbcab37af43f2cb235036fede07bf02bdb7c332a86f47",
+      "canonical_url": "https://www.birentech.com/product/hardware/166l/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260627T153521807474Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-biren-166m",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md",
+      "content_hash": "01b6a2d386d621e70eb2b55d041229405991a42c639b261cce624670458668eb",
+      "canonical_url": "https://www.birentech.com/product/hardware/166m/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260627T153522065834Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-cambricon-mlu370-s4-s8",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md",
+      "content_hash": "dd51e6b9e98dd5535b6db4763e73161ff5fb03035916047572ad6a2c19f4993f",
+      "canonical_url": "https://www.cambricon.com/index.php?a=lists&c=index&catid=365&m=content",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260627T153517695667Z-www-cambricon-com-index-php-dd51e6b9e9.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260628T060442871520Z-www-cambricon-com-index-php-dd51e6b9e9.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-cambricon-mlu370-x8",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md",
+      "content_hash": "da315093d5a3d2043f45c9608b309ba1e669c2e2d886f4ae8fc96b7e8a2d1305",
+      "canonical_url": "https://www.cambricon.com/index.php?a=lists&c=index&catid=406&m=content",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260627T153518579704Z-www-cambricon-com-index-php-da315093d5.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-corigine-agilio-cx-pdf",
+      "role": "pdf-backed",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+      "content_hash": "a138a8aa071c770e8fc90ddaffba5583bf6afe1b376d2cbbde82d83f37556b7b",
+      "canonical_url": "https://storage.corigine.com.cn/UploadFiles/pdf/2022-01-24/1-Agilio__%20CX%202x25GbE%20SmartNIC%20%E4%BA%A7%E5%93%81%E7%AE%80%E4%BB%8B.pdf",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260627T153532497334Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-dayu-paratus1",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260706T204120804028Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+      "content_hash": "70c58cfadc9ff519ca5b8ef0b9a2b5d206e1fdd0ec4cc0efb17c6e2d5ab41b68",
+      "canonical_url": "https://www.dayudpu.com/product/paratus1",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260627T153531657028Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-denglin-goldwasser-ii-gs",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260706T204121233024Z-denglinai-com-h-col-299-html-8fa5856573.md",
+      "content_hash": "8fa5856573198b5129215823f0d090f3c95a76772e6086be30ca55f2de51a973",
+      "canonical_url": "https://denglinai.com/h-col-299.html",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260627T153526572877Z-denglinai-com-h-col-299-html-8fa5856573.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-denglin-goldwasser-ii-gs/20260628T060446185315Z-denglinai-com-h-col-299-html-8fa5856573.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-enflame-cloudblazer-matrix",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260706T204121479350Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md",
+      "content_hash": "acb13f343ec52f78a71399c553ca08f3da42375d20bc975426e93061a7d3e2d6",
+      "canonical_url": "https://www.enflame-tech.com/cloudblazer-matrix/268",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260627T153524918133Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-cloudblazer-matrix/20260628T060446419609Z-www-enflame-tech-com-cloudblazer-matrix-268-acb13f343e.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    },
+    {
+      "source_id": "compute-accelerators-enflame-ds-server",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260706T204121735530Z-www-enflame-tech-com-ds-server-c95070751b.md",
+      "content_hash": "c95070751be1bbf0637017559cbd86119e0fd4c2daa779419d71d8989abac8d1",
+      "canonical_url": "https://www.enflame-tech.com/DS-server",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260627T153524649904Z-www-enflame-tech-com-ds-server-c95070751b.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-ds-server/20260628T060446676491Z-www-enflame-tech-com-ds-server-c95070751b.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "exact content-hash duplicate of older June evidence; cite as tracked refresh evidence only"
+    }
+  ],
+  "discovery_or_not_field_promoted_captures": [
+    {
+      "source_id": "compute-accelerator-discovery-amd-instinct",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260628T061613249013Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-aws-ec2-accelerators",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-aws-ec2-accelerators/20260706T203710277365Z-aws-amazon-com-ec2-instance-types-e470dee679.md",
+      "content_hash": "e470dee67995743ee39693d3b40f4e3bd5a27eedd594dc9096bee3f2e842b241",
+      "canonical_url": "https://aws.amazon.com/ec2/instance-types/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-aws-ec2-accelerators/20260628T060226068518Z-aws-amazon-com-ec2-instance-types-b42b7857dd.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-biren-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-biren-products/20260706T203710688887Z-www-birentech-com-5790940dd2.md",
+      "content_hash": "5790940dd2863deadb8cefda45a41ef6d0ec56434241762900ff6a591f9e1502",
+      "canonical_url": "https://www.birentech.com/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-biren-products/20260628T061613577537Z-www-birentech-com-b60546fbcb.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-cambricon-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-cambricon-products/20260706T203710992985Z-www-cambricon-com-index-php-48e8df5ac0.md",
+      "content_hash": "48e8df5ac0e106e064cd80858b50496a47d09d704c7d5e6905d0935e4ae30cdc",
+      "canonical_url": "https://www.cambricon.com/index.php?a=lists&c=index&catid=11&m=content",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-cambricon-products/20260628T060226864594Z-www-cambricon-com-index-php-48e8df5ac0.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-enflame-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-enflame-products/20260706T203711270267Z-www-enflame-tech-com-7d7fdd552a.md",
+      "content_hash": "7d7fdd552ad6126218f50f4d20c177af4864f5c6fddaea3fc437ce39442a620d",
+      "canonical_url": "https://www.enflame-tech.com/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-enflame-products/20260628T061613841369Z-www-enflame-tech-com-7d7fdd552a.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-intel-dsa-docs",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-dsa-docs/20260706T204111722265Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md",
+      "content_hash": "5bd93e0cd0b33addde577121aa83c766f682ec59f8dd05d44ea6018405e8b09e",
+      "canonical_url": "https://www.intel.com/content/www/us/en/content-details/671116/intel-data-streaming-accelerator-architecture-specification.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-dsa-docs/20260628T061614766937Z-www-intel-com-content-www-us-en-content-details-671116-intel-data-streaming-accelerator-ar-5bd93e0cd0.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-intel-gaudi",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-gaudi/20260706T204112017606Z-www-intel-com-content-www-us-en-products-details-processors-ai-accelerators-gaudi-html-98a7955f62.md",
+      "content_hash": "98a7955f627b75bdd31bad6c47a5482e022c7054baa32e92629c4fa55b8ebb51",
+      "canonical_url": "https://www.intel.com/content/www/us/en/products/details/processors/ai-accelerators/gaudi.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-gaudi/20260628T060432364265Z-www-intel-com-content-www-us-en-products-details-processors-ai-accelerators-gaudi-html-98a7955f62.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-intel-ipu-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-ipu-products/20260706T204112485133Z-www-intel-com-content-www-us-en-products-details-network-io-ipu-html-64f7b5221e.md",
+      "content_hash": "64f7b5221e86efbc2431072c372cbcb25f00362bd51657cd81fc5df29ab65439",
+      "canonical_url": "https://www.intel.com/content/www/us/en/products/details/network-io/ipu.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-intel-ipu-products/20260628T060435009782Z-www-intel-com-content-www-us-en-products-details-network-io-ipu-html-64f7b5221e.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-kunlunxin-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260706T204112855829Z-www-kunlunxin-com-wp-sitemap-posts-product-1-xml-8ff079dde3.md",
+      "content_hash": "8ff079dde3b0ebc36887c964c7201768fa9fb7a4f825f284c51337eb640f2660",
+      "canonical_url": "https://www.kunlunxin.com/wp-sitemap-posts-product-1.xml",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260628T061614188995Z-www-kunlunxin-com-282f93d3d3.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-kunlunxin-products/20260628T062917757073Z-www-kunlunxin-com-wp-sitemap-posts-product-1-xml-8ff079dde3.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-metax-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-metax-products/20260706T204113105010Z-www-metax-tech-com-product-ec80f91f69.md",
+      "content_hash": "ec80f91f695b78dae887689b338556eff1d1522e3f5dcad0b00c3dd6405b4413",
+      "canonical_url": "https://www.metax-tech.com/product",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-metax-products/20260628T060435701676Z-www-metax-tech-com-product-ec80f91f69.md"
+      ],
+      "content_hash_duplicate_of_older_capture": true,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-moore-threads-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-moore-threads-products/20260706T204113514969Z-www-mthreads-com-product-936130a123.md",
+      "content_hash": "936130a12304251a11f2d481b8efa2503aac7654bacc15ccfc5a5f46342cf980",
+      "canonical_url": "https://www.mthreads.com/product",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-moore-threads-products/20260628T060436039043Z-www-mthreads-com-product-d9b8fa6645.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-nvidia-bluefield-dpu",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-bluefield-dpu/20260706T204114045276Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d230068aa5.md",
+      "content_hash": "d230068aa517d4d3d91178a0d5d8a2259760e180309f61939532e863cdcbd46d",
+      "canonical_url": "https://www.nvidia.com/en-us/networking/products/data-processing-unit/",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-bluefield-dpu/20260628T060437636619Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerator-discovery-nvidia-products",
+      "role": "discovery",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260706T204114345382Z-www-nvidia-com-en-us-data-center-products-c287448c37.md",
+      "content_hash": "c287448c37b0c6b551b3872956674cbb6963e40992100999773ee0108b3d65d4",
+      "canonical_url": "https://www.nvidia.com/en-us/data-center/products/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "discovery only; do not promote parameter fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-alveox3",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-alveox3/20260706T204114506407Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "content_hash": "710caa1209195ebee855b7f559fe11c574cd51094d5d74f369a14a55cf347dac",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/alveo.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-alveox3/20260629T055306820321Z-www-amd-com-en-products-accelerators-alveo-html-cb53594e39.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi200",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi200/20260706T204114628660Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi200/20260629T055407435650Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi210",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi210/20260706T204114731629Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi210/20260629T055407600597Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi250",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250/20260706T204114853553Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250/20260629T055407740927Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi250x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250x/20260706T204114959917Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi250x/20260629T055407895979Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi300",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300/20260706T204115076816Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300/20260629T055408042010Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi300a",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300a/20260706T204115180553Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300a/20260629T055408201588Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi300x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300x/20260706T204115291061Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi300x/20260629T055408364636Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi325x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi325x/20260706T204115464367Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi325x/20260629T055408511786Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi350",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350/20260706T204115583595Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350/20260629T055408655008Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi350p",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350p/20260629T055408807670Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi350x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350x/20260706T204115791222Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi350x/20260629T055408953921Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-mi355x",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi355x/20260706T204115902815Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
+      "content_hash": "d416b602fe1f1f735e8ab4f00176b7faaeea1d38ec09b07a339e3eb8294a840f",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/instinct.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-mi355x/20260629T055409104045Z-www-amd-com-en-products-accelerators-instinct-html-8378af2c97.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-v26",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v26/20260706T204116029435Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "content_hash": "710caa1209195ebee855b7f559fe11c574cd51094d5d74f369a14a55cf347dac",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/alveo.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v26/20260629T055409279594Z-www-amd-com-en-products-accelerators-alveo-html-cb53594e39.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-amd-v80",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v80/20260706T204116140273Z-www-amd-com-en-products-accelerators-alveo-html-710caa1209.md",
+      "content_hash": "710caa1209195ebee855b7f559fe11c574cd51094d5d74f369a14a55cf347dac",
+      "canonical_url": "https://www.amd.com/en/products/accelerators/alveo.html",
+      "older_capture_count": 1,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-amd-v80/20260629T055409423518Z-www-amd-com-en-products-accelerators-alveo-html-cb53594e39.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "refreshes an existing source profile; promote only already visible source-backed fields"
+    },
+    {
+      "source_id": "compute-accelerators-enflame-s60",
+      "role": "one-shot",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md",
+      "content_hash": "7d7fdd552ad6126218f50f4d20c177af4864f5c6fddaea3fc437ce39442a620d",
+      "canonical_url": "https://www.enflame-tech.com/",
+      "older_capture_count": 2,
+      "older_captures": [
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260627T153524385465Z-www-enflame-tech-com-s60-7ee9e26bdb.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260628T060446917641Z-www-enflame-tech-com-s60-7ee9e26bdb.md"
+      ],
+      "content_hash_duplicate_of_older_capture": false,
+      "reconciliation_action": "tracked as source-profile refresh, but not used for the S60 PCIe field because this capture resolved to the vendor homepage"
+    }
+  ],
+  "no_new_crawl_reason": "The tracked July 6 baseline was sufficient to close the stale baseline-dirty state; no missing source requiring external recrawl was found."
+}
