@@ -1,0 +1,131 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r9-task-2",
+  "run_id": "ai-infra-expansion-2026-07-07-r9",
+  "verified_at": "2026-07-07T12:47:49Z",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-verification.json"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md; no substantive index diff was needed because page frontmatter did not change."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json satisfied schema and ai_infra semantic validation."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "summary": "No accelerator catalog validation issues."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "gap-proof manifest parsed as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r9-task-2') ... PY",
+      "status": "pass",
+      "summary": "gap proof validator returned no findings for task-2."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "summary": "No AKIA keys, private keys, bearer tokens, private-key headers, password/api-key assignments, or credential-shaped values found in changed task files; rg returned no matches."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "summary": "All declared changed paths are under planner-allowed personal-wiki/domains/ai_infra/** and none match the planner denylist."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No backend, frontend, loop-dashboard, harness, dependency manifest, package manifest, or code files changed; code tests and supply-chain dependency review are not applicable generator-side."
+    },
+    {
+      "command": "source visibility check for accelerator, GPU, NPU, TPU, DPU, IPU, SmartNIC, memory capacity, memory bandwidth, compute, TOPS, TFLOPS, PCIe, interconnect, network bandwidth, IOPS, latency, power, source-backed, not captured, unresolved, and duplicate boundary terms",
+      "status": "pass",
+      "summary": "Targeted rg over the task-2 catalog YAML, curated pages, coverage-map.json, loop-state.json, and gap proof found current accelerator, memory, compute, PCIe, interconnect, power, source-backed, unresolved, duplicate boundary, Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800 terms."
+    },
+    {
+      "command": "bounded link probe or blocked/auth evidence for any new product-specific page, datasheet, PDF, or official hardware source",
+      "status": "pass",
+      "summary": "No new external capture or link probe was needed; task-2 reused existing local product-specific raw captures and records no_new_crawl_reason in the gap proof."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted service-availability evidence in trusted-live-evidence/service-availability.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=Cambricon%20MLU370-X4%20MLU370-X8%20Kunlunxin%20RG800'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted search API visibility in trusted-live-evidence/search-api-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted frontend visibility in trusted-live-evidence/frontend-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted loop dashboard freshness in trusted-live-evidence/loop-dashboard-freshness.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8766/api/runs/ai-infra-expansion-2026-07-07-r9' || curl --noproxy '*' -fsS 'http://127.0.0.1:8766/api/runs'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted loop dashboard run visibility in trusted-live-evidence/loop-dashboard-freshness.json."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "verification manifest parsed as JSON after creation."
+    }
+  ],
+  "live_checks_delegated": [
+    "service-availability",
+    "crawler-workbench-freshness",
+    "loop-dashboard-freshness",
+    "search-api-visibility",
+    "frontend-visibility"
+  ],
+  "code_changed": false,
+  "dependency_files_changed": false,
+  "commit": ""
+}

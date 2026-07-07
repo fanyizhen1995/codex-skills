@@ -79,6 +79,14 @@ spec_fields:
     applies_to: [gpu, npu, tpu, dsa, ai_asic]
     observation_kind: theoretical_peak
     description: Peak BF16 tensor or matrix performance.
+  fp16_tflops:
+    group: compute_specs
+    value_type: number
+    canonical_unit: TFLOPS
+    allowed_units: [TFLOPS]
+    applies_to: [gpu, npu, tpu, dsa, ai_asic]
+    observation_kind: theoretical_peak
+    description: Peak FP16 tensor or matrix performance.
   fp8_tflops:
     group: compute_specs
     value_type: number

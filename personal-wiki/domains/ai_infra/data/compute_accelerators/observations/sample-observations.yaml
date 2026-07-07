@@ -142,3 +142,393 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official Microsoft announcement lists 7TB/s HBM3e bandwidth.
+  - observation_id: obs-cambricon-mlu370-x4-int8-tops
+    sku_id: cambricon-mlu370-x4
+    field: int8_tops
+    value: 256
+    unit: TOPS
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 256 TOPS INT8 peak performance.
+  - observation_id: obs-cambricon-mlu370-x4-fp16-tflops
+    sku_id: cambricon-mlu370-x4
+    field: fp16_tflops
+    value: 96
+    unit: TFLOPS
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 96 TFLOPS FP16 peak performance.
+  - observation_id: obs-cambricon-mlu370-x4-bf16-tflops
+    sku_id: cambricon-mlu370-x4
+    field: bf16_tflops
+    value: 96
+    unit: TFLOPS
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 96 TFLOPS BF16 peak performance.
+  - observation_id: obs-cambricon-mlu370-x4-fp32-tflops
+    sku_id: cambricon-mlu370-x4
+    field: fp32_tflops
+    value: 24
+    unit: TFLOPS
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 24 TFLOPS FP32 peak performance.
+  - observation_id: obs-cambricon-mlu370-x4-memory-type
+    sku_id: cambricon-mlu370-x4
+    field: memory_type
+    value: LPDDR5
+    unit: none
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications memory type"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists LPDDR5 memory.
+  - observation_id: obs-cambricon-mlu370-x4-memory-capacity
+    sku_id: cambricon-mlu370-x4
+    field: memory_capacity
+    value: 24
+    unit: GB
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications memory capacity"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 24 GB memory capacity.
+  - observation_id: obs-cambricon-mlu370-x4-memory-bandwidth
+    sku_id: cambricon-mlu370-x4
+    field: memory_bandwidth
+    value: 307.2
+    unit: GB/s
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications memory bandwidth"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 307.2 GB/s memory bandwidth.
+  - observation_id: obs-cambricon-mlu370-x4-host-interface
+    sku_id: cambricon-mlu370-x4
+    field: host_interface
+    value: x16 PCIe Gen4
+    unit: none
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications system interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists x16 PCIe Gen4.
+  - observation_id: obs-cambricon-mlu370-x4-tdp
+    sku_id: cambricon-mlu370-x4
+    field: tdp
+    value: 150
+    unit: W
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications maximum thermal power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 150 W maximum thermal power.
+  - observation_id: obs-cambricon-mlu370-x4-form-factor
+    sku_id: cambricon-mlu370-x4
+    field: form_factor
+    value: full-height full-length single-slot PCIe card
+    unit: none
+    source_id: cambricon-mlu370-x4-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X4 product page; product specifications form factor"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length single-slot card.
+  - observation_id: obs-cambricon-mlu370-x8-int8-tops
+    sku_id: cambricon-mlu370-x8
+    field: int8_tops
+    value: 256
+    unit: TOPS
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 256 TOPS INT8 peak performance.
+  - observation_id: obs-cambricon-mlu370-x8-fp16-tflops
+    sku_id: cambricon-mlu370-x8
+    field: fp16_tflops
+    value: 96
+    unit: TFLOPS
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 96 TFLOPS FP16 peak performance.
+  - observation_id: obs-cambricon-mlu370-x8-bf16-tflops
+    sku_id: cambricon-mlu370-x8
+    field: bf16_tflops
+    value: 96
+    unit: TFLOPS
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 96 TFLOPS BF16 peak performance.
+  - observation_id: obs-cambricon-mlu370-x8-fp32-tflops
+    sku_id: cambricon-mlu370-x8
+    field: fp32_tflops
+    value: 24
+    unit: TFLOPS
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications peak performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 24 TFLOPS FP32 peak performance.
+  - observation_id: obs-cambricon-mlu370-x8-memory-type
+    sku_id: cambricon-mlu370-x8
+    field: memory_type
+    value: LPDDR5
+    unit: none
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications memory type"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists LPDDR5 memory.
+  - observation_id: obs-cambricon-mlu370-x8-memory-capacity
+    sku_id: cambricon-mlu370-x8
+    field: memory_capacity
+    value: 48
+    unit: GB
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications memory capacity"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 48 GB memory capacity.
+  - observation_id: obs-cambricon-mlu370-x8-memory-bandwidth
+    sku_id: cambricon-mlu370-x8
+    field: memory_bandwidth
+    value: 614.4
+    unit: GB/s
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications memory bandwidth"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 614.4 GB/s memory bandwidth.
+  - observation_id: obs-cambricon-mlu370-x8-host-interface
+    sku_id: cambricon-mlu370-x8
+    field: host_interface
+    value: x16 PCIe Gen4
+    unit: none
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications system interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists x16 PCIe Gen4.
+  - observation_id: obs-cambricon-mlu370-x8-interconnect
+    sku_id: cambricon-mlu370-x8
+    field: interconnect
+    value: MLU-Link 4 ports, 16 lanes, 50 Gbps; 200 GB/s bidirectional aggregate
+    unit: none
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; MLU-Link interface and bandwidth"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists MLU-Link ports, lanes, lane rate, and 200 GB/s bidirectional aggregate bandwidth.
+  - observation_id: obs-cambricon-mlu370-x8-tdp
+    sku_id: cambricon-mlu370-x8
+    field: tdp
+    value: 250
+    unit: W
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications maximum thermal power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 250 W maximum thermal power.
+  - observation_id: obs-cambricon-mlu370-x8-form-factor
+    sku_id: cambricon-mlu370-x8
+    field: form_factor
+    value: full-height full-length dual-slot PCIe card
+    unit: none
+    source_id: cambricon-mlu370-x8-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Cambricon MLU370-X8 product page; product specifications form factor"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length dual-slot card.
+  - observation_id: obs-kunlunxin-rg800-int8-tops
+    sku_id: kunlunxin-rg800
+    field: int8_tops
+    value: 256
+    unit: TOPS
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists INT8 256 TOPS.
+  - observation_id: obs-kunlunxin-rg800-fp16-tflops
+    sku_id: kunlunxin-rg800
+    field: fp16_tflops
+    value: 128
+    unit: TFLOPS
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists FP16 128 TFLOPS.
+  - observation_id: obs-kunlunxin-rg800-fp32-tflops
+    sku_id: kunlunxin-rg800
+    field: fp32_tflops
+    value: 32
+    unit: TFLOPS
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists FP32 32 TFLOPS.
+  - observation_id: obs-kunlunxin-rg800-memory-type
+    sku_id: kunlunxin-rg800
+    field: memory_type
+    value: GDDR6
+    unit: none
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists GDDR6 memory.
+  - observation_id: obs-kunlunxin-rg800-memory-capacity
+    sku_id: kunlunxin-rg800
+    field: memory_capacity
+    value: 32
+    unit: GB
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 32 GB memory.
+  - observation_id: obs-kunlunxin-rg800-memory-bandwidth
+    sku_id: kunlunxin-rg800
+    field: memory_bandwidth
+    value: 512
+    unit: GB/s
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications memory bandwidth"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 512 GB/s memory bandwidth.
+  - observation_id: obs-kunlunxin-rg800-host-interface
+    sku_id: kunlunxin-rg800
+    field: host_interface
+    value: PCIe 4.0 x16
+    unit: none
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications system interconnect"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe 4.0 x16.
+  - observation_id: obs-kunlunxin-rg800-tdp
+    sku_id: kunlunxin-rg800
+    field: tdp
+    value: 130
+    unit: W
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 130 W power.
+  - observation_id: obs-kunlunxin-rg800-form-factor
+    sku_id: kunlunxin-rg800
+    field: form_factor
+    value: full-height full-length single-slot PCIe card
+    unit: none
+    source_id: kunlunxin-rg800-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin RG800 product page; specifications form factor"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length single-slot card.

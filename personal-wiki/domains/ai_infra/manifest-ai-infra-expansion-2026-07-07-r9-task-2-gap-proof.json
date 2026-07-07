@@ -1,0 +1,160 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r9-task-2",
+  "run_id": "ai-infra-expansion-2026-07-07-r9",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Resolved single-card hardware accelerator fields from local source captures",
+    "source_type": "hardware",
+    "identity_key": "hardware:compute-accelerator:single-card-fields:r9-task-2"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "5b1cecf",
+    "checked_at": "2026-07-07T12:34:31Z",
+    "git_status_before_task": "git status --short returned no changed paths before task-2 edits."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local compute accelerator raw captures, source registry, catalog YAML, Compute Accelerator Crawl Inventory, Compute Accelerator Parameter Comparison, r5 baseline manifest, r9 task-1 manifest, coverage-map.json, and loop-state.json for accelerator, GPU, NPU, TPU, DPU, IPU, SmartNIC, memory capacity, memory bandwidth, compute, TOPS, TFLOPS, PCIe, interconnect, power, source-backed, unresolved, and duplicate boundary terms. The strongest actionable local product-specific tables were Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800.",
+    "wiki_search": "Compute Accelerator Parameter Comparison already contained raw comparison rows for Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800, but Compute Accelerator Spec Catalog and data/compute_accelerators/{skus,observations,resolved} did not have structured rows for those single-card records. The r5 baseline manifest reconciled July 6 raw refreshes as tracked evidence but did not promote these rows into resolved catalog fields.",
+    "domain_index_scan": "ai_infra wiki/index.md already routes Compute Accelerator Spec Catalog, Compute Accelerator Crawl Inventory, Compute Accelerator Field Glossary, Compute Accelerator Parameter Comparison, Compute Accelerator Spec Sources, and AI Infra Coverage Map, so no duplicate curated page was needed."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+      "result": "Inventory already classifies compute accelerator discovery, one-shot source groups, and July 6 duplicate/refresh boundaries. Task 2 reuses local product-specific captures and does not add a new crawl source profile."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Comparison page already had raw rows for MLU370-X4, MLU370-X8, and RG800. Task 2 adds resolved catalog rows instead of duplicating the raw comparison table."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog page existed as the structured facts layer, but the YAML seed catalog lacked these three single-card records. Task 2 updates the existing catalog rather than creating a new page."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
+      "result": "R5 reconciled the 20260706 baseline and duplicate boundaries. It did not resolve older June product-specific MLU370-X4 or RG800 fields, and it treated July MLU370-X8 as refresh evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+      "result": "R9 task 1 concerns inference-runtime and eval-observability blocked KServe/postmortem evidence; it is a boundary proving this task should stay in hardware accelerator fields."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/coverage-map.json and loop-state.json",
+      "result": "Before task 2, hardware-accelerator remained partial with a generic unresolved-fields gap and known compute accelerator baseline evidence. Task 2 updates the hardware notes and known source state with the bounded resolved-card slice."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json"
+  ],
+  "selected_source_captures": [
+    {
+      "record": "Cambricon MLU370-X4",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md",
+      "promoted_fields": [
+        "int8_tops",
+        "fp16_tflops",
+        "bf16_tflops",
+        "fp32_tflops",
+        "memory_type",
+        "memory_capacity",
+        "memory_bandwidth",
+        "host_interface",
+        "tdp",
+        "form_factor"
+      ],
+      "coverage": "Single-card product page exposes one unambiguous table row: 256 TOPS INT8, 96 TFLOPS FP16, 96 TFLOPS BF16, 24 TFLOPS FP32, LPDDR5, 24 GB, 307.2 GB/s, x16 PCIe Gen4, 150 W, and full-height full-length single-slot form factor."
+    },
+    {
+      "record": "Cambricon MLU370-X8",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md",
+      "promoted_fields": [
+        "int8_tops",
+        "fp16_tflops",
+        "bf16_tflops",
+        "fp32_tflops",
+        "memory_type",
+        "memory_capacity",
+        "memory_bandwidth",
+        "host_interface",
+        "interconnect",
+        "tdp",
+        "form_factor"
+      ],
+      "coverage": "Single-card product page exposes one unambiguous table row: 256 TOPS INT8, 96 TFLOPS FP16, 96 TFLOPS BF16, 24 TFLOPS FP32, LPDDR5, 48 GB, 614.4 GB/s, x16 PCIe Gen4, MLU-Link 4 ports / 16 lanes / 50 Gbps / 200 GB/s bidirectional aggregate, 250 W, and full-height full-length dual-slot form factor."
+    },
+    {
+      "record": "Kunlunxin RG800",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md",
+      "promoted_fields": [
+        "int8_tops",
+        "fp16_tflops",
+        "fp32_tflops",
+        "memory_type",
+        "memory_capacity",
+        "memory_bandwidth",
+        "host_interface",
+        "tdp",
+        "form_factor"
+      ],
+      "coverage": "Single-card product page exposes one unambiguous table row: 256 TOPS INT8, 128 TFLOPS FP16, 32 TFLOPS FP32, GDDR6, 32 GB, 512 GB/s, PCIe 4.0 x16, 130 W, and full-height full-length single-slot form factor."
+    }
+  ],
+  "blocked_or_deferred_sources": [
+    {
+      "record": "Huawei Atlas 300I A2",
+      "reason": "Local source exposes two memory/bandwidth variants, 32 GB at 0.8 TB/s and 64 GB at 1.6 TB/s. Task 2 leaves those fields unresolved until the catalog splits variants or records an explicit maximum-value policy."
+    },
+    {
+      "record": "Cambricon MLU370-S4/S8",
+      "reason": "The local source combines S4/S8 and lists 24 GB / 48 GB variants. Task 2 leaves variant-dependent fields unresolved even though the raw comparison row remains source-backed."
+    },
+    {
+      "record": "Kunlunxin R200 / R200-8F",
+      "reason": "The local source combines two products and lists 16 GB / 32 GB plus 150 W / 160 W. Task 2 leaves variant-dependent fields unresolved until separate catalog SKUs are introduced."
+    },
+    {
+      "record": "AWS Trn2, Huawei Atlas 800T A3, Kunlunxin R480-X8, Enflame systems, and NVIDIA GB300 product-family pages",
+      "reason": "These are cloud offerings, aggregate systems, or product-family/portfolio pages. They remain outside single-card resolved fields unless the source explicitly gives per-chip or per-card normalized values."
+    },
+    {
+      "record": "Runtime-only H800 evidence",
+      "reason": "NCCL/SGLang runtime evidence identifies device class and topology observations, not official product-spec fields for memory, bandwidth, compute, power, host interface, or NVLink."
+    }
+  ],
+  "schema_change": {
+    "path": "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+    "field_added": "fp16_tflops",
+    "reason": "The field glossary already lists FP16 as a compute spec, and the selected product-specific sources expose FP16 peak values that should be resolved without overloading BF16 or generic notes."
+  },
+  "gap_reason": "Local product-specific captures already contained unambiguous single-card field values for Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800, but the structured catalog still represented only the original seed rows. Task 2 promotes those values into normalized observations and resolved specs while explicitly preserving unresolved boundaries for multi-variant, aggregate, discovery-only, portfolio, and runtime-only evidence.",
+  "no_new_crawl_reason": "No bounded external capture was needed. The required product-specific pages were already present in local raw evidence and the source registry already contained matching official source IDs.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-verification.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    ".codex/loop-runs/ai-infra-expansion-2026-07-07-r9/required-evidence-manifest.json",
+    ".codex/loop-runs/ai-infra-expansion-2026-07-07-r9/generator-result.json"
+  ]
+}

@@ -97,9 +97,10 @@
       "title": "Compute accelerator inventory, catalog, and parameter comparison",
       "source": "local wiki/raw",
       "status": "known",
-      "updated_at": "2026-07-07T02:05:22Z",
+      "updated_at": "2026-07-07T12:34:31Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-nvidia-products/20260628T055950730327Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md",
         "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
@@ -213,6 +214,25 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-r9-resolved-card-fields",
+      "title": "Resolved single-card AI accelerator fields from local product captures",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T12:34:31Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md"
       ]
     },
     {

@@ -95,3 +95,249 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-06-27"
+  - sku_id: cambricon-mlu370-x4
+    resolved_fields:
+      int8_tops:
+        value: 256
+        unit: TOPS
+        source_observation_id: obs-cambricon-mlu370-x4-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      fp16_tflops:
+        value: 96
+        unit: TFLOPS
+        source_observation_id: obs-cambricon-mlu370-x4-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      bf16_tflops:
+        value: 96
+        unit: TFLOPS
+        source_observation_id: obs-cambricon-mlu370-x4-bf16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      fp32_tflops:
+        value: 24
+        unit: TFLOPS
+        source_observation_id: obs-cambricon-mlu370-x4-fp32-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_type:
+        value: LPDDR5
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x4-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_capacity:
+        value: 24
+        unit: GB
+        source_observation_id: obs-cambricon-mlu370-x4-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_bandwidth:
+        value: 307.2
+        unit: GB/s
+        source_observation_id: obs-cambricon-mlu370-x4-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      host_interface:
+        value: x16 PCIe Gen4
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x4-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 150
+        unit: W
+        source_observation_id: obs-cambricon-mlu370-x4-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      form_factor:
+        value: full-height full-length single-slot PCIe card
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x4-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+  - sku_id: cambricon-mlu370-x8
+    resolved_fields:
+      int8_tops:
+        value: 256
+        unit: TOPS
+        source_observation_id: obs-cambricon-mlu370-x8-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      fp16_tflops:
+        value: 96
+        unit: TFLOPS
+        source_observation_id: obs-cambricon-mlu370-x8-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      bf16_tflops:
+        value: 96
+        unit: TFLOPS
+        source_observation_id: obs-cambricon-mlu370-x8-bf16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      fp32_tflops:
+        value: 24
+        unit: TFLOPS
+        source_observation_id: obs-cambricon-mlu370-x8-fp32-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_type:
+        value: LPDDR5
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x8-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_capacity:
+        value: 48
+        unit: GB
+        source_observation_id: obs-cambricon-mlu370-x8-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_bandwidth:
+        value: 614.4
+        unit: GB/s
+        source_observation_id: obs-cambricon-mlu370-x8-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      host_interface:
+        value: x16 PCIe Gen4
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x8-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      interconnect:
+        value: MLU-Link 4 ports, 16 lanes, 50 Gbps; 200 GB/s bidirectional aggregate
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x8-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 250
+        unit: W
+        source_observation_id: obs-cambricon-mlu370-x8-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      form_factor:
+        value: full-height full-length dual-slot PCIe card
+        unit: none
+        source_observation_id: obs-cambricon-mlu370-x8-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+  - sku_id: kunlunxin-rg800
+    resolved_fields:
+      int8_tops:
+        value: 256
+        unit: TOPS
+        source_observation_id: obs-kunlunxin-rg800-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      fp16_tflops:
+        value: 128
+        unit: TFLOPS
+        source_observation_id: obs-kunlunxin-rg800-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      fp32_tflops:
+        value: 32
+        unit: TFLOPS
+        source_observation_id: obs-kunlunxin-rg800-fp32-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_type:
+        value: GDDR6
+        unit: none
+        source_observation_id: obs-kunlunxin-rg800-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_capacity:
+        value: 32
+        unit: GB
+        source_observation_id: obs-kunlunxin-rg800-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      memory_bandwidth:
+        value: 512
+        unit: GB/s
+        source_observation_id: obs-kunlunxin-rg800-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      host_interface:
+        value: PCIe 4.0 x16
+        unit: none
+        source_observation_id: obs-kunlunxin-rg800-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 130
+        unit: W
+        source_observation_id: obs-kunlunxin-rg800-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      form_factor:
+        value: full-height full-length single-slot PCIe card
+        unit: none
+        source_observation_id: obs-kunlunxin-rg800-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"

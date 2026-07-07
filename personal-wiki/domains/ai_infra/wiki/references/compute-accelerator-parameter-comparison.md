@@ -80,6 +80,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
   - ../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md
+  - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
 ---
 
 # Summary
@@ -121,9 +122,10 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 
 - Highest single-accelerator memory captured in the structured catalog:
   AMD Instinct MI325X at 256 GB, followed by NVIDIA H200 SXM at 141 GB and
-  Intel Gaudi 3 HL-338 at 128 GB. The local resolved catalog only captures
-  memory for MI325X and Gaudi 3, while H200 additionally has 4.8 TB/s memory
-  bandwidth. [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
+  Intel Gaudi 3 HL-338 at 128 GB. R9 task 2 adds source-backed structured
+  rows for Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800,
+  including compute, memory, host-interface, form-factor, and power fields.
+  [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
 - Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. It is the
   only captured single-GPU row with complete high-end tensor, memory bandwidth,
   NVLink, PCIe, and power fields. [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md)
@@ -175,6 +177,9 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | AMD Alveo V80 | FPGA / PCIe card | no resolved parameter yet | [SKUs](../../data/compute_accelerators/skus/sample-skus.yaml) |
 | Intel IPU Adapter E2100 | IPU / PCIe card | 200 Gb/s network bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | Microsoft Maia 200 | cloud-integrated DSA | 216 GB memory; 7 TB/s memory bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
+| Cambricon MLU370-X4 | AI ASIC / PCIe card | 256 TOPS INT8; 96 TFLOPS FP16; 96 TFLOPS BF16; 24 TFLOPS FP32; 24 GB LPDDR5; 307.2 GB/s memory bandwidth; x16 PCIe Gen4; 150 W; full-height full-length single-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md) |
+| Cambricon MLU370-X8 | AI ASIC / PCIe card | 256 TOPS INT8; 96 TFLOPS FP16; 96 TFLOPS BF16; 24 TFLOPS FP32; 48 GB LPDDR5; 614.4 GB/s memory bandwidth; x16 PCIe Gen4; MLU-Link 200 GB/s bidirectional aggregate; 250 W; full-height full-length dual-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md) |
+| Kunlunxin RG800 | AI ASIC / PCIe card | 256 TOPS INT8; 128 TFLOPS FP16; 32 TFLOPS FP32; 32 GB GDDR6; 512 GB/s memory bandwidth; PCIe 4.0 x16; 130 W; full-height full-length single-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md) |
 
 # Unresolved Runtime Evidence
 
@@ -285,3 +290,4 @@ processing, storage offload, IOPS, and latency matter more than tensor FLOPS.
 - ../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
 - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
+- ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
