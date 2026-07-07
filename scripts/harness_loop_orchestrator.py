@@ -3112,6 +3112,20 @@ def _flatten_probe_text(value: Any) -> str:
     return " ".join(parts)
 
 
+def _normalize_visibility_match_text(text: str) -> str:
+    unmarked = re.sub(r"<[^>]+>", " ", str(text))
+    normalized = re.sub(r"[^a-z0-9]+", " ", unmarked.lower())
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _visibility_text_contains(haystack: str, normalized_haystack: str, term: str) -> bool:
+    raw_term = str(term).strip().lower()
+    if raw_term and raw_term in haystack:
+        return True
+    normalized_term = _normalize_visibility_match_text(raw_term)
+    return bool(normalized_term and normalized_term in normalized_haystack)
+
+
 def _candidate_result_value(candidate: Any) -> str:
     if isinstance(candidate, Mapping):
         for key in ("full_path", "path", "title", "url"):
@@ -3132,10 +3146,11 @@ def _match_visibility_target(
         return None
     for candidate in _result_candidates(payload):
         haystack = _flatten_probe_text(candidate)
+        normalized_haystack = _normalize_visibility_match_text(haystack)
         matched_on = ""
         for match_term in target.get("identity_terms", []):
             term = str(match_term).strip()
-            if term and term.lower() in haystack:
+            if term and _visibility_text_contains(haystack, normalized_haystack, term):
                 matched_on = term
                 break
         if not matched_on:
@@ -3143,7 +3158,7 @@ def _match_visibility_target(
         matched_content_terms = [
             str(term).strip()
             for term in target.get("content_terms", [])
-            if str(term).strip() and str(term).strip().lower() in haystack
+            if str(term).strip() and _visibility_text_contains(haystack, normalized_haystack, str(term).strip())
         ]
         if str(target.get("kind", "")).strip() == "wiki_page" and required_content_terms:
             if len(matched_content_terms) != len(required_content_terms):

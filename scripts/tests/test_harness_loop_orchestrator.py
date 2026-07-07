@@ -3516,6 +3516,40 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
         self.assertIsNone(match)
 
+    def test_match_visibility_target_accepts_marked_raw_path_cited_by_curated_result(self) -> None:
+        target = {
+            "target_id": "raw_path:personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+            "kind": "raw_path",
+            "path": "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+            "title": "",
+            "identity_terms": [
+                "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+                "vllm-readme-official-20260707.md",
+                "vllm readme official 20260707",
+            ],
+            "content_terms": [],
+        }
+
+        match = harness_loop_orchestrator._match_visibility_target(
+            {
+                "results": [
+                    {
+                        "title": "Inference Runtime Infrastructure",
+                        "path": "domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+                        "snippet": "../../raw/links/<mark>vllm</mark>-<mark>readme</mark>-<mark>official</mark>-<mark>20260707</mark>.md",
+                    }
+                ]
+            },
+            target,
+            query="vllm readme official 20260707",
+        )
+
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual(match["target_id"], target["target_id"])
+        self.assertEqual(match["path"], target["path"])
+        self.assertEqual(match["result_value"], "domains/ai_infra/wiki/references/inference-runtime-infrastructure.md")
+
     def test_capture_live_search_visibility_blocks_title_only_wiki_page_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
