@@ -1,0 +1,121 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r9-task-3",
+  "run_id": "ai-infra-expansion-2026-07-07-r9",
+  "generated_at": "2026-07-07T13:14:51Z",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json validate and pass ai_infra coverage-map semantics after the network-storage exact-result blocked-source update."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md; no frontmatter routing changes were needed."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "task-3 gap-proof manifest parsed as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r9-task-3') ... PY",
+      "status": "pass",
+      "summary": "gap proof validator returned no findings for task-3."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "task-3 verification manifest parsed as JSON."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "summary": "Corrected rg scan checked 8 changed domain paths and found no AKIA keys, private keys, bearer tokens, GitHub tokens, password/api-key assignments, or credential-shaped values."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "summary": "All 8 changed domain paths are under personal-wiki/domains/ai_infra/** and none match planner denylist paths; run-local .codex artifacts are allowed by the generator contract but could not be written because the run directory is read-only."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No backend, frontend, loop-dashboard, harness, dependency manifest, or lockfile changed; code tests and supply-chain review are not applicable generator-side."
+    },
+    {
+      "command": "source visibility check for MLCommons Storage, storage_results_v2.0, benchmark submission, storage system, workload, backend, compute nodes, accelerator count, networking, throughput, checkpointing, FSx, Lustre, WEKA, Ceph, NVMe-oF, RoCE, EFA, Spectrum-X, OCI, topology, configuration, measured result, duplicate boundary, and blocked-source terms",
+      "status": "pass",
+      "summary": "Targeted rg found the task-specific exact benchmark blocked-source terms across the new raw note, gap proof, updated wiki pages, coverage-map.json, loop-state.json, and ingest log."
+    },
+    {
+      "command": "bounded link probe for official MLCommons Storage v2.0 GitHub API/raw result paths using urllib",
+      "status": "blocked",
+      "summary": "Local shell probes for api.github.com and raw.githubusercontent.com under mlcommons/storage_results_v2.0 returned Temporary failure in name resolution; this is recorded as blocked link evidence and no measured result claim was promoted."
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "delegated",
+      "summary": "Generator did not run localhost socket checks or start services; required-evidence-manifest.json references trusted-live-evidence/<evidence-id>.json for orchestrator capture."
+    },
+    {
+      "command": "Domain Channels evidence for source subscriptions",
+      "status": "pass",
+      "summary": "No crawler source subscriptions or Domain Channels changed; one-shot blocked raw note was sufficient."
+    },
+    {
+      "command": "commit-result gate",
+      "status": "delegated",
+      "summary": "Generator did not run git commit and leaves generator-result commit empty as requested."
+    }
+  ],
+  "live_checks": {
+    "status": "delegated",
+    "reason": "Generator instruction forbids localhost service/socket checks and long-lived services; trusted live evidence is delegated to the orchestrator.",
+    "trusted_live_evidence": [
+      "trusted-live-evidence/service-availability.json",
+      "trusted-live-evidence/crawler-workbench-freshness.json",
+      "trusted-live-evidence/loop-dashboard-freshness.json",
+      "trusted-live-evidence/search-api-visibility.json",
+      "trusted-live-evidence/frontend-visibility.json"
+    ]
+  },
+  "dependency_changes": false,
+  "code_changes": false,
+  "crawler_source_subscriptions_changed": false,
+  "exact_benchmark_claim_promoted": false,
+  "blocked_reason": "No exact MLCommons Storage measured-result artifact was present in the local corpus, and bounded GitHub API/raw probes failed with local DNS resolution errors.",
+  "commit": "",
+  "run_directory_writable": false,
+  "run_directory_write_error": "OSError: [Errno 30] Read-only file system when writing .codex/loop-runs/ai-infra-expansion-2026-07-07-r9/required-evidence-manifest.json"
+}

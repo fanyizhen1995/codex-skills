@@ -1,0 +1,127 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r9-task-3",
+  "run_id": "ai-infra-expansion-2026-07-07-r9",
+  "layer": "network-storage-cluster",
+  "candidate": {
+    "title": "Exact network/storage benchmark result artifact source probe",
+    "source_type": "official_primary_source_probe_blocked",
+    "identity_key": "url:https://github.com/mlcommons/storage_results_v2.0"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "dda534937abb0f87ba143f7a77b061e61353cdbb",
+    "checked_at": "2026-07-07T13:14:51Z",
+    "git_status_before_task": "git status --short returned no changed paths before task-3 edits."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local wiki, raw/links, raw/crawler, raw/github, coverage-map.json, loop-state.json, r8 network-storage gap proof, r9 hardware gap proof, and ingest.md for MLCommons Storage, storage_results_v2.0, benchmark submission, storage system, workload, backend, compute nodes, accelerator count, networking, throughput, checkpointing, FSx, Lustre, WEKA, Ceph, NVMe-oF, RoCE, EFA, Spectrum-X, OCI, topology, configuration, measured result, duplicate boundary, and blocked-source terms.",
+    "wiki_search": "Network Storage Cluster Infrastructure and AI Infra Coverage Map already recorded EFA, FSx for Lustre, WEKA, Ceph, SPDK/NVMe-oF, AWS HyperPod topology/checkpoint/resiliency mechanics, MLCommons Storage benchmark-method/result-framework evidence, Spectrum-X/RoCE fabric operations, OCI RoCE design, and local DPU/NVMe-oF product signals. They explicitly left exact product/provider benchmark submissions and measured-result claims open.",
+    "domain_index_scan": "ai_infra wiki/index.md routes Network Storage Cluster Infrastructure, AI Infra Coverage Map, NCCL Technical Blog Network Observability, Compute Accelerator Parameter Comparison, and related network/storage evidence pages. Task 3 updates existing pages and raw source notes rather than creating a duplicate curated page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "Primary duplicate boundary for network/storage coverage. It already contains architecture and benchmark-method evidence, but no exact MLCommons measured-result artifact."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/raw/links/network-storage-topology-benchmark-official-sources-20260707.md",
+      "result": "Existing raw note identifies MLCommons Storage and storage_results_v2.0 as the measured-results source boundary, but explicitly does not select or rank individual submissions."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+      "result": "Duplicate boundary for Spectrum-X/RoCE, OCI RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NVBandwidth, NCCL RAS, NIC Fusion, and fabric telemetry. It does not provide storage benchmark result artifacts."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Duplicate boundary for accelerator, DPU, SmartNIC, and NVMe-oF product rows. It does not prove storage system benchmark throughput or MLCommons result values."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json",
+      "result": "R8 task 2 added HyperPod topology/checkpoint and MLCommons benchmark-method evidence while explicitly deferring exact product/provider measured-result submissions."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
+      "result": "R9 task 2 resolved bounded hardware accelerator fields and is a duplicate boundary for not expanding hardware catalog records during this network/storage task."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/raw/links/network-storage-topology-benchmark-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/network-storage-incident-postmortem-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json"
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "new_blocked_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md",
+      "coverage": "Blocked-source evidence for the exact MLCommons Storage measured-result artifact gap. No measured throughput or product ranking claim is promoted."
+    }
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://api.github.com/repos/mlcommons/storage_results_v2.0/contents?ref=main",
+      "status": "blocked",
+      "evidence": "Local sandbox urllib probe returned Temporary failure in name resolution before an HTTP status could be obtained."
+    },
+    {
+      "url": "https://api.github.com/repos/mlcommons/storage_results_v2.0/contents/closed?ref=main",
+      "status": "blocked",
+      "evidence": "Local sandbox urllib probe returned Temporary failure in name resolution before an HTTP status could be obtained."
+    },
+    {
+      "url": "https://api.github.com/repos/mlcommons/storage_results_v2.0/contents/open?ref=main",
+      "status": "blocked",
+      "evidence": "Local sandbox urllib probe returned Temporary failure in name resolution before an HTTP status could be obtained."
+    },
+    {
+      "url": "selected raw.githubusercontent.com result-path probes",
+      "status": "blocked",
+      "evidence": "Local sandbox urllib probes returned Temporary failure in name resolution for raw GitHub result-path probes."
+    }
+  ],
+  "blocked_or_deferred_sources": [
+    {
+      "source_type": "exact_mlcommons_storage_result_artifact",
+      "status": "blocked",
+      "reason": "No exact measured-result artifact is present in local raw/wiki evidence, and bounded GitHub API/raw probes failed with local DNS resolution errors. The task therefore records blocked-source evidence and does not infer throughput or configuration values.",
+      "policy": "Do not promote MLCommons benchmark-method documentation or repository identity into a measured-result claim without exact source-backed result fields."
+    },
+    {
+      "source_type": "provider_benchmark_case_study",
+      "status": "deferred",
+      "reason": "No local provider case-study source exposed full environment, workload, topology, configuration, and measured result fields beyond the existing architecture/product notes. External broad search was not expanded after the primary MLCommons result path was blocked.",
+      "policy": "Prefer bounded exact artifacts and avoid marketing or architecture pages as benchmark evidence."
+    },
+    {
+      "source_type": "production_incident_postmortem",
+      "status": "duplicate_boundary",
+      "reason": "R8 task 2 already recorded incident/postmortem probes as blocked for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, and NVMe-oF. Task 3 does not repeat those probes."
+    },
+    {
+      "source_type": "crawler_source_subscription",
+      "status": "not_used",
+      "reason": "The duplicate/gap proof did not justify a scheduled crawler source subscription. A one-shot blocked raw note is sufficient for this run."
+    }
+  ],
+  "gap_reason": "The local corpus has MLCommons Storage benchmark-method and result-framework evidence, but no captured exact result artifact with the submission-specific fields needed for a measured benchmark claim. Bounded official GitHub API/raw probes for the MLCommons Storage v2.0 result repository failed in the shell sandbox with DNS resolution errors, so this task records a concrete blocked-source boundary and keeps exact product/provider benchmark submissions open.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    ".codex/loop-runs/ai-infra-expansion-2026-07-07-r9/required-evidence-manifest.json",
+    ".codex/loop-runs/ai-infra-expansion-2026-07-07-r9/generator-result.json"
+  ],
+  "generated_at": "2026-07-07T13:14:51Z"
+}

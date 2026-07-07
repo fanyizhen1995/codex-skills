@@ -24,6 +24,7 @@ source_refs:
   - ../../raw/links/spdk-nvme-of-target-official-docs-20260707.md
   - ../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md
   - ../../raw/links/network-storage-incident-postmortem-sources-20260707.md
+  - ../../raw/links/network-storage-exact-benchmark-results-20260707.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md
@@ -50,7 +51,7 @@ This reference fills the `network-storage-cluster` layer beyond existing NCCL/Sp
 - distributed storage building blocks for file and block interfaces;
 - storage-fabric or offload paths such as NVMe-oF.
 
-The layer remains partial. The evidence now covers EFA, FSx for Lustre, WEKA, Ceph, and SPDK/NVMe-oF at an architecture and source-note level; AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, and checkpoint-aware resume as managed training-cluster data-path evidence; and MLCommons Storage as benchmark-method and result-framework evidence. Existing local evidence still covers Spectrum-X/RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, fabric telemetry, and product-specific DPU/NVMe-oF signals. Remaining gaps include complete production incident/postmortem sources, product-specific benchmark submissions with full environment and measured results, and broader non-AWS/non-NVIDIA fabric operations.
+The layer remains partial. The evidence now covers EFA, FSx for Lustre, WEKA, Ceph, and SPDK/NVMe-oF at an architecture and source-note level; AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, and checkpoint-aware resume as managed training-cluster data-path evidence; and MLCommons Storage as benchmark-method and result-framework evidence. R9 task 3 adds blocked-source evidence for exact MLCommons measured-result artifacts: local search found no captured per-submission result file, and bounded GitHub API/raw probes failed with local DNS resolution errors. Existing local evidence still covers Spectrum-X/RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, fabric telemetry, and product-specific DPU/NVMe-oF signals. Remaining gaps include complete production incident/postmortem sources, product-specific benchmark submissions with full environment and measured results, and broader non-AWS/non-NVIDIA fabric operations.
 
 # Duplicate Boundaries
 
@@ -94,6 +95,12 @@ MLCommons Storage is the benchmark-method boundary for AI storage in this page. 
 
 This page does not rank FSx for Lustre, WEKA, Ceph, SPDK, or NVMe-oF systems from MLCommons results. A future product-specific benchmark claim must cite the exact submission or report and preserve workload, topology, hardware or cloud environment, storage/fabric configuration, and measured result boundaries. [source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
 
+# Exact Result Artifact Probe Boundary
+
+R9 task 3 searched local raw, crawler, GitHub, curated wiki, coverage, and loop-state evidence for exact MLCommons Storage result artifacts and provider benchmark submissions. It found benchmark-method and result-framework evidence, but no local per-submission result file with source-backed submitter, workload, backend, storage system, compute-node count, accelerator count where present, networking/topology, storage configuration, and measured throughput. [source note](../../raw/links/network-storage-exact-benchmark-results-20260707.md)
+
+The same task attempted bounded official GitHub API and raw-result probes for `mlcommons/storage_results_v2.0`, but the shell sandbox returned `Temporary failure in name resolution`. Because exact result-file content was not captured, this page still does not promote throughput, ranking, or product/provider benchmark-performance claims from MLCommons Storage. [source note](../../raw/links/network-storage-exact-benchmark-results-20260707.md)
+
 # Incident And Postmortem Boundary
 
 No new production incident or postmortem source was promoted in this task. The incident search note records probes for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, and NVMe-oF incident/postmortem sources, but the available probes did not produce a primary source with impact, timeline, environment, remediation, and follow-up ownership. Keep HyperPod resiliency and local issue evidence scoped to operational mechanics or incident-shaped leads. [source note](../../raw/links/network-storage-incident-postmortem-sources-20260707.md)
@@ -109,6 +116,7 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - SPDK NVMe-oF as storage-fabric protocol evidence for target/subsystem/namespace behavior;
 - AWS HyperPod topology-aware scheduling, Slurm topology plugin behavior, EFA health checks, node replacement, and checkpoint-aware resume as managed training-cluster topology and data-path evidence;
 - MLCommons Storage benchmark mechanics and result-framework fields for AI storage benchmarking;
+- blocked-source evidence showing exact MLCommons measured-result artifacts were not available from local corpus or bounded shell probes in r9 task 3;
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
 - local DPU/SmartNIC/NVMe-oF product captures only for product-specific storage or offload signals.
 
@@ -123,6 +131,7 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [SPDK NVMe-oF source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
 - [Network storage topology and benchmark source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
 - [Network storage incident and postmortem source search](../../raw/links/network-storage-incident-postmortem-sources-20260707.md)
+- [Network storage exact benchmark result source probe](../../raw/links/network-storage-exact-benchmark-results-20260707.md)
 - [NCCL Technical Blog Network Observability](nccl-technical-blog-network-observability.md)
 - [Compute Accelerator Parameter Comparison](compute-accelerator-parameter-comparison.md)
 - [AWS Trainium2 raw capture](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)

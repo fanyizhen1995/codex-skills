@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T12:08:36Z",
+  "last_scan_at": "2026-07-07T13:14:51Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -403,6 +403,19 @@
         "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ]
+    },
+    {
+      "id": "network-storage-exact-benchmark-blocked-source-evidence",
+      "title": "Exact MLCommons Storage measured-result artifact probe evidence",
+      "source": "bounded local and official-source probe",
+      "status": "known",
+      "updated_at": "2026-07-07T13:14:51Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+      ]
     }
   ],
   "coverage_gaps": [
@@ -429,6 +442,18 @@
         "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md"
       ],
       "blocked_reason": "Local SGLang records are incident-shaped operational leads, not complete production postmortems with service impact, timeline, remediation, and follow-up ownership. External source probing was bounded by sandbox DNS failure, so no production rollback or postmortem claims were promoted."
+    },
+    {
+      "id": "network-storage-exact-benchmark-result-capture",
+      "title": "Exact MLCommons Storage measured-result artifact capture",
+      "source": "bounded local and official-source probe",
+      "status": "blocked",
+      "updated_at": "2026-07-07T13:14:51Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md"
+      ],
+      "blocked_reason": "Local duplicate checks found only MLCommons Storage benchmark-method and result-framework evidence, not an exact measured-result artifact. Bounded GitHub API and raw result probes for mlcommons/storage_results_v2.0 failed in the shell sandbox with Temporary failure in name resolution, so no throughput, ranking, or product/provider benchmark-performance claim was promoted."
     }
   ],
   "blocked_items": [],
