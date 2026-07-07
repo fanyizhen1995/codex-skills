@@ -109,12 +109,20 @@ class LoopDashboardStore:
         )
         if run_kind == "parent":
             child_runs, relationship_diagnostics = self._children_for_parent(str(summary.get("run_id") or run_id), run_data)
+            child_summaries = [self._child_detail_summary(child) for child in child_runs]
+            summary["governance_artifacts"] = self._aggregate_governance_artifacts(
+                summary.get("governance_artifacts"),
+                [child_summary.get("governance_artifacts") for child_summary in child_summaries],
+            )
+            summary["artifact_paths"] = self._unique_nonempty(
+                [*self._path_items(summary.get("artifact_paths")), *self._governance_artifact_paths(summary["governance_artifacts"])]
+            )
             aggregate_acceptance = run_data.get("aggregate_acceptance")
             summary.update(
                 {
                     "reader_summary": run_data.get("reader_summary") if isinstance(run_data.get("reader_summary"), dict) else {},
                     "aggregate_acceptance": aggregate_acceptance if isinstance(aggregate_acceptance, dict) else {},
-                    "children": [child.summary for child in child_runs],
+                    "children": child_summaries,
                     "relationship_diagnostics": relationship_diagnostics,
                     "blocked_diagnostics": [*summary.get("blocked_diagnostics", []), *relationship_diagnostics],
                     "acceptance_summary": self._parent_acceptance_summary(
@@ -868,6 +876,55 @@ class LoopDashboardStore:
             ],
         }
 
+    def _child_detail_summary(self, child: ChildRun) -> dict[str, Any]:
+        summary = dict(child.summary)
+        run_data = self._read_json(child.source.run_dir / "run.json", allowed_root=child.source.run_dir)
+        if not isinstance(run_data, dict):
+            run_data = {}
+        evaluator = self._read_json(child.source.run_dir / "evaluator-result.json", allowed_root=child.source.run_dir)
+        if not isinstance(evaluator, dict):
+            evaluator = {}
+        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        if not isinstance(rich_evaluator, dict):
+            rich_evaluator = {}
+        governance_artifacts = self._governance_artifacts(child.source.run_dir, evaluator)
+        summary.update(
+            {
+                "decision_summary": self._decision_summary(run_data, evaluator, rich_evaluator),
+                "governance_artifacts": governance_artifacts,
+            }
+        )
+        summary["artifact_paths"] = self._unique_nonempty(
+            [*self._path_items(summary.get("artifact_paths")), *self._governance_artifact_paths(governance_artifacts)]
+        )
+        return summary
+
+    def _aggregate_governance_artifacts(self, base: Any, children: list[Any]) -> dict[str, Any]:
+        payloads = [item for item in [base, *children] if isinstance(item, dict)]
+        formal_verification: dict[str, Any] = {}
+        formal_verification_artifact_paths: list[str] = []
+        task_contract_artifact_paths: list[str] = []
+        evaluator_scenarios: list[dict[str, Any]] = []
+        source_profile_snapshots: list[str] = []
+
+        for payload in payloads:
+            if not formal_verification and isinstance(payload.get("formal_verification"), dict) and payload.get("formal_verification"):
+                formal_verification = dict(payload.get("formal_verification"))
+            formal_verification_artifact_paths.extend(self._path_items(payload.get("formal_verification_artifact_paths")))
+            task_contract_artifact_paths.extend(self._path_items(payload.get("task_contract_artifact_paths")))
+            source_profile_snapshots.extend(self._path_items(payload.get("source_profile_snapshots")))
+            scenarios = payload.get("evaluator_scenarios")
+            if isinstance(scenarios, list):
+                evaluator_scenarios.extend(item for item in scenarios if isinstance(item, dict))
+
+        return {
+            "formal_verification": formal_verification,
+            "formal_verification_artifact_paths": self._unique_nonempty(formal_verification_artifact_paths),
+            "task_contract_artifact_paths": self._unique_nonempty(task_contract_artifact_paths),
+            "evaluator_scenarios": self._unique_dicts(evaluator_scenarios),
+            "source_profile_snapshots": self._unique_nonempty(source_profile_snapshots),
+        }
+
     def _formal_verification_artifact_paths(
         self,
         run_dir: Path,
@@ -898,6 +955,17 @@ class LoopDashboardStore:
         if not isinstance(value, list):
             return []
         return [item for item in value if isinstance(item, str) and item]
+
+    def _unique_dicts(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        unique: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in items:
+            key = json.dumps(item, ensure_ascii=False, sort_keys=True)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(item)
+        return unique
 
     def _safe_artifact_labels(self, value: Any) -> list[str]:
         labels: list[str] = []

@@ -875,6 +875,146 @@ def test_parent_acceptance_summary_aggregates_child_evaluator_results(tmp_path: 
     assert acceptance["rerun_commands"] == ["python3 scripts/loop_dashboard_evaluator.py --child parent-run-child-001"]
 
 
+def test_parent_detail_aggregates_governance_artifacts_from_child_runs(tmp_path: Path) -> None:
+    parent_id = "ai-infra-loop-governance-dev"
+    child_id = "ai-infra-loop-governance-dev-child-004"
+    seed_run(tmp_path, child_id, "repair_needed", last_result="fail", next_action="repair_and_reevaluate")
+    child_dir = tmp_path / ".codex" / "loop-runs" / child_id
+    child_run = json.loads((child_dir / "run.json").read_text(encoding="utf-8"))
+    child_run.update(
+        {
+            "run_kind": "child",
+            "parent_run_id": parent_id,
+            "child_index": 4,
+            "task_id": f"{child_id}-task",
+        }
+    )
+    write_json(child_dir / "run.json", child_run)
+
+    parent_dir = tmp_path / ".codex" / "loop-runs" / parent_id
+    write_json(
+        parent_dir / "run.json",
+        {
+            "run_id": parent_id,
+            "run_kind": "parent",
+            "policy": "demand_development",
+            "phase": "child_running",
+            "task_id": parent_id,
+            "domain": "ai_infra",
+            "branch": "main",
+            "worktree": str(tmp_path),
+            "requirement": "Aggregate governance child artifacts on the parent detail page.",
+            "constraints": [],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": ["apps/loop_dashboard"],
+            "denylist_paths": [],
+            "attempts": {"planner": 1, "generator": 0, "evaluator": 0, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {},
+            "last_result": "none",
+            "next_action": "run_parent_planner",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "child_run_ids": [child_id],
+            "current_child_run_id": child_id,
+            "aggregate_acceptance": {"total": 1, "passed": 0, "failed": 1, "blocked": 0, "pending": 0},
+            "reader_summary": {"purpose": "Show governance rollup"},
+        },
+    )
+
+    formal_dir = child_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    write_json(
+        formal_dir / "formal-001.json",
+        {
+            "phase": "formal_suspicion_pass",
+            "suspicions": [
+                {
+                    "id": "formal-confirmed-bug",
+                    "risk": "high",
+                    "result": "confirmed_bug",
+                    "repair_required": True,
+                }
+            ],
+        },
+    )
+    write_json(
+        child_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": f"{child_id}-task",
+            "summary": "formal verification blocked parent approval",
+            "next_action": "repair_and_reevaluate",
+            "formal_verification": {
+                "status": "fail",
+                "next_action": "repair_and_reevaluate",
+                "artifact_paths": [f".codex/loop-runs/{child_id}/formal-verification/formal-001.json"],
+                "findings": [{"id": "formal-confirmed-bug", "severity": "critical"}],
+            },
+        },
+    )
+    write_json(
+        child_dir / "task-contract.json",
+        {
+            "task_id": f"{child_id}-task",
+            "title": "Formal suspicion",
+            "description": "Verify formal suspicion.",
+            "verify_commands": [],
+            "scenario_commands": [],
+            "artifact_paths": [
+                "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+            ],
+            "required_services": [],
+            "evaluator_driver": "harness_auto_gate",
+            "eval_policy": {"task_level_required": True},
+            "allowed_scope": "local_repo_and_harness",
+            "must_simulate": True,
+            "user_scenarios": [
+                {
+                    "scenario_id": "GOV-PARENT-01",
+                    "user_goal": "确认父治理 run 可以看到子 run 的 formal verification 产物。",
+                    "steps": ["打开 parent run detail"],
+                    "expected_outcomes": ["formal verification 可见"],
+                    "failure_signals": ["父 run governance_artifacts 为空"],
+                }
+            ],
+        },
+    )
+    snapshot_path = tmp_path / "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    write_json(snapshot_path, {"schema_version": 1, "record_counts": {"channels": 1, "sources": 1}})
+
+    detail = LoopDashboardStore(tmp_path).get_run(parent_id)
+
+    governance = detail["governance_artifacts"]
+    assert governance["formal_verification"]["status"] == "fail"
+    assert governance["formal_verification"]["next_action"] == "repair_and_reevaluate"
+    assert governance["formal_verification_artifact_paths"] == [
+        f".codex/loop-runs/{child_id}/formal-verification/formal-001.json"
+    ]
+    assert governance["task_contract_artifact_paths"] == [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    ]
+    assert governance["evaluator_scenarios"] == [
+        {
+            "scenario_id": "GOV-PARENT-01",
+            "user_goal": "确认父治理 run 可以看到子 run 的 formal verification 产物。",
+            "expected_outcomes": ["formal verification 可见"],
+            "failure_signals": ["父 run governance_artifacts 为空"],
+        }
+    ]
+    assert governance["source_profile_snapshots"] == [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    ]
+    assert f".codex/loop-runs/{child_id}/formal-verification/formal-001.json" in detail["artifact_paths"]
+    assert (
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+        in detail["artifact_paths"]
+    )
+    assert [child["run_id"] for child in detail["children"]] == [child_id]
+    assert detail["children"][0]["phase"] == "repair_needed"
+    assert detail["children"][0]["decision_summary"]["next_action"] == "repair_and_reevaluate"
+
+
 def test_top_level_list_runs_hides_children_that_have_existing_parent(tmp_path: Path) -> None:
     seed_parent_child_runs(tmp_path)
 
