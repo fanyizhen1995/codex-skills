@@ -108,7 +108,10 @@ def run_codex_prompt(
         stdout = _decode_timeout_stream(exc.output)
         stderr = _decode_timeout_stream(exc.stderr)
         exit_code = 124
-        status = "timeout"
+        if output_json_path.exists() or _write_output_from_final_message(output_message_path, output_json_path):
+            status = "pass"
+        else:
+            status = "timeout"
 
     finished_at = _timestamp()
     stdout_path.write_text(stdout, encoding="utf-8")

@@ -305,6 +305,45 @@ class HarnessLoopAgentsTests(unittest.TestCase):
             self.assertIn("too slow", (run_dir / "generator-attempt-2.stderr.log").read_text(encoding="utf-8"))
             self.assertEqual(json.loads((run_dir / "generator-attempt-2.json").read_text(encoding="utf-8")), payload)
 
+    def test_run_codex_prompt_recovers_timeout_when_final_message_is_valid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / ".codex" / "loop-runs" / "run-1"
+            prompt_path = run_dir / "prompt.md"
+            output_json_path = run_dir / "planner-output.json"
+            prompt_path.parent.mkdir(parents=True)
+            prompt_path.write_text("Do the thing", encoding="utf-8")
+
+            def run_side_effect(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+                message_path = Path(command[command.index("--output-last-message") + 1])
+                message_path.write_text('{"task_id":"from-timeout-final-message"}', encoding="utf-8")
+                raise subprocess.TimeoutExpired(
+                    command,
+                    timeout=3,
+                    output="before timeout",
+                    stderr="too slow",
+                )
+
+            with mock.patch(
+                "scripts.harness_loop_agents.codex_exec_capabilities",
+                return_value={"json": True, "output_last_message": True},
+            ), mock.patch("scripts.harness_loop_agents.subprocess.run", side_effect=run_side_effect):
+                payload = run_codex_prompt(
+                    role="planner",
+                    run_id="run-1",
+                    repo_root=root,
+                    run_dir=run_dir,
+                    prompt_path=prompt_path,
+                    output_json_path=output_json_path,
+                    attempt=3,
+                    timeout_seconds=3,
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["exit_code"], 124)
+            self.assertEqual(read_json_file(output_json_path), {"task_id": "from-timeout-final-message"})
+            validate_agent_attempt_payload(payload)
+
 
 if __name__ == "__main__":
     unittest.main()
