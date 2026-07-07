@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import json
+import os
 import re
+import signal
 import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -108,6 +111,7 @@ def run_codex_prompt(
         stdout = _decode_timeout_stream(exc.output)
         stderr = _decode_timeout_stream(exc.stderr)
         exit_code = 124
+        _terminate_codex_attempt_processes(output_message_path)
         if output_json_path.exists() or _write_output_from_final_message(output_message_path, output_json_path):
             status = "pass"
         else:
@@ -142,6 +146,48 @@ def _decode_timeout_stream(value: str | bytes | None) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
+
+
+def _terminate_codex_attempt_processes(output_message_path: Path) -> list[int]:
+    needle = str(output_message_path).encode("utf-8")
+    current_pid = os.getpid()
+    terminated: list[int] = []
+    proc_root = Path("/proc")
+    if not proc_root.exists():
+        return terminated
+
+    for proc_path in proc_root.iterdir():
+        if not proc_path.name.isdigit():
+            continue
+        pid = int(proc_path.name)
+        if pid == current_pid:
+            continue
+        try:
+            cmdline = (proc_path / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if needle not in cmdline:
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            continue
+        terminated.append(pid)
+
+    if not terminated:
+        return terminated
+
+    time.sleep(0.2)
+    for pid in terminated:
+        try:
+            os.kill(pid, 0)
+        except (ProcessLookupError, PermissionError):
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            continue
+    return terminated
 
 
 def _write_output_from_final_message(output_message_path: Path, output_json_path: Path) -> bool:

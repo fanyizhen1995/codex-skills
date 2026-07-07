@@ -305,6 +305,42 @@ class HarnessLoopAgentsTests(unittest.TestCase):
             self.assertIn("too slow", (run_dir / "generator-attempt-2.stderr.log").read_text(encoding="utf-8"))
             self.assertEqual(json.loads((run_dir / "generator-attempt-2.json").read_text(encoding="utf-8")), payload)
 
+    def test_run_codex_prompt_terminates_matching_processes_on_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / ".codex" / "loop-runs" / "run-1"
+            prompt_path = run_dir / "prompt.md"
+            output_json_path = run_dir / "planner-output.json"
+            prompt_path.parent.mkdir(parents=True)
+            prompt_path.write_text("Do the thing", encoding="utf-8")
+            timeout = subprocess.TimeoutExpired(
+                ["codex"],
+                timeout=3,
+                output="before timeout",
+                stderr="too slow",
+            )
+
+            with mock.patch(
+                "scripts.harness_loop_agents.codex_exec_capabilities",
+                return_value={"json": True, "output_last_message": True},
+            ), mock.patch("scripts.harness_loop_agents.subprocess.run", side_effect=timeout), mock.patch(
+                "scripts.harness_loop_agents._terminate_codex_attempt_processes",
+                return_value=[1234],
+            ) as terminate:
+                payload = run_codex_prompt(
+                    role="generator",
+                    run_id="run-1",
+                    repo_root=root,
+                    run_dir=run_dir,
+                    prompt_path=prompt_path,
+                    output_json_path=output_json_path,
+                    attempt=2,
+                    timeout_seconds=3,
+                )
+
+            self.assertEqual(payload["status"], "timeout")
+            terminate.assert_called_once_with(run_dir / "generator-attempt-2.message.json")
+
     def test_run_codex_prompt_recovers_timeout_when_final_message_is_valid_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
