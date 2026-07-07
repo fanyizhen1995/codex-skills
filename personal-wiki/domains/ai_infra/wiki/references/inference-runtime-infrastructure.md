@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: Inference Runtime Infrastructure
-description: Source-backed reference for inference serving runtime mechanics across vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures.
+description: Source-backed reference for inference serving runtime mechanics and deployment controls across vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, and local TensorRT/vLLM captures.
 domain: ai_infra
 status: reviewed
 aliases:
@@ -23,6 +23,8 @@ source_refs:
   - ../../raw/links/triton-inference-server-batcher-official-docs-20260707.md
   - ../../raw/links/llama-cpp-server-official-docs-20260707.md
   - ../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md
+  - ../../raw/links/ray-serve-deployment-control-official-docs-20260707.md
+  - ../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md
@@ -42,9 +44,9 @@ related:
 ---
 # Summary
 
-This reference broadens the `inference-runtime` layer beyond the existing SGLang and CUDA Green Context pages. It uses concise official source notes for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, and ONNX Runtime GenAI, plus existing local vLLM and NVIDIA TensorRT captures that were already in raw evidence.
+This reference broadens the `inference-runtime` layer beyond the existing SGLang and CUDA Green Context pages. It uses concise official source notes for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, Ray Serve, and Knative, plus existing local vLLM and NVIDIA TensorRT captures that were already in raw evidence.
 
-The common boundary is serving-time infrastructure: request scheduling and batching, KV-cache lifetime, model repository or config loading, hardware/provider selection, distributed execution knobs, and API-server surfaces. Model quality, prompt design, and application UX stay outside this page unless they directly affect runtime behavior.
+The common boundary is serving-time infrastructure: request scheduling and batching, KV-cache lifetime, model repository or config loading, hardware/provider selection, distributed execution knobs, API-server surfaces, autoscaling, placement, and rollout traffic control. Model quality, prompt design, and application UX stay outside this page unless they directly affect runtime behavior.
 
 # Runtime Surfaces
 
@@ -54,6 +56,7 @@ The sources split inference runtime into several repeated control surfaces:
 - `KV-cache lifecycle`: vLLM PagedAttention and prefix caching, TensorRT-LLM block reuse and offload, vLLM PegaFlow's external cache process, and ONNX Runtime GenAI's past/present KV names show that generated-token state is a first-class runtime asset. [raw](../../raw/links/vllm-readme-official-20260707.md) [raw](../../raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md) [raw](../../raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md) [raw](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
 - `model loading and execution target`: Triton uses a model repository with versioned model directories; ONNX Runtime GenAI uses `genai_config.json`; llama.cpp uses local/GGUF-style model loading; TensorRT and TensorRT-LLM use optimized runtime engines and serve commands. [raw](../../raw/links/triton-inference-server-batcher-official-docs-20260707.md) [raw](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md) [raw](../../raw/links/llama-cpp-server-official-docs-20260707.md) [raw](../../raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md)
 - `parallel and hardware placement`: vLLM exposes tensor, pipeline, data, expert, and context parallelism; TensorRT-LLM exposes tensor, pipeline, and expert parallel knobs in serving; TensorRT 11.0 adds multi-device inference with NCCL collectives; ONNX Runtime GenAI selects execution providers; llama.cpp spans local CPU/GPU backends. [raw](../../raw/links/vllm-readme-official-20260707.md) [raw](../../raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md) [raw](../../raw/crawler/nccl-technical-blog/20260626T015704292802Z-developer-nvidia-com-blog-scaling-ai-inference-across-multiple-gpus-using-nvidia-tensorrt-6fabda0844.md) [raw](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md) [raw](../../raw/links/llama-cpp-server-official-docs-20260707.md)
+- `deployment control`: Ray Serve adds request-driven autoscaling, deployment resource requests, accelerator-type inputs, placement-group/gang scheduling for multi-actor replicas, and Serve-controlled updates; Knative adds request-load autoscaling, immutable revisions, traffic percentages, latest-revision rollout, blue/green staging, and rollback-by-traffic-shift mechanics. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md) [raw](../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md)
 
 # vLLM
 
@@ -87,6 +90,14 @@ ONNX Runtime GenAI provides a configuration-driven runtime surface. Its config r
 
 The Python API adds generation lifecycle evidence through `Config`, `Model`, `GeneratorParams`, `Generator`, and `Tokenizer`. `GeneratorParams` can set inputs, search options, and graph-capture settings; `Generator` can generate the next token, expose logits and generated tokens, rewind, check completion, and apply adapters. This is useful for local or embedded runtime configuration coverage, not for claims about centralized cluster admission or fleet autoscaling. [raw](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
 
+# Deployment Control Evidence
+
+Ray Serve supplies the model-serving-specific deployment-control evidence in this round. Its autoscaling guide treats replica count as a function of deployment autoscaling config, with minimum and maximum replicas, target ongoing requests, and up/down delays. Its resource allocation docs put CPU, GPU, custom resources, accelerator type, and memory choices into the deployment actor options, which makes placement an explicit scheduling request rather than an inferred property of the model. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md)
+
+Ray Serve gang scheduling adds a stricter placement boundary for large serving replicas. When one replica needs several colocated actors, the source uses Ray placement-group bundles and placement-group strategy so the actors that make up the replica are scheduled as a unit. That is stronger model-placement evidence than generic Kubernetes node scheduling, but it still does not prove a particular cluster topology or production failure mode. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md)
+
+Ray Serve in-place update guidance and Knative revision traffic management fill rollout mechanics without claiming a complete canary incident record. Ray Serve separates lightweight config updates from replica-replacing updates. Knative Serving creates immutable revisions, can split traffic by percentage across revisions, supports latest-revision and blue/green rollout patterns, and preserves rollback-by-shifting traffic back to an earlier revision. Use the Knative facts as serving-control mechanics only; KServe-specific autoscaling and canary docs were probed but not promoted because they did not return reliable content in this run. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md) [raw](../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md)
+
 # Production Operations Evidence
 
 The local vLLM and SGLang evidence adds operational coverage beyond runtime feature lists:
@@ -101,12 +112,12 @@ The local vLLM and SGLang evidence adds operational coverage beyond runtime feat
 
 Use this page as source-backed coverage for:
 
-- `inference-runtime`: multi-project serving runtime mechanics, batching, KV-cache lifecycle, model loading/configuration, provider/hardware selection, OpenAI-compatible serving surfaces, distributed inference knobs, external KV-cache operations, rollout weight-sync control, router abort observability, PD disaggregation failure handling, benchmark/profiling harness leads, and warmup/startup regression leads.
+- `inference-runtime`: multi-project serving runtime mechanics, batching, KV-cache lifecycle, model loading/configuration, provider/hardware selection, OpenAI-compatible serving surfaces, distributed inference knobs, Ray Serve autoscaling/resource/placement-group deployment controls, Knative revision traffic-split rollout mechanics, external KV-cache operations, rollout weight-sync control, router abort observability, PD disaggregation failure handling, benchmark/profiling harness leads, and warmup/startup regression leads.
 - `training-distributed`: only where vLLM RL weight syncing touches trainer-to-inference weight transfer; this page does not replace distributed training framework evidence.
 - `network-storage-cluster`: only where PegaFlow's RDMA/SSD cache hierarchy or TensorRT NCCL collectives touch serving data movement; this page does not replace cluster storage or fabric coverage.
 - `eval-observability-reliability`: only where TensorRT-LLM/Triton metrics or health endpoints are serving surfaces; this page does not replace observability platform or incident evidence.
 
-Remaining gaps include autoscaling, model-placement, and canary rollout sources; full production postmortems with service impact and remediation; live trace/profiling artifacts tied to SLOs; and a decision on whether SGLang scheduled crawler supplement leads need a full API refresh with comments and review comments.
+Remaining gaps include KServe-specific autoscaling and canary rollout documentation, production failure/rollback evidence around autoscaling or rollout controls, full production postmortems with service impact and remediation, live trace/profiling artifacts tied to SLOs, and a decision on whether SGLang scheduled crawler supplement leads need a full API refresh with comments and review comments.
 
 # Citations
 
@@ -118,6 +129,8 @@ Remaining gaps include autoscaling, model-placement, and canary rollout sources;
 - [Triton model repository and batcher source note](../../raw/links/triton-inference-server-batcher-official-docs-20260707.md)
 - [llama.cpp source note](../../raw/links/llama-cpp-server-official-docs-20260707.md)
 - [ONNX Runtime GenAI config/API source note](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
+- [Ray Serve deployment control source note](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md)
+- [Knative Serving autoscaling and traffic source note](../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md)
 - [SGLang scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
 - [SGLang issue #24220 request-id tracing](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md)
 - [SGLang PR #29915 router abort observability](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md)

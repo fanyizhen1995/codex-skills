@@ -1,0 +1,152 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r8-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r8",
+  "domain": "ai_infra",
+  "generated_at": "2026-07-07T09:40:00Z",
+  "status": "pass_with_delegated_live_checks",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ray-serve-deployment-control-official-docs-20260707.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json satisfied schema and ai_infra semantic validation."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "gap-proof manifest parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "verification manifest parsed as JSON after creation."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r8-task-1') ... PY",
+      "status": "pass",
+      "summary": "gap proof validator returned no findings for the current task id."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "summary": "No AKIA keys, private keys, bearer tokens, password/api-key assignments, or credential-shaped values found in changed task files."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "summary": "All declared changed paths are under personal-wiki/domains/ai_infra/** and none match the planner denylist."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No backend, frontend, loop-dashboard, harness, or dependency manifest files changed; code tests and supply-chain dependency review are not applicable generator-side."
+    },
+    {
+      "command": "bounded external link probe for Ray Serve, Knative, and KServe URLs using urllib",
+      "status": "blocked",
+      "summary": "Local sandbox DNS returned Temporary failure in name resolution for all external URLs. The gap proof records earlier web.open pass evidence for Ray Serve and Knative official docs and blocked KServe evidence; no KServe-specific claims were promoted."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted service-availability evidence in trusted-live-evidence/service-availability.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=inference%20autoscaling%20canary%20model%20placement%20AI%20infrastructure'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted search API visibility in trusted-live-evidence/search-api-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=KServe%20Ray%20Serve%20rollout%20autoscaling%20SGLang%20vLLM'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted search/API and crawler-workbench freshness evidence."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted frontend visibility in trusted-live-evidence/frontend-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted loop dashboard freshness in trusted-live-evidence/loop-dashboard-freshness.json."
+    }
+  ],
+  "link_probe_summary": {
+    "new_external_source_count": 9,
+    "local_urllib_result": "blocked_dns_for_all_external_urls",
+    "promoted_sources": [
+      "personal-wiki/domains/ai_infra/raw/links/ray-serve-deployment-control-official-docs-20260707.md",
+      "personal-wiki/domains/ai_infra/raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md"
+    ],
+    "blocked_sources_not_promoted": [
+      "https://kserve.github.io/website/latest/modelserving/autoscaling/autoscaling/",
+      "https://kserve.github.io/website/latest/modelserving/v1beta1/rollout/canary/"
+    ],
+    "claim_boundary": "Ray Serve and Knative deployment-control facts are curated; KServe-specific autoscaling/canary and production postmortem claims remain open."
+  },
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard availability for this round"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "sources, channels, queue, wiki, and search freshness for the changed ai_infra target state"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "current run, child-task, agent-action, evaluator-scenario, and completed-history visibility"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search API visibility for the new inference deployment-control content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "frontend visibility for the new inference deployment-control content through the workbench proxy"
+    }
+  ],
+  "notes": "No live service checks, tmux, uvicorn, npm, Vite, or other long-lived services were started by the generator."
+}

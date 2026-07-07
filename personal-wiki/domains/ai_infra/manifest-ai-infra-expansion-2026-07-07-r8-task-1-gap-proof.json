@@ -1,0 +1,146 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r8-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r8",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "Inference deployment-control evidence for autoscaling, placement, and rollout boundaries",
+    "source_type": "official_primary_source_notes",
+    "identity_key": "url:inference-deployment-control:ray-serve-knative:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "8ec0f1a",
+    "checked_at": "2026-07-07T08:55:33Z",
+    "git_status_before_task": "git status --short returned no changed paths before task-1 edits."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local raw/links, raw/crawler, raw/github, ai_infra manifests, coverage-map.json, loop-state.json, ingest.md, and r7 task manifests for autoscaling, auto scaling, scale-to-zero, HPA, KEDA, Knative, KServe, Ray Serve, ServeDeployment, placement group, node selector, accelerator placement, canary, rollout, rollback, traffic split, postmortem, incident, SLO, trace, and profiler terms. Existing sources covered vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, PegaFlow external KV-cache operations, vLLM RL rollout weight-sync, SGLang router abort observability, PD disaggregation failure handling, KubeRay scheduling/autoscaling mentions, and general alerting mechanics, but no bounded inference deployment-control source note existed for Ray Serve autoscaling/placement or revision traffic-split rollout mechanics.",
+    "wiki_search": "Inference Runtime Infrastructure and AI Infra Coverage Map explicitly listed autoscaling, model-placement, canary rollout, full postmortems, live trace/SLO artifacts, and optional SGLang API refresh as remaining inference-runtime gaps. Orchestration Scheduling Infrastructure mentioned KubeRay autoscaling and label scheduling only as Ray/Kubernetes workload-controller evidence, not Ray Serve deployment controls. Evaluation Observability Reliability Infrastructure covered alert/SLO mechanics but not serving rollout or placement behavior.",
+    "domain_index_scan": "ai_infra wiki/index.md already routes Inference Runtime Infrastructure, AI Infra Coverage Map, Orchestration Scheduling Infrastructure, and Evaluation Observability Reliability Infrastructure; this task updates existing reference pages and does not create a standalone page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "primary duplicate boundary for serving runtime mechanics and r7 operations evidence; updated only with deployment-control evidence for autoscaling, placement, and rollout boundaries."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+      "result": "duplicate boundary for KubeRay, Slurm, device plugins, GPU operators, Kueue, and Volcano scheduling evidence; not edited because Ray Serve deployment controls belong in inference-runtime."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "duplicate boundary for trace, profiling, SLO, alerting, and platform observability mechanics; not edited because this task does not add live trace/SLO artifacts."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+      "result": "duplicate boundary for PegaFlow, vLLM rollout weight-sync, SGLang router abort observability, PD disaggregation, startup/cache/benchmark leads, and local inference operations; task-1 avoids repeating those claims."
+    }
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/ray-serve-deployment-control-official-docs-20260707.md",
+      "coverage": "Ray Serve autoscaling config with min/max replicas and target ongoing requests; Serve resource allocation for CPUs, GPUs, custom resources, and accelerator type; placement-group/gang scheduling for multi-actor replicas; Serve-controlled in-place or rolling deployment updates."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md",
+      "coverage": "Knative Serving request-load autoscaling, inactive revision scale-down, immutable revisions, percentage traffic splits, latest-revision rollout, blue/green staging, and rollback-by-traffic-shift boundaries."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/raw/links/ray-train-kuberay-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/vllm-readme-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715356602Z-vllm-ai-blog-2026-05-28-native-rl-apis-87d0cc671e.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-vllm-blog/20260626T015715357250Z-vllm-ai-blog-2026-05-18-pegaflow-c7d76fc4e2.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json"
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://docs.ray.io/en/latest/serve/autoscaling-guide.html",
+      "status": "pass",
+      "evidence": "web.open returned the official Ray Serve autoscaling guide on 2026-07-07."
+    },
+    {
+      "url": "https://docs.ray.io/en/latest/serve/resource-allocation.html",
+      "status": "pass",
+      "evidence": "web.open returned the official Ray Serve resource allocation documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.ray.io/en/latest/serve/advanced-guides/gang-scheduling.html",
+      "status": "pass",
+      "evidence": "web.open returned the official Ray Serve gang scheduling documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.ray.io/en/latest/serve/advanced-guides/inplace-updates.html",
+      "status": "pass",
+      "evidence": "web.open returned the official Ray Serve in-place updates documentation on 2026-07-07."
+    },
+    {
+      "url": "https://knative.dev/docs/serving/autoscaling/",
+      "status": "pass",
+      "evidence": "web.open returned the official Knative Serving autoscaling documentation on 2026-07-07."
+    },
+    {
+      "url": "https://knative.dev/docs/serving/traffic-management/",
+      "status": "pass",
+      "evidence": "web.open returned the official Knative Serving traffic-management documentation on 2026-07-07."
+    },
+    {
+      "url": "https://knative.dev/docs/serving/rolling-out-latest-revision/",
+      "status": "pass",
+      "evidence": "web.open returned the official Knative Serving latest-revision rollout documentation on 2026-07-07."
+    },
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/autoscaling/autoscaling/",
+      "status": "blocked",
+      "evidence": "Local urllib probes failed with temporary DNS resolution errors, and the web.open path did not return reliable page content in this run; no KServe-specific claims were promoted."
+    },
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/v1beta1/rollout/canary/",
+      "status": "blocked",
+      "evidence": "Local urllib probes failed with temporary DNS resolution errors, and the web.open path did not return reliable page content in this run; no KServe-specific canary claims were promoted."
+    }
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/autoscaling/autoscaling/",
+      "status": "blocked",
+      "reason": "The available probes did not return reliable content, so KServe autoscaling facts were not added.",
+      "policy": "Do not add KServe-specific claims without usable source evidence."
+    },
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/v1beta1/rollout/canary/",
+      "status": "blocked",
+      "reason": "The available probes did not return reliable content, so KServe canary rollout facts were not added.",
+      "policy": "Do not add KServe-specific claims without usable source evidence."
+    },
+    {
+      "reason": "No public inference-serving production postmortem was selected because the verified sources support deployment-control mechanics, not impact timelines, remediation ownership, or follow-up actions.",
+      "policy": "Keep production postmortem coverage open until a source includes service impact, timeline, environment, remediation, and ownership context."
+    },
+    {
+      "reason": "No crawler source subscription or Domain Channel was added; the sources are one-shot bounded official notes.",
+      "policy": "Prefer one-shot bounded raw notes unless repeated source refresh is proven necessary."
+    }
+  ],
+  "gap_reason": "The local wiki and raw corpus already covered inference runtime mechanics, vLLM/PegaFlow operations, SGLang issue-level operational leads, KubeRay workload-controller scheduling, and alerting mechanics, but did not preserve bounded model-serving deployment-control evidence for request-driven autoscaling, accelerator placement inputs, gang placement of multi-actor serving replicas, or revision traffic-split rollout/rollback mechanics. The selected Ray Serve and Knative sources fill those control-plane surfaces while leaving KServe-specific behavior, complete production postmortems, live trace/SLO artifacts, and full SGLang API refresh evidence open.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/ray-serve-deployment-control-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-verification.json"
+  ]
+}
