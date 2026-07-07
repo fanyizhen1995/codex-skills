@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T13:47:31Z",
+  "last_scan_at": "2026-07-07T14:16:36Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -233,6 +233,26 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-r10-biren-envelope-fields",
+      "title": "Resolved Biren form-factor and peak-power fields from local product captures",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T14:16:36Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md"
       ]
     },
     {

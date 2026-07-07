@@ -116,3 +116,48 @@ skus:
     form_factor: full-height full-length single-slot PCIe card
     release_status: released
     source_refs: [kunlunxin-rg800-product-page]
+  - sku_id: biren-bili-106b
+    vendor_id: biren
+    family_id: biren-bili-106
+    canonical_name: Biren Bili 106B
+    aliases: [Bili 106B, Biren 106B]
+    scope: ai_asic
+    form_factor: full-height full-length double-wide PCIe card
+    release_status: released
+    source_refs: [biren-106b-product-page]
+  - sku_id: biren-bili-106m
+    vendor_id: biren
+    family_id: biren-bili-106
+    canonical_name: Biren Bili 106M
+    aliases: [Bili 106M, Biren 106M]
+    scope: ai_asic
+    form_factor: air-cooled OAM module
+    release_status: released
+    source_refs: [biren-106m-product-page]
+  - sku_id: biren-bili-166c
+    vendor_id: biren
+    family_id: biren-bili-166
+    canonical_name: Biren Bili 166C
+    aliases: [Bili 166C, Biren 166C]
+    scope: ai_asic
+    form_factor: full-height full-length 290 mm double-wide PCIe inference card
+    release_status: released
+    source_refs: [biren-166c-product-page]
+  - sku_id: biren-bili-166l
+    vendor_id: biren
+    family_id: biren-bili-166
+    canonical_name: Biren Bili 166L
+    aliases: [Bili 166L, Biren 166L]
+    scope: ai_asic
+    form_factor: cold-plate liquid-cooled OAM module
+    release_status: released
+    source_refs: [biren-166l-product-page]
+  - sku_id: biren-bili-166m
+    vendor_id: biren
+    family_id: biren-bili-166
+    canonical_name: Biren Bili 166M
+    aliases: [Bili 166M, Biren 166M]
+    scope: ai_asic
+    form_factor: 4U OAM V1.1 air-cooled module
+    release_status: released
+    source_refs: [biren-166m-product-page]

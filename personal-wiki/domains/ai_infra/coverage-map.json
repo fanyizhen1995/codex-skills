@@ -262,6 +262,7 @@
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-aws-ec2-accelerators/20260706T203710277365Z-aws-amazon-com-ec2-instance-types-e470dee679.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-biren-products/20260706T203710688887Z-www-birentech-com-5790940dd2.md",
@@ -294,9 +295,14 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md",
@@ -319,8 +325,8 @@
         "Keep aggregate systems, cloud offerings, portfolio pages, discovery indexes, and runtime-only evidence out of single-card resolved fields unless the normalization boundary is explicit."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T12:34:31Z",
-      "notes": "The tracked July 6 compute accelerator baseline is reconciled: 43 raw files from commit bebfebd are cited or classified as duplicate/discovery-only evidence. R9 task 2 resolves a bounded single-card slice from existing local product-specific captures: Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800 now have structured SKU, observation, and resolved spec rows for visible compute, memory, host-interface, form-factor, interconnect where applicable, and power fields. The layer remains partial for fields that require product-specific tables, datasheets, PDFs, or explicit per-card/per-variant normalization."
+      "last_scanned_at": "2026-07-07T14:16:36Z",
+      "notes": "The tracked July 6 compute accelerator baseline is reconciled: 43 raw files from commit bebfebd are cited or classified as duplicate/discovery-only evidence. R9 task 2 resolves a bounded single-card slice from existing local product-specific captures: Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800 now have structured SKU, observation, and resolved spec rows for visible compute, memory, host-interface, form-factor, interconnect where applicable, and power fields. R10 task 2 resolves a narrower Biren deployment-envelope slice from local product-specific captures: Biren Bili 106B, 106M, 166C, 166L, and 166M now have structured rows for only form factor and peak power. The layer remains partial for fields that require product-specific tables, datasheets, PDFs, or explicit per-card/per-variant normalization, including Biren compute and memory values that are not visible in the local pages."
     },
     "network-storage-cluster": {
       "status": "partial",

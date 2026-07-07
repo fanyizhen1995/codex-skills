@@ -532,3 +532,133 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page describes a full-height full-length single-slot card.
+  - observation_id: obs-biren-bili-106b-form-factor
+    sku_id: biren-bili-106b
+    field: form_factor
+    value: full-height full-length double-wide PCIe card
+    unit: none
+    source_id: biren-106b-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 106B product page; product form factor text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length double-wide PCIe card.
+  - observation_id: obs-biren-bili-106b-tdp
+    sku_id: biren-bili-106b
+    field: tdp
+    value: 300
+    unit: W
+    source_id: biren-106b-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 106B product page; peak power text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 300 W peak power.
+  - observation_id: obs-biren-bili-106m-form-factor
+    sku_id: biren-bili-106m
+    field: form_factor
+    value: air-cooled OAM module
+    unit: none
+    source_id: biren-106m-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 106M product page; product form factor text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes an air-cooled OAM module.
+  - observation_id: obs-biren-bili-106m-tdp
+    sku_id: biren-bili-106m
+    field: tdp
+    value: 400
+    unit: W
+    source_id: biren-106m-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 106M product page; peak power text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 400 W peak power.
+  - observation_id: obs-biren-bili-166c-form-factor
+    sku_id: biren-bili-166c
+    field: form_factor
+    value: full-height full-length 290 mm double-wide PCIe inference card
+    unit: none
+    source_id: biren-166c-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 166C product page; product form factor text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length 290 mm double-wide PCIe inference card.
+  - observation_id: obs-biren-bili-166c-tdp
+    sku_id: biren-bili-166c
+    field: tdp
+    value: 300
+    unit: W
+    source_id: biren-166c-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 166C product page; peak power text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 300 W peak power.
+  - observation_id: obs-biren-bili-166l-form-factor
+    sku_id: biren-bili-166l
+    field: form_factor
+    value: cold-plate liquid-cooled OAM module
+    unit: none
+    source_id: biren-166l-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 166L product page; product form factor text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a cold-plate liquid-cooled OAM module.
+  - observation_id: obs-biren-bili-166l-tdp
+    sku_id: biren-bili-166l
+    field: tdp
+    value: 600
+    unit: W
+    source_id: biren-166l-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 166L product page; peak power text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 600 W peak power.
+  - observation_id: obs-biren-bili-166m-form-factor
+    sku_id: biren-bili-166m
+    field: form_factor
+    value: 4U OAM V1.1 air-cooled module
+    unit: none
+    source_id: biren-166m-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 166M product page; product form factor text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a 4U OAM V1.1 air-cooled module.
+  - observation_id: obs-biren-bili-166m-tdp
+    sku_id: biren-bili-166m
+    field: tdp
+    value: 550
+    unit: W
+    source_id: biren-166m-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Biren Bili 166M product page; peak power text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 550 W peak power.

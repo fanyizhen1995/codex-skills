@@ -81,6 +81,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
   - ../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
+  - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
 ---
 
 # Summary
@@ -124,7 +125,9 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   AMD Instinct MI325X at 256 GB, followed by NVIDIA H200 SXM at 141 GB and
   Intel Gaudi 3 HL-338 at 128 GB. R9 task 2 adds source-backed structured
   rows for Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800,
-  including compute, memory, host-interface, form-factor, and power fields.
+  including compute, memory, host-interface, form-factor, and power fields. R10
+  task 2 adds Biren Bili 106B, 106M, 166C, 166L, and 166M form-factor and peak
+  power fields only; compute and memory remain unresolved for those Biren rows.
   [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
 - Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. It is the
   only captured single-GPU row with complete high-end tensor, memory bandwidth,
@@ -180,6 +183,11 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Cambricon MLU370-X4 | AI ASIC / PCIe card | 256 TOPS INT8; 96 TFLOPS FP16; 96 TFLOPS BF16; 24 TFLOPS FP32; 24 GB LPDDR5; 307.2 GB/s memory bandwidth; x16 PCIe Gen4; 150 W; full-height full-length single-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md) |
 | Cambricon MLU370-X8 | AI ASIC / PCIe card | 256 TOPS INT8; 96 TFLOPS FP16; 96 TFLOPS BF16; 24 TFLOPS FP32; 48 GB LPDDR5; 614.4 GB/s memory bandwidth; x16 PCIe Gen4; MLU-Link 200 GB/s bidirectional aggregate; 250 W; full-height full-length dual-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md) |
 | Kunlunxin RG800 | AI ASIC / PCIe card | 256 TOPS INT8; 128 TFLOPS FP16; 32 TFLOPS FP32; 32 GB GDDR6; 512 GB/s memory bandwidth; PCIe 4.0 x16; 130 W; full-height full-length single-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md) |
+| Biren Bili 106B | AI ASIC / PCIe card | full-height full-length double-wide PCIe card; 300 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md) |
+| Biren Bili 106M | AI ASIC / OAM module | air-cooled OAM module; 400 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md) |
+| Biren Bili 166C | AI ASIC / PCIe card | full-height full-length 290 mm double-wide PCIe inference card; 300 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md) |
+| Biren Bili 166L | AI ASIC / OAM module | cold-plate liquid-cooled OAM module; 600 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md) |
+| Biren Bili 166M | AI ASIC / OAM module | 4U OAM V1.1 air-cooled module; 550 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md) |
 
 # Unresolved Runtime Evidence
 

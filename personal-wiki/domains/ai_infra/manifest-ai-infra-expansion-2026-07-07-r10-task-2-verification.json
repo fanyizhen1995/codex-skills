@@ -1,0 +1,116 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r10-task-2",
+  "run_id": "ai-infra-expansion-2026-07-07-r10",
+  "verified_at": "2026-07-07T14:16:36Z",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-2-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "summary": "No accelerator catalog validation issues."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -c \"... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ...\"",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json validate and pass ai_infra coverage-map semantics after the Biren deployment-envelope update."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md; no index diff was produced."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "summary": "coverage-map.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "summary": "loop-state.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json",
+      "status": "pass",
+      "summary": "task-2 gap-proof manifest parsed as JSON."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -c \"... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r10-task-2') ...\"",
+      "status": "pass",
+      "summary": "gap proof validator returned no findings for task-2."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "summary": "Checked task-scoped changed files for private-key markers, auth headers, provider-key patterns, and password or key assignments; no matches were found."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "summary": "All changed repository paths are under personal-wiki/domains/ai_infra/** and none match planner denylist path patterns. Run-local .codex result artifacts are written only because the generator contract requires them."
+    },
+    {
+      "command": "source visibility check for compute accelerator catalog terms: unresolved field, single-card, product-specific, form factor, power, memory capacity, memory bandwidth, host interface, interconnect, network bandwidth, IOPS, latency, DPU, SmartNIC, NVMe-oF, duplicate boundary, multi-variant, aggregate, and blocked-source",
+      "status": "pass",
+      "summary": "Targeted rg over changed files found all required hardware catalog visibility terms after adding the literal duplicate boundary phrase to the task gap proof."
+    },
+    {
+      "command": "bounded link probe or blocked/auth evidence for any new product-specific primary-source capture",
+      "status": "pass",
+      "summary": "No new external capture was needed or attempted; the selected Biren fields are backed by existing local raw captures and source registry entries."
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "delegated",
+      "summary": "Generator did not start services or run localhost probes. required-evidence-manifest.json references trusted-live-evidence/<evidence-id>.json for orchestrator capture."
+    },
+    {
+      "command": "Domain Channels evidence for source subscriptions",
+      "status": "pass",
+      "summary": "No crawler source subscriptions or Domain Channels changed; local raw reuse was sufficient."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No backend, frontend, loop-dashboard, harness, dependency manifest, or lockfile changed; code tests and supply-chain review are not applicable generator-side."
+    },
+    {
+      "command": "commit-result gate",
+      "status": "delegated",
+      "summary": "Generator did not run git commit and leaves generator-result commit empty as requested."
+    }
+  ],
+  "live_checks": {
+    "status": "delegated",
+    "evidence_ids": [
+      "service-availability",
+      "crawler-workbench-freshness",
+      "search-api-visibility",
+      "frontend-visibility",
+      "loop-dashboard-freshness"
+    ],
+    "reason": "Planner and generator instructions prohibit live service/socket checks and long-lived service startup from the generator."
+  }
+}

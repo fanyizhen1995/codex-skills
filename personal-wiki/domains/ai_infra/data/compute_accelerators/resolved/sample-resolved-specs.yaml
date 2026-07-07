@@ -341,3 +341,93 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-07"
+  - sku_id: biren-bili-106b
+    resolved_fields:
+      form_factor:
+        value: full-height full-length double-wide PCIe card
+        unit: none
+        source_observation_id: obs-biren-bili-106b-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 300
+        unit: W
+        source_observation_id: obs-biren-bili-106b-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+  - sku_id: biren-bili-106m
+    resolved_fields:
+      form_factor:
+        value: air-cooled OAM module
+        unit: none
+        source_observation_id: obs-biren-bili-106m-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 400
+        unit: W
+        source_observation_id: obs-biren-bili-106m-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+  - sku_id: biren-bili-166c
+    resolved_fields:
+      form_factor:
+        value: full-height full-length 290 mm double-wide PCIe inference card
+        unit: none
+        source_observation_id: obs-biren-bili-166c-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 300
+        unit: W
+        source_observation_id: obs-biren-bili-166c-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+  - sku_id: biren-bili-166l
+    resolved_fields:
+      form_factor:
+        value: cold-plate liquid-cooled OAM module
+        unit: none
+        source_observation_id: obs-biren-bili-166l-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 600
+        unit: W
+        source_observation_id: obs-biren-bili-166l-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+  - sku_id: biren-bili-166m
+    resolved_fields:
+      form_factor:
+        value: 4U OAM V1.1 air-cooled module
+        unit: none
+        source_observation_id: obs-biren-bili-166m-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
+      tdp:
+        value: 550
+        unit: W
+        source_observation_id: obs-biren-bili-166m-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-07"
