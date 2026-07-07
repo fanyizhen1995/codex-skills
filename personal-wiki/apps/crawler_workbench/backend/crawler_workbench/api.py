@@ -53,6 +53,7 @@ from .schemas import (
     SourceProfileResponse,
     TrustAcceleratorCandidatesResponse,
 )
+from .source_snapshot import write_source_profile_snapshot
 from .trusted_sources import TrustSourceInputError, trust_task_source
 from .wiki_metrics import collect_wiki_metrics
 from .wiki_cli import run_validate, wiki_cli_command
@@ -194,6 +195,21 @@ class SourceUpdateRequest(BaseModel):
     fetcher_type: StrictStr | None = None
     topic: StrictStr | None = None
     enabled: StrictBool | None = None
+
+
+class SourceSnapshotRequest(BaseModel):
+    domain: StrictStr = Field(min_length=1)
+    run_id: StrictStr = Field(min_length=1)
+
+    @field_validator("domain", "run_id")
+    @classmethod
+    def require_safe_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be empty")
+        if "/" in stripped or "\\" in stripped or ".." in stripped:
+            raise ValueError("must be a safe identifier")
+        return stripped
 
 
 class TrustSourceRequest(BaseModel):
@@ -379,6 +395,28 @@ def sources(request: Request, domain: str | None = None, channel_id: str | None 
     with open_db(request.app.state.settings.database_path) as db:
         rows = list_profiles(db, domain=domain, channel_id=channel_id)
     return [_source_response(row) for row in rows]
+
+
+@router.post("/source-profile-snapshot")
+def source_profile_snapshot(payload: SourceSnapshotRequest, request: Request) -> dict[str, object]:
+    request.app.state.initialize_database(request.app)
+    settings = request.app.state.settings
+    try:
+        validate_domain(payload.domain)
+        with open_db(settings.database_path) as db:
+            path = write_source_profile_snapshot(
+                settings.repo_root,
+                db,
+                domain=payload.domain,
+                run_id=payload.run_id,
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        relative_path = str(path.relative_to(settings.repo_root))
+    except ValueError:
+        relative_path = str(path)
+    return {"status": "pass", "path": str(path), "relative_path": relative_path}
 
 
 @router.post("/sources", response_model=SourceProfileResponse)

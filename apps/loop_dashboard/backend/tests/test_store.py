@@ -601,6 +601,103 @@ def test_scenario_result_and_log_paths_do_not_overread_unrelated_project_files(t
     assert "private-notes.md" not in sources
 
 
+def test_detail_exposes_governance_artifacts_and_formal_verification(tmp_path: Path) -> None:
+    seed_run(tmp_path, "ai-infra-loop-governance-dev-child-004", "repair_needed", last_result="fail", next_action="repair_and_reevaluate")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "ai-infra-loop-governance-dev-child-004"
+    formal_dir = run_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    write_json(
+        formal_dir / "formal-001.json",
+        {
+            "phase": "formal_suspicion_pass",
+            "suspicions": [
+                {
+                    "id": "formal-confirmed-bug",
+                    "risk": "high",
+                    "result": "confirmed_bug",
+                    "repair_required": True,
+                    "counterexample": {
+                        "artifact_path": ".codex/loop-runs/ai-infra-loop-governance-dev-child-004/counterexample-tests/formal-confirmed-bug.json",
+                        "command": "pytest -q tests/test_formal.py",
+                    },
+                }
+            ],
+        },
+    )
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": "ai-infra-loop-governance-dev-child-004-task",
+            "driver": "fake",
+            "returncode": 1,
+            "stdout": "formal suspicion confirmed a bug\n",
+            "stderr": "",
+            "next_action": "repair_and_reevaluate",
+            "formal_verification": {
+                "status": "fail",
+                "next_action": "repair_and_reevaluate",
+                "artifact_paths": [
+                    ".codex/loop-runs/ai-infra-loop-governance-dev-child-004/formal-verification/formal-001.json"
+                ],
+                "findings": [],
+                "required_counterexample_reruns": [
+                    {
+                        "id": "formal-confirmed-bug",
+                        "command": "pytest -q tests/test_formal.py",
+                        "artifact_path": ".codex/loop-runs/ai-infra-loop-governance-dev-child-004/counterexample-tests/formal-confirmed-bug.json",
+                    }
+                ],
+            },
+        },
+    )
+    write_json(
+        run_dir / "task-contract.json",
+        {
+            "task_id": "ai-infra-loop-governance-dev-child-004-task",
+            "title": "Formal suspicion",
+            "description": "Verify formal suspicion.",
+            "verify_commands": [],
+            "scenario_commands": [],
+            "artifact_paths": [
+                "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+            ],
+            "required_services": [],
+            "evaluator_driver": "harness_auto_gate",
+            "eval_policy": {"task_level_required": True},
+            "allowed_scope": "local_repo_and_harness",
+            "must_simulate": True,
+            "user_scenarios": [
+                {
+                    "scenario_id": "GOV-01",
+                    "user_goal": "确认治理 artifacts 在看板可见。",
+                    "steps": ["打开 run detail"],
+                    "expected_outcomes": ["formal verification 可见"],
+                    "failure_signals": ["只看到 run.json"],
+                }
+            ],
+        },
+    )
+    snapshot_path = tmp_path / "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    write_json(snapshot_path, {"schema_version": 1, "record_counts": {"channels": 1, "sources": 1}})
+
+    detail = LoopDashboardStore(tmp_path).get_run("ai-infra-loop-governance-dev-child-004")
+
+    governance = detail["governance_artifacts"]
+    assert governance["formal_verification"]["status"] == "fail"
+    assert governance["formal_verification"]["next_action"] == "repair_and_reevaluate"
+    assert governance["formal_verification_artifact_paths"] == [
+        ".codex/loop-runs/ai-infra-loop-governance-dev-child-004/formal-verification/formal-001.json"
+    ]
+    assert governance["task_contract_artifact_paths"] == [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    ]
+    assert governance["evaluator_scenarios"][0]["scenario_id"] == "GOV-01"
+    assert governance["source_profile_snapshots"] == [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    ]
+
+
 def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,

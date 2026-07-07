@@ -101,7 +101,11 @@ class LoopDashboardStore:
                 "decision_summary": decision_summary,
                 "acceptance_summary": acceptance_summary,
                 "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
+                "governance_artifacts": self._governance_artifacts(run_dir, evaluator),
             }
+        )
+        summary["artifact_paths"] = self._unique_nonempty(
+            [*self._path_items(summary.get("artifact_paths")), *self._governance_artifact_paths(summary["governance_artifacts"])]
         )
         if run_kind == "parent":
             child_runs, relationship_diagnostics = self._children_for_parent(str(summary.get("run_id") or run_id), run_data)
@@ -835,6 +839,79 @@ class LoopDashboardStore:
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         return self._acceptance_summary(evaluator, rich_evaluator, self._scenario_contract(evaluator))
+
+    def _governance_artifacts(self, run_dir: Path, evaluator: dict[str, Any]) -> dict[str, Any]:
+        task_contract = self._read_json(run_dir / "task-contract.json", allowed_root=run_dir)
+        if not isinstance(task_contract, dict):
+            task_contract = {}
+        formal_summary = evaluator.get("formal_verification")
+        if not isinstance(formal_summary, dict):
+            formal_summary = {}
+        formal_paths = self._formal_verification_artifact_paths(run_dir, evaluator, formal_summary)
+        task_contract_artifact_paths = self._safe_artifact_labels(task_contract.get("artifact_paths"))
+        evaluator_scenarios = [
+            {
+                "scenario_id": self._first_text(scenario.get("scenario_id"), scenario.get("id"), "scenario"),
+                "user_goal": self._trim(redact_text(self._first_text(scenario.get("user_goal"))), 220),
+                "expected_outcomes": self._checked_items(scenario.get("expected_outcomes")),
+                "failure_signals": self._checked_items(scenario.get("failure_signals")),
+            }
+            for scenario in self._contract_user_scenarios(task_contract)
+        ]
+        return {
+            "formal_verification": formal_summary,
+            "formal_verification_artifact_paths": formal_paths,
+            "task_contract_artifact_paths": task_contract_artifact_paths,
+            "evaluator_scenarios": evaluator_scenarios,
+            "source_profile_snapshots": [
+                path for path in task_contract_artifact_paths if path.endswith("-source-profile-snapshot.json")
+            ],
+        }
+
+    def _formal_verification_artifact_paths(
+        self,
+        run_dir: Path,
+        evaluator: dict[str, Any],
+        formal_summary: dict[str, Any],
+    ) -> list[str]:
+        paths: list[str] = []
+        for value in (evaluator.get("formal_verification_artifact_paths"), formal_summary.get("artifact_paths")):
+            paths.extend(self._safe_artifact_labels(value))
+        formal_dir = run_dir / "formal-verification"
+        if formal_dir.exists():
+            for path in sorted(formal_dir.glob("*.json")):
+                if self._safe_file_under(path, run_dir) is not None:
+                    paths.append(self._relative_artifact(path))
+        return self._unique_nonempty(paths)
+
+    def _governance_artifact_paths(self, governance_artifacts: dict[str, Any]) -> list[str]:
+        paths: list[str] = []
+        for key in (
+            "formal_verification_artifact_paths",
+            "task_contract_artifact_paths",
+            "source_profile_snapshots",
+        ):
+            paths.extend(self._path_items(governance_artifacts.get(key)))
+        return self._unique_nonempty(paths)
+
+    def _path_items(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, str) and item]
+
+    def _safe_artifact_labels(self, value: Any) -> list[str]:
+        labels: list[str] = []
+        if not isinstance(value, list):
+            return labels
+        for item in value:
+            if not isinstance(item, str) or not item:
+                continue
+            try:
+                safe_join(self.project_root, item)
+            except ValueError:
+                continue
+            labels.append(item)
+        return self._unique_nonempty(labels)
 
     def _parent_acceptance_summary(
         self,

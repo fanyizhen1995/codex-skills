@@ -142,6 +142,28 @@ def test_sources_endpoint_filters_by_domain_and_channel(tmp_path, monkeypatch):
     assert [item["id"] for item in response.json()] == ["nccl-github-closed-issues"]
 
 
+def test_source_profile_snapshot_endpoint_writes_repo_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    seed_domain_channels_fixture(settings)
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/source-profile-snapshot",
+            json={"domain": "ai_infra", "run_id": "ai-infra-loop-governance-dev"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "pass"
+    assert (
+        payload["relative_path"]
+        == "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    )
+    assert (tmp_path / payload["relative_path"]).exists()
+
+
 def test_channel_listing_returns_source_counts(tmp_path, monkeypatch):
     monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")

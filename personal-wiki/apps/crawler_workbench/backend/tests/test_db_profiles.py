@@ -1,4 +1,5 @@
 import importlib
+import json
 from pathlib import Path
 import sqlite3
 import sys
@@ -9,7 +10,13 @@ import pytest
 from crawler_workbench.db import connect, migrate, open_db, transaction
 from crawler_workbench.main import create_app
 from crawler_workbench.profiles import load_profiles_from_yaml, mirror_profiles
+from crawler_workbench.source_snapshot import (
+    build_source_profile_snapshot,
+    source_profile_snapshot_db_rows,
+    write_source_profile_snapshot,
+)
 from crawler_workbench.settings import Settings
+from scripts.harness_loop_governance import validate_source_profile_snapshot
 
 
 PROFILE_YAML = """
@@ -205,6 +212,40 @@ def test_schema_migration_recovers_legacy_dirty_baseline_failures(tmp_path):
     assert rows[baseline_task_id]["reason"] == "waiting for clean git baseline before automatic retry"
     assert rows[real_failure_task_id]["status"] == "failed"
     assert rows[real_failure_task_id]["reason"] == "validation failed"
+
+
+def test_source_profile_snapshot_exports_non_sensitive_manifest_and_detects_drift(tmp_path):
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    settings.resolved_state_dir.mkdir(parents=True)
+    settings.sources_yaml_path.write_text(PROFILE_YAML, encoding="utf-8")
+    with open_db(settings.database_path) as db:
+        migrate(db)
+        mirror_profiles(db, load_profiles_from_yaml(settings.sources_yaml_path))
+
+        snapshot = build_source_profile_snapshot(db, domain="ai_infra", run_id="ai-infra-loop-governance-dev")
+        db_rows = source_profile_snapshot_db_rows(db, domain="ai_infra")
+        findings = validate_source_profile_snapshot(snapshot, db_rows)
+        snapshot_path = write_source_profile_snapshot(
+            settings.repo_root,
+            db,
+            domain="ai_infra",
+            run_id="ai-infra-loop-governance-dev",
+        )
+
+        db.execute("update source_profiles set schedule = 'weekly' where id = 'private-github'")
+        stale_findings = validate_source_profile_snapshot(snapshot, source_profile_snapshot_db_rows(db, domain="ai_infra"))
+
+    assert findings == []
+    assert snapshot["schema_version"] == 1
+    assert snapshot["run_id"] == "ai-infra-loop-governance-dev"
+    assert snapshot["record_counts"] == {"channels": 2, "sources": 2}
+    serialized = json.dumps(snapshot, ensure_ascii=False)
+    assert "GITHUB_TOKEN" not in serialized
+    assert "auth_ref" not in serialized
+    assert "auth_method" not in serialized
+    assert snapshot_path == tmp_path / "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+    assert snapshot_path.exists()
+    assert any("sources[1].schedule" in finding and "weekly" in finding for finding in stale_findings)
 
 
 def test_schema_migration_normalizes_legacy_dirty_baseline_approved_reasons(tmp_path):
