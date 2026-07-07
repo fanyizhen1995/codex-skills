@@ -1,0 +1,109 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r6-task-3",
+  "layer": "training-distributed,orchestration-scheduling",
+  "candidate": {
+    "title": "Distributed training and orchestration scheduling operational evidence mining",
+    "source_type": "local_wiki_raw_issue_corpora",
+    "identity_key": "local:ai_infra:training-distributed+orchestration-scheduling:operational-issue-evidence"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Targeted local scans covered NCCL closed issue summary and joined corpus, NCCL scheduled crawler supplement issues #2024 and #2226, Kubernetes/Volcano/Kueue closed issue summaries, indexes, and joined corpora, SGLang issue/PR index, task-1 official source notes, and task-1/task-2 manifests. Local evidence was sufficient for issue-level operational signals, so no new external captures or crawler subscriptions were added.",
+    "wiki_search": "Targeted scans over wiki/index.md, coverage-map.json, loop-state.json, ingest.md, Distributed Training Infrastructure, Orchestration Scheduling Infrastructure, AI Infra Coverage Map, NCCL GitHub Closed Issues, NCCL Technical Blog Network Observability, Kubernetes Volcano Kueue GitHub Closed Issues, and SGLang GitHub Closed Issues And PRs showed task-1 already covered framework/scheduler design boundaries. Remaining gaps were operational evidence layers, not new design-source pages.",
+    "domain_index_scan": "The ai_infra index already linked the target pages and source-corpus references. Task-3 outputs update those existing pages instead of creating duplicates; issue-level claims cite local raw corpora or indexes and keep production postmortem, benchmark, Slurm bridge, and operator-upgrade gaps open."
+  },
+  "gap_reason": "coverage-map.json still marked training-distributed and orchestration-scheduling as partial for production incidents, checkpoint restore benchmarks, framework/operator upgrade failures, scheduler benchmarks, Slurm-on-Kubernetes bridge deployments, and field-operation sources. The local corpora contain narrower issue-level evidence for failures and operational debugging, but not enough to claim full production reliability or close benchmark/postmortem gaps.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-verification.json"
+  ],
+  "selected_local_evidence": [
+    {
+      "role": "training_failure_signal",
+      "source": "NVIDIA/nccl closed issue corpus",
+      "path": "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+      "issue_numbers": [
+        998,
+        1013,
+        863,
+        1538
+      ],
+      "coverage": "NCCL failover/restart boundaries, ncclCommAbort hangs, and version/RoCE configuration-sensitive failures."
+    },
+    {
+      "role": "training_benchmark_shaped_incident_signal",
+      "source": "NCCL scheduled crawler supplement",
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md",
+      "issue_numbers": [
+        2024
+      ],
+      "coverage": "Ray separate-process broadcast hang on H200/NVSwitch/EFA with NCCL 2.27.5, including operation-size and algorithm comparison details from a single issue."
+    },
+    {
+      "role": "scheduling_admission_queue_signal",
+      "source": "kubernetes-sigs/kueue closed issue corpus",
+      "path": "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz",
+      "issue_numbers": [
+        1726,
+        696,
+        6143,
+        1407,
+        3094,
+        2867,
+        2941
+      ],
+      "coverage": "Admitted-but-unsuspended jobs, ResourceQuota admission concerns, serialized preemption delay, ResourceFlavor-to-PyTorchJob placement, MultiKueue debugging, extended-resource and DRA quota concerns."
+    },
+    {
+      "role": "scheduling_gpu_operator_signal",
+      "source": "volcano-sh/volcano closed issue corpus",
+      "path": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+      "issue_numbers": [
+        452,
+        2547,
+        3329,
+        2701,
+        3384,
+        3301,
+        2416,
+        2379
+      ],
+      "coverage": "Gang-scheduled MPI/GPU jobs, preemption, GPU sharing allocation, vGPU memory exposure, scheduler panic, gang unschedulable, and upgrade/quota failure examples."
+    },
+    {
+      "role": "runtime_discovery_lead",
+      "source": "sgl-project/sglang closed issue and PR index",
+      "path": "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+      "issue_numbers": [
+        23627,
+        13064,
+        5015,
+        8857,
+        3209
+      ],
+      "coverage": "SGLang runtime leads for Slurm cgroup cleanup, FSDP, Megatron, checkpoint, AMD/Gaudi, and distributed-runtime surfaces; used as discovery evidence, not as scheduler or training design source."
+    }
+  ],
+  "duplicate_boundaries": {
+    "task_1_design_sources": "Task 1 already created primary-source design coverage for PyTorch, DeepSpeed, Ray Train, KubeRay, Slurm, Kubernetes device plugins, GPU operators, Kubeflow Trainer, Kueue, and ResourceQuota. Task 3 only adds issue-level operational evidence and does not repeat those design summaries.",
+    "nccl_technical_blogs": "NCCL technical blogs remain communication, observability, RAS, dynamic communicator, and fabric evidence. Task 3 uses NCCL issues for operational failure examples rather than re-summarizing blog design content.",
+    "kubernetes_volcano_kueue_reference": "The Kubernetes/Volcano/Kueue reference remains the corpus inventory and synchronization page. Task 3 promotes selected issue signals into the orchestration overview without mirroring the full issue corpus.",
+    "sglang_runtime": "SGLang remains inference/runtime evidence. Its Slurm/FSDP/Megatron/Gaudi/AMD issue titles are discovery leads unless a later task ingests a focused runtime or training integration source."
+  },
+  "blocked_new_sources": [
+    {
+      "source_type": "external_primary_source",
+      "status": "not_used",
+      "reason": "Local wiki/raw/github/crawler evidence was sufficient for the requested issue-level operational layer; no new external capture, link probe, or crawler subscription was needed."
+    }
+  ],
+  "git_status_before_task": "git status --short returned no changed paths before edits.",
+  "run_id": "ai-infra-expansion-2026-07-07-r6",
+  "generated_at": "2026-07-07T06:13:47Z"
+}

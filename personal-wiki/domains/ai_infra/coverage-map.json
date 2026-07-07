@@ -23,14 +23,18 @@
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298217Z-developer-nvidia-com-blog-advancing-performance-with-nvidia-sharp-in-network-computing-2154529061.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md",
-        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md"
+        "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json"
       ],
       "candidate_gaps": [
-        "Add production incident/postmortem evidence, measured checkpoint restore benchmarks, framework upgrade failure evidence, and non-PyTorch/DeepSpeed/Ray operational field reports."
+        "Add production incident/postmortem evidence and measured checkpoint restore benchmarks that include environment, recovery timing, and remediation context.",
+        "Add framework upgrade failure evidence beyond issue-level NCCL version/configuration reports and SGLang runtime dependency leads, especially non-PyTorch/DeepSpeed/Ray training field reports."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T04:54:03Z",
-      "notes": "NCCL remains source-backed communication and fabric evidence. Distributed Training Infrastructure now adds framework lifecycle, PyTorch FSDP and Distributed Checkpoint, torchrun elastic restart, DeepSpeed ZeRO and checkpoint conversion, Megatron-LM project boundaries, Ray Train checkpoint/fault tolerance, and Kubeflow/KubeRay training job controller coverage. The layer remains partial only for production incident, benchmark, upgrade, and broader field-operation evidence."
+      "last_scanned_at": "2026-07-07T06:13:47Z",
+      "notes": "NCCL remains source-backed communication and fabric evidence. Distributed Training Infrastructure covers framework lifecycle, PyTorch FSDP and Distributed Checkpoint, torchrun elastic restart, DeepSpeed ZeRO and checkpoint conversion, Megatron-LM project boundaries, Ray Train checkpoint/fault tolerance, and Kubeflow/KubeRay training job controller coverage. Task 3 adds local issue-level operational signals for NCCL failover/restart boundaries, ncclCommAbort hangs, NCCL version/RoCE configuration failures, a Ray separate-process H200/NVSwitch broadcast hang report, and SGLang runtime integration leads. The layer remains partial because local issue examples do not replace production postmortems, measured checkpoint restore benchmarks, or field reports with full environment and remediation context."
     },
     "inference-runtime": {
       "status": "partial",
@@ -83,14 +87,21 @@
         "personal-wiki/domains/ai_infra/raw/links/slurm-gpu-scheduling-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/kubeflow-training-operator-official-docs-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md"
+        "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json"
       ],
       "candidate_gaps": [
-        "Add production scheduling incident evidence, Slurm-on-Kubernetes bridge deployment captures, scheduler benchmark evidence, and operator upgrade failure/postmortem sources."
+        "Add production scheduling incident/postmortem evidence with service impact, environment, and remediation details.",
+        "Add Slurm-on-Kubernetes bridge deployment captures and scheduler benchmark evidence; local issue records are operational signals, not benchmark or deployment proof.",
+        "Add GPU operator and device-plugin upgrade failure/postmortem sources beyond Kueue and Volcano issue examples."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T04:54:03Z",
-      "notes": "Kubernetes, Volcano, and Kueue remain covered by local closed-issue corpora with comment-completeness caveats. Orchestration Scheduling Infrastructure now adds source-backed Ray/KubeRay, Slurm GPU/GRES, Kubernetes device plugin, NVIDIA and AMD GPU operator, Kubeflow Trainer, and Kueue/ResourceQuota admission boundaries. The layer remains partial for production incidents, Slurm-on-Kubernetes bridges, benchmarks, and operator upgrade field evidence."
+      "last_scanned_at": "2026-07-07T06:13:47Z",
+      "notes": "Kubernetes, Volcano, and Kueue remain covered by local closed-issue corpora with comment-completeness caveats. Orchestration Scheduling Infrastructure covers Ray/KubeRay, Slurm GPU/GRES, Kubernetes device plugin, NVIDIA and AMD GPU operator, Kubeflow Trainer, and Kueue/ResourceQuota admission boundaries. Task 3 adds local issue-level evidence for Kueue admitted-but-unsuspended jobs, ResourceQuota admission risk, serialized preemption, ResourceFlavor-to-PyTorchJob placement, MultiKueue admission debugging, Volcano GPU gang scheduling, preemption, vGPU/device-plugin allocation, scheduler panic, and upgrade/quota failures, plus a downstream SGLang Slurm cgroup cleanup lead. The layer remains partial for production incidents, Slurm-on-Kubernetes bridges, scheduler benchmarks, and operator upgrade postmortems with complete context."
     },
     "data-rag-vector": {
       "status": "partial",

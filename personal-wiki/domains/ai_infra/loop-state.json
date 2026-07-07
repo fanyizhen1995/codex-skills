@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T04:54:03Z",
+  "last_scan_at": "2026-07-07T06:13:47Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "coverage_gaps": [],
@@ -246,6 +246,23 @@
         "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+      ]
+    },
+    {
+      "id": "training-scheduling-operational-issue-evidence",
+      "title": "Distributed training and scheduling operational issue evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T06:13:47Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json"
       ]
     }
   ],

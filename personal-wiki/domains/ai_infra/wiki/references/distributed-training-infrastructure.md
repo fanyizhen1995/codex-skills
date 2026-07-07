@@ -19,11 +19,16 @@ source_refs:
   - ../../raw/links/ray-train-kuberay-official-docs-20260707.md
   - ../../raw/links/kubeflow-training-operator-official-docs-20260707.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md
+  - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz
+  - ../../raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md
+  - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
+  - nccl-github-closed-issues.md
   - nccl-technical-blog-network-observability.md
   - orchestration-scheduling-infrastructure.md
+  - sglang-github-closed-issues-prs.md
 ---
 # Summary
 
@@ -59,6 +64,16 @@ Ray Train handles worker and node failures through `FailureConfig`, worker-group
 
 The local NCCL fault-tolerant applications capture remains useful but narrower. It covers dynamic communicators, communicator shrink, and abort paths for collective communication. That evidence supports communication-level resilience, while PyTorch and Ray Train cover training script restart and checkpoint recovery. [raw](../../raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md)
 
+# Local Operational Failure Evidence
+
+The local NCCL issue corpus gives issue-level operational evidence for failure handling around the framework contracts above. Issue #998 discusses NCCL connection failover and records the operational boundary that an application should either stop and restart from the latest checkpoint or tear down and recreate communicators with an external health-detection system. Treat that as failure-mode evidence, not proof that any framework automatically recovers without checkpoint storage and restart orchestration. [raw](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz)
+
+NCCL issue #2024 is a page-level crawler supplement after the API corpus cutoff. It reports a Ray separate-process workload on two AWS P5en nodes with H200/NVSwitch, EFA, NCCL 2.27.5, PyTorch 2.x, and CUDA 12.x where Ring broadcast hangs above 16M elements when lazy IPC peer access is used; the same report says Tree AllReduce and torchrun broadcast worked for the large test size. This is useful benchmark-shaped incident evidence for topology, launch mode, and collective algorithm interactions, but it is a single closed issue rather than a general benchmark result. [raw](../../raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md)
+
+Other selected NCCL issues show version and configuration-sensitive failure modes: #863 reports `ncclCommAbort` hanging after an upgrade to NCCL 2.16.5; #1538 reports an NCCL 2.22.3 core dump when `NCCL_IB_ROCE_VERSION_NUM` is set, and the local summary records it as a labeled bug/fixed issue; #1013 records a multi-ProcessGroup `ncclCommAbort` stuck investigation. These issues deepen the operational layer with upgrade, environment, and abort-path examples while still leaving production postmortems and measured restore-time evidence as gaps. [raw](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz)
+
+The SGLang corpus remains a discovery boundary for adjacent runtime and training-integration issues rather than a primary training framework source. Its index includes FSDP, Megatron, Slurm, Gaudi, AMD/MI300, distributed, and checkpoint-related items; these titles are useful leads for future focused ingestion, but this page only uses them as evidence that downstream runtimes surface training and scheduler integration risks. [raw](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
+
 # Training Job Controllers
 
 Kubeflow Trainer supplies Kubernetes-native training job abstraction evidence. Its docs organize framework guides for PyTorch, DeepSpeed, Megatron, JAX, XGBoost, and other workloads, plus TrainJob lifecycle and scheduling integration topics. Use it as evidence that distributed training jobs often need a Kubernetes controller layer above framework launchers. [raw](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
@@ -80,6 +95,7 @@ Use this page as source-backed coverage for:
 - `network-storage-cluster`: only where distributed checkpoints depend on durable shared storage; this page does not replace storage/fabric architecture evidence.
 
 Remaining gaps for this layer are production incident/postmortem evidence, measured checkpoint restore benchmarks, framework upgrade failures, and non-PyTorch/DeepSpeed/Ray operational field reports.
+The local issue corpora now provide narrow failure examples for collective aborts, version/configuration-sensitive NCCL failures, Ray launch-mode hangs, and adjacent runtime integration leads; those examples do not replace production postmortems, checkpoint restore measurements, or field reports with complete environment and remediation context.
 
 # Citations
 
@@ -88,3 +104,6 @@ Remaining gaps for this layer are production incident/postmortem evidence, measu
 - [Ray Train and KubeRay source note](../../raw/links/ray-train-kuberay-official-docs-20260707.md)
 - [Kubeflow Trainer source note](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
 - [Fault-tolerant NCCL applications raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md)
+- [NCCL closed GitHub issues with comments](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz)
+- [NCCL issue #2024 crawler supplement](../../raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md)
+- [SGLang closed issue and PR index](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)

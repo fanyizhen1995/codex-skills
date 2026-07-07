@@ -1,0 +1,150 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r6-task-3",
+  "status": "pass",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-verification.json"
+  ],
+  "validation_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Index command completed; wiki/index.md was already content-equivalent after the task-3 page updates."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json validate and pass ai_infra coverage-map semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "Gap-proof JSON parsed successfully."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r6-task-3') ... PY",
+      "status": "pass",
+      "summary": "Gap proof validator returned no findings."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "Task-3 verification manifest parsed successfully."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No tracked diff whitespace errors reported."
+    },
+    {
+      "command": "autonomous scope check over git status --porcelain=v1 -uall paths, excluding run-local .codex outputs",
+      "status": "pass",
+      "summary": "All task domain paths, including the verification manifest, matched planner allowed_paths and none matched planner denylist_paths.",
+      "details": {
+        "checked_paths": [
+          "personal-wiki/domains/ai_infra/coverage-map.json",
+          "personal-wiki/domains/ai_infra/ingest.md",
+          "personal-wiki/domains/ai_infra/loop-state.json",
+          "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json",
+          "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+          "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+          "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+          "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-verification.json"
+        ],
+        "allowed": true,
+        "findings": []
+      }
+    },
+    {
+      "command": "targeted sensitive-pattern scan over git status --porcelain=v1 -uall paths, excluding run-local .codex outputs",
+      "status": "pass",
+      "summary": "No assignment-like API key, token, credential, password, authorization, bearer, or secret patterns found across 8 task domain paths.",
+      "findings": []
+    },
+    {
+      "command": "source visibility check for distributed training and scheduling operational terms",
+      "status": "pass",
+      "summary": "Curated pages and index contain expected body-derived terms including ncclCommAbort, H200/NVSwitch, Ray separate-process, ResourceQuota admission, ResourceFlavor, vGPU, Slurm job cgroup, and Task 3 issue-level coverage."
+    },
+    {
+      "command": "local source evidence check for selected operational issue and benchmark-shaped sources",
+      "status": "pass",
+      "summary": "Selected local raw corpus files and NCCL issue #2024 crawler capture exist; issue #2024 includes canonical_url, content_hash, and Ring Broadcast markers. No new external capture or live link probe was required."
+    }
+  ],
+  "delegated_live_checks": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "Crawler backend, crawler frontend, and loop dashboard must each return pass-like HTTP 2xx/3xx service availability."
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "Crawler workbench API freshness must pass sources, channels, queue, wiki, and search dimensions for the updated distributed-training and orchestration-scheduling knowledge targets."
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "Loop Dashboard must bind current run, child tasks, agent actions, evaluator scenarios, completed history, and project metadata to this run/worktree."
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "Search API must find Distributed Training Infrastructure, Orchestration Scheduling Infrastructure, and AI Infra Coverage Map using current body terms such as ncclCommAbort, H200/NVSwitch, ResourceQuota admission, ResourceFlavor, vGPU, and Slurm job cgroup."
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "Crawler workbench frontend must display or expose the updated wiki/search content for distributed training and scheduling operational issue evidence."
+    }
+  ],
+  "dependency_changes": {
+    "status": "not_applicable",
+    "summary": "No requirements, package, lockfile, or dependency metadata changed.",
+    "dependency_paths": []
+  },
+  "code_changes": {
+    "status": "not_applicable",
+    "summary": "No crawler backend/frontend, loop dashboard, harness, or executable code changed."
+  },
+  "domain_channels": {
+    "status": "not_applicable",
+    "summary": "No crawler source subscription or domain channel configuration changed."
+  },
+  "commit": {
+    "status": "delegated_to_orchestrator",
+    "summary": "Generator did not run git commit and leaves generator-result commit empty as requested."
+  },
+  "no_action_evidence": {
+    "status": "not_applicable",
+    "summary": "Generator status is implemented; this is not a stopped_no_action task."
+  },
+  "generated_at": "2026-07-07T06:18:02Z"
+}
