@@ -442,12 +442,16 @@ def evaluate_governance_repo(
         evidence=formal_evidence,
     )
 
-    readiness_ok = parent_ok and isinstance(parent_run, dict) and bool(parent_run.get("current_child_run_id"))
+    readiness_ok = parent_ok and isinstance(parent_run, dict) and (
+        bool(parent_run.get("current_child_run_id")) or governance_parent_ready_for_merge(parent_run)
+    )
     readiness_diagnostics: list[str] = []
     if readiness_ok:
         checked.append("checkpoint and merge-readiness context remain visible on the parent run")
     else:
-        readiness_diagnostics.append("governance parent run must expose current_child_run_id for checkpoint readiness")
+        readiness_diagnostics.append(
+            "governance parent run must expose current_child_run_id or passed_waiting_human_merge readiness"
+        )
     diagnostics.extend(readiness_diagnostics)
     record(
         "E2E-7",
@@ -469,6 +473,30 @@ def evaluate_governance_repo(
         ],
         "diagnostics": diagnostics,
     }
+
+
+def governance_parent_ready_for_merge(parent_run: dict[str, Any]) -> bool:
+    aggregate = parent_run.get("aggregate_acceptance")
+    if not isinstance(aggregate, dict):
+        return False
+    total = safe_int(aggregate.get("total"))
+    return (
+        parent_run.get("phase") == "passed_waiting_human_merge"
+        and parent_run.get("next_action") == "await_human_merge_confirmation"
+        and total > 0
+        and safe_int(aggregate.get("passed")) == total
+        and safe_int(aggregate.get("pending")) == 0
+        and safe_int(aggregate.get("failed")) == 0
+        and safe_int(aggregate.get("blocked")) == 0
+        and aggregate.get("user_decision_required") is True
+    )
+
+
+def safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def governance_failure_payload(exc: Exception) -> dict[str, Any]:

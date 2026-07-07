@@ -261,6 +261,75 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             self.assertIn("boom", payload["diagnostics"][0])
             self.assertIn("generated_at", payload)
 
+    def test_governance_e2e_7_accepts_completed_parent_waiting_for_merge(self) -> None:
+        from scripts.loop_dashboard_evaluator import evaluate_governance_repo
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            _build_governance_repo_fixture(repo_root)
+            parent_path = repo_root / ".codex" / "loop-runs" / "ai-infra-loop-governance-dev" / "run.json"
+            parent = json.loads(parent_path.read_text(encoding="utf-8"))
+            parent.update(
+                {
+                    "phase": "passed_waiting_human_merge",
+                    "last_result": "pass",
+                    "next_action": "await_human_merge_confirmation",
+                    "current_child_run_id": "",
+                    "aggregate_acceptance": {
+                        "total": 1,
+                        "passed": 1,
+                        "failed": 0,
+                        "blocked": 0,
+                        "pending": 0,
+                        "user_decision_required": True,
+                    },
+                }
+            )
+            parent_path.write_text(json.dumps(parent), encoding="utf-8")
+            with patch(
+                "scripts.loop_dashboard_evaluator.validate_governance_preflight_evidence",
+                return_value={
+                    "status": "pass",
+                    "artifact_paths": [
+                        ".codex/loop-runs/ai-infra-loop-governance-dev/egress-proof.json",
+                        ".codex/loop-runs/ai-infra-loop-governance-dev/identity-key-audit.json",
+                        ".codex/loop-runs/ai-infra-loop-governance-dev/depth-acquisition-smoke.json",
+                        ".codex/loop-runs/ai-infra-loop-governance-dev/candidate-scoring/top.json",
+                    ],
+                    "missing_artifacts": [],
+                    "findings": [],
+                },
+            ), patch(
+                "scripts.loop_dashboard_evaluator.read_json_url",
+                return_value={
+                    "phase": "passed_waiting_human_merge",
+                    "next_action": "await_human_merge_confirmation",
+                    "children": [
+                        {
+                            "run_id": "ai-infra-loop-governance-dev-child-001",
+                            "phase": "passed",
+                            "reader_summary": {"acceptance_result": "Passed"},
+                        }
+                    ],
+                    "children_summary": {"total": 1, "blocked": 0, "passed": 1, "pending": 0},
+                    "governance_artifacts": {
+                        "source_profile_snapshots": [
+                            "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
+                        ]
+                    },
+                },
+            ), patch("scripts.loop_dashboard_evaluator.check_health_endpoint", return_value=True), patch(
+                "scripts.loop_dashboard_evaluator.check_frontend", return_value=True
+            ):
+                payload = evaluate_governance_repo(
+                    repo_root,
+                    dashboard_url="http://127.0.0.1:8766",
+                    crawler_health_url="http://127.0.0.1:8765/api/health",
+                    frontend_url="http://127.0.0.1:5173/",
+                )
+
+        self.assertEqual(_scenario_statuses(payload)["E2E-7"], "pass")
+
 
 if __name__ == "__main__":
     unittest.main()

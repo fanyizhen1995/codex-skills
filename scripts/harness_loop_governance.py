@@ -433,6 +433,19 @@ def validate_source_profile_snapshot(payload: Mapping[str, Any], db_rows: Mappin
         if not isinstance(channel, Mapping):
             findings.append(f"channels[{index}] must be an object")
             continue
+        expected_identity_key = canonical_identity_key(
+            {
+                "source_type": "channel",
+                "target_domain": _first_string(channel, "target_domain"),
+                "base_url": _first_string(channel, "base_url", "canonical_url"),
+            }
+        )
+        observed_identity_key = _first_string(channel, "identity_key")
+        if expected_identity_key and observed_identity_key != expected_identity_key:
+            findings.append(
+                f"channels[{index}].identity_key {observed_identity_key or '<missing>'} "
+                f"does not match canonical {expected_identity_key}"
+            )
         findings.extend(
             _validate_snapshot_entry(
                 entry=channel,

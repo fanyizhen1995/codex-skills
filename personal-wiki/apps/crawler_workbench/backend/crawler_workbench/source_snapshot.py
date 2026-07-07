@@ -97,9 +97,7 @@ def _base_url(url: str) -> str:
 
 
 def _channel_identity_key(target_domain: str, base_url: str) -> str:
-    parsed = urlparse(base_url)
-    canonical = parsed.netloc.lower() if parsed.scheme and parsed.netloc else base_url.lower()
-    return f"channel:{target_domain}:{canonical}"
+    return f"channel:{target_domain}:{base_url.lower()}"
 
 
 def _probe_summary(row: dict[str, Any]) -> str:

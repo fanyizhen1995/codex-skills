@@ -1,12 +1,12 @@
 {
-  "captured_at": "2026-07-07T18:20:14Z",
+  "captured_at": "2026-07-07T19:00:16Z",
   "channels": [
     {
       "auth_state": "ready",
       "base_url": "http://export.arxiv.org",
       "canonical_url": "http://export.arxiv.org",
       "channel_id": "ai_infra-export-arxiv-org",
-      "identity_key": "channel:ai_infra:export.arxiv.org",
+      "identity_key": "channel:ai_infra:http://export.arxiv.org",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -16,7 +16,7 @@
       "base_url": "https://api.github.com",
       "canonical_url": "https://api.github.com",
       "channel_id": "ai_infra-api-github-com",
-      "identity_key": "channel:ai_infra:api.github.com",
+      "identity_key": "channel:ai_infra:https://api.github.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -26,7 +26,7 @@
       "base_url": "https://asterfusion.com",
       "canonical_url": "https://asterfusion.com",
       "channel_id": "ai_infra-asterfusion-com",
-      "identity_key": "channel:ai_infra:asterfusion.com",
+      "identity_key": "channel:ai_infra:https://asterfusion.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -36,7 +36,7 @@
       "base_url": "https://aws.amazon.com",
       "canonical_url": "https://aws.amazon.com",
       "channel_id": "ai_infra-aws-amazon-com",
-      "identity_key": "channel:ai_infra:aws.amazon.com",
+      "identity_key": "channel:ai_infra:https://aws.amazon.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -46,7 +46,7 @@
       "base_url": "https://cloud.google.com",
       "canonical_url": "https://cloud.google.com",
       "channel_id": "ai_infra-cloud-google-com",
-      "identity_key": "channel:ai_infra:cloud.google.com",
+      "identity_key": "channel:ai_infra:https://cloud.google.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -56,7 +56,7 @@
       "base_url": "https://denglinai.com",
       "canonical_url": "https://denglinai.com",
       "channel_id": "ai_infra-denglinai-com",
-      "identity_key": "channel:ai_infra:denglinai.com",
+      "identity_key": "channel:ai_infra:https://denglinai.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -66,7 +66,7 @@
       "base_url": "https://developer.nvidia.com",
       "canonical_url": "https://developer.nvidia.com",
       "channel_id": "ai_infra-developer-nvidia-com",
-      "identity_key": "channel:ai_infra:developer.nvidia.com",
+      "identity_key": "channel:ai_infra:https://developer.nvidia.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -76,7 +76,7 @@
       "base_url": "https://docs.nvidia.com",
       "canonical_url": "https://docs.nvidia.com",
       "channel_id": "ai_infra-docs-nvidia-com",
-      "identity_key": "channel:ai_infra:docs.nvidia.com",
+      "identity_key": "channel:ai_infra:https://docs.nvidia.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -86,7 +86,7 @@
       "base_url": "https://e.huawei.com",
       "canonical_url": "https://e.huawei.com",
       "channel_id": "ai_infra-e-huawei-com",
-      "identity_key": "channel:ai_infra:e.huawei.com",
+      "identity_key": "channel:ai_infra:https://e.huawei.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -96,7 +96,7 @@
       "base_url": "https://github.com",
       "canonical_url": "https://github.com",
       "channel_id": "ai_infra-github-com",
-      "identity_key": "channel:ai_infra:github.com",
+      "identity_key": "channel:ai_infra:https://github.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -106,7 +106,7 @@
       "base_url": "https://huggingface.co",
       "canonical_url": "https://huggingface.co",
       "channel_id": "ai_infra-huggingface-co",
-      "identity_key": "channel:ai_infra:huggingface.co",
+      "identity_key": "channel:ai_infra:https://huggingface.co",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -116,7 +116,7 @@
       "base_url": "https://lambda.ai",
       "canonical_url": "https://lambda.ai",
       "channel_id": "ai_infra-lambda-ai",
-      "identity_key": "channel:ai_infra:lambda.ai",
+      "identity_key": "channel:ai_infra:https://lambda.ai",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -126,7 +126,7 @@
       "base_url": "https://mlcommons.org",
       "canonical_url": "https://mlcommons.org",
       "channel_id": "ai_infra-mlcommons-org",
-      "identity_key": "channel:ai_infra:mlcommons.org",
+      "identity_key": "channel:ai_infra:https://mlcommons.org",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -136,7 +136,7 @@
       "base_url": "https://modal.com",
       "canonical_url": "https://modal.com",
       "channel_id": "ai_infra-modal-com",
-      "identity_key": "channel:ai_infra:modal.com",
+      "identity_key": "channel:ai_infra:https://modal.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -146,7 +146,7 @@
       "base_url": "https://static.sse.com.cn",
       "canonical_url": "https://static.sse.com.cn",
       "channel_id": "ai_infra-static-sse-com-cn",
-      "identity_key": "channel:ai_infra:static.sse.com.cn",
+      "identity_key": "channel:ai_infra:https://static.sse.com.cn",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -156,7 +156,7 @@
       "base_url": "https://storage.corigine.com.cn",
       "canonical_url": "https://storage.corigine.com.cn",
       "channel_id": "ai_infra-storage-corigine-com-cn",
-      "identity_key": "channel:ai_infra:storage.corigine.com.cn",
+      "identity_key": "channel:ai_infra:https://storage.corigine.com.cn",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -166,7 +166,7 @@
       "base_url": "https://techcommunity.microsoft.com",
       "canonical_url": "https://techcommunity.microsoft.com",
       "channel_id": "ai_infra-techcommunity-microsoft-com",
-      "identity_key": "channel:ai_infra:techcommunity.microsoft.com",
+      "identity_key": "channel:ai_infra:https://techcommunity.microsoft.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -176,7 +176,7 @@
       "base_url": "https://vllm.ai",
       "canonical_url": "https://vllm.ai",
       "channel_id": "ai_infra-vllm-ai",
-      "identity_key": "channel:ai_infra:vllm.ai",
+      "identity_key": "channel:ai_infra:https://vllm.ai",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -186,7 +186,7 @@
       "base_url": "https://www.amd.com",
       "canonical_url": "https://www.amd.com",
       "channel_id": "ai_infra-www-amd-com",
-      "identity_key": "channel:ai_infra:www.amd.com",
+      "identity_key": "channel:ai_infra:https://www.amd.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -196,7 +196,7 @@
       "base_url": "https://www.birentech.com",
       "canonical_url": "https://www.birentech.com",
       "channel_id": "ai_infra-www-birentech-com",
-      "identity_key": "channel:ai_infra:www.birentech.com",
+      "identity_key": "channel:ai_infra:https://www.birentech.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -206,7 +206,7 @@
       "base_url": "https://www.cambricon.com",
       "canonical_url": "https://www.cambricon.com",
       "channel_id": "ai_infra-www-cambricon-com",
-      "identity_key": "channel:ai_infra:www.cambricon.com",
+      "identity_key": "channel:ai_infra:https://www.cambricon.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -216,7 +216,7 @@
       "base_url": "https://www.dayudpu.com",
       "canonical_url": "https://www.dayudpu.com",
       "channel_id": "ai_infra-www-dayudpu-com",
-      "identity_key": "channel:ai_infra:www.dayudpu.com",
+      "identity_key": "channel:ai_infra:https://www.dayudpu.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -226,7 +226,7 @@
       "base_url": "https://www.deepspeed.ai",
       "canonical_url": "https://www.deepspeed.ai",
       "channel_id": "ai_infra-www-deepspeed-ai",
-      "identity_key": "channel:ai_infra:www.deepspeed.ai",
+      "identity_key": "channel:ai_infra:https://www.deepspeed.ai",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -236,7 +236,7 @@
       "base_url": "https://www.enflame-tech.com",
       "canonical_url": "https://www.enflame-tech.com",
       "channel_id": "ai_infra-www-enflame-tech-com",
-      "identity_key": "channel:ai_infra:www.enflame-tech.com",
+      "identity_key": "channel:ai_infra:https://www.enflame-tech.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -246,7 +246,7 @@
       "base_url": "https://www.hygon.cn",
       "canonical_url": "https://www.hygon.cn",
       "channel_id": "ai_infra-www-hygon-cn",
-      "identity_key": "channel:ai_infra:www.hygon.cn",
+      "identity_key": "channel:ai_infra:https://www.hygon.cn",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -256,7 +256,7 @@
       "base_url": "https://www.iluvatar.com",
       "canonical_url": "https://www.iluvatar.com",
       "channel_id": "ai_infra-www-iluvatar-com",
-      "identity_key": "channel:ai_infra:www.iluvatar.com",
+      "identity_key": "channel:ai_infra:https://www.iluvatar.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -266,7 +266,7 @@
       "base_url": "https://www.intel.com",
       "canonical_url": "https://www.intel.com",
       "channel_id": "ai_infra-www-intel-com",
-      "identity_key": "channel:ai_infra:www.intel.com",
+      "identity_key": "channel:ai_infra:https://www.intel.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -276,7 +276,7 @@
       "base_url": "https://www.jaguarmicro.com",
       "canonical_url": "https://www.jaguarmicro.com",
       "channel_id": "ai_infra-www-jaguarmicro-com",
-      "identity_key": "channel:ai_infra:www.jaguarmicro.com",
+      "identity_key": "channel:ai_infra:https://www.jaguarmicro.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -286,7 +286,7 @@
       "base_url": "https://www.kunlunxin.com",
       "canonical_url": "https://www.kunlunxin.com",
       "channel_id": "ai_infra-www-kunlunxin-com",
-      "identity_key": "channel:ai_infra:www.kunlunxin.com",
+      "identity_key": "channel:ai_infra:https://www.kunlunxin.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -296,7 +296,7 @@
       "base_url": "https://www.metax-tech.com",
       "canonical_url": "https://www.metax-tech.com",
       "channel_id": "ai_infra-www-metax-tech-com",
-      "identity_key": "channel:ai_infra:www.metax-tech.com",
+      "identity_key": "channel:ai_infra:https://www.metax-tech.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -306,7 +306,7 @@
       "base_url": "https://www.mthreads.com",
       "canonical_url": "https://www.mthreads.com",
       "channel_id": "ai_infra-www-mthreads-com",
-      "identity_key": "channel:ai_infra:www.mthreads.com",
+      "identity_key": "channel:ai_infra:https://www.mthreads.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -316,7 +316,7 @@
       "base_url": "https://www.nebula-matrix.com",
       "canonical_url": "https://www.nebula-matrix.com",
       "channel_id": "ai_infra-www-nebula-matrix-com",
-      "identity_key": "channel:ai_infra:www.nebula-matrix.com",
+      "identity_key": "channel:ai_infra:https://www.nebula-matrix.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -326,7 +326,7 @@
       "base_url": "https://www.nvidia.com",
       "canonical_url": "https://www.nvidia.com",
       "channel_id": "ai_infra-www-nvidia-com",
-      "identity_key": "channel:ai_infra:www.nvidia.com",
+      "identity_key": "channel:ai_infra:https://www.nvidia.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -336,7 +336,7 @@
       "base_url": "https://www.nxp.com",
       "canonical_url": "https://www.nxp.com",
       "channel_id": "ai_infra-www-nxp-com",
-      "identity_key": "channel:ai_infra:www.nxp.com",
+      "identity_key": "channel:ai_infra:https://www.nxp.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -346,7 +346,7 @@
       "base_url": "https://www.resnics.com",
       "canonical_url": "https://www.resnics.com",
       "channel_id": "ai_infra-www-resnics-com",
-      "identity_key": "channel:ai_infra:www.resnics.com",
+      "identity_key": "channel:ai_infra:https://www.resnics.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -356,7 +356,7 @@
       "base_url": "https://www.techpowerup.com",
       "canonical_url": "https://www.techpowerup.com",
       "channel_id": "ai_infra-www-techpowerup-com",
-      "identity_key": "channel:ai_infra:www.techpowerup.com",
+      "identity_key": "channel:ai_infra:https://www.techpowerup.com",
       "target_domain": "ai_infra",
       "trust_level": "untrusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -366,7 +366,7 @@
       "base_url": "https://www.vastaitech.com",
       "canonical_url": "https://www.vastaitech.com",
       "channel_id": "ai_infra-www-vastaitech-com",
-      "identity_key": "channel:ai_infra:www.vastaitech.com",
+      "identity_key": "channel:ai_infra:https://www.vastaitech.com",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"
@@ -376,7 +376,7 @@
       "base_url": "https://www.yusur.tech",
       "canonical_url": "https://www.yusur.tech",
       "channel_id": "ai_infra-www-yusur-tech",
-      "identity_key": "channel:ai_infra:www.yusur.tech",
+      "identity_key": "channel:ai_infra:https://www.yusur.tech",
       "target_domain": "ai_infra",
       "trust_level": "trusted",
       "updated_at_watermark": "2026-07-06 20:36:09"

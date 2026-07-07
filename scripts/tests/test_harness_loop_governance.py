@@ -112,6 +112,40 @@ def test_canonical_identity_key_uses_publication_hardware_channel_source_and_raw
     )
 
 
+def test_source_profile_snapshot_rejects_noncanonical_channel_identity_key() -> None:
+    snapshot = {
+        "schema_version": 1,
+        "captured_at": "2026-07-08T00:00:00Z",
+        "record_counts": {"channels": 1, "sources": 0},
+        "channels": [
+            {
+                "channel_id": "ai_infra-example",
+                "target_domain": "ai_infra",
+                "base_url": "https://example.com",
+                "trust_level": "trusted",
+                "auth_state": "ready",
+                "canonical_url": "https://example.com",
+                "identity_key": "channel:ai_infra:example.com",
+                "updated_at_watermark": "2026-07-08T00:00:00Z",
+            }
+        ],
+        "sources": [],
+    }
+    db_rows = {
+        "channels": [
+            {
+                **snapshot["channels"][0],
+                "identity_key": "channel:ai_infra:https://example.com",
+            }
+        ],
+        "sources": [],
+    }
+
+    findings = validate_source_profile_snapshot(snapshot, db_rows)
+
+    assert any("channels[0].identity_key" in finding and "canonical" in finding for finding in findings)
+
+
 def test_classify_candidate_allows_high_value_only_when_hard_gates_and_inputs_pass() -> None:
     result = classify_candidate(_high_value_candidate())
 

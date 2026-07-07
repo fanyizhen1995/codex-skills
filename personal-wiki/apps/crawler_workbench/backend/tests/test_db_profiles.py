@@ -239,6 +239,8 @@ def test_source_profile_snapshot_exports_non_sensitive_manifest_and_detects_drif
     assert snapshot["schema_version"] == 1
     assert snapshot["run_id"] == "ai-infra-loop-governance-dev"
     assert snapshot["record_counts"] == {"channels": 2, "sources": 2}
+    assert snapshot["channels"][0]["identity_key"] == "channel:ai_infra:https://api.github.com"
+    assert snapshot["channels"][1]["identity_key"] == "channel:ai_infra:https://docs.nvidia.com"
     serialized = json.dumps(snapshot, ensure_ascii=False)
     assert "GITHUB_TOKEN" not in serialized
     assert "auth_ref" not in serialized
