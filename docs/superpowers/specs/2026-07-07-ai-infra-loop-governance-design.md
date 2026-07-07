@@ -15,7 +15,7 @@
 3. 把“高价值项目深挖”改成显式评分门，而不是 Planner 主观标记。
 4. 让 crawler workbench Domain Channels/source profiles 成为长期来源的默认入口。
 5. 设立知识入库 checkpoint 和 main 合入节奏，避免成果长期只留在 worktree。
-6. 把 evaluator 从“验证自述和文件存在”提升为“验证资料可见性、引用完整性、抽样源文一致性、前后端可见性和 loop 可读性”。
+6. 把 evaluator 从“验证自述和文件存在”提升为“验证资料可见性、引用完整性、抽样源文一致性、前后端可见性、loop 可读性和可疑实现的反例测试”。
 7. 保留 autonomous knowledge 的自动能力，但把 stop/no-action/budget/block 的语义收紧到可审计状态。
 
 ## 非目标
@@ -26,7 +26,7 @@
 - 不把 token、cookie、私有凭据、`.env`、`.codex` 日志、pid/log、`generated/` 或 `.worktrees/` 内容写入 git。
 - 不把任意热门项目默认视为高价值项目。
 - 不要求一次性补齐所有历史 raw 或全互联网资料。
-- 不声称 evaluator 能证明所有 curated claim 为真；首期只验证可见性、引用完整性、抽样源文一致性和 plumbing 正常。
+- 不声称 evaluator 能证明所有 curated claim 为真；首期只验证可见性、引用完整性、抽样源文一致性、plumbing 正常，并对可疑实现点构造有限反例测试。
 
 ## 当前事实基线
 
@@ -271,7 +271,7 @@ Evaluator 必须校验 snapshot 与当前 SQLite DB 未漂移：snapshot 的 cha
 
 ### 第 5 轮：Evaluator 完整度治理
 
-目的：Evaluator 要像用户一样验证资料可见性、引用完整性、抽样源文一致性、前后端和看板，而不是接受 generator 自述。
+目的：Evaluator 要像用户一样验证资料可见性、引用完整性、抽样源文一致性、前后端和看板，并对当轮实现中可疑、不合理或可能错误的点做有限形式化验证，而不是接受 generator 自述。
 
 每个知识入库任务必须验证：
 
@@ -295,6 +295,59 @@ Evaluator 必须校验 snapshot 与当前 SQLite DB 未漂移：snapshot 的 cha
 - evaluator 结果包含人读摘要，说明验收了哪些用户场景。
 - dashboard 适合不了解项目背景的人阅读：能看到任务是什么、进展到哪、验收过什么、是否有错误、是否需要决策。
 - failed/blocked 不得被折算为 pass。
+
+#### 形式化怀疑验证阶段
+
+每轮 evaluator 在常规验收后必须增加 `formal_suspicion_pass`。该阶段不是要求数学证明整个系统正确，而是把 evaluator 的怀疑转成可执行反例测试，防止“看起来可疑”直接变成主观 finding，也防止真实 bug 被轻描淡写跳过。
+
+输入：
+
+- 当轮 changed paths、planner-output、generator-result、evaluator scenario、verify logs。
+- 相关 schema、contract、policy、coverage map、loop-state、source profile snapshot、UI route 或 API contract。
+- 当轮新增或修改的测试文件和测试输出。
+
+流程：
+
+1. **提出可疑假设**：Evaluator 至少检查边界条件、状态机非法迁移、脏路径继承、identity key 冲突、needs 队列复探、snapshot 漂移、source_refs 缺证据、UI 可见但 API 不一致、commit hygiene、secret/denylist、以及新增逻辑与既有 contract 不一致等类别。
+2. **筛选可验证假设**：只对能用单元测试、schema validation、CLI smoke、API probe、Playwright 操作、fixture replay 或小型脚本验证的假设进入反例构造。纯主观设计偏好不得进入 bug finding。
+3. **构造最小反例**：为每个高风险假设构造最小输入、fixture、命令或 UI 操作。优先生成 run-local counterexample artifact；如果需要把测试加入仓库，必须放在对应测试目录并进入 repair 流程，由 Generator 保留或调整。
+4. **运行反例验证**：反例测试失败且失败原因匹配假设时，Evaluator 输出 confirmed bug，状态为 `fail`，`next_action=repair_and_reevaluate`。Generator 修复后必须保留对应回归测试或保留等价 run-local scenario 证据。
+5. **处理未证实怀疑**：反例测试通过则记录为 disproved suspicion，不阻塞；无法构造测试但风险高则记录为 `needs_human_judgement` 或 `blocked`，不能伪装成 pass。
+
+预算：
+
+- 每轮最多构造 5 个可疑假设，最多运行 3 个高风险反例测试。
+- 轻量整理任务可只运行 contract/schema/secret/commit hygiene 类反例，不强制 Playwright。
+- 反例测试不得下载大 raw、不得访问 denylist、不得写 secret、不得修改非 allowed paths。
+
+输出 artifact：
+
+```json
+{
+  "phase": "formal_suspicion_pass",
+  "suspicions": [
+    {
+      "id": "state-transition-illegal-cleanup-to-planning",
+      "risk": "high",
+      "hypothesis": "cleanup 后可能绕过 stopped_budget 继续 planning",
+      "counterexample": {
+        "type": "unit_test | cli_probe | api_probe | playwright | schema_validation | fixture_replay",
+        "artifact_path": ".codex/loop-runs/<run-id>/counterexample-tests/state-transition.json",
+        "command": "python3 -m pytest scripts/tests/test_harness_loop_orchestrator.py::test_cleanup_does_not_resume_budgeted_run -q"
+      },
+      "result": "confirmed_bug | disproved | inconclusive",
+      "repair_required": true
+    }
+  ]
+}
+```
+
+验收规则：
+
+- `confirmed_bug` 必须像 evaluator 发现的其它实现 bug 一样进入 repair 流程。
+- repair 后 evaluator 必须重新运行原反例测试；未重跑不得 pass。
+- `disproved` 不阻塞，但要保留 artifact，避免下一轮重复怀疑。
+- `inconclusive` 不能直接 pass 高风险项；必须降级成明确风险、needs 队列或人工判断。
 
 ### 第 6 轮：恢复知识拓展策略与停止条件
 
@@ -323,6 +376,8 @@ Evaluator 必须校验 snapshot 与当前 SQLite DB 未漂移：snapshot 的 cha
 - `.codex/loop-runs/<run-id>/egress-proof.json`
 - `.codex/loop-runs/<run-id>/depth-acquisition-smoke.json`
 - `.codex/loop-runs/<run-id>/candidate-scoring/*.json`
+- `.codex/loop-runs/<run-id>/formal-verification/*.json`
+- `.codex/loop-runs/<run-id>/counterexample-tests/*`
 - `.codex/loop-runs/<run-id>/governance-report.json`
 - `.codex/loop-runs/<run-id>/needs-queue-transition.json`
 - `.codex/loop-runs/<run-id>/identity-key-audit.json`
@@ -373,7 +428,14 @@ Run-local artifacts under `.codex/**` are evidence, not git-tracked source. If a
    - 抽样 claim 无法在 source_ref 中找到依据时不能 pass。
    - changed paths 命中 denylist 或 secret pattern 时 blocked。
 
-7. Commit hygiene tests
+7. Formal suspicion pass tests
+   - Evaluator 发现可疑状态机路径时，必须构造最小 fixture 或测试命令。
+   - 反例测试复现 bug 时 evaluator result 为 fail，next action 为 repair。
+   - 反例测试通过时 suspicion 标记为 disproved，不阻塞 pass。
+   - 高风险但无法构造反例时标记 inconclusive，并进入 needs_human_judgement 或 blocked。
+   - Generator 修复后必须重跑原反例测试，未重跑不能 pass。
+
+8. Commit hygiene tests
    - `.codex`、pid/log、`generated/`、`.worktrees` 不会进入 wiki/crawler 入库 commit。
    - r10/r11 入库文件和治理 spec/代码 commit 能被分开提交。
 
@@ -411,7 +473,13 @@ E2E-5：知识入库可见性
 - 执行一个小型整理入库任务。
 - 期望：wiki validate 通过，backend search/API 查得到，frontend Wiki/知识工作台看得到，dashboard 显示验收场景。
 
-E2E-6：checkpoint 和合入准备
+E2E-6：形式化怀疑验证进入修复流程
+
+- 构造一个带可疑状态机或 schema 边界错误的 child run。
+- Evaluator 生成最小反例测试并运行。
+- 期望：反例确认 bug 时 child 进入 `repair_needed`；Generator 修复后保留或等价保留回归测试；Evaluator 重跑反例后通过。
+
+E2E-7：checkpoint 和合入准备
 
 - 多个治理 child 通过后。
 - 期望：commit 分类报告完整，禁止文件未入 git，branch checkpoint 存在，父 run 进入 `passed_waiting_human_merge` 等待用户确认。
@@ -425,6 +493,7 @@ E2E-6：checkpoint 和合入准备
 - checkpoint 合入可能遇到 main 冲突。处理：只准备合入候选和报告，实际合入 main 仍由用户确认。
 - 治理可能变成只产流程文件的重流程。处理：设置治理预算上限，并为本地 raw triage、索引刷新、重复证明等低风险任务保留轻量通道。
 - 外部 egress 可能结构性不可用。处理：preflight 先证明 egress；失败时外部 gap 进入 needs 队列，资料扩充降级为本地整理和 runtime 治理。
+- 形式化怀疑验证可能变成无边界的二次开发。处理：限制每轮 suspicion 和反例数量；只有可执行反例证实的才进入 bug finding；未证实怀疑不阻塞低风险任务。
 
 ## 成功标准
 
@@ -432,6 +501,6 @@ E2E-6：checkpoint 和合入准备
 - loop 能明确区分 actionable gap、needs 队列、duplicate 和 no-action。
 - 高价值项目必须先通过 hard gates，数值评分只做排序，深挖任务必须多源可验证且获取机制已证明。
 - 长期来源通过 crawler workbench Domain Channels/source profiles 管理。
-- evaluator 能验证资料可见性、引用完整性、抽样源文一致性、服务刷新、前端可见性和 dashboard 可读性。
+- evaluator 能验证资料可见性、引用完整性、抽样源文一致性、服务刷新、前端可见性、dashboard 可读性，并对可疑实现点构造反例测试。
 - wiki/crawler 入库 commit 和治理代码/docs commit 分离清楚。
 - 恢复 AI infra 拓展后，每一轮的任务选择、跳过、blocked 和停止原因都能被第三方读懂。
