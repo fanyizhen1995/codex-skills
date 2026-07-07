@@ -1,0 +1,139 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r8-task-2",
+  "run_id": "ai-infra-expansion-2026-07-07-r8",
+  "layer": "network-storage-cluster",
+  "candidate": {
+    "title": "Network storage topology, checkpoint/resiliency, benchmark mechanics, and incident boundary evidence",
+    "source_type": "official_primary_source_notes_with_blocked_postmortem_search",
+    "identity_key": "url:network-storage-topology-benchmark:aws-hyperpod+mlcommons-storage:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "18f0cca",
+    "checked_at": "2026-07-07T11:04:55Z",
+    "git_status_before_task": "git status --short showed task-local edits already in progress when JSON state was updated."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local raw/links, raw/crawler, raw/github, ai_infra manifests, coverage-map.json, loop-state.json, ingest.md, and r8 task-1 state for network-storage, topology, benchmark, performance, checkpoint, training data path, inference data path, EFA, FSx, Lustre, WEKA, Ceph, SPDK, NVMe-oF, RoCE, Spectrum-X, BGP PIC, ECN, DC-QCN, SHARP, NVBandwidth, DPU, SmartNIC, incident, postmortem, outage, degradation, recovery, remediation, and root-cause terms.",
+    "wiki_search": "Network Storage Cluster Infrastructure and AI Infra Coverage Map already covered EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, Spectrum-X/RoCE, SHARP, NVBandwidth, NCCL RAS, and local DPU/SmartNIC/NVMe-oF product signals. Both pages explicitly left topology, workload-specific benchmark, training/checkpoint data-path, non-NVIDIA operations, and production incident/postmortem gaps open.",
+    "domain_index_scan": "ai_infra wiki/index.md already routed Network Storage Cluster Infrastructure, AI Infra Coverage Map, NCCL Technical Blog Network Observability, and Compute Accelerator Parameter Comparison; task-2 updates existing reference pages and does not create a standalone curated page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "primary duplicate boundary for EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, Spectrum-X/RoCE, local DPU/SmartNIC/NVMe-oF, and current network-storage coverage; updated only for HyperPod topology/checkpoint/resiliency and MLCommons benchmark-method evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+      "result": "duplicate boundary for Spectrum-X, RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NVBandwidth, NCCL RAS, NIC Fusion, and fabric telemetry; not edited because task-2 adds AWS/MLCommons storage topology and benchmark evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "duplicate boundary for AWS Trainium2 EFAv3 and DPU/SmartNIC/NVMe-oF product rows; not edited because task-2 does not fill hardware SKU fields."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+      "result": "duplicate boundary for inference deployment-control evidence; task-2 avoids repeating Ray Serve, Knative, KServe, canary, rollout, rollback, and inference autoscaling claims except as non-overlap context."
+    }
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/network-storage-topology-benchmark-official-sources-20260707.md",
+      "coverage": "AWS HyperPod topology-aware scheduling, Slurm topology placement boundaries, EFA health checks, node replacement, checkpoint-aware resume, FSx/EFA cluster configuration surfaces, and MLCommons Storage benchmark method/result-framework evidence."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/network-storage-incident-postmortem-sources-20260707.md",
+      "coverage": "Blocked incident/postmortem promotion record plus HyperPod resiliency mechanics; no public EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, or NVMe-oF postmortem was promoted without impact, timeline, environment, remediation, and owner follow-up evidence."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json"
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod.html",
+      "status": "pass",
+      "evidence": "web.open returned the official AWS SageMaker HyperPod overview on 2026-07-07."
+    },
+    {
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-slurm.html",
+      "status": "pass",
+      "evidence": "web.open returned the official AWS HyperPod Slurm orchestrator documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-topology.html",
+      "status": "pass",
+      "evidence": "web.open returned the official AWS HyperPod topology documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency-slurm.html",
+      "status": "pass",
+      "evidence": "web.open returned the official AWS HyperPod resiliency documentation on 2026-07-07."
+    },
+    {
+      "url": "https://mlcommons.org/benchmarks/storage/",
+      "status": "pass",
+      "evidence": "web.open returned the official MLCommons Storage benchmark landing page on 2026-07-07."
+    },
+    {
+      "url": "https://github.com/mlcommons/storage",
+      "status": "pass",
+      "evidence": "web.open returned the primary MLCommons Storage benchmark repository on 2026-07-07."
+    },
+    {
+      "url": "https://github.com/mlcommons/storage_results_v2.0",
+      "status": "pass",
+      "evidence": "web.open returned the MLCommons Storage v2.0 results repository on 2026-07-07."
+    },
+    {
+      "url": "local urllib HEAD probe for selected AWS and MLCommons URLs",
+      "status": "blocked",
+      "evidence": "Local sandbox DNS returned Temporary failure in name resolution for selected external URLs; source notes therefore record web.open pass evidence plus local network blocked evidence."
+    }
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "source_type": "public_production_postmortem",
+      "status": "blocked",
+      "reason": "Search probes for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, FSx for Lustre, and NVMe-oF incident/postmortem sources did not produce a primary source with impact, timeline, environment, remediation, and ownership fields.",
+      "policy": "Do not promote incident/postmortem readiness without complete primary-source postmortem evidence."
+    },
+    {
+      "source_type": "product_specific_benchmark_ranking",
+      "status": "not_used",
+      "reason": "MLCommons Storage was promoted as benchmark method/result-framework evidence. No individual submission or vendor result was promoted because this task did not preserve exact submission, hardware/cloud environment, topology, storage/fabric configuration, and measured result boundaries.",
+      "policy": "Do not rank product or provider storage performance from benchmark metadata alone."
+    },
+    {
+      "source_type": "crawler_source_subscription",
+      "status": "not_used",
+      "reason": "No repeated source family needed scheduled refresh; one-shot bounded raw notes were sufficient.",
+      "policy": "Prefer one-shot bounded notes unless duplicate/gap proof shows a repeated source needs scheduled refresh."
+    }
+  ],
+  "gap_reason": "The local wiki and raw corpus already covered architecture-level EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, Spectrum-X/RoCE, SHARP, NVBandwidth, NCCL RAS, and local DPU/SmartNIC/NVMe-oF product evidence, but did not preserve a source-backed training-cluster topology/checkpoint data-path or AI storage benchmark-method boundary. The selected AWS HyperPod and MLCommons Storage sources fill topology, checkpoint/resiliency, EFA health-check, and benchmark-method coverage while keeping production postmortems, exact measured product/provider benchmark submissions, and broader non-AWS/non-NVIDIA fabric operations open.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/network-storage-topology-benchmark-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/network-storage-incident-postmortem-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-verification.json"
+  ],
+  "generated_at": "2026-07-07T11:04:55Z"
+}

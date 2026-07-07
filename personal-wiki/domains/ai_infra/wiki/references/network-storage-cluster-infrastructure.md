@@ -22,6 +22,8 @@ source_refs:
   - ../../raw/links/weka-ai-storage-architecture-official-20260707.md
   - ../../raw/links/ceph-distributed-storage-official-docs-20260707.md
   - ../../raw/links/spdk-nvme-of-target-official-docs-20260707.md
+  - ../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md
+  - ../../raw/links/network-storage-incident-postmortem-sources-20260707.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md
@@ -48,7 +50,7 @@ This reference fills the `network-storage-cluster` layer beyond existing NCCL/Sp
 - distributed storage building blocks for file and block interfaces;
 - storage-fabric or offload paths such as NVMe-oF.
 
-The layer remains partial. The new evidence covers EFA, FSx for Lustre, WEKA, Ceph, and SPDK/NVMe-oF at an architecture and source-note level, while existing local evidence still covers Spectrum-X/RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, fabric telemetry, and product-specific DPU/NVMe-oF signals. Remaining gaps include incident evidence, topology diagrams, workload-specific storage benchmarks, non-NVIDIA fabric operations, and direct training/checkpoint case studies.
+The layer remains partial. The evidence now covers EFA, FSx for Lustre, WEKA, Ceph, and SPDK/NVMe-oF at an architecture and source-note level; AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, and checkpoint-aware resume as managed training-cluster data-path evidence; and MLCommons Storage as benchmark-method and result-framework evidence. Existing local evidence still covers Spectrum-X/RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, fabric telemetry, and product-specific DPU/NVMe-oF signals. Remaining gaps include complete production incident/postmortem sources, product-specific benchmark submissions with full environment and measured results, and broader non-AWS/non-NVIDIA fabric operations.
 
 # Duplicate Boundaries
 
@@ -80,6 +82,22 @@ SPDK NVMe-oF documentation supplies protocol-level storage-fabric evidence. The 
 
 Local DPU and storage-accelerator captures remain useful product signals. Resnics Stargate-S1100 is a local NVMe-oF storage accelerator capture with 100G Ethernet, direct U.2 NVMe SSD attachment, and product-specific IOPS/latency fields. JaguarMicro Yunxiao DPU and Yusur K2-Pro provide local DPU/NVMe-oF engine evidence. Keep those claims tied to product rows, and use SPDK or another storage-fabric source for protocol-level behavior. [raw](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md)
 
+# Training Topology And Checkpoint Data Paths
+
+AWS HyperPod adds a concrete managed-training topology boundary beyond the earlier EFA architecture note. HyperPod topology-aware scheduling labels resources by instance and network topology, uses Slurm topology plugins for hierarchical or block placement, and reconciles topology after scale-up, scale-down, and node replacement. Use this as topology-control evidence for AI training clusters; do not infer a workload speedup unless a benchmark source is also cited. [source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
+
+HyperPod Slurm cluster documentation also records EFA and FSx for Lustre as cluster configuration surfaces, while the resiliency documentation ties replacement and resume workflows to checkpoint-aware jobs and EFA health checks. That makes checkpoint location, shared filesystem choice, and fabric health part of the training data path rather than separate inventory facts. This is managed-service operations evidence, not a public incident postmortem. [source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md) [source note](../../raw/links/network-storage-incident-postmortem-sources-20260707.md)
+
+# Storage Benchmark Mechanics
+
+MLCommons Storage is the benchmark-method boundary for AI storage in this page. The source note records that MLCommons Storage targets AI training storage behavior, includes workloads such as UNet3D, ResNet50, CosmoFlow, and checkpointing, and publishes result metadata such as storage system, workload, backend, compute-node count, accelerator count, networking, and throughput. Use it to identify whether a future benchmark source has the necessary method and result fields. [source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
+
+This page does not rank FSx for Lustre, WEKA, Ceph, SPDK, or NVMe-oF systems from MLCommons results. A future product-specific benchmark claim must cite the exact submission or report and preserve workload, topology, hardware or cloud environment, storage/fabric configuration, and measured result boundaries. [source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
+
+# Incident And Postmortem Boundary
+
+No new production incident or postmortem source was promoted in this task. The incident search note records probes for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, and NVMe-oF incident/postmortem sources, but the available probes did not produce a primary source with impact, timeline, environment, remediation, and follow-up ownership. Keep HyperPod resiliency and local issue evidence scoped to operational mechanics or incident-shaped leads. [source note](../../raw/links/network-storage-incident-postmortem-sources-20260707.md)
+
 # Coverage Use
 
 Use this page as source-backed coverage for `network-storage-cluster`:
@@ -89,10 +107,12 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - WEKA as distributed filesystem/storage architecture evidence, including client mount and storage-network boundaries;
 - Ceph as distributed storage evidence for RADOS, CephFS, and RBD file/block primitives;
 - SPDK NVMe-oF as storage-fabric protocol evidence for target/subsystem/namespace behavior;
+- AWS HyperPod topology-aware scheduling, Slurm topology plugin behavior, EFA health checks, node replacement, and checkpoint-aware resume as managed training-cluster topology and data-path evidence;
+- MLCommons Storage benchmark mechanics and result-framework fields for AI storage benchmarking;
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
 - local DPU/SmartNIC/NVMe-oF product captures only for product-specific storage or offload signals.
 
-Do not use this page to claim complete cluster topology coverage, production incident readiness, full storage-performance benchmarking, or full non-NVIDIA fabric operations. Those remain future gaps.
+Do not use this page to claim complete production incident readiness, product-specific benchmark leadership, or full non-NVIDIA fabric operations. Those remain future gaps.
 
 # Citations
 
@@ -101,6 +121,8 @@ Do not use this page to claim complete cluster topology coverage, production inc
 - [WEKA storage architecture source note](../../raw/links/weka-ai-storage-architecture-official-20260707.md)
 - [Ceph distributed storage source note](../../raw/links/ceph-distributed-storage-official-docs-20260707.md)
 - [SPDK NVMe-oF source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
+- [Network storage topology and benchmark source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
+- [Network storage incident and postmortem source search](../../raw/links/network-storage-incident-postmortem-sources-20260707.md)
 - [NCCL Technical Blog Network Observability](nccl-technical-blog-network-observability.md)
 - [Compute Accelerator Parameter Comparison](compute-accelerator-parameter-comparison.md)
 - [AWS Trainium2 raw capture](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)

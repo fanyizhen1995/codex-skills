@@ -328,16 +328,19 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md",
-        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md"
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md",
+        "personal-wiki/domains/ai_infra/raw/links/network-storage-topology-benchmark-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/network-storage-incident-postmortem-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json"
       ],
       "candidate_gaps": [
-        "Add production incident and postmortem evidence for EFA, RoCE/Spectrum-X, Lustre, Weka, Ceph, and NVMe-oF failure modes in AI clusters.",
-        "Add topology and benchmark evidence that ties storage/fabric choices to concrete training, checkpointing, and inference data paths.",
-        "Broaden non-NVIDIA fabric operations beyond EFA architecture notes and AWS Trainium2 cloud-offering fields."
+        "Add complete production incident and postmortem evidence for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, and NVMe-oF failure modes in AI clusters, with impact, timeline, environment, remediation, and follow-up ownership.",
+        "Add exact product/provider benchmark submissions or case studies that tie storage/fabric choices to concrete training, checkpointing, and inference data paths with full environment, topology, configuration, and measured results.",
+        "Broaden non-AWS/non-NVIDIA fabric operations beyond AWS HyperPod/EFA mechanics, Trainium2 cloud-offering fields, and existing Spectrum-X/RoCE evidence."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T03:36:06Z",
-      "notes": "Network Storage Cluster Infrastructure now adds official source notes for AWS EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF, while reusing existing NCCL technical-blog fabric evidence and local DPU/SmartNIC/NVMe-oF product captures. The layer remains partial because incident, topology, workload-specific benchmark, and broader non-NVIDIA fabric operations evidence are still thin."
+      "last_scanned_at": "2026-07-07T11:04:55Z",
+      "notes": "Network Storage Cluster Infrastructure now adds official source notes for AWS EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, checkpoint-aware resume, and MLCommons Storage benchmark mechanics, while reusing existing NCCL technical-blog fabric evidence and local DPU/SmartNIC/NVMe-oF product captures. The layer remains partial because public incident/postmortem sources, exact measured product/provider benchmark submissions, and broader non-AWS/non-NVIDIA fabric operations evidence are still thin."
     }
   }
 }
