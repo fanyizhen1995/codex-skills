@@ -161,12 +161,18 @@ def run_governance_evaluator(
     frontend_url: str = GOVERNANCE_FRONTEND_URL,
 ) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
-    result = evaluate_governance_repo(
-        repo_root,
-        dashboard_url=dashboard_url,
-        crawler_health_url=crawler_health_url,
-        frontend_url=frontend_url,
-    )
+    try:
+        result = evaluate_governance_repo(
+            repo_root,
+            dashboard_url=dashboard_url,
+            crawler_health_url=crawler_health_url,
+            frontend_url=frontend_url,
+        )
+    except Exception as exc:
+        result = governance_failure_payload(exc)
+        write_json(output_dir / "result.json", result)
+        print(f"loop dashboard governance evaluator failed: {exc}", file=sys.stderr)
+        return 1
     write_json(output_dir / "result.json", result)
     return 0 if result["status"] == "pass" else 1
 
@@ -185,30 +191,37 @@ def evaluate_governance_repo(
     diagnostics: list[str] = []
     scenario_results: list[dict[str, Any]] = []
 
-    def record(scenario_id: str, summary: str, *, ok: bool, evidence: list[str] | None = None) -> None:
-        scenario_results.append(
-            {
-                "scenario_id": scenario_id,
-                "status": "pass" if ok else "fail",
-                "summary": summary,
-                "evidence": evidence or [],
-            }
-        )
+    def record(
+        scenario_id: str,
+        summary: str,
+        *,
+        ok: bool,
+        evidence: list[str] | None = None,
+        scenario_diagnostics: list[str] | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {
+            "scenario_id": scenario_id,
+            "status": "pass" if ok else "fail",
+            "summary": summary,
+            "evidence": evidence or [],
+        }
+        if scenario_diagnostics:
+            entry["diagnostics"] = scenario_diagnostics
+        scenario_results.append(entry)
 
     contract_path = scenario_file_path(repo_root, GOVERNANCE_TASK_ID)
     contract_ok = scenario_ids == expected_ids
-    if contract_ok:
-        checked.append("scenario contract contains E2E-0 through E2E-7")
-        record("E2E-0", "Scenario contract contains E2E-0 through E2E-7.", ok=True, evidence=[str(contract_path)])
-    else:
-        diagnostics.append(
+    contract_diagnostics: list[str] = []
+    if not contract_ok:
+        contract_diagnostics.append(
             f"{contract_path.relative_to(repo_root)} must define exactly {expected_ids}, got {scenario_ids or '[]'}"
         )
-        record("E2E-0", "Scenario contract coverage is incomplete.", ok=False, evidence=[str(contract_path)])
+        diagnostics.extend(contract_diagnostics)
 
     parent_run_path = repo_root / ".codex" / "loop-runs" / GOVERNANCE_PARENT_RUN_ID / "run.json"
     parent_run = read_json_file(parent_run_path, diagnostics)
     parent_ok = False
+    parent_diagnostics: list[str] = []
     if isinstance(parent_run, dict):
         has_children = isinstance(parent_run.get("child_run_ids"), list) and bool(parent_run.get("child_run_ids"))
         has_progress = isinstance(parent_run.get("reader_summary"), dict) and bool(
@@ -221,47 +234,132 @@ def evaluate_governance_repo(
             and has_progress
         )
         if not parent_ok:
-            diagnostics.append(f"{relpath(repo_root, parent_run_path)} must be a demand-development parent run with children and current progress")
+            parent_diagnostics.append(
+                f"{relpath(repo_root, parent_run_path)} must be a demand-development parent run with children and current progress"
+            )
     else:
-        diagnostics.append(f"missing governance parent run: {relpath(repo_root, parent_run_path)}")
-    if parent_ok:
-        checked.append("governance parent run remains active with children and progress")
-    record(
-        "E2E-1",
-        "Governance takeover remains active after the stopped-budget expansion run.",
-        ok=parent_ok,
-        evidence=[relpath(repo_root, parent_run_path)] if parent_run_path.exists() else [],
-    )
+        parent_diagnostics.append(f"missing governance parent run: {relpath(repo_root, parent_run_path)}")
+    diagnostics.extend(parent_diagnostics)
 
     expansion_run_path = repo_root / ".codex" / "loop-runs" / GOVERNANCE_EXPANSION_RUN_ID / "run.json"
     expansion_run = read_json_file(expansion_run_path, diagnostics)
+    expansion_diagnostics: list[str] = []
     expansion_ok = isinstance(expansion_run, dict) and expansion_run.get("phase") == "stopped_budget"
     if not expansion_ok:
-        diagnostics.append(f"{relpath(repo_root, expansion_run_path)} must remain stopped_budget")
+        expansion_diagnostics.append(f"{relpath(repo_root, expansion_run_path)} must remain stopped_budget")
     else:
         checked.append("stopped-budget expansion run remains stopped_budget")
-
-    parent_phase = parent_run.get("phase") if isinstance(parent_run, dict) else None
-    record(
-        "E2E-2",
-        "Parent backlog and child split remain visible for governance work.",
-        ok=parent_ok and parent_phase in {"planning", "child_running", "passed_waiting_human_merge", "stopped_blocked", "stopped_budget"},
-        evidence=[relpath(repo_root, parent_run_path)] if parent_run_path.exists() else [],
-    )
+    diagnostics.extend(expansion_diagnostics)
 
     preflight_dir = repo_root / ".codex" / "loop-runs" / GOVERNANCE_PARENT_RUN_ID
     preflight = validate_governance_preflight_evidence(preflight_dir)
     preflight_ok = preflight.get("status") == "pass"
+    preflight_diagnostics = [str(finding) for finding in preflight.get("findings", [])]
+    preflight_diagnostics.extend(str(item) for item in preflight.get("missing_artifacts", []))
     if preflight_ok:
         checked.append("governance preflight evidence passes validation")
     else:
-        diagnostics.extend(str(finding) for finding in preflight.get("findings", []))
-        diagnostics.extend(str(item) for item in preflight.get("missing_artifacts", []))
+        diagnostics.extend(preflight_diagnostics)
+    preflight_evidence = [str(contract_path)]
+    preflight_evidence.extend(str(path) for path in preflight.get("artifact_paths", []))
+    preflight_evidence.extend(str(path) for path in preflight.get("required_artifacts", []))
+    record(
+        "E2E-0",
+        "Scenario contract and governance preflight artifact gate match the task brief.",
+        ok=contract_ok and preflight_ok,
+        evidence=preflight_evidence,
+        scenario_diagnostics=[*contract_diagnostics, *preflight_diagnostics],
+    )
+
+    if parent_ok:
+        checked.append("governance parent run remains active with children and progress")
+    takeover_diagnostics = [*parent_diagnostics, *expansion_diagnostics]
+    record(
+        "E2E-1",
+        "Governance parent remains the active takeover after r10 stopped at budget.",
+        ok=parent_ok and expansion_ok,
+        evidence=[
+            relpath(repo_root, parent_run_path) if parent_run_path.exists() else "",
+            relpath(repo_root, expansion_run_path) if expansion_run_path.exists() else "",
+        ],
+        scenario_diagnostics=[item for item in takeover_diagnostics if item],
+    )
+
+    dashboard_detail: dict[str, Any] = {}
+    dashboard_detail_ok = False
+    dashboard_diagnostics: list[str] = []
+    try:
+        payload = read_json_url(f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID}")
+        if isinstance(payload, dict):
+            dashboard_detail = payload
+            dashboard_detail_ok = True
+        else:
+            dashboard_diagnostics.append(f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} must return a JSON object")
+    except Exception as exc:
+        dashboard_diagnostics.append(f"dashboard API check failed: {exc}")
+    diagnostics.extend(dashboard_diagnostics)
+
+    queue_diagnostics: list[str] = []
+    backlog = parent_run.get("backlog") if isinstance(parent_run, dict) else None
+    backlog_items = backlog if isinstance(backlog, list) else []
+    if not backlog_items:
+        queue_diagnostics.append(f"{relpath(repo_root, parent_run_path)} must include backlog items for the needs queue")
+
+    dashboard_children = dashboard_detail.get("children") if dashboard_detail_ok else None
+    dashboard_children_summary = dashboard_detail.get("children_summary") if dashboard_detail_ok else None
+    dashboard_current_child = dashboard_detail.get("current_child_run_id") if dashboard_detail_ok else None
+    dashboard_queue_ok = True
+    if not isinstance(dashboard_children, list) or not dashboard_children:
+        queue_diagnostics.append(f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} must expose children")
+        dashboard_queue_ok = False
+    if not isinstance(dashboard_children_summary, dict):
+        queue_diagnostics.append(f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} must expose children_summary")
+        dashboard_queue_ok = False
+    else:
+        required_summary_keys = {"total", "pending", "blocked"}
+        missing_summary_keys = sorted(key for key in required_summary_keys if key not in dashboard_children_summary)
+        if missing_summary_keys:
+            queue_diagnostics.append(
+                f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} children_summary must include {missing_summary_keys}"
+            )
+            dashboard_queue_ok = False
+    if isinstance(parent_run, dict) and parent_run.get("current_child_run_id") and dashboard_current_child != parent_run.get("current_child_run_id"):
+        queue_diagnostics.append(
+            f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} must expose current_child_run_id={parent_run.get('current_child_run_id')}"
+        )
+        dashboard_queue_ok = False
+    diagnostics.extend(queue_diagnostics)
+    if not queue_diagnostics:
+        checked.append("needs queue and blocked split remain visible in parent run and dashboard API")
+    record(
+        "E2E-2",
+        "Needs queue, blocked split, and parent/child dashboard visibility remain aligned.",
+        ok=parent_ok and dashboard_detail_ok and dashboard_queue_ok and bool(backlog_items),
+        evidence=[
+            relpath(repo_root, parent_run_path) if parent_run_path.exists() else "",
+            f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID}",
+        ],
+        scenario_diagnostics=[item for item in [*dashboard_diagnostics, *queue_diagnostics] if item],
+    )
+
+    artifact_paths = [str(path) for path in preflight.get("artifact_paths", [])]
+    missing_artifacts = [str(path) for path in preflight.get("missing_artifacts", [])]
+    candidate_artifacts = [path for path in artifact_paths if "candidate-scoring/" in path]
+    candidate_diagnostics = [
+        item
+        for item in [*preflight_diagnostics, *missing_artifacts]
+        if "candidate-scoring" in item.lower()
+    ]
+    candidate_ok = bool(candidate_artifacts) and not candidate_diagnostics
+    if candidate_ok:
+        checked.append("candidate scoring hard gates remain enforced")
+    diagnostics.extend(item for item in candidate_diagnostics if item not in diagnostics)
     record(
         "E2E-3",
-        "Governance preflight enforces hard gates for egress, depth, identity, and candidate scoring.",
-        ok=preflight_ok,
-        evidence=[str(path) for path in preflight.get("artifact_paths", [])],
+        "High-value candidate scoring remains a hard gate instead of advisory-only.",
+        ok=candidate_ok,
+        evidence=candidate_artifacts or [path for path in missing_artifacts if "candidate-scoring" in path.lower()],
+        scenario_diagnostics=candidate_diagnostics,
     )
 
     snapshot_path = (
@@ -273,63 +371,65 @@ def evaluate_governance_repo(
     )
     snapshot = read_json_file(snapshot_path, diagnostics)
     snapshot_ok = False
+    snapshot_diagnostics: list[str] = []
     if isinstance(snapshot, dict):
         channels = snapshot.get("channels")
         sources = snapshot.get("sources")
         if isinstance(channels, list) and channels and isinstance(sources, list) and sources:
             sensitive_findings = find_sensitive_snapshot_findings(snapshot)
             if sensitive_findings:
-                diagnostics.extend(sensitive_findings)
+                snapshot_diagnostics.extend(sensitive_findings)
             else:
                 snapshot_ok = True
         else:
-            diagnostics.append(f"{relpath(repo_root, snapshot_path)} must contain non-empty channels and sources")
+            snapshot_diagnostics.append(f"{relpath(repo_root, snapshot_path)} must contain non-empty channels and sources")
     else:
-        diagnostics.append(f"missing source snapshot manifest: {relpath(repo_root, snapshot_path)}")
+        snapshot_diagnostics.append(f"missing source snapshot manifest: {relpath(repo_root, snapshot_path)}")
+    diagnostics.extend(snapshot_diagnostics)
+
+    crawler_diagnostics: list[str] = []
+    crawler_ok = check_health_endpoint(crawler_health_url, crawler_diagnostics)
+    diagnostics.extend(crawler_diagnostics)
     if snapshot_ok:
         checked.append("source snapshot manifest exists, is populated, and is non-sensitive")
     record(
         "E2E-4",
-        "Crawler source snapshot exists with non-sensitive populated governance linkage.",
-        ok=snapshot_ok,
-        evidence=[relpath(repo_root, snapshot_path)] if snapshot_path.exists() else [],
+        "Crawler workbench linkage includes backend health and a populated source snapshot.",
+        ok=snapshot_ok and crawler_ok,
+        evidence=[
+            relpath(repo_root, snapshot_path) if snapshot_path.exists() else "",
+            crawler_health_url,
+        ],
+        scenario_diagnostics=[item for item in [*snapshot_diagnostics, *crawler_diagnostics] if item],
     )
 
-    dashboard_ok = False
-    try:
-        dashboard_detail = read_json_url(f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID}")
-        children = dashboard_detail.get("children")
-        governance_artifacts = dashboard_detail.get("governance_artifacts")
-        snapshot_paths = []
-        if isinstance(governance_artifacts, dict):
-            snapshot_paths = governance_artifacts.get("source_profile_snapshots") or []
-        dashboard_ok = (
-            isinstance(children, list)
-            and bool(children)
-            and isinstance(snapshot_paths, list)
-            and "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json"
-            in snapshot_paths
+    visibility_diagnostics: list[str] = []
+    governance_artifacts = dashboard_detail.get("governance_artifacts") if dashboard_detail_ok else None
+    snapshot_paths = governance_artifacts.get("source_profile_snapshots") if isinstance(governance_artifacts, dict) else None
+    dashboard_visibility_ok = dashboard_detail_ok and isinstance(snapshot_paths, list) and (
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-loop-governance-dev-source-profile-snapshot.json" in snapshot_paths
+    )
+    if not dashboard_visibility_ok:
+        visibility_diagnostics.append(
+            f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} must expose the source snapshot governance artifact path"
         )
-        if not dashboard_ok:
-            diagnostics.append(f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID} must expose children and source snapshot governance artifacts")
-    except Exception as exc:
-        diagnostics.append(f"dashboard API check failed: {exc}")
-        dashboard_detail = {}
-
-    crawler_ok = check_health_endpoint(crawler_health_url, diagnostics)
-    frontend_ok = check_frontend(frontend_url, diagnostics)
-    visibility_ok = dashboard_ok and crawler_ok and frontend_ok
+    frontend_diagnostics: list[str] = []
+    frontend_ok = check_frontend(frontend_url, frontend_diagnostics)
+    visibility_diagnostics.extend(frontend_diagnostics)
+    diagnostics.extend(item for item in visibility_diagnostics if item not in diagnostics)
+    visibility_ok = dashboard_visibility_ok and frontend_ok and snapshot_ok
     if visibility_ok:
-        checked.append("dashboard API, crawler backend, and frontend are reachable")
+        checked.append("dashboard API, frontend, and source snapshot visibility are live")
     record(
         "E2E-5",
-        "Wiki/API/frontend/dashboard visibility is live for governance artifacts.",
+        "Wiki/API/frontend/dashboard visibility is live for governance artifacts and source snapshots.",
         ok=visibility_ok,
         evidence=[
             f"{dashboard_url}/api/runs/{GOVERNANCE_PARENT_RUN_ID}",
-            crawler_health_url,
+            relpath(repo_root, snapshot_path) if snapshot_path.exists() else "",
             frontend_url,
         ],
+        scenario_diagnostics=visibility_diagnostics,
     )
 
     formal_ok, formal_evidence = check_formal_suspicion(repo_root, parent_run, diagnostics)
@@ -343,15 +443,18 @@ def evaluate_governance_repo(
     )
 
     readiness_ok = parent_ok and isinstance(parent_run, dict) and bool(parent_run.get("current_child_run_id"))
+    readiness_diagnostics: list[str] = []
     if readiness_ok:
         checked.append("checkpoint and merge-readiness context remain visible on the parent run")
     else:
-        diagnostics.append("governance parent run must expose current_child_run_id for checkpoint readiness")
+        readiness_diagnostics.append("governance parent run must expose current_child_run_id for checkpoint readiness")
+    diagnostics.extend(readiness_diagnostics)
     record(
         "E2E-7",
-        "Checkpoint and human-merge readiness remain inspectable from evaluator output.",
+        "Checkpoint context and human-merge readiness remain inspectable from evaluator output.",
         ok=readiness_ok,
         evidence=[relpath(repo_root, parent_run_path)] if parent_run_path.exists() else [],
+        scenario_diagnostics=readiness_diagnostics,
     )
 
     status = "pass" if all(item.get("status") == "pass" for item in scenario_results) else "fail"
@@ -365,6 +468,28 @@ def evaluate_governance_repo(
             "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01"
         ],
         "diagnostics": diagnostics,
+    }
+
+
+def governance_failure_payload(exc: Exception) -> dict[str, Any]:
+    return {
+        "status": "fail",
+        "task_id": GOVERNANCE_TASK_ID,
+        "summary": "AI infra governance loop evaluator aborted before completing scenario checks.",
+        "scenario_results": [
+            {
+                "scenario_id": "E2E-7",
+                "status": "fail",
+                "summary": "Governance evaluator exception path backfilled result.json for the checkpoint gate.",
+                "evidence": [],
+                "diagnostics": [f"unexpected governance evaluator exception: {exc}"],
+            }
+        ],
+        "checked": [],
+        "rerun_commands": [
+            "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01"
+        ],
+        "diagnostics": [f"unexpected governance evaluator exception: {exc}"],
     }
 
 

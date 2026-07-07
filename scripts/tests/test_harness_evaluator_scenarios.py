@@ -246,6 +246,21 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             [f"E2E-{index}" for index in range(8)],
         )
 
+    def test_ai_infra_governance_contract_keeps_review_blocker_semantics(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+
+        contract = load_task_scenarios(repo_root, "ai-infra-loop-governance-dev-01")
+        scenarios = {scenario["scenario_id"]: scenario for scenario in contract["user_scenarios"]}
+
+        self.assertIn("validate_governance_preflight_evidence()", " ".join(scenarios["E2E-0"]["steps"]))
+        self.assertIn("stopped_budget", " ".join(scenarios["E2E-1"]["expected_outcomes"]))
+        self.assertIn("dashboard API", " ".join(scenarios["E2E-2"]["steps"]))
+        self.assertIn("candidate scoring", " ".join(scenarios["E2E-3"]["expected_outcomes"]).lower())
+        self.assertIn("backend health", " ".join(scenarios["E2E-4"]["expected_outcomes"]).lower())
+        self.assertIn("Dashboard API", " ".join(scenarios["E2E-5"]["expected_outcomes"]))
+        self.assertIn("formal artifact path", " ".join(scenarios["E2E-6"]["steps"]).lower())
+        self.assertIn("result.json", " ".join(scenarios["E2E-7"]["steps"]))
+
     def test_harness_evaluator_demo_cli_round_trip(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as tmp:
