@@ -24,6 +24,8 @@ source_refs:
   - ../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md
   - ../../raw/links/evaluation-slo-alerting-official-sources-20260707.md
   - ../../raw/links/non-nvidia-platform-observability-official-sources-20260707.md
+  - ../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md
+  - ../../raw/links/inference-serving-incident-postmortem-sources-20260707.md
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
@@ -51,6 +53,8 @@ Prometheus alerting rules, Alertmanager routing, Grafana notification policies, 
 Grafana SLO documentation frames reliability around SLIs, SLO targets, time windows, burn-rate views, error-budget views, and alert rules. Grafana AI Observability adds LLM-specific metrics and dashboard surfaces such as request activity, latency, time to first token, error rate, token use, cost, cache behavior, quality scores, and example alerts for error rate, p95 latency, spend, and evaluation-score changes. [raw](../../raw/links/evaluation-slo-alerting-official-sources-20260707.md)
 
 This closes only the alerting-mechanics gap. These sources do not prove a local production LLM service objective, a validated alert threshold, a real escalation tree, or an incident response process. Promote a production SLO only when the evidence includes the service, SLI definition, target, time window, alert threshold, route/escalation owner, and observed run or incident context. [raw](../../raw/links/evaluation-slo-alerting-official-sources-20260707.md)
+
+The r9 KServe and incident/postmortem source probes did not add service-specific production SLO evidence. They record that local sources already cover generic SLO and trace mechanics, but the selected KServe URLs and external incident source path were blocked by DNS or lacked captured content in this generator attempt. Treat those notes as gap evidence until a later capture includes the service, trace or metric artifact, chosen SLO/threshold, escalation owner, and observed run or incident context. [raw](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md) [raw](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
 
 # Trace And Experiment Stores
 
@@ -95,7 +99,7 @@ Use this page as source-backed coverage for:
 - `inference-runtime`: only where evaluation traces or platform profiles inspect runtime behavior; keep runtime scheduler, batching, KV-cache, and model-loading mechanics in [Inference Runtime Infrastructure](inference-runtime-infrastructure.md).
 - `hardware-accelerator`: only for DCGM and Nsight platform telemetry/profiling signals; accelerator SKU and parameter evidence stays in the compute accelerator pages.
 
-Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence.
+Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap but do not close it.
 
 # Citations
 
@@ -108,3 +112,5 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [NVIDIA Nsight Systems source note](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
 - [Evaluation SLO and alerting source note](../../raw/links/evaluation-slo-alerting-official-sources-20260707.md)
 - [Non-NVIDIA platform observability source note](../../raw/links/non-nvidia-platform-observability-official-sources-20260707.md)
+- [KServe inference deployment SLO trace source probe](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md)
+- [Inference serving incident and postmortem source probe](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)

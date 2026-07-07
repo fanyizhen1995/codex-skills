@@ -60,8 +60,11 @@
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
         "personal-wiki/domains/ai_infra/raw/links/ray-serve-deployment-control-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md",
@@ -75,13 +78,13 @@
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
       ],
       "candidate_gaps": [
-        "Add KServe-specific autoscaling/canary evidence and production failure or rollback context for inference deployment controls; Ray Serve and Knative now cover bounded autoscaling, placement, and traffic-split mechanics but not KServe behavior or production rollback outcomes.",
-        "Add full production incident/postmortem evidence for inference serving with service impact, timeline, remediation, and follow-up ownership; current SGLang issue/PR records are incident-shaped operational leads, not complete postmortems.",
+        "Add KServe-specific autoscaling/canary evidence and production failure or rollback context for inference deployment controls after reliable primary-source capture; Ray Serve and Knative cover bounded autoscaling, placement, and traffic-split mechanics, while r9 KServe probes are blocked-source evidence rather than KServe behavior proof.",
+        "Add full production incident/postmortem evidence for inference serving with service impact, timeline, remediation, and follow-up ownership; current SGLang issue/PR records and r9 incident-source probes are incident-shaped or blocked evidence, not complete postmortems.",
         "Add live trace/profiling artifacts tied to SLOs or alert thresholds, and decide whether selected SGLang scheduled crawler supplement leads need a full API refresh with joined comments and PR review comments."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T08:55:33Z",
-      "notes": "SGLang and CUDA Green Context remain strong local runtime evidence, and inference-runtime has multi-project primary-source coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, and local TensorRT/vLLM runtime captures. R7 task 1 promotes local production-operations evidence: PegaFlow external KV-cache process boundaries, restart/rolling-upgrade implications, cache admission and HLL observability, vLLM rollout weight-sync and pause/resume controls, SGLang router request-id and abort-reason observability, PD/Mooncake failure handling, decode warmup readiness failures, DeepGEMM startup regression, KV-event publisher collisions, HiCache DRAM/SSD backend validation, and benchmark/profiling harness leads. R8 task 1 adds bounded primary-source deployment-control evidence for Ray Serve autoscaling, resource and accelerator placement inputs, placement-group/gang scheduling, Serve-controlled updates, and Knative autoscaling, immutable revisions, percentage traffic splits, blue/green rollout, and rollback-by-traffic-shift mechanics. KServe probes did not return reliable content, so KServe-specific autoscaling/canary claims remain open. The layer remains partial for KServe-specific behavior, production failure/rollback context, full production postmortems, live trace/SLO artifacts, and optional full SGLang API refresh."
+      "last_scanned_at": "2026-07-07T12:08:36Z",
+      "notes": "SGLang and CUDA Green Context remain strong local runtime evidence, and inference-runtime has multi-project primary-source coverage for vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, and local TensorRT/vLLM runtime captures. R7 task 1 promotes local production-operations evidence: PegaFlow external KV-cache process boundaries, restart/rolling-upgrade implications, cache admission and HLL observability, vLLM rollout weight-sync and pause/resume controls, SGLang router request-id and abort-reason observability, PD/Mooncake failure handling, decode warmup readiness failures, DeepGEMM startup regression, KV-event publisher collisions, HiCache DRAM/SSD backend validation, and benchmark/profiling harness leads. R8 task 1 adds bounded primary-source deployment-control evidence for Ray Serve autoscaling, resource and accelerator placement inputs, placement-group/gang scheduling, Serve-controlled updates, and Knative autoscaling, immutable revisions, percentage traffic splits, blue/green rollout, and rollback-by-traffic-shift mechanics. R9 task 1 records duplicate/gap proof plus blocked-source notes for KServe autoscaling/canary/SLO trace and inference-serving postmortem probes; no KServe-specific or production postmortem claims were promoted because reliable primary-source content was not captured. The layer remains partial for KServe-specific behavior, production failure/rollback context, full production postmortems, live trace/SLO artifacts, and optional full SGLang API refresh."
     },
     "orchestration-scheduling": {
       "status": "partial",
@@ -187,16 +190,19 @@
         "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/non-nvidia-platform-observability-official-sources-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
+        "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md"
       ],
       "candidate_gaps": [
-        "Add service-specific production SLO definitions, validated alert thresholds, routing/escalation ownership, and incident/postmortem evidence for LLM platforms; current Prometheus, Alertmanager, Grafana, and Grafana AI Observability notes cover mechanics, not production choices.",
+        "Add service-specific production SLO definitions, validated alert thresholds, routing/escalation ownership, and incident/postmortem evidence for LLM platforms; current Prometheus, Alertmanager, Grafana, Grafana AI Observability, and r9 KServe/incident probe notes cover mechanics or blocked evidence, not production choices.",
         "Add benchmark environment manifests with captured local results and compare them with trace/profiling artifacts before promoting benchmark claims.",
         "Add TPU/XPU production observability and retention/access audit evidence around evaluation datasets beyond Langfuse dataset versioning."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T08:21:28Z",
-      "notes": "General eval-observability coverage includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation mechanics, NVIDIA DCGM/Nsight platform telemetry/profiling, and adjacent Langfuse evaluation dataset governance from r7 task 2. R7 task 3 adds bounded SLO and alerting mechanics from Prometheus alerting rules, Alertmanager routing, Grafana notification policies, Grafana SLOs, and Grafana AI Observability LLM metrics/alert examples, plus non-NVIDIA platform observability mechanics from AMD Device Metrics Exporter, ROCm/AMD SMI, and Intel Gaudi Prometheus Metric Exporter. The layer remains partial because local sources do not prove service-specific production SLOs, validated alert thresholds, routing ownership, incidents/postmortems, benchmark environment manifests with local results, TPU/XPU production observability, or evaluation dataset retention/access audit runs."
+      "last_scanned_at": "2026-07-07T12:08:36Z",
+      "notes": "General eval-observability coverage includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation mechanics, NVIDIA DCGM/Nsight platform telemetry/profiling, and adjacent Langfuse evaluation dataset governance from r7 task 2. R7 task 3 adds bounded SLO and alerting mechanics from Prometheus alerting rules, Alertmanager routing, Grafana notification policies, Grafana SLOs, and Grafana AI Observability LLM metrics/alert examples, plus non-NVIDIA platform observability mechanics from AMD Device Metrics Exporter, ROCm/AMD SMI, and Intel Gaudi Prometheus Metric Exporter. R9 task 1 records that KServe serving trace/SLO and public inference-serving incident/postmortem probes did not yield reliable primary-source content in this sandbox. The layer remains partial because local sources do not prove service-specific production SLOs, validated alert thresholds, routing ownership, incidents/postmortems, benchmark environment manifests with local results, TPU/XPU production observability, or evaluation dataset retention/access audit runs."
     },
     "security-governance-cost": {
       "status": "partial",

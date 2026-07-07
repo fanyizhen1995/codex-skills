@@ -3,10 +3,9 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T12:05:00Z",
+  "last_scan_at": "2026-07-07T12:08:36Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
-  "coverage_gaps": [],
   "known_sources": [
     {
       "id": "nccl-release-and-issue-evidence",
@@ -308,6 +307,20 @@
       ]
     },
     {
+      "id": "kserve-serving-slo-trace-blocked-source-evidence",
+      "title": "KServe serving SLO trace and inference postmortem blocked source evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T12:08:36Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md"
+      ]
+    },
+    {
       "id": "rag-governance-deletion-retention-primary-sources",
       "title": "RAG deletion, retention, access, PII, and evaluation governance sources",
       "source": "local wiki/raw",
@@ -370,6 +383,32 @@
         "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ]
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "id": "kserve-inference-deployment-source-capture",
+      "title": "KServe InferenceService autoscaling and canary source capture",
+      "source": "bounded local and external source probe",
+      "status": "blocked",
+      "updated_at": "2026-07-07T12:08:36Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md"
+      ],
+      "blocked_reason": "Local duplicate checks found no existing KServe-specific autoscaling/canary coverage, and bounded probes for kserve.github.io and github.com failed with DNS resolution errors in this sandbox. No KServe claims were promoted without reliable primary-source content."
+    },
+    {
+      "id": "inference-serving-postmortem-source-capture",
+      "title": "Inference serving production postmortem and rollback source capture",
+      "source": "bounded local and external source probe",
+      "status": "blocked",
+      "updated_at": "2026-07-07T12:08:36Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md"
+      ],
+      "blocked_reason": "Local SGLang records are incident-shaped operational leads, not complete production postmortems with service impact, timeline, remediation, and follow-up ownership. External source probing was bounded by sandbox DNS failure, so no production rollback or postmortem claims were promoted."
     }
   ],
   "blocked_items": [],

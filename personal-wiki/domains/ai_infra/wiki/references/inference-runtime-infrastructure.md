@@ -25,6 +25,8 @@ source_refs:
   - ../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md
   - ../../raw/links/ray-serve-deployment-control-official-docs-20260707.md
   - ../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md
+  - ../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md
+  - ../../raw/links/inference-serving-incident-postmortem-sources-20260707.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md
@@ -96,7 +98,11 @@ Ray Serve supplies the model-serving-specific deployment-control evidence in thi
 
 Ray Serve gang scheduling adds a stricter placement boundary for large serving replicas. When one replica needs several colocated actors, the source uses Ray placement-group bundles and placement-group strategy so the actors that make up the replica are scheduled as a unit. That is stronger model-placement evidence than generic Kubernetes node scheduling, but it still does not prove a particular cluster topology or production failure mode. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md)
 
-Ray Serve in-place update guidance and Knative revision traffic management fill rollout mechanics without claiming a complete canary incident record. Ray Serve separates lightweight config updates from replica-replacing updates. Knative Serving creates immutable revisions, can split traffic by percentage across revisions, supports latest-revision and blue/green rollout patterns, and preserves rollback-by-shifting traffic back to an earlier revision. Use the Knative facts as serving-control mechanics only; KServe-specific autoscaling and canary docs were probed but not promoted because they did not return reliable content in this run. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md) [raw](../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md)
+Ray Serve in-place update guidance and Knative revision traffic management fill rollout mechanics without claiming a complete canary incident record. Ray Serve separates lightweight config updates from replica-replacing updates. Knative Serving creates immutable revisions, can split traffic by percentage across revisions, supports latest-revision and blue/green rollout patterns, and preserves rollback-by-shifting traffic back to an earlier revision. Use the Knative facts as serving-control mechanics only; KServe-specific autoscaling and canary docs were probed again in r9 but not promoted because the sandbox could not resolve `kserve.github.io` or `github.com`, and no reliable page content was captured. [raw](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md) [raw](../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md) [raw](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md)
+
+# KServe And Postmortem Boundary
+
+The r9 source notes keep KServe and production postmortem coverage open rather than converting blocked probes into claims. Local evidence is strong for Ray Serve and Knative deployment-control mechanics, SGLang request-id and abort observability, PD/Mooncake failure handling, and benchmark/profiling leads. It is still not source-backed KServe `InferenceService` autoscaling, KServe canary rollout, KServe rollback, or a complete inference-serving postmortem with impact, timeline, remediation, and ownership. [raw](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md) [raw](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
 
 # Production Operations Evidence
 
@@ -112,12 +118,12 @@ The local vLLM and SGLang evidence adds operational coverage beyond runtime feat
 
 Use this page as source-backed coverage for:
 
-- `inference-runtime`: multi-project serving runtime mechanics, batching, KV-cache lifecycle, model loading/configuration, provider/hardware selection, OpenAI-compatible serving surfaces, distributed inference knobs, Ray Serve autoscaling/resource/placement-group deployment controls, Knative revision traffic-split rollout mechanics, external KV-cache operations, rollout weight-sync control, router abort observability, PD disaggregation failure handling, benchmark/profiling harness leads, and warmup/startup regression leads.
+- `inference-runtime`: multi-project serving runtime mechanics, batching, KV-cache lifecycle, model loading/configuration, provider/hardware selection, OpenAI-compatible serving surfaces, distributed inference knobs, Ray Serve autoscaling/resource/placement-group deployment controls, Knative revision traffic-split rollout mechanics, external KV-cache operations, rollout weight-sync control, router abort observability, PD disaggregation failure handling, benchmark/profiling harness leads, warmup/startup regression leads, and r9 blocked evidence for KServe/postmortem source probes.
 - `training-distributed`: only where vLLM RL weight syncing touches trainer-to-inference weight transfer; this page does not replace distributed training framework evidence.
 - `network-storage-cluster`: only where PegaFlow's RDMA/SSD cache hierarchy or TensorRT NCCL collectives touch serving data movement; this page does not replace cluster storage or fabric coverage.
 - `eval-observability-reliability`: only where TensorRT-LLM/Triton metrics or health endpoints are serving surfaces; this page does not replace observability platform or incident evidence.
 
-Remaining gaps include KServe-specific autoscaling and canary rollout documentation, production failure/rollback evidence around autoscaling or rollout controls, full production postmortems with service impact and remediation, live trace/profiling artifacts tied to SLOs, and a decision on whether SGLang scheduled crawler supplement leads need a full API refresh with comments and review comments.
+Remaining gaps include KServe-specific autoscaling and canary rollout documentation, production failure/rollback evidence around autoscaling or rollout controls, full production postmortems with service impact and remediation, live trace/profiling artifacts tied to SLOs, and a decision on whether SGLang scheduled crawler supplement leads need a full API refresh with comments and review comments. The r9 KServe and incident/postmortem notes are blocked-source evidence, not closure evidence.
 
 # Citations
 
@@ -131,6 +137,8 @@ Remaining gaps include KServe-specific autoscaling and canary rollout documentat
 - [ONNX Runtime GenAI config/API source note](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
 - [Ray Serve deployment control source note](../../raw/links/ray-serve-deployment-control-official-docs-20260707.md)
 - [Knative Serving autoscaling and traffic source note](../../raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md)
+- [KServe inference deployment SLO trace source probe](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md)
+- [Inference serving incident and postmortem source probe](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
 - [SGLang scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
 - [SGLang issue #24220 request-id tracing](../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md)
 - [SGLang PR #29915 router abort observability](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md)

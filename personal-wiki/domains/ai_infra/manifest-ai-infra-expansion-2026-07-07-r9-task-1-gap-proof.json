@@ -1,0 +1,124 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r9-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r9",
+  "layer": "inference-runtime, eval-observability-reliability",
+  "candidate": {
+    "title": "KServe inference deployment and serving SLO trace evidence",
+    "source_type": "blocked_primary_source_probe",
+    "identity_key": "url:kserve-serving-slo-trace-postmortem:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "5661e15",
+    "checked_at": "2026-07-07T12:08:36Z",
+    "git_status_before_task": "git status --short returned no changed paths before task-1 edits."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local raw/links, raw/crawler, raw/github, manifests, coverage-map.json, loop-state.json, ingest.md, and curated pages for KServe, InferenceService, autoscaling, canary, rollout, rollback, traffic split, request id, trace, OpenTelemetry, SLO, alert threshold, incident, postmortem, service impact, remediation, owner, and ownership terms. Local evidence covers Ray Serve autoscaling/resource/placement-group controls, Knative autoscaling and revision traffic splitting, SGLang request-id and router-abort observability, PD/Mooncake operational leads, OpenTelemetry GenAI schema, LangSmith/Phoenix trace stores, and Grafana/Prometheus SLO/alert mechanics, but no reliable KServe-specific source content or complete inference-serving postmortem source was available.",
+    "wiki_search": "Inference Runtime Infrastructure and AI Infra Coverage Map already listed KServe-specific autoscaling/canary proof, production failure/rollback evidence, full production postmortems, and live trace/profiling-to-SLO artifacts as remaining gaps. Evaluation Observability Reliability Infrastructure covers SLO and trace mechanics but explicitly does not prove service-specific production SLOs, validated thresholds, routing ownership, incidents, or postmortems.",
+    "domain_index_scan": "ai_infra wiki/index.md already routes Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, SGLang GitHub Closed Issues And PRs, and AI Infra Coverage Map; this task updates existing references and does not create a new curated wiki page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "Primary duplicate boundary for vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, vLLM/PegaFlow, and local SGLang operations. Updated only with r9 blocked-source evidence for KServe and postmortem probes."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "Primary duplicate boundary for OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, Prometheus, Alertmanager, Grafana SLO, Grafana AI Observability, DCGM, Nsight, AMD, ROCm, and Gaudi observability mechanics. Updated only with the boundary that service-specific serving SLO evidence remains unproven."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+      "result": "Duplicate boundary for SGLang request-id tracing, router abort observability, PD/Mooncake failures, profiling, benchmark, startup, and cache leads. These remain issue/PR-level evidence rather than complete production postmortems."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+      "result": "R8 already promoted Ray Serve and Knative deployment-control sources and blocked KServe docs because reliable content was unavailable. R9 confirms that KServe and production postmortem gaps remain blocked or unproven in the current sandbox."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json",
+      "result": "Duplicate boundary for generic SLO and alerting mechanics. R9 does not repeat Prometheus, Alertmanager, Grafana, AMD, ROCm, or Gaudi mechanics except as local boundaries."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/raw/links/ray-serve-deployment-control-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/knative-serving-autoscaling-traffic-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json"
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "blocked_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md",
+      "coverage": "Records bounded KServe autoscaling, canary rollout, metrics/observability, and GitHub documentation probes; no KServe facts promoted because reliable primary-source content was not captured."
+    },
+    {
+      "role": "blocked_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md",
+      "coverage": "Records production incident/postmortem acceptance criteria and explains why local SGLang issue/PR leads are not complete postmortems."
+    }
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/autoscaling/autoscaling/",
+      "status": "blocked",
+      "evidence": "curl -L --max-time 20 returned: Could not resolve host: kserve.github.io"
+    },
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/v1beta1/rollout/canary/",
+      "status": "blocked",
+      "evidence": "curl -L --max-time 20 returned: Could not resolve host: kserve.github.io"
+    },
+    {
+      "url": "https://kserve.github.io/website/latest/modelserving/observability/metrics/",
+      "status": "blocked",
+      "evidence": "curl -L --max-time 20 returned: Could not resolve host: kserve.github.io"
+    },
+    {
+      "url": "https://github.com/kserve/website",
+      "status": "blocked",
+      "evidence": "curl -L --max-time 20 returned: Could not resolve host: github.com"
+    }
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "reason": "KServe source URLs did not resolve in the local sandbox, and no reliable page content was captured through the available probe path.",
+      "policy": "Do not promote KServe-specific autoscaling, canary, traffic split, rollback, metrics, trace, or SLO claims without reliable primary-source content."
+    },
+    {
+      "reason": "No complete public inference-serving incident or postmortem source was promoted. Local SGLang issue/PR records contain operational leads but not the complete service impact, timeline, remediation, and ownership context required by the planner.",
+      "policy": "Keep production rollback, postmortem, validated SLO, and trace-to-remediation claims open until a source includes the required context."
+    },
+    {
+      "reason": "No crawler source subscription or Domain Channel was added.",
+      "policy": "Prefer bounded one-shot notes unless repeated source refresh is proven necessary."
+    }
+  ],
+  "gap_reason": "The local wiki/raw corpus already covers generic inference runtime controls, Ray Serve deployment controls, Knative traffic controls, SGLang issue-level operational leads, OpenTelemetry GenAI schema, trace stores, and SLO/alert mechanics. It still lacks reliable KServe-specific InferenceService autoscaling/canary source content and a full public inference-serving production postmortem with impact, timeline, remediation, and ownership. Because bounded KServe and GitHub probes failed with DNS resolution errors in this sandbox, this task records blocked-source evidence and keeps both inference-runtime and eval-observability-reliability partial.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    ".codex/loop-runs/ai-infra-expansion-2026-07-07-r9/required-evidence-manifest.json",
+    ".codex/loop-runs/ai-infra-expansion-2026-07-07-r9/generator-result.json"
+  ]
+}
