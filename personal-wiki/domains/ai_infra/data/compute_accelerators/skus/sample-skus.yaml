@@ -44,6 +44,24 @@ skus:
     form_factor: PCIe card or integrated DPU
     release_status: released
     source_refs: [nvidia-bluefield-3-product-page]
+  - sku_id: resnics-stargate-n1025
+    vendor_id: resnics
+    family_id: resnics-stargate
+    canonical_name: Resnics Stargate-N1025
+    aliases: [Stargate-N1025, Stargate-N1025 DPU SmartNIC]
+    scope: dpu
+    form_factor: half-height half-length single-wide PCIe card
+    release_status: released
+    source_refs: [resnics-stargate-n1025-product-page]
+  - sku_id: resnics-stargate-s1100
+    vendor_id: resnics
+    family_id: resnics-stargate
+    canonical_name: Resnics Stargate-S1100
+    aliases: [Stargate-S1100, Stargate-S1100 NVMe-oF storage accelerator]
+    scope: dsa
+    form_factor: PCIe NVMe-oF storage accelerator card
+    release_status: released
+    source_refs: [resnics-stargate-s1100-product-page]
   - sku_id: aws-trainium2-trn2-offering
     vendor_id: aws
     family_id: aws-trainium

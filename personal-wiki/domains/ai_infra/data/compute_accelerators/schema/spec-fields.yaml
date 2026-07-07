@@ -111,6 +111,38 @@ spec_fields:
     applies_to: [dpu, ipu]
     observation_kind: theoretical_or_official
     description: Network bandwidth exposed by DPU or IPU ports.
+  storage_read_iops:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: MIOPS
+    allowed_units: [MIOPS, IOPS]
+    applies_to: [dpu, dsa]
+    observation_kind: theoretical_or_official
+    description: Product-specific storage-offload read IOPS for the source-stated block size, SSD count, or storage configuration.
+  storage_write_iops:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: MIOPS
+    allowed_units: [MIOPS, IOPS]
+    applies_to: [dpu, dsa]
+    observation_kind: theoretical_or_official
+    description: Product-specific storage-offload write IOPS for the source-stated block size, SSD count, or storage configuration.
+  storage_read_added_latency_upper_bound:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: us
+    allowed_units: [us]
+    applies_to: [dpu, dsa]
+    observation_kind: theoretical_or_official
+    description: Product-specific upper-bound added read latency for a storage-offload path when the source states a less-than latency value.
+  storage_write_added_latency_upper_bound:
+    group: role_specific_specs
+    value_type: number
+    canonical_unit: us
+    allowed_units: [us]
+    applies_to: [dpu, dsa]
+    observation_kind: theoretical_or_official
+    description: Product-specific upper-bound added write latency for a storage-offload path when the source states a less-than latency value.
   fpga_lut_count:
     group: role_specific_specs
     value_type: number

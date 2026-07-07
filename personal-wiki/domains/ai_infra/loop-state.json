@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T14:16:36Z",
+  "last_scan_at": "2026-07-07T14:58:12Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -253,6 +253,25 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-r10-resnics-dpu-storage-fields",
+      "title": "Resolved Resnics DPU SmartNIC and NVMe-oF storage-offload fields",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T14:58:12Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md"
       ]
     },
     {

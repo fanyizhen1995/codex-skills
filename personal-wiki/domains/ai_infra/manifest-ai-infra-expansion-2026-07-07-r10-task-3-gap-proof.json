@@ -1,0 +1,142 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r10-task-3",
+  "run_id": "ai-infra-expansion-2026-07-07-r10",
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Resnics DPU SmartNIC and NVMe-oF storage-offload structured fields",
+    "source_type": "hardware",
+    "identity_key": "hardware:resnics:stargate-n1025-stargate-s1100:dpu-smartnic-storage-offload",
+    "source_paths": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md"
+    ]
+  },
+  "local_checks": {
+    "repo_state": "Planner evidence recorded a clean worktree before task-3 planning. Generator reused only local raw/wiki/data evidence and did not fetch external sources.",
+    "raw_manifest_scan": "Searched local compute accelerator raw captures, source registry, structured catalog YAML, Compute Accelerator Crawl Inventory, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, coverage-map.json, loop-state.json, r9 hardware gap proof, r10 task-2 gap proof, and Resnics/Yusur/Asterfusion/Corigine/Nebula raw captures for DPU, SmartNIC, NVMe-oF, storage offload, IOPS, latency, network bandwidth, PCIe, memory, power, source-backed, unresolved, duplicate boundary, aggregate, multi-variant, and blocked-source terms.",
+    "wiki_search": "Existing curated pages already had human-readable DPU/SmartNIC comparison rows and network/storage duplicate boundaries, but the structured catalog had resolved DPU/IPU network bandwidth only for NVIDIA BlueField-3 and Intel IPU E2100. It did not yet model storage IOPS or added-latency fields.",
+    "domain_index_scan": "The ai_infra index points to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Field Glossary, Spec Sources, AI Infra Coverage Map, and Network Storage Cluster Infrastructure; no new page was needed.",
+    "schema_scan": "spec-fields.yaml supported network_bandwidth for dpu/ipu and common form factor, memory, host interface, and power fields. It lacked role-specific storage read/write IOPS and added-latency fields for DPU or storage-offload accelerators.",
+    "completed_r10_boundaries": "r10 task 1 recorded RAG propagation, drift, alerting, and cost blocked-source evidence; r10 task 2 resolved only Biren form-factor and peak-power fields and explicitly deferred DPU/SmartNIC IOPS and latency schema expansion."
+  },
+  "gap_reason": "The hardware layer still had a local-evidence-first gap: product-specific Resnics pages exposed DPU SmartNIC, NVMe-oF storage-offload values, and storage/offload engine boundaries with explicit units, while the structured catalog lacked SKU/resolved rows for those values and lacked narrow storage IOPS/latency schema fields. Promoting this slice improves hardware and network/storage product evidence without claiming benchmark, protocol, aggregate-system, or production-operations behavior.",
+  "duplicate_checks": [
+    {
+      "artifact": "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "finding": "No existing resolved rows for resnics-stargate-n1025 or resnics-stargate-s1100 before this task."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "finding": "Resnics N1025 and S1100 were already visible as raw comparison rows, so this task reused the same local raw paths and promoted only selected structured fields."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "finding": "The network/storage page already separates DPU/SmartNIC product signals from SPDK protocol behavior and MLCommons benchmark claims; this task did not broaden product fields into architecture, benchmark, or incident claims."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json",
+      "finding": "Prior Biren task deferred DPU/SmartNIC IOPS and latency because the schema did not model those fields; this task handles that bounded deferred field class."
+    }
+  ],
+  "selected_source_backed_fields": [
+    {
+      "sku_id": "resnics-stargate-n1025",
+      "fields": [
+        "form_factor",
+        "network_bandwidth",
+        "memory_capacity",
+        "host_interface",
+        "tdp"
+      ],
+      "source_boundary": "Single product page for Stargate-N1025 DPU SmartNIC; network_bandwidth records the aggregate of the page's stated 2 x SFP28 25G data ports."
+    },
+    {
+      "sku_id": "resnics-stargate-s1100",
+      "fields": [
+        "host_interface",
+        "tdp",
+        "storage_read_iops",
+        "storage_write_iops",
+        "storage_read_added_latency_upper_bound",
+        "storage_write_added_latency_upper_bound"
+      ],
+      "source_boundary": "Single product page for Stargate-S1100 NVMe-oF storage accelerator; IOPS values are scoped to the page's stated 4K block size and 4 SSD performance line, and latency fields store stated upper-bound values from less-than source text."
+    }
+  ],
+  "rejected_or_deferred_fields": [
+    {
+      "record": "Resnics Stargate-N2025",
+      "reason": "The page has useful DPU SmartNIC fields, but this task kept the promoted set to N1025 plus S1100 to avoid broad catalog churn; N2025 remains a raw comparison row."
+    },
+    {
+      "record": "Yusur K2-Pro and SWIFT-2200N Pro",
+      "reason": "The pages expose useful DPU/NVMe-oF and low-latency values, but K2-Pro mixes chip and product-series rows and SWIFT-2200N is a low-latency product page without a fully promoted card schema boundary in this task."
+    },
+    {
+      "record": "Asterfusion Helium and CX102S-DPU",
+      "reason": "The pages expose product and comparison values, but Helium includes model variants and NFV comparison rows while CX102S is a 1U gateway with 1 or 2 DPU modules, so neither was promoted as a single-card resolved row here."
+    },
+    {
+      "record": "Corigine Agilio CX and Nebula DPU/RNIC/SNIC pages",
+      "reason": "Corigine remains useful PDF comparison evidence and Nebula local text extraction remains incomplete; neither was needed to satisfy the bounded Resnics field slice."
+    },
+    {
+      "record": "Protocol, benchmark, and architecture pages",
+      "reason": "SPDK, MLCommons Storage, NCCL fabric blogs, HyperPod docs, and generic NVMe-oF descriptions are not used as product-specific card field evidence."
+    }
+  ],
+  "schema_extensions": [
+    {
+      "field": "storage_read_iops",
+      "applies_to": [
+        "dpu",
+        "dsa"
+      ],
+      "unit": "MIOPS",
+      "rationale": "Needed to preserve product-specific storage-offload read IOPS without overloading tensor compute or network bandwidth fields."
+    },
+    {
+      "field": "storage_write_iops",
+      "applies_to": [
+        "dpu",
+        "dsa"
+      ],
+      "unit": "MIOPS",
+      "rationale": "Needed to preserve product-specific storage-offload write IOPS for the source-stated block and SSD configuration."
+    },
+    {
+      "field": "storage_read_added_latency_upper_bound",
+      "applies_to": [
+        "dpu",
+        "dsa"
+      ],
+      "unit": "us",
+      "rationale": "Needed to store less-than read latency source text as an upper-bound value."
+    },
+    {
+      "field": "storage_write_added_latency_upper_bound",
+      "applies_to": [
+        "dpu",
+        "dsa"
+      ],
+      "unit": "us",
+      "rationale": "Needed to store less-than write latency source text as an upper-bound value."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-3-verification.json"
+  ]
+}

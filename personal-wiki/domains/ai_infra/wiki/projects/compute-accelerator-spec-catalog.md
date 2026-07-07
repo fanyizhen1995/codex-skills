@@ -24,8 +24,11 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md
   - ../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md
   - ../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md
+  - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
+  - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
+  - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
 ---
 
 # Summary
@@ -57,6 +60,15 @@ form factor and peak power fields. Compute, memory, host-interface, and
 interconnect values remain unresolved because the local Biren pages do not
 expose explicit numeric values for those fields.
 
+R10 task 3 adds a DPU/SmartNIC and storage-offload slice from existing Resnics
+product pages. Stargate-N1025 now has resolved form factor, aggregate
+source-stated data-port bandwidth, memory capacity, host interface, and typical
+power fields. Stargate-S1100 now has resolved host interface, power, 4K/4-SSD
+read and write IOPS, and source-stated added-latency upper-bound fields. Broader
+Resnics N2025, Yusur, Asterfusion, Corigine, and Nebula rows remain comparison
+or duplicate-boundary evidence unless their exact product or variant boundary is
+promoted in a future scoped slice.
+
 # Data Flow
 
 Raw evidence and crawler snapshots produce candidate records. Reviewed
@@ -87,3 +99,6 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md
 - ../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
+- ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
+- ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
+- ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json

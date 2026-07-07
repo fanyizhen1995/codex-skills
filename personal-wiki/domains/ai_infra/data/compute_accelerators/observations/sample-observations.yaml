@@ -77,6 +77,149 @@ observations:
     is_inferred: false
     confidence: medium
     notes: Represents a high-level official product capability; exact card SKUs can vary.
+  - observation_id: obs-resnics-stargate-n1025-form-factor
+    sku_id: resnics-stargate-n1025
+    field: form_factor
+    value: half-height half-length single-wide PCIe card
+    unit: none
+    source_id: resnics-stargate-n1025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N1025 product page; hardware specifications physical form"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists a standard half-height, half-length, single-wide PCIe card.
+  - observation_id: obs-resnics-stargate-n1025-network-bandwidth
+    sku_id: resnics-stargate-n1025
+    field: network_bandwidth
+    value: 50
+    unit: Gb/s
+    source_id: resnics-stargate-n1025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N1025 product page; hardware specifications network interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 2 x SFP28 25G Ethernet data ports; value records aggregate data-port bandwidth.
+  - observation_id: obs-resnics-stargate-n1025-memory-capacity
+    sku_id: resnics-stargate-n1025
+    field: memory_capacity
+    value: 8
+    unit: GB
+    source_id: resnics-stargate-n1025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N1025 product page; hardware specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 8GB DDR4 SDRAM x72 bits.
+  - observation_id: obs-resnics-stargate-n1025-host-interface
+    sku_id: resnics-stargate-n1025
+    field: host_interface
+    value: PCIe Gen3 x8
+    unit: none
+    source_id: resnics-stargate-n1025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N1025 product page; hardware specifications PCIe interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe Gen3 x8.
+  - observation_id: obs-resnics-stargate-n1025-tdp
+    sku_id: resnics-stargate-n1025
+    field: tdp
+    value: 25
+    unit: W
+    source_id: resnics-stargate-n1025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N1025 product page; hardware specifications power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 25 W typical power.
+  - observation_id: obs-resnics-stargate-s1100-host-interface
+    sku_id: resnics-stargate-s1100
+    field: host_interface
+    value: PCIe Gen3 x16
+    unit: none
+    source_id: resnics-stargate-s1100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-S1100 product page; hardware specifications host interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe Gen3 x16.
+  - observation_id: obs-resnics-stargate-s1100-tdp
+    sku_id: resnics-stargate-s1100
+    field: tdp
+    value: 35
+    unit: W
+    source_id: resnics-stargate-s1100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-S1100 product page; hardware specifications power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 35 W power.
+  - observation_id: obs-resnics-stargate-s1100-storage-read-iops
+    sku_id: resnics-stargate-s1100
+    field: storage_read_iops
+    value: 2.7
+    unit: MIOPS
+    source_id: resnics-stargate-s1100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-S1100 product page; performance section for 4K block size and 4 SSD"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists read 2.7M IOPS for 4K block size with 4 SSD.
+  - observation_id: obs-resnics-stargate-s1100-storage-write-iops
+    sku_id: resnics-stargate-s1100
+    field: storage_write_iops
+    value: 2
+    unit: MIOPS
+    source_id: resnics-stargate-s1100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-S1100 product page; performance section for 4K block size and 4 SSD"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists write 2M IOPS for 4K block size with 4 SSD.
+  - observation_id: obs-resnics-stargate-s1100-storage-read-added-latency-upper-bound
+    sku_id: resnics-stargate-s1100
+    field: storage_read_added_latency_upper_bound
+    value: 10
+    unit: us
+    source_id: resnics-stargate-s1100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-S1100 product page; performance section latency add-on"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists read added latency below 10us; field stores the stated upper-bound value.
+  - observation_id: obs-resnics-stargate-s1100-storage-write-added-latency-upper-bound
+    sku_id: resnics-stargate-s1100
+    field: storage_write_added_latency_upper_bound
+    value: 20
+    unit: us
+    source_id: resnics-stargate-s1100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-S1100 product page; performance section latency add-on"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists write added latency below 20us; field stores the stated upper-bound value.
   - observation_id: obs-aws-trn2-accelerator-count
     sku_id: aws-trainium2-trn2-offering
     field: cloud_accelerator_count

@@ -82,6 +82,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
+  - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
 ---
 
 # Summary
@@ -277,6 +278,12 @@ DPU and SmartNIC records have a separate comparison axis. NVIDIA BlueField-3,
 Yusur K2-Pro, Asterfusion Helium, Resnics Stargate, and Corigine Agilio are
 infrastructure accelerators where network bandwidth, programmable packet
 processing, storage offload, IOPS, and latency matter more than tensor FLOPS.
+R10 task 3 promotes a bounded Resnics slice into structured facts:
+Stargate-N1025 resolves form factor, source-stated aggregate data-port
+bandwidth, memory, host interface, and typical power, while Stargate-S1100
+resolves host interface, power, 4K/4-SSD read and write IOPS, and added-latency
+upper bounds. The remaining DPU/SmartNIC rows stay in the raw comparison table
+until a future task promotes their exact product or variant boundaries.
 
 # Citations
 
@@ -299,3 +306,5 @@ processing, storage offload, IOPS, and latency matter more than tensor FLOPS.
 - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
 - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
 - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
+- ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
+- ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
