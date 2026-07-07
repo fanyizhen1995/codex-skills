@@ -3,9 +3,11 @@ from scripts.harness_loop_governance import (
     canonical_identity_key,
     classify_candidate,
     record_needs_transition,
+    summarize_formal_verification,
     validate_governance_preflight_evidence,
     validate_depth_acquisition_smoke,
     validate_egress_proof,
+    validate_formal_verification_artifact,
     validate_source_profile_snapshot,
 )
 
@@ -673,6 +675,104 @@ def test_validate_governance_preflight_evidence_accepts_honest_non_high_value_ca
 
     assert result["status"] == "pass"
     assert result["findings"] == []
+
+
+def test_formal_verification_artifact_reports_confirmed_bug_and_required_rerun(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
+    formal_dir = run_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    payload = {
+        "phase": "formal_suspicion_pass",
+        "suspicions": [
+            {
+                "id": "identity-key-conflict",
+                "risk": "high",
+                "hypothesis": "canonical identity keys can collide across source types",
+                "counterexample": {
+                    "type": "unit_test",
+                    "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/identity-key-conflict.json",
+                    "command": "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_identity_key_conflict",
+                },
+                "result": "confirmed_bug",
+                "repair_required": True,
+            }
+        ],
+    }
+    (formal_dir / "formal-001.json").write_text(json_dumps(payload), encoding="utf-8")
+
+    findings = validate_formal_verification_artifact(payload)
+    summary = summarize_formal_verification(run_dir)
+
+    assert findings == []
+    assert summary["status"] == "fail"
+    assert summary["next_action"] == "repair_and_reevaluate"
+    assert summary["required_counterexample_reruns"] == [
+        {
+            "id": "identity-key-conflict",
+            "command": "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_identity_key_conflict",
+            "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/identity-key-conflict.json",
+        }
+    ]
+
+
+def test_formal_verification_artifact_allows_disproved_suspicion_without_blocking(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
+    formal_dir = run_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    payload = {
+        "phase": "formal_suspicion_pass",
+        "suspicions": [
+            {
+                "id": "queue-reprobe-skipped",
+                "risk": "medium",
+                "hypothesis": "needs queue skips a due reprobe",
+                "counterexample": {
+                    "type": "unit_test",
+                    "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/queue-reprobe-skipped.json",
+                    "command": "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_queue_reprobe_skipped",
+                },
+                "result": "disproved",
+                "repair_required": False,
+            }
+        ],
+    }
+    (formal_dir / "formal-001.json").write_text(json_dumps(payload), encoding="utf-8")
+
+    summary = summarize_formal_verification(run_dir)
+
+    assert summary["status"] == "pass"
+    assert summary["next_action"] == ""
+    assert summary["required_counterexample_reruns"] == []
+
+
+def test_formal_verification_artifact_blocks_high_risk_inconclusive_suspicion(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
+    formal_dir = run_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    payload = {
+        "phase": "formal_suspicion_pass",
+        "suspicions": [
+            {
+                "id": "state-machine-cleanup-resume",
+                "risk": "high",
+                "hypothesis": "cleanup may resume a budget-stopped run",
+                "counterexample": {
+                    "type": "fixture_replay",
+                    "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/state-machine-cleanup-resume.json",
+                    "command": "",
+                },
+                "result": "inconclusive",
+                "repair_required": False,
+            }
+        ],
+    }
+    (formal_dir / "formal-001.json").write_text(json_dumps(payload), encoding="utf-8")
+
+    summary = summarize_formal_verification(run_dir)
+
+    assert summary["status"] == "blocked"
+    assert summary["next_action"] == "needs_human_judgement"
+    assert any("state-machine-cleanup-resume" in finding for finding in summary["findings"])
 
 
 def json_dumps(payload: object) -> str:

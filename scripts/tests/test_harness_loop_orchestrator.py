@@ -7920,6 +7920,120 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertIn("current child", events)
             self.assertIn("reconcile", events)
 
+    def test_formal_suspicion_confirmed_bug_overrides_evaluator_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "formal-run"
+            run_dir = run_dir_for(repo_root, run_id)
+            (run_dir / "formal-verification").mkdir(parents=True)
+            run = {
+                "run_id": run_id,
+                "required_counterexample_reruns": [],
+            }
+            evaluator_payload = {
+                "status": "pass",
+                "task_id": "formal-run-task",
+                "driver": "fake",
+                "returncode": 0,
+                "stdout": "evaluator pass\n",
+                "stderr": "",
+            }
+            write_json_file(
+                run_dir / "formal-verification" / "formal-001.json",
+                {
+                    "phase": "formal_suspicion_pass",
+                    "suspicions": [
+                        {
+                            "id": "formal-confirmed-bug",
+                            "risk": "high",
+                            "hypothesis": "a repaired path still violates a contract",
+                            "counterexample": {
+                                "type": "unit_test",
+                                "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                                "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                            },
+                            "result": "confirmed_bug",
+                            "repair_required": True,
+                        }
+                    ],
+                },
+            )
+
+            updated = harness_loop_orchestrator._merge_formal_verification_result(repo_root, run, evaluator_payload)
+
+            self.assertEqual(updated["status"], "fail")
+            self.assertEqual(updated["returncode"], 1)
+            self.assertEqual(updated["next_action"], "repair_and_reevaluate")
+            self.assertEqual(
+                run["required_counterexample_reruns"],
+                [
+                    {
+                        "id": "formal-confirmed-bug",
+                        "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                        "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                    }
+                ],
+            )
+
+    def test_formal_suspicion_requires_original_counterexample_rerun_before_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "formal-run"
+            run_dir = run_dir_for(repo_root, run_id)
+            formal_dir = run_dir / "formal-verification"
+            formal_dir.mkdir(parents=True)
+            run = {
+                "run_id": run_id,
+                "required_counterexample_reruns": [
+                    {
+                        "id": "formal-confirmed-bug",
+                        "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                        "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                    }
+                ],
+            }
+            evaluator_payload = {
+                "status": "pass",
+                "task_id": "formal-run-task",
+                "driver": "fake",
+                "returncode": 0,
+                "stdout": "evaluator pass\n",
+                "stderr": "",
+            }
+
+            blocked = harness_loop_orchestrator._merge_formal_verification_result(repo_root, run, dict(evaluator_payload))
+
+            self.assertEqual(blocked["status"], "fail")
+            self.assertEqual(blocked["next_action"], "repair_and_reevaluate")
+            self.assertIn("original counterexample rerun", blocked["stdout"])
+
+            write_json_file(
+                formal_dir / "formal-002.json",
+                {
+                    "phase": "formal_suspicion_pass",
+                    "suspicions": [
+                        {
+                            "id": "formal-confirmed-bug",
+                            "risk": "high",
+                            "hypothesis": "the original counterexample now passes after repair",
+                            "counterexample": {
+                                "type": "unit_test",
+                                "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                                "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                            },
+                            "result": "disproved",
+                            "repair_required": False,
+                        }
+                    ],
+                },
+            )
+
+            cleared = harness_loop_orchestrator._merge_formal_verification_result(repo_root, run, dict(evaluator_payload))
+
+            self.assertEqual(cleared["status"], "pass")
+            self.assertNotIn("next_action", cleared)
+            self.assertEqual(run["required_counterexample_reruns"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

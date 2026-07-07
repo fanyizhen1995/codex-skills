@@ -77,6 +77,11 @@ GOVERNANCE_CANDIDATE_SCORING_GLOB = "candidate-scoring/*.json"
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 DOMAIN_RE = re.compile(r"[^a-z0-9_-]+")
 DEFAULT_PROBE_TIME = datetime(1970, 1, 1, tzinfo=timezone.utc)
+FORMAL_SUSPICION_RESULTS = frozenset({"confirmed_bug", "disproved", "inconclusive"})
+FORMAL_SUSPICION_RISKS = frozenset({"low", "medium", "high"})
+FORMAL_COUNTEREXAMPLE_TYPES = frozenset(
+    {"unit_test", "cli_probe", "api_probe", "playwright", "schema_validation", "fixture_replay"}
+)
 
 
 def canonical_identity_key(candidate: Mapping[str, Any]) -> str:
@@ -493,6 +498,153 @@ def validate_source_profile_snapshot(payload: Mapping[str, Any], db_rows: Mappin
     return findings
 
 
+def validate_formal_verification_artifact(payload: Mapping[str, Any]) -> list[str]:
+    findings: list[str] = []
+    source = payload if isinstance(payload, Mapping) else {}
+    if _first_string(source, "phase") != "formal_suspicion_pass":
+        findings.append("formal verification phase must be formal_suspicion_pass")
+    suspicions = source.get("suspicions")
+    if not isinstance(suspicions, list):
+        return [*findings, "formal verification suspicions must be a list"]
+
+    for index, suspicion in enumerate(suspicions):
+        path = f"suspicions[{index}]"
+        if not isinstance(suspicion, Mapping):
+            findings.append(f"{path} must be an object")
+            continue
+        suspicion_id = _first_string(suspicion, "id")
+        if not suspicion_id:
+            findings.append(f"{path}.id is required")
+        risk = _first_string(suspicion, "risk").lower()
+        if risk not in FORMAL_SUSPICION_RISKS:
+            findings.append(f"{path}.risk must be one of {sorted(FORMAL_SUSPICION_RISKS)}")
+        if not _first_string(suspicion, "hypothesis"):
+            findings.append(f"{path}.hypothesis is required")
+        result = _first_string(suspicion, "result").lower()
+        if result not in FORMAL_SUSPICION_RESULTS:
+            findings.append(f"{path}.result must be one of {sorted(FORMAL_SUSPICION_RESULTS)}")
+        if not isinstance(suspicion.get("repair_required"), bool):
+            findings.append(f"{path}.repair_required must be a boolean")
+
+        counterexample = suspicion.get("counterexample")
+        if not isinstance(counterexample, Mapping):
+            findings.append(f"{path}.counterexample must be an object")
+            continue
+        counterexample_type = _first_string(counterexample, "type")
+        if counterexample_type not in FORMAL_COUNTEREXAMPLE_TYPES:
+            findings.append(f"{path}.counterexample.type must be one of {sorted(FORMAL_COUNTEREXAMPLE_TYPES)}")
+        artifact_path = _first_string(counterexample, "artifact_path")
+        if not artifact_path:
+            findings.append(f"{path}.counterexample.artifact_path is required")
+        command = _first_string(counterexample, "command")
+        if result in {"confirmed_bug", "disproved"} and not command:
+            findings.append(f"{path}.counterexample.command is required for {result}")
+        if result == "confirmed_bug" and suspicion.get("repair_required") is not True:
+            findings.append(f"{path}.repair_required must be true for confirmed_bug")
+        if result == "disproved" and suspicion.get("repair_required") is not False:
+            findings.append(f"{path}.repair_required must be false for disproved")
+    return findings
+
+
+def summarize_formal_verification(
+    run_dir: Path | str,
+    *,
+    required_counterexample_reruns: list[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    run_path = Path(run_dir)
+    run_id = run_path.name
+    formal_dir = run_path / "formal-verification"
+    artifact_paths: list[str] = []
+    findings: list[str] = []
+    suspicions: list[Mapping[str, Any]] = []
+    missing_reruns: list[dict[str, str]] = []
+
+    if formal_dir.exists():
+        for artifact_path in sorted(formal_dir.glob("*.json")):
+            payload = _read_governance_json(artifact_path, f"formal-verification/{artifact_path.name}", findings, [])
+            if payload is None:
+                continue
+            artifact_paths.append(_run_artifact_path(run_id, f"formal-verification/{artifact_path.name}"))
+            findings.extend(
+                f"formal-verification/{artifact_path.name} {finding}"
+                for finding in validate_formal_verification_artifact(payload)
+            )
+            raw_suspicions = payload.get("suspicions")
+            if isinstance(raw_suspicions, list):
+                suspicions.extend(item for item in raw_suspicions if isinstance(item, Mapping))
+
+    if findings:
+        return {
+            "status": "blocked",
+            "next_action": "collect_formal_verification_evidence",
+            "artifact_paths": artifact_paths,
+            "findings": findings,
+            "required_counterexample_reruns": [],
+        }
+
+    required_reruns = [_normalize_counterexample_requirement(item) for item in (required_counterexample_reruns or [])]
+    required_reruns = [item for item in required_reruns if item]
+    observed_reruns = {
+        (requirement["id"], requirement["command"], requirement["artifact_path"])
+        for suspicion in suspicions
+        for requirement in [_counterexample_requirement_from_suspicion(suspicion)]
+        if requirement and _first_string(suspicion, "result").lower() == "disproved"
+    }
+    for requirement in required_reruns:
+        key = (requirement["id"], requirement["command"], requirement["artifact_path"])
+        if key not in observed_reruns:
+            missing_reruns.append(requirement)
+
+    confirmed: list[dict[str, str]] = []
+    inconclusive_high_risk: list[str] = []
+    for suspicion in suspicions:
+        result = _first_string(suspicion, "result").lower()
+        risk = _first_string(suspicion, "risk").lower()
+        if result == "confirmed_bug":
+            requirement = _counterexample_requirement_from_suspicion(suspicion)
+            if requirement:
+                confirmed.append(requirement)
+        elif result == "inconclusive" and risk == "high":
+            inconclusive_high_risk.append(_first_string(suspicion, "id") or "<unknown>")
+
+    if confirmed:
+        return {
+            "status": "fail",
+            "next_action": "repair_and_reevaluate",
+            "artifact_paths": artifact_paths,
+            "findings": [],
+            "required_counterexample_reruns": confirmed,
+        }
+    if missing_reruns:
+        findings = [
+            "original counterexample rerun is still required: "
+            + ", ".join(requirement["id"] for requirement in missing_reruns)
+        ]
+        return {
+            "status": "fail",
+            "next_action": "repair_and_reevaluate",
+            "artifact_paths": artifact_paths,
+            "findings": findings,
+            "required_counterexample_reruns": required_reruns,
+        }
+    if inconclusive_high_risk:
+        findings = [f"high-risk suspicion remains inconclusive: {suspicion_id}" for suspicion_id in inconclusive_high_risk]
+        return {
+            "status": "blocked",
+            "next_action": "needs_human_judgement",
+            "artifact_paths": artifact_paths,
+            "findings": findings,
+            "required_counterexample_reruns": [],
+        }
+    return {
+        "status": "pass",
+        "next_action": "",
+        "artifact_paths": artifact_paths,
+        "findings": [],
+        "required_counterexample_reruns": [],
+    }
+
+
 def governance_preflight_artifact_paths(run_id: str, *, candidate_scoring_paths: list[str] | None = None) -> list[str]:
     base = f".codex/loop-runs/{run_id}"
     paths = [f"{base}/{name}" for name in GOVERNANCE_P0_ARTIFACTS]
@@ -624,6 +776,29 @@ def validate_candidate_scoring_artifact(
 
 def _run_artifact_path(run_id: str, relative_path: str) -> str:
     return f".codex/loop-runs/{run_id}/{relative_path}"
+
+
+def _counterexample_requirement_from_suspicion(suspicion: Mapping[str, Any]) -> dict[str, str]:
+    counterexample = _mapping(suspicion.get("counterexample"))
+    normalized = _normalize_counterexample_requirement(
+        {
+            "id": _first_string(suspicion, "id"),
+            "command": _first_string(counterexample, "command"),
+            "artifact_path": _first_string(counterexample, "artifact_path"),
+        }
+    )
+    return normalized
+
+
+def _normalize_counterexample_requirement(value: Mapping[str, Any]) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    suspicion_id = _first_string(value, "id")
+    command = _first_string(value, "command")
+    artifact_path = _first_string(value, "artifact_path")
+    if not (suspicion_id and command and artifact_path):
+        return {}
+    return {"id": suspicion_id, "command": command, "artifact_path": artifact_path}
 
 
 def _read_governance_json(

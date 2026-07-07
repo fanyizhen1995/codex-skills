@@ -52,6 +52,7 @@ try:
     )
     from scripts.harness_loop_governance import (
         AI_INFRA_GOVERNANCE_RUN_ID,
+        summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
 except ModuleNotFoundError:
@@ -94,6 +95,7 @@ except ModuleNotFoundError:
     )
     from harness_loop_governance import (  # type: ignore[no-redef]
         AI_INFRA_GOVERNANCE_RUN_ID,
+        summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
 
@@ -1056,13 +1058,53 @@ def _apply_evaluator_result_to_run(
     elif passed:
         run["next_action"] = "await_human_merge_confirmation"
     else:
-        run["next_action"] = "repair_from_evaluator_findings"
+        run["next_action"] = str(evaluator_payload.get("next_action") or "repair_from_evaluator_findings")
     if has_artifacts:
         run["_post_hygiene_phase"] = (
             "passed_waiting_human_merge" if passed else "repair_needed"
         )
     else:
         run.pop("_post_hygiene_phase", None)
+
+
+def _merge_formal_verification_result(
+    repo_root: Path | str,
+    run: dict[str, Any],
+    evaluator_payload: dict[str, Any],
+) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, run["run_id"])
+    summary = summarize_formal_verification(
+        run_dir,
+        required_counterexample_reruns=list(run.get("required_counterexample_reruns", [])),
+    )
+    result = dict(evaluator_payload)
+    result["formal_verification"] = summary
+    if summary["artifact_paths"]:
+        result["formal_verification_artifact_paths"] = list(summary["artifact_paths"])
+
+    if summary["status"] == "fail":
+        result["status"] = "fail"
+        if int(result.get("returncode", 0)) == 0:
+            result["returncode"] = 1
+        result["next_action"] = str(summary["next_action"] or "repair_and_reevaluate")
+        stdout_suffix = "formal suspicion confirmed a bug\n"
+        if summary["findings"]:
+            stdout_suffix = summary["findings"][0] + "\n"
+        if stdout_suffix not in result["stdout"]:
+            result["stdout"] = f"{result['stdout']}{stdout_suffix}"
+        run["required_counterexample_reruns"] = list(summary["required_counterexample_reruns"])
+    elif summary["status"] == "blocked":
+        result["status"] = "blocked"
+        if int(result.get("returncode", 0)) == 0:
+            result["returncode"] = 1
+        result["next_action"] = str(summary["next_action"] or "needs_human_judgement")
+        if summary["findings"]:
+            suffix = summary["findings"][0] + "\n"
+            if suffix not in result["stdout"]:
+                result["stdout"] = f"{result['stdout']}{suffix}"
+    else:
+        run["required_counterexample_reruns"] = []
+    return result
 
 
 def run_evaluator(
@@ -1178,6 +1220,7 @@ def run_evaluator(
         "stderr": result.stderr,
         "scenario_command_results_path": scenario_command_results_path,
     }
+    evaluator_payload = _merge_formal_verification_result(root, run, evaluator_payload)
     validate_evaluator_result_payload(evaluator_payload)
     write_json_file(output_path, evaluator_payload)
 
