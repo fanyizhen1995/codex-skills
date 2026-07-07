@@ -670,6 +670,19 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertNotIn("put created_by: harness_loop_orchestrator inside the referenced artifact payload", prompt)
         self.assertNotIn("create trusted-live-evidence", prompt)
 
+    def test_autonomous_evaluator_prompt_delegates_live_service_checks_to_orchestrator(self) -> None:
+        prompt = harness_loop_orchestrator._autonomous_evaluator_prompt(
+            {"run_id": "expanded-run", "task_id": "expanded-run-task-2", "domain": "ai_infra"},
+            Path("/tmp/run-dir"),
+        )
+
+        self.assertIn("Do not run live service or local socket checks", prompt)
+        self.assertIn("Do not start tmux, uvicorn, npm, Vite, or other long-lived services", prompt)
+        self.assertIn("Do not fail solely because localhost service probes are unavailable", prompt)
+        self.assertIn("Verify delegated live evidence intent", prompt)
+        self.assertIn("trusted-live-evidence/<evidence-id>.json", prompt)
+        self.assertIn("the orchestrator captures fresh trusted live evidence after evaluator acceptance", prompt)
+
     def test_create_preflight_run_captures_baseline_before_loop_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

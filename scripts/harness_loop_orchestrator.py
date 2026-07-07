@@ -602,6 +602,18 @@ def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_evaluator_result_payload.",
             "Verify changed wiki/raw/source artifacts from a user or operator perspective where applicable.",
+            (
+                "Do not run live service or local socket checks. "
+                "Do not start tmux, uvicorn, npm, Vite, or other long-lived services. "
+                "Do not fail solely because localhost service probes are unavailable from the evaluator environment."
+            ),
+            (
+                "Verify delegated live evidence intent by checking generator-result.json or "
+                "required-evidence-manifest.json references trusted-live-evidence/<evidence-id>.json "
+                "for service-availability, crawler-workbench-freshness, loop-dashboard-freshness, "
+                "search-api-visibility, and frontend-visibility when those gates apply; "
+                "the orchestrator captures fresh trusted live evidence after evaluator acceptance."
+            ),
             "Do not modify repository files other than the evaluator result.",
             f"Run ID: {run['run_id']}",
             f"Task ID: {run['task_id']}",
