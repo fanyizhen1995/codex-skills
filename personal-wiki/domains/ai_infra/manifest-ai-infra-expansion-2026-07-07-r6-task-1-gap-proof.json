@@ -1,0 +1,119 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r6-task-1",
+  "layer": "training-distributed,orchestration-scheduling",
+  "candidate": {
+    "title": "Distributed training and orchestration scheduling broadening",
+    "source_type": "coverage-map",
+    "identity_key": "coverage-map:ai_infra:training-distributed+orchestration-scheduling"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Targeted scans over personal-wiki/domains/ai_infra/raw found reusable NCCL technical-blog captures for dynamic communicators and fault-tolerant collectives, existing Ray Data source notes, Kubernetes/Volcano/Kueue closed issue summaries and indexes, Kueue quota governance source notes, compute accelerator Gaudi/AMD discovery captures, and SGLang issue/PR titles mentioning FSDP, Megatron, Slurm, AMD GPU, and Gaudi. No existing raw/links notes before this task directly covered PyTorch FSDP/DCP/torchrun, DeepSpeed ZeRO/checkpointing, Ray Train fault tolerance, KubeRay orchestration, Slurm GPU/GRES scheduling, NVIDIA/AMD GPU operators, Kubernetes device plugins, or Kubeflow Trainer.",
+    "wiki_search": "Targeted scans over wiki/index.md, coverage-map.json, loop-state.json, ingest.md, NCCL pages, Inference Runtime Infrastructure, Data RAG Pipeline Infrastructure, Security Governance Cost Infrastructure, and Kubernetes/Volcano/Kueue pages found no dedicated Distributed Training Infrastructure or Orchestration Scheduling Infrastructure page before this task. Existing NCCL pages covered communication, observability, reliability, and fabric behavior; existing Kubernetes/Volcano/Kueue pages covered closed issue corpora and quota governance, not Ray, Slurm, device-plugin, GPU-operator, or training-controller boundaries.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md already linked NCCL, SGLang, Kubernetes, Volcano, Kueue, NCCL Technical Blog Network Observability, Security Governance Cost Infrastructure, Inference Runtime Infrastructure, and Data RAG Pipeline Infrastructure. New reference pages are non-duplicative because one organizes training framework lifecycle/checkpoint/elastic mechanics beyond NCCL, and the other organizes scheduler/device/operator/controller boundaries beyond Kubernetes, Volcano, and Kueue issue corpora."
+  },
+  "gap_reason": "coverage-map.json marked training-distributed partial for framework, checkpointing, and elastic training evidence beyond NCCL, and marked orchestration-scheduling partial for Ray, Slurm-on-Kubernetes or HPC scheduling, device plugins, GPU operators, and accelerator quota/operator boundaries. Local evidence supplied useful duplicate boundaries and operational leads but did not provide source-backed curated pages for the two remaining backlog items.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/pytorch-distributed-training-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/deepspeed-megatron-training-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ray-train-kuberay-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/slurm-gpu-scheduling-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kubeflow-training-operator-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-verification.json"
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "reuse",
+      "path": "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+      "coverage": "Existing NCCL communication, RAS, dynamic communicator, and fabric evidence reused as a duplicate boundary rather than as complete training lifecycle evidence."
+    },
+    {
+      "role": "reuse",
+      "path": "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+      "coverage": "Existing Kubernetes, Volcano, and Kueue closed issue corpora reused as operational scheduling evidence with comment-completeness caveats."
+    },
+    {
+      "role": "reuse",
+      "path": "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
+      "coverage": "Existing source note reused for ResourceQuota, ClusterQueue, ResourceFlavor, cohort, and accelerator quota/admission boundaries."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/pytorch-distributed-training-official-docs-20260707.md",
+      "coverage": "PyTorch distributed process groups, FSDP, distributed checkpointing, torchrun, and elastic/restart behavior."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/deepspeed-megatron-training-official-sources-20260707.md",
+      "coverage": "DeepSpeed ZeRO sharding, checkpoint conversion, Universal Checkpoints, CPU/NVMe offload, and Megatron-LM project boundary evidence."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/ray-train-kuberay-official-docs-20260707.md",
+      "coverage": "Ray Train checkpoint/fault tolerance plus KubeRay RayCluster, RayJob, RayService, scheduling integration, autoscaling, and GPU execution boundaries."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/slurm-gpu-scheduling-official-docs-20260707.md",
+      "coverage": "Slurm GPU/GRES scheduling, job allocation, job-step allocation, and HPC scheduler boundaries."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md",
+      "coverage": "Kubernetes device plugins, NVIDIA device plugin, NVIDIA GPU Operator, and AMD GPU Operator device/resource/node lifecycle boundaries."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/kubeflow-training-operator-official-docs-20260707.md",
+      "coverage": "Kubeflow Trainer, TrainJob lifecycle, framework-specific Kubernetes training job guides, and scheduling integrations."
+    }
+  ],
+  "duplicate_boundaries": {
+    "nccl_communication": "NCCL release, issue, and blog evidence remains communication/fabric coverage. It is cited only to distinguish collective-level fault tolerance from framework-level checkpoint/restart semantics.",
+    "kubernetes_volcano_kueue_issue_corpora": "Existing issue corpora remain operational evidence for Kubernetes-native scheduling, but they do not replace Ray/KubeRay, Slurm/GRES, device-plugin, GPU-operator, or Kubeflow Trainer design sources.",
+    "security_governance_cost": "Existing Kueue quota and ResourceQuota coverage is reused for accelerator admission boundaries; cost, tenant isolation, and capacity planning stay in Security Governance Cost Infrastructure.",
+    "inference_runtime": "SGLang/vLLM/Megatron/FSDP/Slurm issue titles and inference runtime pages are treated as discovery leads or runtime signals, not as primary training framework or scheduling design evidence.",
+    "hardware_accelerator": "Compute accelerator Gaudi and AMD pages support hardware inventory and SKU boundaries, not Kubernetes operator behavior unless paired with device-plugin or GPU-operator docs."
+  },
+  "git_status_before_task": "git status --short returned no changed paths before edits.",
+  "external_fetch_budget": {
+    "max_allowed": 20,
+    "used_for_new_primary_source_notes": 19,
+    "browser_tool_opened_sources": [
+      "https://docs.pytorch.org/docs/stable/distributed.html",
+      "https://docs.pytorch.org/docs/stable/fsdp.html",
+      "https://docs.pytorch.org/docs/stable/distributed.checkpoint.html",
+      "https://docs.pytorch.org/docs/stable/elastic/run.html",
+      "https://www.deepspeed.ai/tutorials/zero/",
+      "https://deepspeed.readthedocs.io/en/latest/model-checkpointing.html",
+      "https://github.com/NVIDIA/Megatron-LM",
+      "https://docs.ray.io/en/latest/train/train.html",
+      "https://docs.ray.io/en/latest/train/user-guides/checkpoints.html",
+      "https://docs.ray.io/en/latest/train/user-guides/fault-tolerance.html",
+      "https://docs.ray.io/en/latest/cluster/kubernetes/index.html",
+      "https://slurm.schedmd.com/gres.html",
+      "https://slurm.schedmd.com/sbatch.html",
+      "https://slurm.schedmd.com/srun.html",
+      "https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/device-plugins/",
+      "https://github.com/NVIDIA/k8s-device-plugin",
+      "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html",
+      "https://instinct.docs.amd.com/projects/gpu-operator/en/latest/",
+      "https://www.kubeflow.org/docs/components/trainer/"
+    ],
+    "shell_probe_blocked_or_auth_sources": [
+      {
+        "url": "https://docs.pytorch.org/docs/stable/distributed.html",
+        "status": "blocked",
+        "evidence": "curl -L --max-time 12 -I failed with DNS resolution error in the restricted exec environment; browser tool source opening succeeded for official documentation pages."
+      }
+    ]
+  }
+}

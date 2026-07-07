@@ -1,0 +1,184 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r6-task-1",
+  "status": "pass",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/deepspeed-megatron-training-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kubeflow-training-operator-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/pytorch-distributed-training-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ray-train-kuberay-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/slurm-gpu-scheduling-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md"
+  ],
+  "validation_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Index command completed and wrote personal-wiki/domains/ai_infra/wiki/index.md; Distributed Training Infrastructure and Orchestration Scheduling Infrastructure appear in the References section."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json validate and pass ai_infra coverage-map semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "Gap-proof JSON parsed successfully."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r6-task-1') ... PY",
+      "status": "pass",
+      "summary": "Gap proof validator returned no findings."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No tracked diff whitespace errors reported."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "Task-1 verification manifest parsed successfully."
+    },
+    {
+      "command": "autonomous scope check over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "All 15 changed/untracked domain paths matched planner allowed_paths and none matched planner denylist_paths.",
+      "details": {
+        "allowed": true,
+        "denied_paths": [],
+        "manual_confirm_paths": [],
+        "findings": []
+      }
+    },
+    {
+      "command": "targeted sensitive-pattern scan over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "No assignment-like API key, token, credential, password, authorization, bearer, or secret patterns found across 15 changed/untracked paths.",
+      "findings": []
+    },
+    {
+      "command": "custom whitespace scan over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "No trailing whitespace found across 15 changed/untracked paths.",
+      "findings": []
+    },
+    {
+      "command": "source visibility check for Distributed Training Infrastructure and Orchestration Scheduling Infrastructure",
+      "status": "pass",
+      "summary": "New curated pages contain the expected body terms for FSDP, Distributed Checkpoint, torchrun, DeepSpeed, ZeRO, Megatron-LM, Ray Train, Kubeflow Trainer, KubeRay, Slurm, GRES, device plugin, GPU Operator, AMD GPU Operator, and ResourceQuota."
+    },
+    {
+      "command": "link probe or blocked/auth evidence for new distributed-training and orchestration/scheduling primary sources",
+      "status": "pass",
+      "summary": "Official primary-source URLs for PyTorch, DeepSpeed, Megatron-LM, Ray, Slurm, Kubernetes, NVIDIA, AMD, and Kubeflow were selected through browser-tool source opening; the restricted exec environment recorded concrete blocked evidence when curl could not resolve docs.pytorch.org.",
+      "details": {
+        "browser_tool_opened_sources": [
+          "https://docs.pytorch.org/docs/stable/distributed.html",
+          "https://docs.pytorch.org/docs/stable/fsdp.html",
+          "https://docs.pytorch.org/docs/stable/distributed.checkpoint.html",
+          "https://docs.pytorch.org/docs/stable/elastic/run.html",
+          "https://www.deepspeed.ai/tutorials/zero/",
+          "https://deepspeed.readthedocs.io/en/latest/model-checkpointing.html",
+          "https://github.com/NVIDIA/Megatron-LM",
+          "https://docs.ray.io/en/latest/train/train.html",
+          "https://docs.ray.io/en/latest/train/user-guides/checkpoints.html",
+          "https://docs.ray.io/en/latest/train/user-guides/fault-tolerance.html",
+          "https://docs.ray.io/en/latest/cluster/kubernetes/index.html",
+          "https://slurm.schedmd.com/gres.html",
+          "https://slurm.schedmd.com/sbatch.html",
+          "https://slurm.schedmd.com/srun.html",
+          "https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/device-plugins/",
+          "https://github.com/NVIDIA/k8s-device-plugin",
+          "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html",
+          "https://instinct.docs.amd.com/projects/gpu-operator/en/latest/",
+          "https://www.kubeflow.org/docs/components/trainer/"
+        ],
+        "blocked_or_auth_sources": [
+          {
+            "url": "https://docs.pytorch.org/docs/stable/distributed.html",
+            "status": "blocked",
+            "evidence": "curl -L --max-time 12 -I https://docs.pytorch.org/docs/stable/distributed.html failed with 'Could not resolve host: docs.pytorch.org' in the restricted exec environment."
+          }
+        ]
+      }
+    }
+  ],
+  "delegated_live_checks": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler backend, crawler frontend, and loop dashboard respond with pass-like HTTP status during this round"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler workbench API freshness covers sources, channels, queue, wiki, and search dimensions for the new distributed-training and orchestration/scheduling knowledge targets"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "loop dashboard binds the current run, child tasks, agent actions, evaluator scenarios, and completed history to this worktree/run"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "search API can find Distributed Training Infrastructure and Orchestration Scheduling Infrastructure using current body terms such as FSDP, DeepSpeed, Ray Train, Slurm, device plugin, and GPU Operator"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "status": "delegated_to_orchestrator",
+      "intended_semantic_gate": "crawler workbench frontend exposes the updated wiki/search content for Distributed Training Infrastructure and Orchestration Scheduling Infrastructure"
+    }
+  ],
+  "dependency_changes": {
+    "status": "not_applicable",
+    "summary": "No requirements, package, lockfile, or dependency metadata changed.",
+    "dependency_paths": []
+  },
+  "code_changes": {
+    "status": "not_applicable",
+    "summary": "No crawler backend/frontend, loop dashboard, harness, or executable code changed; code test evidence is not required beyond unchanged-code note."
+  },
+  "domain_channels": {
+    "status": "not_applicable",
+    "summary": "No crawler source subscription or domain channel configuration changed."
+  },
+  "commit": {
+    "status": "delegated_to_orchestrator",
+    "summary": "Generator did not run git commit and leaves generator-result commit empty as requested."
+  },
+  "no_action_evidence": {
+    "status": "not_applicable",
+    "summary": "Generator status is implemented; this is not a stopped_no_action task."
+  }
+}

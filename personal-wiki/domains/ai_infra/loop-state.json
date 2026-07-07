@@ -3,34 +3,9 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T03:36:06Z",
+  "last_scan_at": "2026-07-07T04:54:03Z",
   "scan_ttl_days": 30,
-  "candidate_backlog": [
-    {
-      "id": "training-distributed-broadening",
-      "title": "Broaden distributed training coverage beyond NCCL communication, observability, and reliability evidence",
-      "source": "coverage-map:training-distributed",
-      "status": "candidate",
-      "updated_at": "2026-07-06T22:06:03Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
-      ]
-    },
-    {
-      "id": "orchestration-scheduling-broadening",
-      "title": "Broaden orchestration and scheduling coverage beyond Kubernetes, Volcano, and Kueue",
-      "source": "coverage-map:orchestration-scheduling",
-      "status": "candidate",
-      "updated_at": "2026-07-06T21:23:08Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md"
-      ]
-    }
-  ],
+  "candidate_backlog": [],
   "coverage_gaps": [],
   "known_sources": [
     {
@@ -82,6 +57,39 @@
         "personal-wiki/domains/ai_infra/wiki/projects/kubernetes.md",
         "personal-wiki/domains/ai_infra/wiki/projects/volcano.md",
         "personal-wiki/domains/ai_infra/wiki/projects/kueue.md",
+        "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md"
+      ]
+    },
+    {
+      "id": "distributed-training-framework-checkpointing-primary-sources",
+      "title": "Distributed training framework lifecycle, checkpointing, and elastic restart sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T04:54:03Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/pytorch-distributed-training-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/deepspeed-megatron-training-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/ray-train-kuberay-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kubeflow-training-operator-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
+      ]
+    },
+    {
+      "id": "orchestration-scheduling-primary-sources",
+      "title": "Ray, Slurm, device plugin, GPU operator, and Kubernetes training job sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T04:54:03Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/ray-train-kuberay-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/slurm-gpu-scheduling-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kubeflow-training-operator-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
         "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md"
       ]
     },

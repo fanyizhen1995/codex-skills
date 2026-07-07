@@ -60,10 +60,18 @@ source_refs:
   - ../../raw/links/weka-ai-storage-architecture-official-20260707.md
   - ../../raw/links/ceph-distributed-storage-official-docs-20260707.md
   - ../../raw/links/spdk-nvme-of-target-official-docs-20260707.md
+  - ../../raw/links/pytorch-distributed-training-official-docs-20260707.md
+  - ../../raw/links/deepspeed-megatron-training-official-sources-20260707.md
+  - ../../raw/links/ray-train-kuberay-official-docs-20260707.md
+  - ../../raw/links/slurm-gpu-scheduling-official-docs-20260707.md
+  - ../../raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md
+  - ../../raw/links/kubeflow-training-operator-official-docs-20260707.md
 updated: 2026-07-07
 related:
   - ../projects/nccl.md
   - ../references/nccl-technical-blog-network-observability.md
+  - ../references/distributed-training-infrastructure.md
+  - ../references/orchestration-scheduling-infrastructure.md
   - ../references/network-storage-cluster-infrastructure.md
   - ../references/security-governance-cost-infrastructure.md
   - ../references/data-rag-vector-infrastructure.md
@@ -79,15 +87,15 @@ related:
 
 This page makes the autonomous `ai_infra` coverage scan discoverable from the curated wiki. The machine-readable state lives in [coverage-map.json](../../coverage-map.json) and [loop-state.json](../../loop-state.json); this page is the human navigation entry point.
 
-The scan reuses existing local evidence and now treats the tracked 20260706 compute accelerator baseline as reconciled hardware evidence rather than unreconciled input. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost now has source-backed coverage for tenant isolation, accelerator sharing, quota governance, workload cost allocation, and accelerator capacity planning. Network/storage/cluster coverage now adds EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF source notes while reusing Spectrum-X/RoCE and local DPU/NVMe-oF evidence. Both layers remain partial where incident, topology, benchmark, cross-cloud chargeback, and governance-policy evidence is still thin.
+The scan reuses existing local evidence and now treats the tracked 20260706 compute accelerator baseline as reconciled hardware evidence rather than unreconciled input. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Distributed training now has source-backed framework lifecycle, sharding, checkpointing, elastic restart, Ray Train, Kubeflow Trainer, and KubeRay coverage beyond NCCL. Orchestration/scheduling now has source-backed Ray/KubeRay, Slurm GPU/GRES, Kubernetes device plugin, NVIDIA and AMD GPU operator, Kubeflow Trainer, and Kueue/ResourceQuota admission evidence beyond the existing Kubernetes/Volcano/Kueue corpora. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost now has source-backed coverage for tenant isolation, accelerator sharing, quota governance, workload cost allocation, and accelerator capacity planning. Network/storage/cluster coverage now adds EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF source notes while reusing Spectrum-X/RoCE and local DPU/NVMe-oF evidence. The layers remain partial where incident, topology, benchmark, field-operation, cross-cloud chargeback, and governance-policy evidence is still thin.
 
 # Layer Status
 
 | Layer | Current local coverage | Next gap |
 | --- | --- | --- |
-| `training-distributed` | NCCL release notes, closed GitHub issues, and technical-blog captures cover collective communication, SHARP offload, dynamic communicators, reliability, and cost-estimation hooks. | Add source-backed training framework, checkpointing, and elastic training pages beyond NCCL. |
+| `training-distributed` | NCCL release notes, closed GitHub issues, and technical-blog captures cover collective communication, SHARP offload, dynamic communicators, reliability, and cost-estimation hooks. [Distributed Training Infrastructure](distributed-training-infrastructure.md) adds PyTorch distributed process groups, FSDP, Distributed Checkpoint, `torchrun` elastic restart, DeepSpeed ZeRO and checkpoint conversion, Megatron-LM project boundaries, Ray Train checkpoint/fault tolerance, Kubeflow Trainer, and KubeRay training job controller evidence. | Add production incident/postmortem evidence, measured checkpoint restore benchmarks, framework upgrade failures, and broader non-PyTorch/DeepSpeed/Ray field reports. |
 | `inference-runtime` | SGLang issue/PR corpora and CUDA Green Context evidence cover serving runtime behavior and compatibility risks; [Inference Runtime Infrastructure](inference-runtime-infrastructure.md) adds vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM runtime evidence for batching, KV-cache lifecycle, model repository/config loading, OpenAI-compatible serving, provider selection, and distributed inference knobs. | Add production router/admission-control, autoscaling, model-placement, rollout, benchmark, tracing, and incident/postmortem sources. |
-| `orchestration-scheduling` | Kubernetes, Volcano, and Kueue closed-issue corpora cover scheduler, queueing, and cluster operations with comment-completeness caveats. | Add Ray, Slurm-on-Kubernetes, device plugins, and GPU quota/operator sources. |
+| `orchestration-scheduling` | Kubernetes, Volcano, and Kueue closed-issue corpora cover scheduler, queueing, and cluster operations with comment-completeness caveats. [Orchestration Scheduling Infrastructure](orchestration-scheduling-infrastructure.md) adds Ray/KubeRay, Slurm GPU/GRES, Kubernetes device plugin, NVIDIA and AMD GPU operators, Kubeflow Trainer, and Kueue/ResourceQuota quota-admission evidence. | Add production scheduling incidents, Slurm-on-Kubernetes bridge deployment captures, scheduler benchmarks, and operator upgrade failure/postmortem sources. |
 | `data-rag-vector` | The Hitchhiker paper gives broad RAG context. [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md) covers vector database architecture, indexing, filtered retrieval, sparse retrieval, and embedding-index lifecycle. [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md) adds Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, TEI embedding worker boundaries, DataHub/OpenLineage metadata lineage, and Langfuse RAG tracing/evaluation. | Add direct Kafka Connect/Streams, workflow scheduler, object-store table-format governance, deletion/retention propagation, embedding drift policy, retrieval-quality alerting, and RAG incident sources. |
 | `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md) adds OpenTelemetry GenAI telemetry schemas, LangSmith/Phoenix trace stores and experiments, Ragas and lm-evaluation-harness evaluation mechanics, and DCGM/Nsight platform telemetry/profiling. | Add production SLO, alerting, incident/postmortem, benchmark environment, non-NVIDIA platform, and evaluation data governance sources. |
 | `security-governance-cost` | [Security Governance Cost Infrastructure](security-governance-cost-infrastructure.md) covers Quantum InfiniBand tenant isolation, MIG/vGPU accelerator sharing, NVIDIA confidential-computing attestation, Kubernetes ResourceQuota, Kueue ClusterQueue/ResourceFlavor/cohort governance, OpenCost workload cost allocation, AWS accelerator capacity/service-quota planning, and NCCL 2.22 cost-estimation boundaries. | Add evaluation-data governance, RAG access policy, cross-cloud chargeback, and incident/postmortem evidence. |
@@ -96,7 +104,7 @@ The scan reuses existing local evidence and now treats the tracked 20260706 comp
 
 # Use
 
-Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions. Use [loop-state.json](../../loop-state.json) for the current autonomous backlog and known source list. Do not record `stopped_no_action` while `candidate_backlog` remains non-empty.
+Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions. Use [loop-state.json](../../loop-state.json) for the current autonomous backlog and known source list. Do not record `stopped_no_action` while `candidate_backlog` remains non-empty, `no_action_evidence` is empty, or actionable `candidate_gaps` remain in the machine-readable coverage map.
 
 # Citations
 
@@ -125,6 +133,14 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [WEKA storage architecture source note](../../raw/links/weka-ai-storage-architecture-official-20260707.md)
 - [Ceph distributed storage source note](../../raw/links/ceph-distributed-storage-official-docs-20260707.md)
 - [SPDK NVMe-oF source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
+- [Distributed Training Infrastructure](distributed-training-infrastructure.md)
+- [PyTorch distributed training source note](../../raw/links/pytorch-distributed-training-official-docs-20260707.md)
+- [DeepSpeed and Megatron-LM source note](../../raw/links/deepspeed-megatron-training-official-sources-20260707.md)
+- [Ray Train and KubeRay source note](../../raw/links/ray-train-kuberay-official-docs-20260707.md)
+- [Kubeflow Trainer source note](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
+- [Orchestration Scheduling Infrastructure](orchestration-scheduling-infrastructure.md)
+- [Slurm GPU and GRES scheduling source note](../../raw/links/slurm-gpu-scheduling-official-docs-20260707.md)
+- [Kubernetes device plugin and GPU operators source note](../../raw/links/kubernetes-device-plugin-gpu-operators-official-docs-20260707.md)
 - [NCCL technical blog network observability reference](nccl-technical-blog-network-observability.md)
 - [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md)
 - [NCCL Inspector with Prometheus raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md)
