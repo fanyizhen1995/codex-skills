@@ -681,6 +681,14 @@ def test_formal_verification_artifact_reports_confirmed_bug_and_required_rerun(t
     run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
     formal_dir = run_dir / "formal-verification"
     formal_dir.mkdir(parents=True)
+    artifact_path = ".codex/loop-runs/formal-run/counterexample-tests/identity-key-conflict.json"
+    write_counterexample_artifact(
+        run_dir,
+        artifact_path,
+        suspicion_id="identity-key-conflict",
+        command="python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_identity_key_conflict",
+        status="fail",
+    )
     payload = {
         "phase": "formal_suspicion_pass",
         "suspicions": [
@@ -690,7 +698,7 @@ def test_formal_verification_artifact_reports_confirmed_bug_and_required_rerun(t
                 "hypothesis": "canonical identity keys can collide across source types",
                 "counterexample": {
                     "type": "unit_test",
-                    "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/identity-key-conflict.json",
+                    "artifact_path": artifact_path,
                     "command": "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_identity_key_conflict",
                 },
                 "result": "confirmed_bug",
@@ -710,7 +718,7 @@ def test_formal_verification_artifact_reports_confirmed_bug_and_required_rerun(t
         {
             "id": "identity-key-conflict",
             "command": "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_identity_key_conflict",
-            "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/identity-key-conflict.json",
+            "artifact_path": artifact_path,
         }
     ]
 
@@ -719,6 +727,14 @@ def test_formal_verification_artifact_allows_disproved_suspicion_without_blockin
     run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
     formal_dir = run_dir / "formal-verification"
     formal_dir.mkdir(parents=True)
+    artifact_path = ".codex/loop-runs/formal-run/counterexample-tests/queue-reprobe-skipped.json"
+    write_counterexample_artifact(
+        run_dir,
+        artifact_path,
+        suspicion_id="queue-reprobe-skipped",
+        command="python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_queue_reprobe_skipped",
+        status="pass",
+    )
     payload = {
         "phase": "formal_suspicion_pass",
         "suspicions": [
@@ -728,7 +744,7 @@ def test_formal_verification_artifact_allows_disproved_suspicion_without_blockin
                 "hypothesis": "needs queue skips a due reprobe",
                 "counterexample": {
                     "type": "unit_test",
-                    "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/queue-reprobe-skipped.json",
+                    "artifact_path": artifact_path,
                     "command": "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_queue_reprobe_skipped",
                 },
                 "result": "disproved",
@@ -749,6 +765,14 @@ def test_formal_verification_artifact_blocks_high_risk_inconclusive_suspicion(tm
     run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
     formal_dir = run_dir / "formal-verification"
     formal_dir.mkdir(parents=True)
+    artifact_path = ".codex/loop-runs/formal-run/counterexample-tests/state-machine-cleanup-resume.json"
+    write_counterexample_artifact(
+        run_dir,
+        artifact_path,
+        suspicion_id="state-machine-cleanup-resume",
+        command="",
+        status="inconclusive",
+    )
     payload = {
         "phase": "formal_suspicion_pass",
         "suspicions": [
@@ -758,7 +782,7 @@ def test_formal_verification_artifact_blocks_high_risk_inconclusive_suspicion(tm
                 "hypothesis": "cleanup may resume a budget-stopped run",
                 "counterexample": {
                     "type": "fixture_replay",
-                    "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/state-machine-cleanup-resume.json",
+                    "artifact_path": artifact_path,
                     "command": "",
                 },
                 "result": "inconclusive",
@@ -773,6 +797,114 @@ def test_formal_verification_artifact_blocks_high_risk_inconclusive_suspicion(tm
     assert summary["status"] == "blocked"
     assert summary["next_action"] == "needs_human_judgement"
     assert any("state-machine-cleanup-resume" in finding for finding in summary["findings"])
+
+
+def test_formal_verification_clears_confirmed_bug_after_matching_counterexample_rerun(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
+    formal_dir = run_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    artifact_path = ".codex/loop-runs/formal-run/counterexample-tests/identity-key-conflict.json"
+    command = "python3 -m pytest -q scripts/tests/test_harness_loop_governance.py::test_identity_key_conflict"
+    write_counterexample_artifact(
+        run_dir,
+        artifact_path,
+        suspicion_id="identity-key-conflict",
+        command=command,
+        status="pass",
+    )
+    suspicion = {
+        "id": "identity-key-conflict",
+        "risk": "high",
+        "hypothesis": "canonical identity keys can collide across source types",
+        "counterexample": {
+            "type": "unit_test",
+            "artifact_path": artifact_path,
+            "command": command,
+        },
+    }
+    (formal_dir / "formal-001.json").write_text(
+        json_dumps(
+            {
+                "phase": "formal_suspicion_pass",
+                "suspicions": [{**suspicion, "result": "confirmed_bug", "repair_required": True}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (formal_dir / "formal-002.json").write_text(
+        json_dumps(
+            {
+                "phase": "formal_suspicion_pass",
+                "suspicions": [{**suspicion, "result": "disproved", "repair_required": False}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = summarize_formal_verification(
+        run_dir,
+        required_counterexample_reruns=[{"id": "identity-key-conflict", "command": command, "artifact_path": artifact_path}],
+    )
+
+    assert summary["status"] == "pass"
+    assert summary["required_counterexample_reruns"] == []
+
+
+def test_formal_verification_blocks_missing_counterexample_artifact(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "formal-run"
+    formal_dir = run_dir / "formal-verification"
+    formal_dir.mkdir(parents=True)
+    (formal_dir / "formal-001.json").write_text(
+        json_dumps(
+            {
+                "phase": "formal_suspicion_pass",
+                "suspicions": [
+                    {
+                        "id": "missing-artifact",
+                        "risk": "high",
+                        "hypothesis": "a counterexample artifact was declared but not written",
+                        "counterexample": {
+                            "type": "unit_test",
+                            "artifact_path": ".codex/loop-runs/formal-run/counterexample-tests/missing-artifact.json",
+                            "command": "python3 -m pytest -q scripts/tests/test_missing.py",
+                        },
+                        "result": "confirmed_bug",
+                        "repair_required": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = summarize_formal_verification(run_dir)
+
+    assert summary["status"] == "blocked"
+    assert any("counterexample artifact does not exist" in finding for finding in summary["findings"])
+
+
+def write_counterexample_artifact(
+    run_dir,
+    artifact_path: str,
+    *,
+    suspicion_id: str,
+    command: str,
+    status: str,
+) -> None:
+    path = run_dir.parents[2] / artifact_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json_dumps(
+            {
+                "id": suspicion_id,
+                "command": command,
+                "status": status,
+                "returncode": 0 if status == "pass" else 1,
+                "executed_at": "2026-07-08T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def json_dumps(payload: object) -> str:

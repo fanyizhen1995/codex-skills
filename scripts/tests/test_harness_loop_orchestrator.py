@@ -7938,6 +7938,19 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 "stdout": "evaluator pass\n",
                 "stderr": "",
             }
+            artifact_path = f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json"
+            artifact = repo_root / artifact_path
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            write_json_file(
+                artifact,
+                {
+                    "id": "formal-confirmed-bug",
+                    "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                    "status": "fail",
+                    "returncode": 1,
+                    "executed_at": "2026-07-08T00:00:00Z",
+                },
+            )
             write_json_file(
                 run_dir / "formal-verification" / "formal-001.json",
                 {
@@ -7949,7 +7962,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                             "hypothesis": "a repaired path still violates a contract",
                             "counterexample": {
                                 "type": "unit_test",
-                                "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                                "artifact_path": artifact_path,
                                 "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
                             },
                             "result": "confirmed_bug",
@@ -7970,7 +7983,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                     {
                         "id": "formal-confirmed-bug",
                         "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
-                        "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                        "artifact_path": artifact_path,
                     }
                 ],
             )
@@ -8007,6 +8020,19 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertEqual(blocked["next_action"], "repair_and_reevaluate")
             self.assertIn("original counterexample rerun", blocked["stdout"])
 
+            artifact_path = f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json"
+            artifact = repo_root / artifact_path
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            write_json_file(
+                artifact,
+                {
+                    "id": "formal-confirmed-bug",
+                    "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                    "status": "pass",
+                    "returncode": 0,
+                    "executed_at": "2026-07-08T00:00:00Z",
+                },
+            )
             write_json_file(
                 formal_dir / "formal-002.json",
                 {
@@ -8018,7 +8044,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                             "hypothesis": "the original counterexample now passes after repair",
                             "counterexample": {
                                 "type": "unit_test",
-                                "artifact_path": f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json",
+                                "artifact_path": artifact_path,
                                 "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
                             },
                             "result": "disproved",
@@ -8033,6 +8059,96 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertEqual(cleared["status"], "pass")
             self.assertNotIn("next_action", cleared)
             self.assertEqual(run["required_counterexample_reruns"], [])
+
+    def test_run_evaluator_formal_bug_routes_to_repair_even_with_scenario_logs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Formal suspicion with scenario logs",
+                run_id="demo-run",
+                task_id="formal-task",
+                confirm=True,
+            )
+            write_fake_evaluator_scenario(repo_root, "formal-task")
+            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+
+            run_planner(repo_root, "demo-run", driver="fake")
+            run_generator(repo_root, "demo-run", driver="fake")
+            run_dir = run_dir_for(repo_root, "demo-run")
+            write_json_file(
+                run_dir / "task-contract.json",
+                {
+                    "task_id": "formal-task",
+                    "title": "Formal task",
+                    "description": "Temporary formal task.",
+                    "verify_commands": [],
+                    "scenario_commands": ["python3 -c \"print('scenario artifact')\""],
+                    "artifact_paths": [],
+                    "required_services": [],
+                    "evaluator_driver": "harness_auto_gate",
+                    "eval_policy": {"task_level_required": True},
+                    "allowed_scope": "local_repo_and_harness",
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "FORMAL-01",
+                            "user_goal": "Run scenario with formal verification.",
+                            "prerequisites": [],
+                            "steps": ["Run command.", "Merge formal suspicion result."],
+                            "expected_outcomes": ["Formal bug routes to repair."],
+                            "failure_signals": ["Formal bug enters artifact hygiene."],
+                        }
+                    ],
+                },
+            )
+            artifact_path = ".codex/loop-runs/demo-run/counterexample-tests/formal-confirmed-bug.json"
+            artifact = repo_root / artifact_path
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            write_json_file(
+                artifact,
+                {
+                    "id": "formal-confirmed-bug",
+                    "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                    "status": "fail",
+                    "returncode": 1,
+                    "executed_at": "2026-07-08T00:00:00Z",
+                },
+            )
+            formal_dir = run_dir / "formal-verification"
+            formal_dir.mkdir(parents=True)
+            write_json_file(
+                formal_dir / "formal-001.json",
+                {
+                    "phase": "formal_suspicion_pass",
+                    "suspicions": [
+                        {
+                            "id": "formal-confirmed-bug",
+                            "risk": "high",
+                            "hypothesis": "a repaired path still violates a contract",
+                            "counterexample": {
+                                "type": "unit_test",
+                                "artifact_path": artifact_path,
+                                "command": "python3 -m pytest -q scripts/tests/test_harness_loop_orchestrator.py::test_formal_confirmed_bug",
+                            },
+                            "result": "confirmed_bug",
+                            "repair_required": True,
+                        }
+                    ],
+                },
+            )
+
+            output_path = run_evaluator(repo_root, "demo-run", driver="fake", max_attempts=2)
+
+            evaluator_result = read_json_file(output_path)
+            self.assertEqual(evaluator_result["status"], "fail")
+            self.assertEqual(evaluator_result["next_action"], "repair_and_reevaluate")
+            self.assertTrue((run_dir / "scenario-command-results.json").exists())
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["phase"], "repair_needed")
+            self.assertEqual(run["last_result"], "fail")
+            self.assertEqual(run["next_action"], "repair_and_reevaluate")
 
 
 if __name__ == "__main__":

@@ -1107,6 +1107,11 @@ def _merge_formal_verification_result(
     return result
 
 
+def _formal_verification_needs_direct_repair(evaluator_payload: Mapping[str, Any]) -> bool:
+    formal_summary = evaluator_payload.get("formal_verification")
+    return isinstance(formal_summary, Mapping) and formal_summary.get("status") in {"fail", "blocked"}
+
+
 def run_evaluator(
     repo_root: Path | str,
     run_id: str,
@@ -1228,8 +1233,11 @@ def run_evaluator(
         run,
         evaluator_payload,
         has_artifacts=(
-            (evaluator_status == "pass" and result.returncode == 0 and _generator_result_has_artifacts(run_dir))
-            or _scenario_command_results_have_logs(run_dir)
+            not _formal_verification_needs_direct_repair(evaluator_payload)
+            and (
+                (evaluator_status == "pass" and result.returncode == 0 and _generator_result_has_artifacts(run_dir))
+                or _scenario_command_results_have_logs(run_dir)
+            )
         ),
     )
     run["attempts"]["evaluator"] = int(run["attempts"]["evaluator"]) + 1

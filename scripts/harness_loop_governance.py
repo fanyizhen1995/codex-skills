@@ -498,9 +498,14 @@ def validate_source_profile_snapshot(payload: Mapping[str, Any], db_rows: Mappin
     return findings
 
 
-def validate_formal_verification_artifact(payload: Mapping[str, Any]) -> list[str]:
+def validate_formal_verification_artifact(
+    payload: Mapping[str, Any],
+    *,
+    run_dir: Path | str | None = None,
+) -> list[str]:
     findings: list[str] = []
     source = payload if isinstance(payload, Mapping) else {}
+    run_path = Path(run_dir) if run_dir is not None else None
     if _first_string(source, "phase") != "formal_suspicion_pass":
         findings.append("formal verification phase must be formal_suspicion_pass")
     suspicions = source.get("suspicions")
@@ -539,6 +544,8 @@ def validate_formal_verification_artifact(payload: Mapping[str, Any]) -> list[st
         command = _first_string(counterexample, "command")
         if result in {"confirmed_bug", "disproved"} and not command:
             findings.append(f"{path}.counterexample.command is required for {result}")
+        if run_path is not None and artifact_path:
+            findings.extend(_validate_counterexample_artifact(run_path, suspicion, path))
         if result == "confirmed_bug" and suspicion.get("repair_required") is not True:
             findings.append(f"{path}.repair_required must be true for confirmed_bug")
         if result == "disproved" and suspicion.get("repair_required") is not False:
@@ -567,7 +574,7 @@ def summarize_formal_verification(
             artifact_paths.append(_run_artifact_path(run_id, f"formal-verification/{artifact_path.name}"))
             findings.extend(
                 f"formal-verification/{artifact_path.name} {finding}"
-                for finding in validate_formal_verification_artifact(payload)
+                for finding in validate_formal_verification_artifact(payload, run_dir=run_path)
             )
             raw_suspicions = payload.get("suspicions")
             if isinstance(raw_suspicions, list):
@@ -584,28 +591,55 @@ def summarize_formal_verification(
 
     required_reruns = [_normalize_counterexample_requirement(item) for item in (required_counterexample_reruns or [])]
     required_reruns = [item for item in required_reruns if item]
-    observed_reruns = {
-        (requirement["id"], requirement["command"], requirement["artifact_path"])
-        for suspicion in suspicions
-        for requirement in [_counterexample_requirement_from_suspicion(suspicion)]
-        if requirement and _first_string(suspicion, "result").lower() == "disproved"
-    }
+    latest_by_key: dict[tuple[str, str, str], Mapping[str, Any]] = {}
+    unkeyed_inconclusive_high_risk: list[str] = []
+    for suspicion in suspicions:
+        requirement = _counterexample_requirement_from_suspicion(suspicion)
+        if requirement:
+            latest_by_key[(requirement["id"], requirement["command"], requirement["artifact_path"])] = suspicion
+        elif _first_string(suspicion, "result").lower() == "inconclusive" and _first_string(
+            suspicion, "risk"
+        ).lower() == "high":
+            unkeyed_inconclusive_high_risk.append(_first_string(suspicion, "id") or "<unknown>")
+
+    lifecycle_findings: list[str] = []
+    observed_reruns: set[tuple[str, str, str]] = set()
+    confirmed: list[dict[str, str]] = []
+    inconclusive_high_risk: list[str] = list(unkeyed_inconclusive_high_risk)
+    for key, suspicion in latest_by_key.items():
+        result = _first_string(suspicion, "result").lower()
+        risk = _first_string(suspicion, "risk").lower()
+        requirement = _counterexample_requirement_from_suspicion(suspicion)
+        if result == "disproved":
+            if _counterexample_artifact_status(run_path, requirement) == "pass":
+                observed_reruns.add(key)
+            else:
+                lifecycle_findings.append(
+                    f"counterexample rerun artifact must record pass for {requirement['id']}"
+                )
+        elif result == "confirmed_bug":
+            if _counterexample_artifact_status(run_path, requirement) == "fail":
+                confirmed.append(requirement)
+            else:
+                lifecycle_findings.append(
+                    f"confirmed counterexample artifact must record fail for {requirement['id']}"
+                )
+        elif result == "inconclusive" and risk == "high":
+            inconclusive_high_risk.append(_first_string(suspicion, "id") or "<unknown>")
+
+    if lifecycle_findings:
+        return {
+            "status": "blocked",
+            "next_action": "collect_formal_verification_evidence",
+            "artifact_paths": artifact_paths,
+            "findings": lifecycle_findings,
+            "required_counterexample_reruns": [],
+        }
+
     for requirement in required_reruns:
         key = (requirement["id"], requirement["command"], requirement["artifact_path"])
         if key not in observed_reruns:
             missing_reruns.append(requirement)
-
-    confirmed: list[dict[str, str]] = []
-    inconclusive_high_risk: list[str] = []
-    for suspicion in suspicions:
-        result = _first_string(suspicion, "result").lower()
-        risk = _first_string(suspicion, "risk").lower()
-        if result == "confirmed_bug":
-            requirement = _counterexample_requirement_from_suspicion(suspicion)
-            if requirement:
-                confirmed.append(requirement)
-        elif result == "inconclusive" and risk == "high":
-            inconclusive_high_risk.append(_first_string(suspicion, "id") or "<unknown>")
 
     if confirmed:
         return {
@@ -799,6 +833,73 @@ def _normalize_counterexample_requirement(value: Mapping[str, Any]) -> dict[str,
     if not (suspicion_id and command and artifact_path):
         return {}
     return {"id": suspicion_id, "command": command, "artifact_path": artifact_path}
+
+
+def _validate_counterexample_artifact(
+    run_path: Path,
+    suspicion: Mapping[str, Any],
+    path_label: str,
+) -> list[str]:
+    findings: list[str] = []
+    requirement = _counterexample_requirement_from_suspicion(suspicion)
+    artifact_path = _first_string(_mapping(suspicion.get("counterexample")), "artifact_path")
+    resolved_path = _resolve_counterexample_artifact_path(run_path, artifact_path)
+    if not resolved_path.exists():
+        return [f"{path_label}.counterexample artifact does not exist: {artifact_path}"]
+    if resolved_path.suffix.lower() != ".json":
+        return findings
+    payload = _read_counterexample_artifact_payload(resolved_path)
+    if not isinstance(payload, Mapping):
+        return [f"{path_label}.counterexample artifact must be a JSON object: {artifact_path}"]
+    observed_id = _first_string(payload, "id", "suspicion_id")
+    if observed_id != _first_string(suspicion, "id"):
+        findings.append(f"{path_label}.counterexample artifact id does not match suspicion id")
+    expected_command = requirement.get("command", "")
+    observed_command = _first_string(payload, "command")
+    if expected_command and observed_command != expected_command:
+        findings.append(f"{path_label}.counterexample artifact command does not match")
+    observed_status = _first_string(payload, "status", "result").lower()
+    if observed_status not in {"pass", "fail", "failed", "inconclusive", "blocked"}:
+        findings.append(f"{path_label}.counterexample artifact status is required")
+    return findings
+
+
+def _counterexample_artifact_status(run_path: Path, requirement: Mapping[str, str]) -> str:
+    artifact_path = _first_string(requirement, "artifact_path")
+    resolved_path = _resolve_counterexample_artifact_path(run_path, artifact_path)
+    payload = _read_counterexample_artifact_payload(resolved_path)
+    if not isinstance(payload, Mapping):
+        return "missing"
+    status = _first_string(payload, "status", "result").lower()
+    returncode = payload.get("returncode", payload.get("exit_code"))
+    if status in {"pass", "passed"} or returncode == 0:
+        return "pass"
+    if status in {"fail", "failed"} or (isinstance(returncode, int) and returncode != 0):
+        return "fail"
+    return status or "missing"
+
+
+def _read_counterexample_artifact_payload(path: Path) -> Any:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _resolve_counterexample_artifact_path(run_path: Path, artifact_path: str) -> Path:
+    value = Path(artifact_path)
+    if value.is_absolute():
+        return value
+    if artifact_path.startswith(".codex/"):
+        return _repo_root_for_run_path(run_path) / value
+    return run_path / value
+
+
+def _repo_root_for_run_path(run_path: Path) -> Path:
+    if run_path.parent.name == "loop-runs" and run_path.parent.parent.name == ".codex":
+        return run_path.parent.parent.parent
+    return run_path
 
 
 def _read_governance_json(
