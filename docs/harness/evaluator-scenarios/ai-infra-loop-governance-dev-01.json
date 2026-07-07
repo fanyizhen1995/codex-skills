@@ -1,0 +1,210 @@
+{
+  "task_id": "ai-infra-loop-governance-dev-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "E2E-0",
+      "user_goal": "As an evaluator, confirm the governance parent run records egress/depth preflight evidence before implementation work proceeds.",
+      "prerequisites": [
+        "The governance parent run exists under .codex/loop-runs/ai-infra-loop-governance-dev.",
+        "Governance preflight artifacts are stored under the parent run directory."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Load the governance evaluator scenario contract.",
+        "Inspect the parent governance run and validate preflight evidence with validate_governance_preflight_evidence().",
+        "Confirm the evaluator reports missing governance artifacts when preflight evidence is incomplete."
+      ],
+      "expected_outcomes": [
+        "The contract includes E2E-0 through E2E-7.",
+        "validate_governance_preflight_evidence() passes only when egress proof, identity audit, depth smoke, and candidate scoring artifacts exist.",
+        "The governance parent run stays in demand-development parent mode with visible current progress."
+      ],
+      "failure_signals": [
+        "The scenario contract omits any E2E case.",
+        "The evaluator treats missing preflight artifacts as pass.",
+        "The parent governance run is missing or not a demand-development parent run."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-1",
+      "user_goal": "As an evaluator, verify governance takes over after the stopped-budget ai_infra expansion run and does not silently resume r11 work.",
+      "prerequisites": [
+        "The stopped-budget expansion run exists at .codex/loop-runs/ai-infra-expansion-2026-07-07-r10/run.json."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Inspect the stopped-budget expansion run metadata.",
+        "Inspect the governance parent run metadata.",
+        "Confirm the governance run now holds the active demand-development takeover."
+      ],
+      "expected_outcomes": [
+        "ai-infra-expansion-2026-07-07-r10 remains stopped_budget.",
+        "The governance parent run remains active with child runs and current progress.",
+        "No evaluator success depends on creating ai_infra expansion r11."
+      ],
+      "failure_signals": [
+        "The stopped-budget expansion run changes to a resumed phase.",
+        "The governance parent run is missing child linkage or progress summary.",
+        "The evaluator assumes r11 exists."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-2",
+      "user_goal": "As an evaluator, confirm needs queue blocked split evidence is preserved in the governance run and child breakdown.",
+      "prerequisites": [
+        "The governance parent run backlog and child_run_ids are available."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Inspect the governance parent backlog and child run list.",
+        "Confirm the parent run records the active child and aggregate acceptance progress.",
+        "Verify the dashboard API exposes the same parent-child structure."
+      ],
+      "expected_outcomes": [
+        "The governance parent run includes child_run_ids and current_child_run_id.",
+        "Parent progress shows completed and pending child work.",
+        "Dashboard API exposes the parent children array."
+      ],
+      "failure_signals": [
+        "The parent run omits backlog, child_run_ids, or aggregate acceptance.",
+        "The dashboard hides parent children.",
+        "The evaluator cannot correlate the active child with the parent progress summary."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-3",
+      "user_goal": "As an evaluator, verify the governance helper keeps high-value candidate hard gates enforced instead of advisory-only scoring.",
+      "prerequisites": [
+        "Governance candidate scoring artifacts are present in the parent run when preflight passes."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Run governance preflight validation.",
+        "Inspect candidate scoring artifact paths recorded for the parent run.",
+        "Confirm missing or invalid candidate scoring artifacts fail the evaluator."
+      ],
+      "expected_outcomes": [
+        "Candidate scoring artifacts are required by governance preflight validation.",
+        "The evaluator surfaces concrete findings when the hard gates are missing or invalid.",
+        "Passing preflight records candidate scoring artifact paths."
+      ],
+      "failure_signals": [
+        "High-value candidate gating is treated as optional.",
+        "The evaluator does not mention candidate scoring gaps.",
+        "Preflight passes without candidate scoring artifacts."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-4",
+      "user_goal": "As an evaluator, confirm crawler workbench linkage is alive through the source profile snapshot and backend health endpoint.",
+      "prerequisites": [
+        "The source snapshot manifest exists under personal-wiki/domains/ai_infra/.",
+        "Crawler workbench backend is reachable at http://127.0.0.1:8765/api/health."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Load the source snapshot manifest.",
+        "Validate that it has nonzero channel and source counts and contains no sensitive fields or values.",
+        "Check crawler backend health."
+      ],
+      "expected_outcomes": [
+        "The source snapshot manifest exists and has nonzero channels and sources.",
+        "The source snapshot manifest contains no leaked token, cookie, secret, password, credential, auth_ref, or bearer value.",
+        "Crawler backend health returns status ok."
+      ],
+      "failure_signals": [
+        "The source snapshot manifest is missing or empty.",
+        "The source snapshot manifest leaks sensitive fields or values.",
+        "Crawler backend health is unreachable or non-ok."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-5",
+      "user_goal": "As an evaluator, verify wiki/API/frontend/dashboard visibility for the governance artifacts and parent run state.",
+      "prerequisites": [
+        "Loop Dashboard is reachable at http://127.0.0.1:8766.",
+        "Crawler frontend is reachable at http://127.0.0.1:5173/."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Call the Loop Dashboard parent run API.",
+        "Confirm the parent detail includes child runs and source snapshot governance artifacts.",
+        "Confirm crawler frontend responds."
+      ],
+      "expected_outcomes": [
+        "Dashboard API exposes the governance parent detail.",
+        "Dashboard parent detail includes children and the source snapshot governance artifact path.",
+        "Crawler frontend responds with a successful HTTP status."
+      ],
+      "failure_signals": [
+        "Dashboard API cannot read the governance parent run.",
+        "Dashboard parent detail hides children or source snapshot governance artifacts.",
+        "Crawler frontend is unreachable."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-6",
+      "user_goal": "As an evaluator, confirm the formal suspicion repair loop left durable evidence and no unresolved confirmed bug remains.",
+      "prerequisites": [
+        "At least one governance child run records formal suspicion evidence."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Inspect governance child evaluator results for formal_verification evidence.",
+        "Confirm at least one child includes a formal artifact path.",
+        "Confirm no child has an unresolved confirmed formal bug."
+      ],
+      "expected_outcomes": [
+        "A governance child evaluator result includes formal_verification_artifact_paths.",
+        "Formal verification status is pass with no required counterexample reruns remaining.",
+        "No confirmed formal bug remains unresolved."
+      ],
+      "failure_signals": [
+        "No child run includes formal suspicion evidence.",
+        "Formal verification artifacts are missing.",
+        "A confirmed formal bug remains unresolved or still requires rerun."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    },
+    {
+      "scenario_id": "E2E-7",
+      "user_goal": "As an evaluator, confirm the governance loop now has checkpoint evidence and is ready for the human merge gate once this final task passes.",
+      "prerequisites": [
+        "The governance parent run and child-006 task are visible in the dashboard.",
+        "The evaluator writes result.json under the requested output directory."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/ai-infra-loop-governance-dev-01",
+      "steps": [
+        "Write result.json for the governance evaluator bundle.",
+        "Inspect the parent run decision summary and child-006 planning state.",
+        "Confirm rerun commands and diagnostics are recorded when the evaluator fails."
+      ],
+      "expected_outcomes": [
+        "The evaluator always writes result.json with status, scenario_results, checked, rerun_commands, and diagnostics.",
+        "The parent run remains checkpointed with current progress and a visible current child.",
+        "The evaluator output is ready for the final human-merge readiness check once all governance artifacts exist."
+      ],
+      "failure_signals": [
+        "result.json is missing required fields.",
+        "The parent run lacks current progress or current child context.",
+        "Failure output omits actionable diagnostics or rerun commands."
+      ],
+      "cleanup": [],
+      "automation_hint": "shell"
+    }
+  ]
+}

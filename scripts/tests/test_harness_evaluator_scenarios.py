@@ -235,6 +235,17 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_task_scenarios(root, "invalid-top-level")
 
+    def test_ai_infra_governance_contract_covers_e2e_0_through_e2e_7(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+
+        contract = load_task_scenarios(repo_root, "ai-infra-loop-governance-dev-01")
+
+        self.assertEqual(contract["task_id"], "ai-infra-loop-governance-dev-01")
+        self.assertEqual(
+            [scenario["scenario_id"] for scenario in contract["user_scenarios"]],
+            [f"E2E-{index}" for index in range(8)],
+        )
+
     def test_harness_evaluator_demo_cli_round_trip(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as tmp:
