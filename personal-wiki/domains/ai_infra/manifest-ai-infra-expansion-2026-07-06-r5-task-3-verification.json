@@ -1,0 +1,167 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r5-task-3",
+  "status": "pass",
+  "verified_at": "2026-07-07T03:36:06Z",
+  "summary": "Added source-backed network-storage-cluster coverage for AWS EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF while reusing local Spectrum-X/RoCE and DPU/NVMe-oF evidence. The layer remains partial for incidents, topology, benchmark, training/checkpoint case-study, and broader non-NVIDIA fabric operations evidence.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-3-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ],
+  "source_evidence": {
+    "reused_local_evidence": [
+      "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+      "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md"
+    ],
+    "new_primary_source_notes": [
+      "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+      "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+      "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+      "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+      "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md"
+    ],
+    "external_fetch_budget": {
+      "max_allowed": 20,
+      "used_source_pages": 9,
+      "blocked_or_auth_sources": []
+    }
+  },
+  "verify_results": [
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json validate and pass ai_infra coverage-map semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null && python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null && python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json, loop-state.json, and task-3 gap proof are valid JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-06-r5-task-3') ... PY",
+      "status": "pass",
+      "summary": "Gap proof validator returned no findings."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No tracked diff whitespace errors reported."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "No assignment-like secrets, tokens, credentials, passwords, authorization headers, or bearer values found across 12 changed/untracked paths."
+    },
+    {
+      "command": "autonomous scope check over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "All 12 changed/untracked paths match planner allowed_paths and none match planner denylist_paths."
+    },
+    {
+      "command": "custom whitespace scan over git status --porcelain=v1 -uall paths",
+      "status": "pass",
+      "summary": "No trailing whitespace found across 12 changed/untracked paths."
+    },
+    {
+      "command": "source visibility check for Network Storage Cluster Infrastructure",
+      "status": "pass",
+      "summary": "New curated page contains EFA, FSx for Lustre, WEKA, Ceph, SPDK, NVMe-oF, Spectrum-X, and Resnics Stargate-S1100 terms, and all five new raw source notes exist."
+    },
+    {
+      "command": "link probe or blocked/auth evidence for new network/storage/cluster primary sources",
+      "status": "pass",
+      "summary": "Official AWS, WEKA, Ceph, and SPDK source pages used for the new source notes were reachable through the browser tool; no blocked or auth-only sources were used."
+    },
+    {
+      "command": "delegated live check: service-availability -> trusted-live-evidence/service-availability.json",
+      "status": "delegated",
+      "summary": "Live service availability is delegated to orchestrator trusted evidence as instructed."
+    },
+    {
+      "command": "delegated live check: crawler-workbench-freshness -> trusted-live-evidence/crawler-workbench-freshness.json",
+      "status": "delegated",
+      "summary": "Crawler workbench freshness is delegated to orchestrator trusted evidence as instructed."
+    },
+    {
+      "command": "delegated live check: loop-dashboard-freshness -> trusted-live-evidence/loop-dashboard-freshness.json",
+      "status": "delegated",
+      "summary": "Loop dashboard freshness is delegated to orchestrator trusted evidence as instructed."
+    },
+    {
+      "command": "delegated live check: search-api-visibility -> trusted-live-evidence/search-api-visibility.json",
+      "status": "delegated",
+      "summary": "Search/API visibility is delegated to orchestrator trusted evidence as instructed."
+    },
+    {
+      "command": "delegated live check: frontend-visibility -> trusted-live-evidence/frontend-visibility.json",
+      "status": "delegated",
+      "summary": "Frontend visibility is delegated to orchestrator trusted evidence as instructed."
+    },
+    {
+      "command": "code test evidence when crawler/harness/frontend/backend changes",
+      "status": "not_applicable",
+      "summary": "No crawler, harness, frontend, backend, or dependency files changed."
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "intended_semantic_gate": "Crawler backend, crawler frontend, and loop dashboard must each return pass-like HTTP 2xx/3xx service availability."
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "intended_semantic_gate": "Crawler workbench API freshness must pass sources, channels, queue, wiki, and search dimensions for this updated knowledge target."
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "intended_semantic_gate": "Loop Dashboard must bind current run, child tasks, agent actions, evaluator scenarios, completed history, and project metadata to this run/worktree."
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "intended_semantic_gate": "Search API result set must match Network Storage Cluster Infrastructure and body-derived terms for EFA, FSx for Lustre, WEKA, Ceph, and NVMe-oF."
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "intended_semantic_gate": "Crawler workbench frontend must display or otherwise expose Network Storage Cluster Infrastructure and body-derived terms for EFA, FSx for Lustre, WEKA, Ceph, and NVMe-oF."
+    }
+  ],
+  "domain_channels": {
+    "status": "not_applicable",
+    "summary": "No crawler source subscriptions or domain channel configuration changed."
+  },
+  "dependency_changes": {
+    "status": "not_applicable",
+    "summary": "No dependency files changed; supply-chain evidence is delegated to orchestrator result generation."
+  },
+  "commit": {
+    "status": "delegated",
+    "summary": "No commit was created by the generator; orchestrator commits after gates pass."
+  }
+}

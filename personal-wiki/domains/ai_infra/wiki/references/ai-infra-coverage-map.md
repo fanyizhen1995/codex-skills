@@ -55,10 +55,16 @@ source_refs:
   - ../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md
   - ../../raw/links/opencost-cost-attribution-official-20260707.md
   - ../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md
+  - ../../raw/links/aws-efa-ai-cluster-networking-official-20260707.md
+  - ../../raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md
+  - ../../raw/links/weka-ai-storage-architecture-official-20260707.md
+  - ../../raw/links/ceph-distributed-storage-official-docs-20260707.md
+  - ../../raw/links/spdk-nvme-of-target-official-docs-20260707.md
 updated: 2026-07-07
 related:
   - ../projects/nccl.md
   - ../references/nccl-technical-blog-network-observability.md
+  - ../references/network-storage-cluster-infrastructure.md
   - ../references/security-governance-cost-infrastructure.md
   - ../references/data-rag-vector-infrastructure.md
   - ../references/data-rag-pipeline-infrastructure.md
@@ -73,7 +79,7 @@ related:
 
 This page makes the autonomous `ai_infra` coverage scan discoverable from the curated wiki. The machine-readable state lives in [coverage-map.json](../../coverage-map.json) and [loop-state.json](../../loop-state.json); this page is the human navigation entry point.
 
-The scan reuses existing local evidence and now treats the tracked 20260706 compute accelerator baseline as reconciled hardware evidence rather than unreconciled input. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost now has source-backed coverage for tenant isolation, accelerator sharing, quota governance, workload cost allocation, and accelerator capacity planning, but remains partial because evaluation-data governance, RAG access policy, cross-cloud chargeback, and incident evidence are still thin.
+The scan reuses existing local evidence and now treats the tracked 20260706 compute accelerator baseline as reconciled hardware evidence rather than unreconciled input. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost now has source-backed coverage for tenant isolation, accelerator sharing, quota governance, workload cost allocation, and accelerator capacity planning. Network/storage/cluster coverage now adds EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF source notes while reusing Spectrum-X/RoCE and local DPU/NVMe-oF evidence. Both layers remain partial where incident, topology, benchmark, cross-cloud chargeback, and governance-policy evidence is still thin.
 
 # Layer Status
 
@@ -86,7 +92,7 @@ The scan reuses existing local evidence and now treats the tracked 20260706 comp
 | `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md) adds OpenTelemetry GenAI telemetry schemas, LangSmith/Phoenix trace stores and experiments, Ragas and lm-evaluation-harness evaluation mechanics, and DCGM/Nsight platform telemetry/profiling. | Add production SLO, alerting, incident/postmortem, benchmark environment, non-NVIDIA platform, and evaluation data governance sources. |
 | `security-governance-cost` | [Security Governance Cost Infrastructure](security-governance-cost-infrastructure.md) covers Quantum InfiniBand tenant isolation, MIG/vGPU accelerator sharing, NVIDIA confidential-computing attestation, Kubernetes ResourceQuota, Kueue ClusterQueue/ResourceFlavor/cohort governance, OpenCost workload cost allocation, AWS accelerator capacity/service-quota planning, and NCCL 2.22 cost-estimation boundaries. | Add evaluation-data governance, RAG access policy, cross-cloud chargeback, and incident/postmortem evidence. |
 | `hardware-accelerator` | Compute accelerator inventory, field glossary, spec catalog, parameter comparison, and tracked July 6 baseline reconciliation cover GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC evidence. | Fill unresolved fields only when product-specific pages, tables, datasheets, or PDFs provide source-backed values. |
-| `network-storage-cluster` | NCCL issue evidence, DPU/SmartNIC captures, and NCCL technical-blog captures now cover RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry. | Add EFA, storage, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem evidence. |
+| `network-storage-cluster` | [Network Storage Cluster Infrastructure](network-storage-cluster-infrastructure.md) adds AWS EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF source notes, while NCCL issue evidence, DPU/SmartNIC captures, and NCCL technical-blog captures cover RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry. | Add incident/postmortem, topology, storage benchmark, training/checkpoint case-study, and broader non-NVIDIA fabric operations evidence. |
 
 # Use
 
@@ -113,6 +119,12 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Kubernetes and Kueue quota governance source note](../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md)
 - [OpenCost cost allocation source note](../../raw/links/opencost-cost-attribution-official-20260707.md)
 - [AWS accelerator capacity and service quota source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md)
+- [Network Storage Cluster Infrastructure](network-storage-cluster-infrastructure.md)
+- [AWS EFA source note](../../raw/links/aws-efa-ai-cluster-networking-official-20260707.md)
+- [AWS FSx for Lustre source note](../../raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md)
+- [WEKA storage architecture source note](../../raw/links/weka-ai-storage-architecture-official-20260707.md)
+- [Ceph distributed storage source note](../../raw/links/ceph-distributed-storage-official-docs-20260707.md)
+- [SPDK NVMe-oF source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
 - [NCCL technical blog network observability reference](nccl-technical-blog-network-observability.md)
 - [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md)
 - [NCCL Inspector with Prometheus raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704293693Z-developer-nvidia-com-blog-real-time-performance-monitoring-and-faster-debugging-with-nccl-52ce17cc71.md)

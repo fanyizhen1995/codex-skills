@@ -252,11 +252,17 @@
         "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297319Z-developer-nvidia-com-blog-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md",
@@ -269,12 +275,13 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md"
       ],
       "candidate_gaps": [
-        "Add source-backed coverage for EFA, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem behavior in AI clusters.",
-        "Distinguish cluster networking and storage architecture evidence from accelerator SKU tables."
+        "Add production incident and postmortem evidence for EFA, RoCE/Spectrum-X, Lustre, Weka, Ceph, and NVMe-oF failure modes in AI clusters.",
+        "Add topology and benchmark evidence that ties storage/fabric choices to concrete training, checkpointing, and inference data paths.",
+        "Broaden non-NVIDIA fabric operations beyond EFA architecture notes and AWS Trainium2 cloud-offering fields."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T22:06:03Z",
-      "notes": "NCCL issue evidence, DPU/SmartNIC raw captures, and NCCL technical blogs now cover RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry; storage and non-NVIDIA fabric coverage still need expansion."
+      "last_scanned_at": "2026-07-07T03:36:06Z",
+      "notes": "Network Storage Cluster Infrastructure now adds official source notes for AWS EFA, FSx for Lustre, WEKA, Ceph, and SPDK NVMe-oF, while reusing existing NCCL technical-blog fabric evidence and local DPU/SmartNIC/NVMe-oF product captures. The layer remains partial because incident, topology, workload-specific benchmark, and broader non-NVIDIA fabric operations evidence are still thin."
     }
   }
 }

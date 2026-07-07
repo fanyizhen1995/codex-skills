@@ -1,0 +1,79 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r5-task-3",
+  "layer": "network-storage-cluster",
+  "candidate": {
+    "title": "Network, storage, and cluster infrastructure primary sources",
+    "source_type": "coverage-map",
+    "identity_key": "coverage-map:ai_infra:network-storage-cluster"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Targeted scans over personal-wiki/domains/ai_infra/raw found existing NCCL technical-blog captures for Spectrum-X, RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry, plus local compute accelerator captures for AWS Trn2 EFAv3 fields and DPU/SmartNIC/NVMe-oF product signals. No existing raw/links source notes for EFA architecture, FSx for Lustre, WEKA, Ceph, or SPDK NVMe-oF were present before this task.",
+    "wiki_search": "Targeted scans over wiki/index.md, coverage-map.json, loop-state.json, ingest.md, and curated reference pages found no dedicated Network Storage Cluster Infrastructure page before this task. Existing mentions were concentrated in NCCL Technical Blog Network Observability, Compute Accelerator Parameter Comparison, AI Infra Coverage Map, Security Governance Cost Infrastructure, and compute accelerator raw inventory pages.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md already linked NCCL Technical Blog Network Observability, Compute Accelerator Parameter Comparison, Compute Accelerator Crawl Inventory, and Security Governance Cost Infrastructure, but it had no dedicated network-storage-cluster reference page. A new reference page is non-duplicative because it organizes EFA, Lustre/FSx, WEKA, Ceph, and NVMe-oF storage/fabric behavior rather than repeating NCCL observability, compute accelerator SKU reconciliation, or security/governance/cost work."
+  },
+  "gap_reason": "coverage-map.json marked network-storage-cluster partial and explicitly requested source-backed EFA, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem behavior. Existing local evidence covered NCCL/Spectrum-X/RoCE operations and product-specific DPU/NVMe-oF signals, but did not provide a durable curated page for non-NVIDIA fabric and shared/distributed storage architecture boundaries.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-3-verification.json"
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "reuse",
+      "path": "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+      "coverage": "Spectrum-X, RoCE, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, fabric telemetry, and NCCL RAS evidence."
+    },
+    {
+      "role": "reuse",
+      "path": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "coverage": "AWS Trn2 EFAv3 cloud-offering field, DPU/SmartNIC rows, and product-specific NVMe-oF storage accelerator signals."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+      "coverage": "AWS EFA as AI/HPC cluster networking, OS-bypass, and libfabric integration evidence."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+      "coverage": "FSx for Lustre as managed Lustre/shared filesystem and S3-linked dataset staging evidence."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+      "coverage": "WEKA distributed filesystem/storage architecture, client mount, storage-network, and GPU-direct adjacency evidence."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+      "coverage": "Ceph RADOS, CephFS, and RBD distributed storage primitives."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
+      "coverage": "SPDK NVMe-oF target, subsystem, namespace, and storage-fabric behavior."
+    }
+  ],
+  "duplicate_boundaries": {
+    "compute_accelerator_baseline": "Excluded from replanning; r5 task-1 already reconciled the tracked July 6 compute accelerator baseline. This task cites compute accelerator rows only when they support EFA, DPU, SmartNIC, or NVMe-oF network/storage behavior.",
+    "security_governance_cost": "Excluded from replanning; r5 task-2 already added tenant isolation, quota governance, cost attribution, and capacity planning coverage. This task only cross-links that page to keep governance separate from data movement and storage paths.",
+    "nccl_observability": "Excluded as a duplicate standalone topic; reused only as existing source-backed fabric evidence for Spectrum-X/RoCE, telemetry, convergence, SHARP, NIC Fusion, and NCCL RAS.",
+    "accelerator_sku_tables": "DPU, SmartNIC, and NVMe-oF SKU rows remain product-specific evidence and are not converted into broad cluster architecture claims without the new EFA, FSx/Lustre, WEKA, Ceph, and SPDK source notes."
+  },
+  "git_status_before_task": "git status --porcelain=v1 -uall returned clean before edits.",
+  "external_fetch_budget": {
+    "max_allowed": 20,
+    "used_for_new_primary_source_notes": 9,
+    "blocked_or_auth_sources": []
+  }
+}

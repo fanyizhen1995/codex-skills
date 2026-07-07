@@ -3,22 +3,9 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T02:38:17Z",
+  "last_scan_at": "2026-07-07T03:36:06Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
-    {
-      "id": "network-storage-cluster-primary-sources",
-      "title": "Add EFA, storage, and parallel filesystem infrastructure coverage beyond NCCL/Spectrum-X",
-      "source": "coverage-map:network-storage-cluster",
-      "status": "candidate",
-      "updated_at": "2026-07-06T22:06:03Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
-        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
-      ]
-    },
     {
       "id": "training-distributed-broadening",
       "title": "Broaden distributed training coverage beyond NCCL communication, observability, and reliability evidence",
@@ -216,6 +203,23 @@
         "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md"
+      ]
+    },
+    {
+      "id": "network-storage-cluster-primary-sources",
+      "title": "EFA, Lustre, WEKA, Ceph, and NVMe-oF network/storage cluster sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T03:36:06Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/weka-ai-storage-architecture-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/ceph-distributed-storage-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/spdk-nvme-of-target-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
       ]
     }
   ],
