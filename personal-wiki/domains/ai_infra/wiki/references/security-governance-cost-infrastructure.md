@@ -21,6 +21,8 @@ source_refs:
   - ../../raw/links/opencost-cost-attribution-official-20260707.md
   - ../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md
   - ../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md
+  - ../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md
+  - ../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json
@@ -33,15 +35,17 @@ related:
 ---
 # Summary
 
-This reference captures the security, governance, quota, cost, and capacity-planning layer for AI infrastructure. It deliberately separates five control planes that are easy to conflate:
+This reference captures the security, governance, quota, cost, and capacity-planning layer for AI infrastructure. It deliberately separates seven control planes that are easy to conflate:
 
 - tenant isolation for network and accelerator boundaries;
 - quota/admission governance for namespaces, queues, and resource flavors;
 - RAG access policy, PII controls, metadata policy, and evaluation dataset governance;
 - cost attribution after workloads run;
-- cloud capacity reservation and service-quota planning before workloads run.
+- cross-cloud chargeback normalization across cloud billing records, Kubernetes labels, and team ownership;
+- cloud capacity reservation and service-quota planning before workloads run;
+- policy-as-code enforcement and audit reporting for resource configuration.
 
-The layer is broader than NCCL cost-estimation evidence and broader than DPU positioning. It is still partial because local evidence now covers infrastructure controls and selected RAG governance hooks, but not cross-cloud chargeback design, full end-to-end policy-enforcement run evidence, or real incident/postmortem evidence.
+The layer is broader than NCCL cost-estimation evidence and broader than DPU positioning. It is still partial because local evidence now covers infrastructure controls, selected RAG governance hooks, cross-cloud chargeback dimensions, and policy/audit mechanics, but not complete chargeback parity, full end-to-end policy-enforcement run evidence, or real incident/postmortem evidence.
 
 # Tenant Isolation And Accelerator Sharing
 
@@ -77,6 +81,18 @@ OpenCost provides the workload accounting side. Its allocation API supports Kube
 
 AWS EC2 Capacity Blocks for ML and AWS Service Quotas provide cloud capacity and quota-planning evidence. Capacity Blocks reserve accelerator capacity for selected future windows, while Service Quotas manages account-level quota visibility and quota-increase workflows. These sources support capacity planning and quota governance, but they do not replace in-cluster ResourceQuota, Kueue admission, or OpenCost attribution. [source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md)
 
+# Cross-Cloud Chargeback
+
+The cross-cloud chargeback source note fills the cloud-billing side that OpenCost and AWS capacity planning did not fully cover. AWS split cost allocation data exposes Kubernetes workload cost dimensions such as cluster, namespace, pod, workload, and labels, while AWS cost allocation tags provide the resource-tag reporting boundary. Azure cost allocation can redistribute costs by subscription, resource group, or tags, and AKS cost analysis exposes Kubernetes views such as cluster, namespace, asset, and service. Google Cloud adds GKE cost allocation by Kubernetes concepts such as namespaces and labels, with detailed Billing export to BigQuery as the reporting substrate. [source note](../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md)
+
+For AI platforms, the useful synthesis is a common mapping rather than a single product feature: cloud billing rows and allocation rules have to be joined to Kubernetes namespace/workload labels, queue or job metadata, accelerator node labels, reservations or capacity commitments, and team ownership. This page can now support mechanism-level cross-cloud chargeback discussions, but it should not claim parity. Azure allocation rules exclude purchases such as reservations and savings plans, AWS Capacity Blocks are reservation-window evidence rather than workload accounting, and Google billing export still needs local labels and ownership conventions before accelerator spend becomes auditable chargeback. [source note](../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md), [source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md), [source note](../../raw/links/opencost-cost-attribution-official-20260707.md)
+
+# Policy Enforcement And Audit
+
+Kubernetes admission and audit sources add a bounded policy-enforcement layer. ValidatingAdmissionPolicy uses CEL-based admission validation and bindings with deny, warn, or audit-style actions. Kubernetes audit logging records API-server request activity according to an audit policy. Gatekeeper audit periodically evaluates existing resources against constraints, while Kyverno validate rules and PolicyReports provide policy checking plus resource-level reporting surfaces. These sources support policy-as-code mechanics for AI platform namespaces, accelerator labels, queue configuration, storage/index cleanup jobs, and operator-managed resources. [source note](../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md)
+
+This is still not end-to-end RAG enforcement evidence. The existing RAG governance sources separately cover Azure AI Search permission metadata and security trimming, chunk-level permission projection, PII masking, DataHub policy, Weaviate RBAC/tenancy, vector-store delete/TTL controls, source deletion detection, and Langfuse dataset versioning. Policy-as-code and audit logs can make the Kubernetes resource layer inspectable, but a complete enforcement run would still need evidence that source permissions, source deletes or retention events, search/vector indexes, RAG caches, evaluation datasets, timing, and verification all observed the same policy decision. [source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md), [source note](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md), [source note](../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md)
+
 # Coverage Boundaries
 
 Use this page as source-backed coverage for `security-governance-cost`:
@@ -91,7 +107,9 @@ Use this page as source-backed coverage for `security-governance-cost`:
 - vector-store RBAC and tenant-scoped object isolation through Weaviate;
 - evaluation dataset versioning through Langfuse;
 - Kubernetes workload cost allocation through OpenCost;
+- AWS, Azure, and Google Cloud cost allocation dimensions that can be normalized through tags, labels, namespaces, workloads, and ownership metadata;
 - cloud accelerator capacity reservation and account quota planning through AWS EC2 Capacity Blocks and Service Quotas;
+- Kubernetes admission policy, audit logging, Gatekeeper audit, Kyverno validation, and policy reports as policy-as-code enforcement and audit-reporting mechanics;
 - NCCL runtime cost-estimation and resource-efficiency evidence only where the claim is about communication or communicator initialization.
 
 Do not use this page to claim complete compliance posture, legal governance, end-to-end data/RAG policy enforcement, cross-cloud chargeback parity, or production incident readiness. Those remain future gaps.
@@ -104,6 +122,8 @@ Do not use this page to claim complete compliance posture, legal governance, end
 - [OpenCost cost allocation source note](../../raw/links/opencost-cost-attribution-official-20260707.md)
 - [AWS accelerator capacity and service quota source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md)
 - [RAG access policy, PII, and evaluation governance source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
+- [Cross-cloud chargeback and cost allocation source note](../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md)
+- [Policy enforcement, deletion-retention, and audit source note](../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md)
 - [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
 - [NVIDIA BlueField-3 raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
 - [Kueue closed issues summary](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json)

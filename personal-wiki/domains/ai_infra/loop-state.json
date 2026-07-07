@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T11:04:55Z",
+  "last_scan_at": "2026-07-07T12:05:00Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "coverage_gaps": [],
@@ -351,6 +351,24 @@
         "personal-wiki/domains/ai_infra/raw/links/network-storage-incident-postmortem-sources-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/aws-efa-ai-cluster-networking-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md"
+      ]
+    },
+    {
+      "id": "cross-cloud-chargeback-policy-enforcement-primary-sources",
+      "title": "Cross-cloud chargeback, policy enforcement, deletion-retention, and audit source evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T12:05:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ]
     }
   ],

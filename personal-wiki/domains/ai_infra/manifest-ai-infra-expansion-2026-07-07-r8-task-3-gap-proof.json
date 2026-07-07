@@ -1,0 +1,176 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r8-task-3",
+  "run_id": "ai-infra-expansion-2026-07-07-r8",
+  "layer": "security-governance-cost",
+  "candidate": {
+    "title": "Cross-cloud chargeback, policy enforcement, deletion-retention, and audit evidence",
+    "source_type": "official_primary_source_notes_with_duplicate_boundaries",
+    "identity_key": "url:cross-cloud-chargeback-policy-enforcement:audit:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "d539bdd",
+    "checked_at": "2026-07-07T11:24:35Z",
+    "git_status_before_task": "git status --short returned no changed paths before task-3 edits."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local wiki, raw/links, raw/crawler, raw/github, coverage-map.json, loop-state.json, ingest.md, and r7/r8 gap proofs for chargeback, cost allocation, split cost, billing labels, cost tags, namespace labels, workload labels, team ownership, account quota, accelerator reservations, ResourceQuota, Kueue, OpenCost, AWS capacity blocks, policy enforcement, admission, audit, retention, deletion, source permissions, vector index, RAG cache, evaluation dataset, PII, and redaction terms. Existing local evidence covered OpenCost workload accounting, AWS capacity blocks/service quotas, Kubernetes ResourceQuota, Kueue, Azure AI Search access controls and deletion detection, vector-store delete/TTL, DataHub policy, Weaviate RBAC/tenancy, Langfuse dataset versioning, and evaluation alert/SLO mechanics, but did not preserve bounded cross-cloud billing tag/label normalization or policy-as-code audit sources.",
+    "wiki_search": "Security Governance Cost Infrastructure and AI Infra Coverage Map explicitly left cross-cloud chargeback, full policy-enforcement runs, production enforcement incidents, and end-to-end policy enforcement open. Data RAG Pipeline, Data RAG Vector, and Evaluation Observability Reliability Infrastructure already covered source-to-vector deletion/retention controls, document-level RAG access, PII, and Langfuse dataset versioning as duplicate boundaries.",
+    "domain_index_scan": "ai_infra wiki/index.md already routes Security Governance Cost Infrastructure, Data RAG Pipeline Infrastructure, Data RAG Vector Infrastructure, Evaluation Observability Reliability Infrastructure, Orchestration Scheduling Infrastructure, and AI Infra Coverage Map; task-3 updates existing reference pages and does not create a new curated page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+      "result": "primary duplicate boundary for tenant isolation, quota governance, OpenCost workload allocation, AWS capacity planning, RAG access policy, PII, DataHub policy, Weaviate tenancy, and Langfuse dataset versioning; updated only with cross-cloud chargeback and policy/audit mechanics."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "result": "duplicate boundary for ingestion, lineage, source deletion detection, access propagation, PII masking, and evaluation dataset versioning; not edited because task-3 found no full source-to-vector/cache/evaluation run evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+      "result": "duplicate boundary for vector-store object deletion, TTL, and tenant deletion; not edited because task-3 did not add vector-store implementation evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "duplicate boundary for evaluation traces, SLO/alerting mechanics, platform observability, and Langfuse-adjacent dataset versioning; not edited because task-3 did not produce evaluation dataset retention/access audit run artifacts."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+      "result": "duplicate boundary for RAG source-to-vector deletion, access policy, PII, vector RBAC/tenancy, and evaluation dataset versioning; task-3 avoids repeating those claims except as unresolved end-to-end run boundaries."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+      "result": "duplicate boundary for inference deployment controls; task-3 does not repeat Ray Serve, Knative, KServe, autoscaling, or rollout evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json",
+      "result": "duplicate boundary for network/storage topology and benchmark evidence; task-3 does not repeat HyperPod, EFA, FSx, MLCommons, WEKA, Ceph, SPDK, RoCE, Spectrum-X, SHARP, or NVBandwidth claims."
+    }
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md",
+      "coverage": "AWS split cost allocation and cost allocation tags; Azure cost allocation and AKS cost analysis boundaries; Google Cloud Billing export and GKE cost allocation; common tag/label/namespace/workload/team-ownership chargeback normalization boundary."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md",
+      "coverage": "Kubernetes ValidatingAdmissionPolicy, Kubernetes audit logging, Gatekeeper audit, Kyverno validation, and Kyverno PolicyReports as policy-as-code enforcement and audit/reporting mechanics."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json"
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://docs.aws.amazon.com/cur/latest/userguide/split-cost-allocation-data.html",
+      "status": "pass",
+      "evidence": "web.open returned the official AWS split cost allocation documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html",
+      "status": "pass",
+      "evidence": "web.open returned the official AWS cost allocation tag documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/allocate-costs",
+      "status": "pass",
+      "evidence": "web.open returned the official Azure cost allocation documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/aks/cost-analysis",
+      "status": "pass",
+      "evidence": "web.open returned the official Azure AKS cost analysis documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.cloud.google.com/kubernetes-engine/docs/how-to/cost-allocations",
+      "status": "pass",
+      "evidence": "web.open returned the official Google Kubernetes Engine cost allocation documentation on 2026-07-07."
+    },
+    {
+      "url": "https://cloud.google.com/billing/docs/how-to/export-data-bigquery",
+      "status": "pass",
+      "evidence": "web.open returned the official Google Cloud Billing export documentation on 2026-07-07."
+    },
+    {
+      "url": "https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/",
+      "status": "pass",
+      "evidence": "web.open returned the official Kubernetes ValidatingAdmissionPolicy documentation on 2026-07-07."
+    },
+    {
+      "url": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/",
+      "status": "pass",
+      "evidence": "web.open returned the official Kubernetes audit documentation on 2026-07-07."
+    },
+    {
+      "url": "https://open-policy-agent.github.io/gatekeeper/website/docs/audit/",
+      "status": "pass",
+      "evidence": "web.open returned the official OPA Gatekeeper audit documentation on 2026-07-07."
+    },
+    {
+      "url": "https://kyverno.io/docs/policy-types/cluster-policy/validate/",
+      "status": "pass",
+      "evidence": "web.open returned the official Kyverno validate-rule documentation on 2026-07-07."
+    },
+    {
+      "url": "https://kyverno.io/docs/policy-reports/",
+      "status": "pass",
+      "evidence": "web.open returned the official Kyverno PolicyReports documentation on 2026-07-07."
+    },
+    {
+      "url": "local urllib HEAD probe for selected official source URLs",
+      "status": "blocked",
+      "evidence": "Local sandbox DNS returned Temporary failure in name resolution for selected official URLs; source notes therefore record web.open pass evidence plus local network blocked evidence."
+    }
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "source_type": "public_production_policy_or_chargeback_incident",
+      "status": "blocked",
+      "reason": "No public production incident or postmortem was promoted because the verified official sources support mechanisms, not impact timelines, affected AI platform environments, remediation, or follow-up ownership.",
+      "policy": "Do not add incident, postmortem, audit, or enforcement-failure claims without complete primary-source context."
+    },
+    {
+      "source_type": "complete_end_to_end_deletion_retention_run",
+      "status": "blocked",
+      "reason": "Existing local RAG sources prove source deletion detection, vector deletion/TTL, access metadata, PII masking, and dataset versioning separately; no new source connected source systems, search/vector indexes, RAG caches, evaluation datasets, timing, and verification into one run.",
+      "policy": "Keep full source-to-vector/cache/evaluation propagation evidence partial until a run or audit artifact covers every hop."
+    },
+    {
+      "source_type": "crawler_source_subscription",
+      "status": "not_used",
+      "reason": "No repeated source family needed scheduled refresh; one-shot bounded raw notes were sufficient.",
+      "policy": "Prefer one-shot bounded notes unless duplicate/gap proof shows a repeated source needs scheduled refresh."
+    }
+  ],
+  "gap_reason": "The local wiki and raw corpus already covered tenant isolation, quota admission, OpenCost workload accounting, AWS accelerator capacity/quota planning, RAG access, PII, vector deletion/TTL, DataHub policy, Weaviate tenancy, and Langfuse dataset versioning. It did not preserve a cross-cloud mapping from AWS/Azure/GCP billing dimensions to Kubernetes namespace/workload/team labels, or a bounded policy-as-code enforcement and audit source set. The selected official sources fill those mechanism-level gaps while keeping complete chargeback parity, production enforcement failures, and full source-to-vector/cache/evaluation policy-run evidence open.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-verification.json"
+  ],
+  "generated_at": "2026-07-07T12:05:00Z"
+}

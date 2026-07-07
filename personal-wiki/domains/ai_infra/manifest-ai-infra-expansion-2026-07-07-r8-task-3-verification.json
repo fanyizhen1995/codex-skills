@@ -1,0 +1,180 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r8-task-3",
+  "run_id": "ai-infra-expansion-2026-07-07-r8",
+  "generated_at": "2026-07-07T12:25:00Z",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md; no substantive index diff was needed because page frontmatter did not change."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "summary": "loop-state.json and coverage-map.json satisfied schema and ai_infra semantic validation."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "summary": "coverage-map.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "summary": "loop-state.json parsed as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "summary": "gap-proof manifest parsed as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r8-task-3') ... PY",
+      "status": "pass",
+      "summary": "gap proof validator returned no findings for task-3."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "summary": "No whitespace errors reported."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "summary": "No AKIA keys, private keys, bearer tokens, password/api-key assignments, or credential-shaped values found in changed task files; rg returned no matches."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "summary": "All declared changed paths are under personal-wiki/domains/ai_infra/** and none match the planner denylist."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No backend, frontend, loop-dashboard, harness, dependency manifest, or code files changed; code tests and supply-chain dependency review are not applicable generator-side."
+    },
+    {
+      "command": "source visibility check for cross-cloud chargeback, policy enforcement, cost allocation tags, billing labels, namespace labels, accelerator reservations, quotas, source permissions, vector indexes, RAG caches, evaluation datasets, audit logs, deletion propagation, retention propagation, and PII controls",
+      "status": "pass",
+      "summary": "Targeted rg over the new raw notes, updated curated pages, coverage-map.json, loop-state.json, and gap proof found current cross-cloud, chargeback, cost allocation, split cost, billing export, namespace, workload, labels, Capacity Blocks, Service Quotas, ValidatingAdmissionPolicy, admission, Gatekeeper, Kyverno, audit, PolicyReports, source permission, vector index, RAG cache, evaluation dataset, deletion, retention, and PII terms."
+    },
+    {
+      "command": "bounded external link probe for AWS, Azure, Google Cloud, Kubernetes, Gatekeeper, and Kyverno URLs using urllib plus web.open source evidence",
+      "status": "blocked",
+      "summary": "Local sandbox DNS returned Temporary failure in name resolution for selected official URLs. Gap proof and raw notes record web.open pass evidence for AWS split cost allocation and cost allocation tags, Azure cost allocation and AKS cost analysis, Google Cloud Billing export and GKE cost allocation, Kubernetes ValidatingAdmissionPolicy and audit logging, OPA Gatekeeper audit, Kyverno validation, and Kyverno PolicyReports."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted service-availability evidence in trusted-live-evidence/service-availability.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=cross-cloud%20chargeback%20cost%20allocation%20policy%20audit'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted search API visibility in trusted-live-evidence/search-api-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8765/api/search?q=ValidatingAdmissionPolicy%20Gatekeeper%20Kyverno%20billing%20labels'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted search/API and crawler-workbench freshness evidence."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted frontend visibility in trusted-live-evidence/frontend-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted loop dashboard freshness in trusted-live-evidence/loop-dashboard-freshness.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS 'http://127.0.0.1:8766/api/runs/ai-infra-expansion-2026-07-07-r8' || curl --noproxy '*' -fsS 'http://127.0.0.1:8766/api/runs'",
+      "status": "delegated",
+      "summary": "Skipped by generator instruction; orchestrator captures trusted loop dashboard run visibility in trusted-live-evidence/loop-dashboard-freshness.json."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-verification.json >/dev/null",
+      "status": "pass",
+      "summary": "verification manifest parsed as JSON after creation."
+    },
+    {
+      "command": "write .codex/loop-runs/ai-infra-expansion-2026-07-07-r8/required-evidence-manifest.json",
+      "status": "blocked",
+      "summary": "Run directory write was rejected by sandbox policy as outside the writable project scope; required_evidence_manifest is embedded in the final generator-result payload instead."
+    }
+  ],
+  "link_probe_summary": {
+    "new_external_source_count": 11,
+    "local_urllib_result": "blocked_dns_for_selected_external_urls",
+    "promoted_sources": [
+      "personal-wiki/domains/ai_infra/raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md",
+      "personal-wiki/domains/ai_infra/raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md"
+    ],
+    "blocked_sources_not_promoted": [
+      "public production chargeback incidents without impact/timeline/remediation/ownership context",
+      "public production policy-enforcement incidents without impact/timeline/remediation/ownership context",
+      "complete source-to-vector/cache/evaluation propagation run artifacts"
+    ],
+    "claim_boundary": "Cross-cloud chargeback dimensions and policy-as-code audit mechanics are curated; complete chargeback parity, production incident/postmortem evidence, and end-to-end source-to-vector/cache/evaluation enforcement runs remain open."
+  },
+  "live_checks": {
+    "status": "delegated",
+    "reason": "Generator instruction forbids localhost service/socket checks and long-lived services; trusted live evidence is delegated to the orchestrator.",
+    "trusted_live_evidence": [
+      "trusted-live-evidence/service-availability.json",
+      "trusted-live-evidence/crawler-workbench-freshness.json",
+      "trusted-live-evidence/loop-dashboard-freshness.json",
+      "trusted-live-evidence/search-api-visibility.json",
+      "trusted-live-evidence/frontend-visibility.json"
+    ]
+  },
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard availability for this round"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "sources, channels, queue, wiki, and search freshness for the changed ai_infra target state"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "current run, child-task, agent-action, evaluator-scenario, and completed-history visibility"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search API visibility for the new cross-cloud chargeback and policy-enforcement content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "frontend visibility for the new cross-cloud chargeback and policy-enforcement content through the workbench proxy"
+    }
+  ],
+  "dependency_changes": false,
+  "code_changes": false,
+  "crawler_source_subscriptions_changed": false,
+  "commit": "",
+  "notes": "No live service checks, tmux, uvicorn, npm, Vite, or other long-lived services were started by the generator. Run directory writes are blocked in this environment, so required_evidence_manifest and generator-result are returned as the final JSON payload."
+}
