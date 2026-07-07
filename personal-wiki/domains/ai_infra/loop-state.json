@@ -3,22 +3,9 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T02:05:22Z",
+  "last_scan_at": "2026-07-07T02:38:17Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
-    {
-      "id": "security-governance-cost-primary-sources",
-      "title": "Add AI platform tenant isolation, governance, cost attribution, and capacity planning sources",
-      "source": "coverage-map:security-governance-cost",
-      "status": "candidate",
-      "updated_at": "2026-07-06T22:06:03Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
-        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
-      ]
-    },
     {
       "id": "network-storage-cluster-primary-sources",
       "title": "Add EFA, storage, and parallel filesystem infrastructure coverage beyond NCCL/Spectrum-X",
@@ -214,6 +201,21 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
+      ]
+    },
+    {
+      "id": "security-governance-cost-primary-sources",
+      "title": "AI platform tenant isolation, quota governance, cost attribution, and capacity planning sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T02:38:17Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260626T015710841547Z-developer-nvidia-com-blog-one-click-multi-tenant-security-with-nvidia-quantum-infiniband-5b2cd4e1d4.md",
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md"
       ]
     }
   ],

@@ -151,12 +151,18 @@
     "security-governance-cost": {
       "status": "partial",
       "covered_pages": [
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
         "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
       ],
       "raw_evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260626T015710841547Z-developer-nvidia-com-blog-one-click-multi-tenant-security-with-nvidia-quantum-infiniband-5b2cd4e1d4.md",
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md",
@@ -164,12 +170,13 @@
         "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json"
       ],
       "candidate_gaps": [
-        "Add tenant isolation, MIG/vGPU, confidential computing, quota governance, cost attribution, and capacity planning sources.",
-        "Separate security/governance claims from adjacent DPU, GPU-sharing, and scheduling evidence."
+        "Add evaluation-data governance, RAG access policy, PII controls, deletion/retention governance, and incident/postmortem evidence.",
+        "Add cross-cloud cost attribution and chargeback examples that normalize labels, accelerator reservations, namespace/team ownership, and cloud account quotas across providers.",
+        "Add production evidence for policy enforcement failures or remediations rather than only product documentation."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T22:06:03Z",
-      "notes": "NCCL 2.22 cost-estimation and resource-efficiency evidence now complements adjacent NCCL GPU sharing and virtualization issues, DPU/security positioning, and Kueue quota-aware scheduling; tenant isolation, governance, and cost attribution remain open."
+      "last_scanned_at": "2026-07-07T02:38:17Z",
+      "notes": "Security Governance Cost Infrastructure now adds source-backed coverage for Quantum InfiniBand tenant isolation, MIG/vGPU accelerator sharing, NVIDIA confidential-computing attestation, Kubernetes ResourceQuota, Kueue ClusterQueue/ResourceFlavor/cohort governance, OpenCost workload cost allocation, and AWS accelerator capacity/service-quota planning. The layer remains partial because evaluation-data governance, RAG access policy, cross-cloud chargeback, and incident evidence are still thin."
     },
     "hardware-accelerator": {
       "status": "partial",

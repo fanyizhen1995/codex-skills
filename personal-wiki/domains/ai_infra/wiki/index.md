@@ -44,4 +44,5 @@ _No pages yet._
 - [NCCL GitHub Closed Issues](references/nccl-github-closed-issues.md) - Local raw corpus and curated operational signals from closed NVIDIA/nccl GitHub issues and issue comments.
 - [NCCL Release Notes](references/nccl-release-notes.md) - Complete local catalog of official NVIDIA NCCL release-note pages from 2.30.7 back to 2.0.2.
 - [NCCL Technical Blog Network Observability](references/nccl-technical-blog-network-observability.md) - Local NVIDIA technical-blog evidence for NCCL Inspector, Prometheus observability, Spectrum-X/RoCE convergence, NCCL reliability, SHARP, NVBandwidth, and cost-estimation signals.
+- [Security Governance Cost Infrastructure](references/security-governance-cost-infrastructure.md) - Source-backed reference for AI platform tenant isolation, accelerator sharing governance, quota controls, cost attribution, and capacity planning.
 - [SGLang GitHub Closed Issues And PRs](references/sglang-github-closed-issues-prs.md) - Local raw corpus and curated operational signals from closed sgl-project/sglang GitHub issues, pull requests, comments, and review comments.
