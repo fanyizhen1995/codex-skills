@@ -23,6 +23,7 @@ source_refs:
   - ../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md
   - ../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md
   - ../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md
+  - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json
@@ -87,11 +88,15 @@ The cross-cloud chargeback source note fills the cloud-billing side that OpenCos
 
 For AI platforms, the useful synthesis is a common mapping rather than a single product feature: cloud billing rows and allocation rules have to be joined to Kubernetes namespace/workload labels, queue or job metadata, accelerator node labels, reservations or capacity commitments, and team ownership. This page can now support mechanism-level cross-cloud chargeback discussions, but it should not claim parity. Azure allocation rules exclude purchases such as reservations and savings plans, AWS Capacity Blocks are reservation-window evidence rather than workload accounting, and Google billing export still needs local labels and ownership conventions before accelerator spend becomes auditable chargeback. [source note](../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md), [source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md), [source note](../../raw/links/opencost-cost-attribution-official-20260707.md)
 
+The r10 RAG operations probe keeps RAG-specific cost attribution open. Existing OpenCost and cloud billing sources provide mechanism-level allocation dimensions, but no local or reachable source in the probe joined RAG pipeline jobs, embedding workers, vector/search resources, cache or serving costs, Kubernetes/cloud labels, and team ownership into an observed reporting output. [source note](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
+
 # Policy Enforcement And Audit
 
 Kubernetes admission and audit sources add a bounded policy-enforcement layer. ValidatingAdmissionPolicy uses CEL-based admission validation and bindings with deny, warn, or audit-style actions. Kubernetes audit logging records API-server request activity according to an audit policy. Gatekeeper audit periodically evaluates existing resources against constraints, while Kyverno validate rules and PolicyReports provide policy checking plus resource-level reporting surfaces. These sources support policy-as-code mechanics for AI platform namespaces, accelerator labels, queue configuration, storage/index cleanup jobs, and operator-managed resources. [source note](../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md)
 
 This is still not end-to-end RAG enforcement evidence. The existing RAG governance sources separately cover Azure AI Search permission metadata and security trimming, chunk-level permission projection, PII masking, DataHub policy, Weaviate RBAC/tenancy, vector-store delete/TTL controls, source deletion detection, and Langfuse dataset versioning. Policy-as-code and audit logs can make the Kubernetes resource layer inspectable, but a complete enforcement run would still need evidence that source permissions, source deletes or retention events, search/vector indexes, RAG caches, evaluation datasets, timing, and verification all observed the same policy decision. [source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md), [source note](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md), [source note](../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md)
+
+R10 records the same conclusion as blocked-source evidence after duplicate local search and DNS-blocked probes for adjacent evaluation, observability, and cost source families. Do not use the component controls on this page to infer complete RAG policy-enforcement or chargeback correctness. [source note](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 
 # Coverage Boundaries
 
@@ -124,6 +129,7 @@ Do not use this page to claim complete compliance posture, legal governance, end
 - [RAG access policy, PII, and evaluation governance source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
 - [Cross-cloud chargeback and cost allocation source note](../../raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md)
 - [Policy enforcement, deletion-retention, and audit source note](../../raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md)
+- [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 - [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
 - [NVIDIA BlueField-3 raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
 - [Kueue closed issues summary](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json)

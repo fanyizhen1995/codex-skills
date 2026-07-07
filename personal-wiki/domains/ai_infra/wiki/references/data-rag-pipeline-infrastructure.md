@@ -29,6 +29,7 @@ source_refs:
   - ../../raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md
   - ../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md
   - ../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md
+  - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
   - data-rag-vector-infrastructure.md
 updated: 2026-07-07
 related:
@@ -41,6 +42,8 @@ related:
 This page extends the `data-rag-vector` layer beyond vector database and index mechanics. It covers the pipeline surfaces around retrieval systems: data ingestion and transforms, streaming refresh, workflow orchestration, embedding workers, metadata lineage, table-format lifecycle governance, and RAG observability.
 
 The selected sources are deliberately bounded. Ray Data supplies batch and object-store-oriented data processing evidence; Flink supplies checkpointed streaming refresh evidence; Kafka Connect and Kafka Streams supply connector and stream-processor boundaries; Airflow, Dagster, and Prefect supply workflow scheduler evidence; Hugging Face Text Embeddings Inference supplies an embedding-serving boundary; DataHub and OpenLineage supply metadata and lineage boundaries; Iceberg, Delta Lake, and Hudi supply object-store table lifecycle evidence; Azure AI Search supplies document-level access-control, chunk-level permission projection, PII masking, and blob delete-detection evidence; Langfuse supplies RAG trace, evaluation, and dataset-versioning evidence. Vector store internals remain in [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md).
+
+The r10 RAG operations probe records a negative boundary: local evidence and bounded shell probes did not surface a source-backed run tying source deletes or permission changes to embedding ids, vector/search index updates, RAG cache invalidation, evaluation dataset handling, timing, and verification. Treat the run-level propagation gap as blocked-source evidence until a primary run, audit, incident, or case-study artifact is captured. [raw](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 
 # Pipeline Boundaries
 
@@ -90,6 +93,8 @@ PII controls belong in the indexing pipeline rather than only in application pol
 
 This page should not overstate governance coverage. The local source set now supports ingestion, workflow orchestration, lineage, catalog policy, schema/ownership, run/dataset metadata, table snapshots or transaction logs, table delete/update/upsert surfaces, table cleanup/retention mechanics, search-index deletion detection, document-level RAG access metadata, chunk-level permission projection, PII masking, vector delete/TTL controls, and evaluation dataset versioning. It does not yet prove complete propagation from source-table deletes or permission changes into every embedding store, vector index, cache, and evaluation dataset in a production incident or run log.
 
+The r10 probe strengthens that caution rather than closing the gap. It found duplicate local coverage for component-level controls and recorded DNS-blocked probes for adjacent LangSmith, Langfuse, Ragas, Grafana, and OpenCost source families, but did not capture run-level propagation, embedding-drift policy, retrieval-quality alert routing, or RAG cost-reporting output. [raw](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
+
 # RAG Observability
 
 RAG observability needs retrieval-level traces, not only model-server health. Langfuse documents hierarchical traces with retrieval steps, model generations, scores, datasets, experiments, user feedback, and OpenTelemetry ingestion. That supports an operator view where retrieval context, generated answers, feedback, and evaluation scores can be inspected together after an ingestion or embedding refresh. [raw](../../raw/links/langfuse-rag-observability-official-docs-20260707.md)
@@ -122,4 +127,5 @@ Remaining gaps include full source-to-vector propagation run evidence across eve
 - [Apache Hudi table lifecycle source note](../../raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md)
 - [Source-to-vector deletion and retention source note](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md)
 - [RAG access policy, PII, and evaluation governance source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
+- [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 - [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md)

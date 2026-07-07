@@ -26,6 +26,7 @@ source_refs:
   - ../../raw/links/non-nvidia-platform-observability-official-sources-20260707.md
   - ../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md
   - ../../raw/links/inference-serving-incident-postmortem-sources-20260707.md
+  - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
@@ -53,6 +54,8 @@ Prometheus alerting rules, Alertmanager routing, Grafana notification policies, 
 Grafana SLO documentation frames reliability around SLIs, SLO targets, time windows, burn-rate views, error-budget views, and alert rules. Grafana AI Observability adds LLM-specific metrics and dashboard surfaces such as request activity, latency, time to first token, error rate, token use, cost, cache behavior, quality scores, and example alerts for error rate, p95 latency, spend, and evaluation-score changes. [raw](../../raw/links/evaluation-slo-alerting-official-sources-20260707.md)
 
 This closes only the alerting-mechanics gap. These sources do not prove a local production LLM service objective, a validated alert threshold, a real escalation tree, or an incident response process. Promote a production SLO only when the evidence includes the service, SLI definition, target, time window, alert threshold, route/escalation owner, and observed run or incident context. [raw](../../raw/links/evaluation-slo-alerting-official-sources-20260707.md)
+
+The r10 RAG operations probe applied the same rule to retrieval-quality alerting. Local evidence covers Ragas metrics, LangSmith and Phoenix traces, Langfuse RAG evaluation, OpenTelemetry GenAI retrieval spans, and Grafana AI Observability quality-score and cost alert examples, but the probe did not capture a primary artifact with retrieval metric thresholds, notification route, owner, and observed RAG run. [raw](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 
 The r9 KServe and incident/postmortem source probes did not add service-specific production SLO evidence. They record that local sources already cover generic SLO and trace mechanics, but the selected KServe URLs and external incident source path were blocked by DNS or lacked captured content in this generator attempt. Treat those notes as gap evidence until a later capture includes the service, trace or metric artifact, chosen SLO/threshold, escalation owner, and observed run or incident context. [raw](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md) [raw](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
 
@@ -114,3 +117,4 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [Non-NVIDIA platform observability source note](../../raw/links/non-nvidia-platform-observability-official-sources-20260707.md)
 - [KServe inference deployment SLO trace source probe](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md)
 - [Inference serving incident and postmortem source probe](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
+- [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)

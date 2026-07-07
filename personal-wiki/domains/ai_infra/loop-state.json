@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T13:14:51Z",
+  "last_scan_at": "2026-07-07T13:47:31Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -414,6 +414,22 @@
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json",
         "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md",
         "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+      ]
+    },
+    {
+      "id": "rag-propagation-drift-alert-cost-blocked-source-evidence",
+      "title": "RAG propagation, embedding drift, retrieval alerting, and cost attribution blocked source evidence",
+      "source": "bounded local and official-source probe",
+      "status": "known",
+      "updated_at": "2026-07-07T13:47:31Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
       ]
     }

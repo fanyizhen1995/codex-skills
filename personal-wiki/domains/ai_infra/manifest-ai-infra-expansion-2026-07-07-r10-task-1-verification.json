@@ -1,0 +1,156 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r10-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r10",
+  "generated_at": "2026-07-07T13:47:31Z",
+  "status": "pass",
+  "results": [
+    {
+      "label": "coverage and loop-state schema semantics",
+      "command": "python3 -c from pathlib import Path\nfrom scripts.harness_loop_contracts import read_json_file, validate_loop_state_payload, validate_coverage_map_payload\nfrom scripts.harness_loop_autonomous import validate_ai_infra_coverage_map_semantics\nroot = Path('.')\nstate = read_json_file(root / 'personal-wiki/domains/ai_infra/loop-state.json')\ncoverage = read_json_file(root / 'personal-wiki/domains/ai_infra/coverage-map.json')\nvalidate_loop_state_payload(state)\nvalidate_coverage_map_payload(coverage)\nvalidate_ai_infra_coverage_map_semantics(coverage, expected_domain='ai_infra')\n",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "domain index rebuild",
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md\n",
+      "stderr": ""
+    },
+    {
+      "label": "domain wiki validate",
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "No validation issues\n",
+      "stderr": ""
+    },
+    {
+      "label": "coverage-map json syntax",
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "og-ai-fabric-resiliency-and-why-network-convergence-matters-2d9246e4ca.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298217Z-developer-nvidia-com-blog-advancing-performance-with-nvidia-sharp-in-network-computing-2154529061.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704299278Z-developer-nvidia-com-blog-oci-accelerates-hpc-ai-and-database-using-roce-and-nvidia-connec-904a22fed4.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704299596Z-developer-nvidia-com-blog-turbocharging-ai-workloads-with-nvidia-spectrum-x-networking-pla-752fd3e399.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md\",\n                \"personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md\",\n                \"personal-wiki/domains/ai_infra/raw/links/network-storage-topology-benchmark-official-sources-20260707.md\",\n                \"personal-wiki/domains/ai_infra/raw/links/network-storage-incident-postmortem-sources-20260707.md\",\n                \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json\",\n                \"personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md\",\n                \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json\"\n            ],\n            \"candidate_gaps\": [\n                \"Add complete production incident and postmortem evidence for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, and NVMe-oF failure modes in AI clusters, with impact, timeline, environment, remediation, and follow-up ownership.\",\n                \"Add exact product/provider benchmark submissions or case studies that tie storage/fabric choices to concrete training, checkpointing, and inference data paths with full environment, topology, configuration, measured results, and captured per-submission result artifacts.\",\n                \"Broaden non-AWS/non-NVIDIA fabric operations beyond AWS HyperPod/EFA mechanics, Trainium2 cloud-offering fields, existing Spectrum-X/RoCE evidence, and the r9 blocked MLCommons exact-result probe.\"\n            ],\n            \"blocked_reason\": \"\",\n            \"last_scanned_at\": \"2026-07-07T13:14:51Z\",\n            \"notes\": \"Network Storage Cluster Infrastructure now adds official source notes for AWS EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, checkpoint-aware resume, and MLCommons Storage benchmark mechanics, while reusing existing NCCL technical-blog fabric evidence and local DPU/SmartNIC/NVMe-oF product captures. R9 task 3 records blocked-source evidence for exact MLCommons Storage measured-result artifacts: local search found no captured per-submission result file, and bounded GitHub API/raw probes failed with local DNS resolution errors. The layer remains partial because public incident/postmortem sources, exact measured product/provider benchmark submissions, and broader non-AWS/non-NVIDIA fabric operations evidence are still thin.\"\n        }\n    }\n}\n",
+      "stderr": ""
+    },
+    {
+      "label": "loop-state json syntax",
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "rt-cost-blocked-source-evidence\",\n            \"title\": \"RAG propagation, embedding drift, retrieval alerting, and cost attribution blocked source evidence\",\n            \"source\": \"bounded local and official-source probe\",\n            \"status\": \"known\",\n            \"updated_at\": \"2026-07-07T13:47:31Z\",\n            \"evidence\": [\n                \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json\",\n                \"personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md\",\n                \"personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md\",\n                \"personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md\",\n                \"personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md\",\n                \"personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md\",\n                \"personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md\"\n            ]\n        }\n    ],\n    \"coverage_gaps\": [\n        {\n            \"id\": \"kserve-inference-deployment-source-capture\",\n            \"title\": \"KServe InferenceService autoscaling and canary source capture\",\n            \"source\": \"bounded local and external source probe\",\n            \"status\": \"blocked\",\n            \"updated_at\": \"2026-07-07T12:08:36Z\",\n            \"evidence\": [\n                \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json\",\n                \"personal-wiki/domains/ai_infra/raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md\"\n            ],\n            \"blocked_reason\": \"Local duplicate checks found no existing KServe-specific autoscaling/canary coverage, and bounded probes for kserve.github.io and github.com failed with DNS resolution errors in this sandbox. No KServe claims were promoted without reliable primary-source content.\"\n        },\n        {\n            \"id\": \"inference-serving-postmortem-source-capture\",\n            \"title\": \"Inference serving production postmortem and rollback source capture\",\n            \"source\": \"bounded local and external source probe\",\n            \"status\": \"blocked\",\n            \"updated_at\": \"2026-07-07T12:08:36Z\",\n            \"evidence\": [\n                \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-1-gap-proof.json\",\n                \"personal-wiki/domains/ai_infra/raw/links/inference-serving-incident-postmortem-sources-20260707.md\"\n            ],\n            \"blocked_reason\": \"Local SGLang records are incident-shaped operational leads, not complete production postmortems with service impact, timeline, remediation, and follow-up ownership. External source probing was bounded by sandbox DNS failure, so no production rollback or postmortem claims were promoted.\"\n        },\n        {\n            \"id\": \"network-storage-exact-benchmark-result-capture\",\n            \"title\": \"Exact MLCommons Storage measured-result artifact capture\",\n            \"source\": \"bounded local and official-source probe\",\n            \"status\": \"blocked\",\n            \"updated_at\": \"2026-07-07T13:14:51Z\",\n            \"evidence\": [\n                \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json\",\n                \"personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md\"\n            ],\n            \"blocked_reason\": \"Local duplicate checks found only MLCommons Storage benchmark-method and result-framework evidence, not an exact measured-result artifact. Bounded GitHub API and raw result probes for mlcommons/storage_results_v2.0 failed in the shell sandbox with Temporary failure in name resolution, so no throughput, ranking, or product/provider benchmark-performance claim was promoted.\"\n        }\n    ],\n    \"blocked_items\": [],\n    \"no_action_evidence\": []\n}\n",
+      "stderr": ""
+    },
+    {
+      "label": "gap-proof json syntax",
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "n\",\n            \"status\": \"blocked\",\n            \"reason\": \"No local or reachable primary source connected source deletes or permission changes to embedding ids, vector/search index updates, RAG cache invalidation, evaluation dataset handling, timing, and verification.\",\n            \"policy\": \"Do not promote full propagation without explicit run, audit, incident, or case-study evidence for every hop.\"\n        },\n        {\n            \"source_type\": \"embedding_model_version_drift_policy\",\n            \"status\": \"blocked\",\n            \"reason\": \"No local or reachable primary source recorded embedding model identity, old/new vector compatibility, rebuild/backfill triggers, index state, and retrieval-quality validation in one policy or run.\",\n            \"policy\": \"Keep embedding drift partial until a policy or run artifact exposes model/version and validation boundaries.\"\n        },\n        {\n            \"source_type\": \"retrieval_quality_alerting_run\",\n            \"status\": \"blocked\",\n            \"reason\": \"Local evidence covers retrieval metrics and generic alert mechanics, but no source tied retrieval-quality score thresholds to notification routes, owners, and an observed RAG production or staging run.\",\n            \"policy\": \"Do not infer production alerting from generic metric or dashboard documentation.\"\n        },\n        {\n            \"source_type\": \"rag_cost_attribution_reporting_output\",\n            \"status\": \"blocked\",\n            \"reason\": \"Local evidence covers OpenCost and cloud billing dimensions, but no source joins RAG pipeline jobs, embedding workers, vector/search resources, cache or serving costs, labels, and ownership into an observed report.\",\n            \"policy\": \"Do not claim RAG chargeback correctness from allocation mechanics alone.\"\n        },\n        {\n            \"source_type\": \"crawler_source_subscription\",\n            \"status\": \"not_used\",\n            \"reason\": \"No source family was proven suitable for scheduled refresh; this task records a one-shot blocked-source note instead.\",\n            \"policy\": \"Prefer bounded raw notes unless a reliable repeated source family is identified and the Domain Channels workflow is validated.\"\n        }\n    ],\n    \"gap_reason\": \"The local wiki and raw corpus already cover component-level RAG deletion, retention, access, PII, lineage, tracing, evaluation, alerting, cost, chargeback, and policy/audit mechanics. The remaining gap is run-level evidence that ties these controls together. Bounded shell probes for adjacent LangSmith, Langfuse, Ragas, Grafana, and OpenCost source families failed with local DNS resolution errors, and no local artifact supplied complete propagation, embedding drift policy, retrieval-quality alert routing, RAG cost-reporting output, audit-run, or incident evidence. The task therefore records blocked-source evidence and keeps the affected layers partial.\",\n    \"planned_outputs\": [\n        \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json\",\n        \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-verification.json\",\n        \"personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md\",\n        \"personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md\",\n        \"personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md\",\n        \"personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md\",\n        \"personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md\",\n        \"personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md\",\n        \"personal-wiki/domains/ai_infra/coverage-map.json\",\n        \"personal-wiki/domains/ai_infra/loop-state.json\",\n        \"personal-wiki/domains/ai_infra/ingest.md\",\n        \"personal-wiki/domains/ai_infra/wiki/index.md\"\n    ],\n    \"generated_at\": \"2026-07-07T13:47:31Z\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "label": "gap-proof contract validation",
+      "command": "python3 -c from scripts.harness_ai_infra_evidence import validate_gap_proof_file\nfindings = validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json', expected_task_id='ai-infra-expansion-2026-07-07-r10-task-1')\nif findings:\n    raise SystemExit('\\n'.join(findings))\n",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "git diff whitespace check",
+      "command": "git diff --check",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "label": "targeted sensitive-pattern scan over changed files",
+      "command": "python3 verification helper sensitive scan",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "{\n  \"changed_paths\": [\n    \"personal-wiki/domains/ai_infra/coverage-map.json\",\n    \"personal-wiki/domains/ai_infra/ingest.md\",\n    \"personal-wiki/domains/ai_infra/loop-state.json\",\n    \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json\",\n    \"personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md\"\n  ],\n  \"findings\": []\n}",
+      "stderr": ""
+    },
+    {
+      "label": "autonomous scope check for declared changed paths",
+      "command": "python3 verification helper scope check",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "{\n  \"repo_changed_paths\": [\n    \"personal-wiki/domains/ai_infra/coverage-map.json\",\n    \"personal-wiki/domains/ai_infra/ingest.md\",\n    \"personal-wiki/domains/ai_infra/loop-state.json\",\n    \"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json\",\n    \"personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md\",\n    \"personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md\"\n  ],\n  \"findings\": []\n}",
+      "stderr": ""
+    },
+    {
+      "label": "dependency/code-change applicability check",
+      "command": "python3 verification helper dependency/code applicability",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "{\n  \"dependency_paths\": [],\n  \"code_paths\": [],\n  \"finding\": \"no dependency or code files changed\"\n}",
+      "stderr": ""
+    },
+    {
+      "label": "source visibility check for required RAG operation terms",
+      "command": "python3 verification helper term visibility check",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "{\n  \"checked_file\": \"personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md\",\n  \"missing_terms\": []\n}",
+      "stderr": ""
+    },
+    {
+      "label": "bounded link probe or blocked/auth evidence",
+      "command": "python3 verification helper urllib HEAD probes",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "{\n  \"probes\": [\n    {\n      \"url\": \"https://docs.smith.langchain.com/evaluation\",\n      \"status\": \"blocked\",\n      \"evidence\": \"URLError [Errno -3] Temporary failure in name resolution\"\n    },\n    {\n      \"url\": \"https://langfuse.com/docs/scores/overview\",\n      \"status\": \"blocked\",\n      \"evidence\": \"URLError [Errno -3] Temporary failure in name resolution\"\n    },\n    {\n      \"url\": \"https://docs.ragas.io/en/stable/howtos/applications/monitoring/\",\n      \"status\": \"blocked\",\n      \"evidence\": \"URLError [Errno -3] Temporary failure in name resolution\"\n    },\n    {\n      \"url\": \"https://grafana.com/docs/grafana-cloud/monitor-infrastructure/integrations/integration-reference/integration-llm/\",\n      \"status\": \"blocked\",\n      \"evidence\": \"URLError [Errno -3] Temporary failure in name resolution\"\n    },\n    {\n      \"url\": \"https://opencost.io/docs/integrations/opencost-and-kubecost/\",\n      \"status\": \"blocked\",\n      \"evidence\": \"URLError [Errno -3] Temporary failure in name resolution\"\n    }\n  ]\n}",
+      "stderr": ""
+    },
+    {
+      "label": "delegated trusted live evidence manifest intent",
+      "command": "python3 verification helper live evidence delegation check",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "{\n  \"run_dir_read_only\": true,\n  \"embedded_required_evidence_manifest_in_generator_result\": true,\n  \"live_evidence_artifacts\": [\n    \"trusted-live-evidence/service-availability.json\",\n    \"trusted-live-evidence/crawler-workbench-freshness.json\",\n    \"trusted-live-evidence/search-api-visibility.json\",\n    \"trusted-live-evidence/frontend-visibility.json\",\n    \"trusted-live-evidence/loop-dashboard-freshness.json\"\n  ],\n  \"note\": \"No localhost probes or long-lived services were started by the generator; orchestrator captures trusted live evidence.\"\n}",
+      "stderr": ""
+    },
+    {
+      "label": "verification manifest json syntax",
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-verification.json",
+      "status": "pass",
+      "returncode": 0,
+      "stdout": "bility check\",\n            \"status\": \"pass\",\n            \"returncode\": 0,\n            \"stdout\": \"{\\n  \\\"checked_file\\\": \\\"personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md\\\",\\n  \\\"missing_terms\\\": []\\n}\",\n            \"stderr\": \"\"\n        },\n        {\n            \"label\": \"bounded link probe or blocked/auth evidence\",\n            \"command\": \"python3 verification helper urllib HEAD probes\",\n            \"status\": \"pass\",\n            \"returncode\": 0,\n            \"stdout\": \"{\\n  \\\"probes\\\": [\\n    {\\n      \\\"url\\\": \\\"https://docs.smith.langchain.com/evaluation\\\",\\n      \\\"status\\\": \\\"blocked\\\",\\n      \\\"evidence\\\": \\\"URLError [Errno -3] Temporary failure in name resolution\\\"\\n    },\\n    {\\n      \\\"url\\\": \\\"https://langfuse.com/docs/scores/overview\\\",\\n      \\\"status\\\": \\\"blocked\\\",\\n      \\\"evidence\\\": \\\"URLError [Errno -3] Temporary failure in name resolution\\\"\\n    },\\n    {\\n      \\\"url\\\": \\\"https://docs.ragas.io/en/stable/howtos/applications/monitoring/\\\",\\n      \\\"status\\\": \\\"blocked\\\",\\n      \\\"evidence\\\": \\\"URLError [Errno -3] Temporary failure in name resolution\\\"\\n    },\\n    {\\n      \\\"url\\\": \\\"https://grafana.com/docs/grafana-cloud/monitor-infrastructure/integrations/integration-reference/integration-llm/\\\",\\n      \\\"status\\\": \\\"blocked\\\",\\n      \\\"evidence\\\": \\\"URLError [Errno -3] Temporary failure in name resolution\\\"\\n    },\\n    {\\n      \\\"url\\\": \\\"https://opencost.io/docs/integrations/opencost-and-kubecost/\\\",\\n      \\\"status\\\": \\\"blocked\\\",\\n      \\\"evidence\\\": \\\"URLError [Errno -3] Temporary failure in name resolution\\\"\\n    }\\n  ]\\n}\",\n            \"stderr\": \"\"\n        },\n        {\n            \"label\": \"delegated trusted live evidence manifest intent\",\n            \"command\": \"python3 verification helper live evidence delegation check\",\n            \"status\": \"pass\",\n            \"returncode\": 0,\n            \"stdout\": \"{\\n  \\\"run_dir_read_only\\\": true,\\n  \\\"embedded_required_evidence_manifest_in_generator_result\\\": true,\\n  \\\"live_evidence_artifacts\\\": [\\n    \\\"trusted-live-evidence/service-availability.json\\\",\\n    \\\"trusted-live-evidence/crawler-workbench-freshness.json\\\",\\n    \\\"trusted-live-evidence/search-api-visibility.json\\\",\\n    \\\"trusted-live-evidence/frontend-visibility.json\\\",\\n    \\\"trusted-live-evidence/loop-dashboard-freshness.json\\\"\\n  ],\\n  \\\"note\\\": \\\"No localhost probes or long-lived services were started by the generator; orchestrator captures trusted live evidence.\\\"\\n}\",\n            \"stderr\": \"\"\n        }\n    ],\n    \"delegated_live_checks\": [\n        {\n            \"evidence_id\": \"service-availability\",\n            \"artifact\": \"trusted-live-evidence/service-availability.json\",\n            \"semantic_gate\": \"crawler backend, crawler frontend, and loop dashboard health checks pass\"\n        },\n        {\n            \"evidence_id\": \"crawler-workbench-freshness\",\n            \"artifact\": \"trusted-live-evidence/crawler-workbench-freshness.json\",\n            \"semantic_gate\": \"sources, channels, queue, wiki, and search reflect current target state\"\n        },\n        {\n            \"evidence_id\": \"search-api-visibility\",\n            \"artifact\": \"trusted-live-evidence/search-api-visibility.json\",\n            \"semantic_gate\": \"backend search API returns current changed knowledge targets\"\n        },\n        {\n            \"evidence_id\": \"frontend-visibility\",\n            \"artifact\": \"trusted-live-evidence/frontend-visibility.json\",\n            \"semantic_gate\": \"frontend proxy/search view exposes current changed knowledge targets\"\n        },\n        {\n            \"evidence_id\": \"loop-dashboard-freshness\",\n            \"artifact\": \"trusted-live-evidence/loop-dashboard-freshness.json\",\n            \"semantic_gate\": \"dashboard shows current run, child tasks, agent actions, evaluator logs, and completed history\"\n        }\n    ],\n    \"notes\": \"Static verification only; live service/API/frontend/dashboard checks are delegated to orchestrator trusted live evidence capture.\"\n}\n",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_checks": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard health checks pass"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "sources, channels, queue, wiki, and search reflect current target state"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "backend search API returns current changed knowledge targets"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "frontend proxy/search view exposes current changed knowledge targets"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "dashboard shows current run, child tasks, agent actions, evaluator logs, and completed history"
+    }
+  ],
+  "notes": "Static verification only; live service/API/frontend/dashboard checks are delegated to orchestrator trusted live evidence capture."
+}

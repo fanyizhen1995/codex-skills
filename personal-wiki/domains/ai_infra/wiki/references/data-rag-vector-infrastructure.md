@@ -21,6 +21,7 @@ source_refs:
   - ../../raw/links/pgvector-readme-official-20260707.md
   - ../../raw/links/faiss-readme-and-indexes-official-20260707.md
   - ../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md
+  - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
@@ -69,6 +70,8 @@ The deletion and retention source note adds direct downstream vector-store contr
 
 These controls prove that the vector-store side can delete or age out records. They do not prove source-to-vector propagation by themselves. A production RAG platform still has to map source document/table identity to embedding ids, run source deletion detection, delete or expire derived vector records, invalidate caches, and decide how evaluation datasets treat old examples. That broader chain is synthesis across vector-store, pipeline, search-index, catalog, and evaluation sources, not a single-source guarantee. [raw](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md) [wiki](data-rag-pipeline-infrastructure.md)
 
+The r10 RAG operations probe did not find a local or reachable source that ties vector deletion to upstream source events, embedding ids, search-index updates, cache invalidation, evaluation dataset handling, timing, and verification. Use that note as blocked-source evidence for the end-to-end propagation boundary, not as vector-store feature evidence. [raw](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
+
 # Coverage Use
 
 Use this page as source-backed coverage for:
@@ -87,3 +90,4 @@ For ingestion, embedding worker, Kafka-style streaming, workflow scheduling, tab
 - [pgvector README source note](../../raw/links/pgvector-readme-official-20260707.md)
 - [FAISS README and indexes source note](../../raw/links/faiss-readme-and-indexes-official-20260707.md)
 - [Source-to-vector deletion and retention source note](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md)
+- [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)

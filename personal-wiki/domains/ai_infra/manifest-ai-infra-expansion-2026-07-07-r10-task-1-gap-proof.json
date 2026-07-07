@@ -1,0 +1,151 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r10-task-1",
+  "run_id": "ai-infra-expansion-2026-07-07-r10",
+  "layer": "data-rag-vector/eval-observability-reliability/security-governance-cost",
+  "candidate": {
+    "title": "RAG propagation, embedding drift, retrieval alerting, and cost attribution run evidence",
+    "source_type": "blocked_source_probe_with_duplicate_boundaries",
+    "identity_key": "url:rag-propagation-drift-alert-cost:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "a4e3336",
+    "checked_at": "2026-07-07T13:47:31Z",
+    "git_status_before_task": "git status --short returned no changed paths before r10 edits; current edits are task-scoped wiki/raw/state artifacts.",
+    "r9_boundary": "r9 stopped_budget completed KServe/inference blocked-source evidence, a bounded hardware field slice, and network/storage exact benchmark blocked-source evidence; this r10 task resumes remaining data/RAG operations gaps rather than treating stopped_budget as global stop."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local wiki, raw/links, raw/crawler, raw/github, coverage-map.json, loop-state.json, ingest.md, r7 RAG governance proof, and r8 policy/chargeback proof for source-to-vector, deletion propagation, retention propagation, permission change, embedding id, vector index, search index, RAG cache, evaluation dataset, Langfuse dataset version, DataHub lineage, OpenLineage run, Azure AI Search deletion detection, Milvus, Qdrant, Weaviate, embedding model version, embedding drift, retrieval-quality alert, retrieval quality score, Ragas, Phoenix, LangSmith, OpenTelemetry GenAI, Grafana AI Observability, OpenCost, cost attribution, duplicate boundary, blocked-source, and run evidence terms. Existing local evidence covers component mechanics but not a single end-to-end propagation, drift, alert, or cost reporting run.",
+    "wiki_search": "Data RAG Vector and Data RAG Pipeline already cover vector architecture/indexing, vector delete/TTL/tenant deletion, Azure AI Search deletion detection, document ACL metadata, chunk permission projection, PII masking, DataHub/OpenLineage lineage, table lifecycle, TEI embedding workers, Langfuse RAG traces, and evaluation dataset versioning. Evaluation Observability Reliability already covers OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, Prometheus, Alertmanager, Grafana SLOs, and Grafana AI Observability mechanics. Security Governance Cost already covers OpenCost, cross-cloud billing dimensions, Kubernetes policy/audit, and RAG governance hooks. All three pages explicitly leave run-level propagation, drift policy, retrieval-quality alerting, RAG cost reporting, and incident/audit evidence open.",
+    "domain_index_scan": "ai_infra wiki/index.md already routes Data RAG Vector Infrastructure, Data RAG Pipeline Infrastructure, Evaluation Observability Reliability Infrastructure, Security Governance Cost Infrastructure, and AI Infra Coverage Map. This task updates those existing reference pages and does not create a duplicate standalone curated page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+      "result": "duplicate boundary for vector database architecture, index tradeoffs, vector-object delete, TTL, and tenant deletion; updated only with blocked-source evidence that vector controls do not prove source-to-vector/cache/evaluation propagation."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "result": "duplicate boundary for ingestion, streaming refresh, workflow orchestration, embedding workers, metadata lineage, table lifecycle, source deletion detection, document access metadata, PII masking, evaluation dataset versioning, and RAG tracing; updated only with r10 blocked run-level evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "duplicate boundary for telemetry, trace stores, evaluation harnesses, SLO and alerting mechanics, and platform profiling; updated only with blocked evidence for retrieval-quality alert threshold/route/owner/run gaps."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+      "result": "duplicate boundary for tenant isolation, quota governance, RAG access/PII hooks, metadata policy, vector RBAC/tenancy, evaluation dataset versioning, OpenCost, cross-cloud cost dimensions, and policy-as-code audit mechanics; updated only with blocked evidence for RAG cost reporting and end-to-end policy-enforcement runs."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+      "result": "duplicate boundary for source deletion detection, vector delete/TTL, document access metadata, chunk permission projection, PII masking, DataHub policy, Weaviate RBAC/tenancy, and Langfuse dataset versioning; r10 does not repeat these as complete propagation evidence."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-gap-proof.json",
+      "result": "duplicate boundary for cross-cloud chargeback dimensions and Kubernetes policy/audit mechanics; r10 does not repeat these as complete RAG cost attribution or policy-enforcement run evidence."
+    }
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "new_raw_blocked_probe_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md",
+      "coverage": "Blocked-source evidence for missing end-to-end RAG propagation run, embedding model/version drift policy, retrieval-quality alerting run, and RAG cost-attribution report. The note records local duplicate coverage and local DNS-blocked probes rather than promoting new operational claims."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/evaluation-slo-alerting-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/cross-cloud-chargeback-policy-enforcement-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/policy-enforcement-deletion-retention-audit-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-3-gap-proof.json"
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://docs.smith.langchain.com/evaluation",
+      "status": "blocked",
+      "evidence": "Local urllib HEAD probe returned URL_ERROR [Errno -3] Temporary failure in name resolution."
+    },
+    {
+      "url": "https://langfuse.com/docs/scores/overview",
+      "status": "blocked",
+      "evidence": "Local urllib HEAD probe returned URL_ERROR [Errno -3] Temporary failure in name resolution."
+    },
+    {
+      "url": "https://docs.ragas.io/en/stable/howtos/applications/monitoring/",
+      "status": "blocked",
+      "evidence": "Local urllib HEAD probe returned URL_ERROR [Errno -3] Temporary failure in name resolution."
+    },
+    {
+      "url": "https://grafana.com/docs/grafana-cloud/monitor-infrastructure/integrations/integration-reference/integration-llm/",
+      "status": "blocked",
+      "evidence": "Local urllib HEAD probe returned URL_ERROR [Errno -3] Temporary failure in name resolution."
+    },
+    {
+      "url": "https://opencost.io/docs/integrations/opencost-and-kubecost/",
+      "status": "blocked",
+      "evidence": "Local urllib HEAD probe returned URL_ERROR [Errno -3] Temporary failure in name resolution."
+    }
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "source_type": "complete_end_to_end_rag_propagation_run",
+      "status": "blocked",
+      "reason": "No local or reachable primary source connected source deletes or permission changes to embedding ids, vector/search index updates, RAG cache invalidation, evaluation dataset handling, timing, and verification.",
+      "policy": "Do not promote full propagation without explicit run, audit, incident, or case-study evidence for every hop."
+    },
+    {
+      "source_type": "embedding_model_version_drift_policy",
+      "status": "blocked",
+      "reason": "No local or reachable primary source recorded embedding model identity, old/new vector compatibility, rebuild/backfill triggers, index state, and retrieval-quality validation in one policy or run.",
+      "policy": "Keep embedding drift partial until a policy or run artifact exposes model/version and validation boundaries."
+    },
+    {
+      "source_type": "retrieval_quality_alerting_run",
+      "status": "blocked",
+      "reason": "Local evidence covers retrieval metrics and generic alert mechanics, but no source tied retrieval-quality score thresholds to notification routes, owners, and an observed RAG production or staging run.",
+      "policy": "Do not infer production alerting from generic metric or dashboard documentation."
+    },
+    {
+      "source_type": "rag_cost_attribution_reporting_output",
+      "status": "blocked",
+      "reason": "Local evidence covers OpenCost and cloud billing dimensions, but no source joins RAG pipeline jobs, embedding workers, vector/search resources, cache or serving costs, labels, and ownership into an observed report.",
+      "policy": "Do not claim RAG chargeback correctness from allocation mechanics alone."
+    },
+    {
+      "source_type": "crawler_source_subscription",
+      "status": "not_used",
+      "reason": "No source family was proven suitable for scheduled refresh; this task records a one-shot blocked-source note instead.",
+      "policy": "Prefer bounded raw notes unless a reliable repeated source family is identified and the Domain Channels workflow is validated."
+    }
+  ],
+  "gap_reason": "The local wiki and raw corpus already cover component-level RAG deletion, retention, access, PII, lineage, tracing, evaluation, alerting, cost, chargeback, and policy/audit mechanics. The remaining gap is run-level evidence that ties these controls together. Bounded shell probes for adjacent LangSmith, Langfuse, Ragas, Grafana, and OpenCost source families failed with local DNS resolution errors, and no local artifact supplied complete propagation, embedding drift policy, retrieval-quality alert routing, RAG cost-reporting output, audit-run, or incident evidence. The task therefore records blocked-source evidence and keeps the affected layers partial.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-1-verification.json",
+    "personal-wiki/domains/ai_infra/raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md"
+  ],
+  "generated_at": "2026-07-07T13:47:31Z"
+}
