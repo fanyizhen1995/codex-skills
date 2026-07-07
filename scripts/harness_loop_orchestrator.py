@@ -50,6 +50,10 @@ try:
         write_coverage_map,
         write_loop_state,
     )
+    from scripts.harness_loop_governance import (
+        AI_INFRA_GOVERNANCE_RUN_ID,
+        validate_governance_preflight_evidence,
+    )
 except ModuleNotFoundError:
     from harness_ai_infra_evidence import (  # type: ignore[no-redef]
         check_service_availability,
@@ -87,6 +91,10 @@ except ModuleNotFoundError:
         validate_ai_infra_coverage_map_semantics,
         write_coverage_map,
         write_loop_state,
+    )
+    from harness_loop_governance import (  # type: ignore[no-redef]
+        AI_INFRA_GOVERNANCE_RUN_ID,
+        validate_governance_preflight_evidence,
     )
 
 
@@ -278,11 +286,17 @@ def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dic
     child_run_ids.add(str(child["run_id"]))
     expected_paths = {
         f".codex/loop-runs/{parent_run_id}/events.jsonl",
+        f".codex/loop-runs/{parent_run_id}/depth-acquisition-smoke.json",
+        f".codex/loop-runs/{parent_run_id}/egress-proof.json",
+        f".codex/loop-runs/{parent_run_id}/governance-preflight-result.json",
+        f".codex/loop-runs/{parent_run_id}/identity-key-audit.json",
         f".codex/loop-runs/{parent_run_id}/planner-output.json",
         f".codex/loop-runs/{parent_run_id}/planner-prompt.md",
         f".codex/loop-runs/{parent_run_id}/preflight.md",
         f".codex/loop-runs/{parent_run_id}/run.json",
     }
+    if path.startswith(f".codex/loop-runs/{parent_run_id}/candidate-scoring/"):
+        return True
     for child_run_id in child_run_ids:
         expected_paths.update(
             {
@@ -460,13 +474,20 @@ def _create_child_run(
     write_json_file(run_dir_for(repo_root, child_run_id) / "planner-output.json", planner_payload)
 
     expected_outcomes = list(child_task.get("done_criteria", [])) or ["Child passes fake evaluator."]
+    artifact_paths = [
+        str(path)
+        for path in [
+            *list(child_task.get("allowed_paths", [])),
+            *list(child_task.get("artifact_paths", [])),
+        ]
+    ]
     task_contract = {
         "task_id": child["task_id"],
         "title": str(child_task.get("title", "")),
         "description": str(child_task.get("description", "")),
         "verify_commands": list(child_task.get("verify_commands", [])),
         "scenario_commands": list(child_task.get("scenario_commands", [])),
-        "artifact_paths": list(child_task.get("allowed_paths", [])),
+        "artifact_paths": artifact_paths,
         "required_services": [],
         "evaluator_driver": "harness_auto_gate",
         "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
@@ -1660,6 +1681,65 @@ def _run_demand_parent_planner(
     return planner_payload
 
 
+def _is_ai_infra_governance_demand_run(parent: Mapping[str, Any]) -> bool:
+    if str(parent.get("run_id", "")) == AI_INFRA_GOVERNANCE_RUN_ID:
+        return True
+    return AI_INFRA_GOVERNANCE_RUN_ID in {str(value) for value in parent.get("constraints", [])}
+
+
+def _run_governance_preflight_gate(repo_root: Path, parent: dict[str, Any]) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, str(parent["run_id"]))
+    result = validate_governance_preflight_evidence(run_dir)
+    write_json_file(run_dir / "governance-preflight-result.json", result)
+    if result["status"] == "pass":
+        append_loop_event(
+            repo_root,
+            run_id=parent["run_id"],
+            actor="orchestrator",
+            event_type="evaluate",
+            summary="governance preflight passed",
+            artifact_paths=list(result.get("artifact_paths", [])),
+        )
+        return result
+
+    parent["phase"] = "stopped_blocked"
+    parent["last_result"] = "blocked"
+    parent["next_action"] = result["next_action"]
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
+    parent["aggregate_acceptance"]["user_decision_required"] = True
+    parent["reader_summary"] = dict(result["reader_summary"])
+    save_run(repo_root, parent)
+    append_loop_event(
+        repo_root,
+        run_id=parent["run_id"],
+        actor="orchestrator",
+        event_type="blocked",
+        summary="governance preflight blocked implementation children",
+        details={
+            "missing_artifacts": list(result.get("missing_artifacts", [])),
+            "findings": list(result.get("findings", [])),
+            "next_action": result.get("next_action", ""),
+        },
+        artifact_paths=list(result.get("missing_artifacts", [])),
+    )
+    return result
+
+
+def _augment_child_task_with_governance_preflight(
+    child_task: Mapping[str, Any],
+    preflight_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    task = dict(child_task)
+    task["artifact_paths"] = [
+        *list(task.get("artifact_paths", [])),
+        *list(preflight_result.get("artifact_paths", [])),
+    ]
+    done_criteria = list(task.get("done_criteria", []))
+    done_criteria.append("P0 governance preflight artifacts are present and validated.")
+    task["done_criteria"] = done_criteria
+    return task
+
+
 def _complete_passed_demand_child(
     repo_root: Path,
     parent: dict[str, Any],
@@ -1915,6 +1995,12 @@ def run_demand_multi(
             )
             return status_for_run(root, run_id)
 
+        governance_preflight_result: dict[str, Any] | None = None
+        if _is_ai_infra_governance_demand_run(parent):
+            governance_preflight_result = _run_governance_preflight_gate(root, parent)
+            if governance_preflight_result["status"] != "pass":
+                return status_for_run(root, run_id)
+
         planner_payload = _run_demand_parent_planner(
             root,
             parent,
@@ -1956,7 +2042,10 @@ def run_demand_multi(
             return status_for_run(root, run_id)
 
         child_index = len(parent["child_run_ids"]) + 1
-        child = _create_child_run(root, parent, child_index, planner_payload["next_child_task"])
+        child_task = planner_payload["next_child_task"]
+        if governance_preflight_result is not None:
+            child_task = _augment_child_task_with_governance_preflight(child_task, governance_preflight_result)
+        child = _create_child_run(root, parent, child_index, child_task)
         parent["child_run_ids"].append(child["run_id"])
         parent["current_child_run_id"] = child["run_id"]
         parent["phase"] = "child_running"

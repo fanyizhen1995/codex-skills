@@ -3,6 +3,7 @@ from scripts.harness_loop_governance import (
     canonical_identity_key,
     classify_candidate,
     record_needs_transition,
+    validate_governance_preflight_evidence,
     validate_depth_acquisition_smoke,
     validate_egress_proof,
     validate_source_profile_snapshot,
@@ -534,3 +535,111 @@ def test_classify_candidate_recomputes_noncanonical_identity_when_source_fields_
     )
     assert invalid_raw["classification"] != "high_value"
     assert "identity_key" in invalid_raw["missing_inputs"]
+
+
+def _governance_p0_payloads() -> dict[str, object]:
+    candidate = _high_value_candidate()
+    classification = classify_candidate(candidate)
+    return {
+        "egress": {
+            "probes": [
+                {
+                    "probe_url": "https://api.github.com",
+                    "started_at": "2026-07-08T00:00:00Z",
+                    "finished_at": "2026-07-08T00:00:01Z",
+                    "dns_status": "ok",
+                    "tls_status": "ok",
+                    "http_status": 200,
+                    "final_url": "https://api.github.com/",
+                    "error_class": "",
+                    "summary": "GitHub API reachable",
+                }
+            ]
+        },
+        "identity": {
+            "status": "pass",
+            "candidates": [
+                {
+                    "candidate_id": "project:kserve",
+                    "candidate": candidate,
+                    "identity_key": classification["identity_key"],
+                }
+            ],
+        },
+        "depth": {
+            "status": "pass",
+            "identity_key": classification["identity_key"],
+            "acquisition_path": "github_backfill",
+            "bounded": True,
+            "max_items": 25,
+            "source_types": ["closed_issues", "release_notes"],
+            "items": [
+                {"source_type": "closed_issues", "url": "https://api.github.com/repos/kserve/kserve/issues/1"},
+                {"source_type": "release_notes", "url": "https://github.com/kserve/kserve/releases/tag/v0.15.0"},
+            ],
+        },
+        "candidate_scoring": {
+            "status": "pass",
+            "candidate": candidate,
+            "identity_key": classification["identity_key"],
+            "classification": classification["classification"],
+            "high_value_eligible": classification["high_value_eligible"],
+        },
+    }
+
+
+def test_validate_governance_preflight_evidence_requires_run_local_p0_artifacts(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "ai-infra-loop-governance-dev"
+
+    result = validate_governance_preflight_evidence(run_dir)
+
+    assert result["status"] == "blocked"
+    assert result["next_action"] == "collect_governance_preflight_evidence"
+    assert ".codex/loop-runs/ai-infra-loop-governance-dev/egress-proof.json" in result["missing_artifacts"]
+    assert ".codex/loop-runs/ai-infra-loop-governance-dev/identity-key-audit.json" in result["missing_artifacts"]
+    assert ".codex/loop-runs/ai-infra-loop-governance-dev/depth-acquisition-smoke.json" in result["missing_artifacts"]
+    assert ".codex/loop-runs/ai-infra-loop-governance-dev/candidate-scoring/*.json" in result["missing_artifacts"]
+    assert "P0 governance preflight artifacts" in result["reader_summary"]["next_step"]
+
+
+def test_validate_governance_preflight_evidence_uses_canonical_candidate_scoring(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "ai-infra-loop-governance-dev"
+    scoring_dir = run_dir / "candidate-scoring"
+    scoring_dir.mkdir(parents=True)
+    payloads = _governance_p0_payloads()
+    (run_dir / "egress-proof.json").write_text(json_dumps(payloads["egress"]), encoding="utf-8")
+    (run_dir / "identity-key-audit.json").write_text(json_dumps(payloads["identity"]), encoding="utf-8")
+    (run_dir / "depth-acquisition-smoke.json").write_text(json_dumps(payloads["depth"]), encoding="utf-8")
+    tampered_scoring = {
+        **payloads["candidate_scoring"],
+        "classification": "high_value",
+        "candidate": {
+            **_high_value_candidate(),
+            "hard_gates": {
+                **_high_value_candidate()["hard_gates"],
+                "has_depth_acquisition_proof": False,
+            },
+        },
+    }
+    (scoring_dir / "candidate-001.json").write_text(json_dumps(tampered_scoring), encoding="utf-8")
+
+    blocked = validate_governance_preflight_evidence(run_dir)
+
+    assert blocked["status"] == "blocked"
+    assert any("classification high_value does not match computed" in finding for finding in blocked["findings"])
+
+    (scoring_dir / "candidate-001.json").write_text(json_dumps(payloads["candidate_scoring"]), encoding="utf-8")
+    passing = validate_governance_preflight_evidence(run_dir)
+
+    assert passing["status"] == "pass"
+    assert passing["findings"] == []
+    assert (
+        ".codex/loop-runs/ai-infra-loop-governance-dev/candidate-scoring/candidate-001.json"
+        in passing["artifact_paths"]
+    )
+
+
+def json_dumps(payload: object) -> str:
+    import json
+
+    return json.dumps(payload, indent=2) + "\n"

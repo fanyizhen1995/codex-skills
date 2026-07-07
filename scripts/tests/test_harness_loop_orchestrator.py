@@ -24,6 +24,7 @@ from scripts.harness_loop_contracts import (
 )
 from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
 from scripts.harness_loop_autonomous import create_default_loop_state, write_loop_state
+from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
     create_preflight_run,
@@ -6787,6 +6788,105 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
         write_json_file(run_dir_for(repo_root, run_id) / "run.json", payload)
         return payload
 
+    def _create_governance_parent(self, repo_root: Path, run_id: str = "ai-infra-loop-governance-dev") -> dict[str, object]:
+        parent = self._create_parent(repo_root, run_id)
+        parent["constraints"] = [
+            *list(parent.get("constraints", [])),
+            "ai-infra-loop-governance-dev",
+        ]
+        write_json_file(run_dir_for(repo_root, run_id) / "run.json", parent)
+        return parent
+
+    def _governance_candidate(self) -> dict[str, object]:
+        return {
+            "candidate_id": "project:kserve",
+            "url": "https://github.com/kserve/kserve",
+            "decision_inputs": {
+                "source_type_count": 2,
+                "local_gap_level": "major",
+                "duplicate_status": "none",
+                "acquisition_path": "github_backfill",
+            },
+            "hard_gates": {
+                "has_gap_proof": True,
+                "has_two_source_types_for_deep_dive": True,
+                "has_evaluator_scenario": True,
+                "has_domain_channel_plan": True,
+                "has_depth_acquisition_proof": True,
+                "identity_key_is_canonical": True,
+            },
+            "priority_score": 10,
+        }
+
+    def _write_governance_p0_artifacts(
+        self,
+        repo_root: Path,
+        run_id: str = "ai-infra-loop-governance-dev",
+        *,
+        identity_key: str | None = None,
+    ) -> None:
+        run_dir = run_dir_for(repo_root, run_id)
+        candidate = self._governance_candidate()
+        classification = classify_candidate(candidate)
+        expected_identity = str(classification["identity_key"])
+        audited_identity = identity_key if identity_key is not None else expected_identity
+        write_json_file(
+            run_dir / "egress-proof.json",
+            {
+                "probes": [
+                    {
+                        "probe_url": "https://api.github.com",
+                        "started_at": "2026-07-08T00:00:00Z",
+                        "finished_at": "2026-07-08T00:00:01Z",
+                        "dns_status": "ok",
+                        "tls_status": "ok",
+                        "http_status": 200,
+                        "final_url": "https://api.github.com/",
+                        "error_class": "",
+                        "summary": "GitHub API reachable",
+                    }
+                ]
+            },
+        )
+        write_json_file(
+            run_dir / "identity-key-audit.json",
+            {
+                "status": "pass",
+                "candidates": [
+                    {
+                        "candidate_id": "project:kserve",
+                        "candidate": candidate,
+                        "identity_key": audited_identity,
+                    }
+                ],
+            },
+        )
+        write_json_file(
+            run_dir / "depth-acquisition-smoke.json",
+            {
+                "status": "pass",
+                "identity_key": expected_identity,
+                "acquisition_path": "github_backfill",
+                "bounded": True,
+                "max_items": 25,
+                "source_types": ["closed_issues", "release_notes"],
+                "items": [
+                    {"source_type": "closed_issues", "url": "https://api.github.com/repos/kserve/kserve/issues/1"},
+                    {"source_type": "release_notes", "url": "https://github.com/kserve/kserve/releases/tag/v0.15.0"},
+                ],
+            },
+        )
+        write_json_file(
+            run_dir / "candidate-scoring" / "candidate-001.json",
+            {
+                "status": "pass",
+                "candidate": candidate,
+                "identity_key": expected_identity,
+                "classification": classification["classification"],
+                "high_value_eligible": classification["high_value_eligible"],
+            },
+        )
+
     def _write_transition_evidence(self, repo_root: Path, name: str = "transition-notes.md") -> str:
         evidence_path = repo_root / "docs" / "harness" / name
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
@@ -7109,6 +7209,94 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             self.assertEqual(evaluator_result["driver"], "codex-exec")
             self.assertEqual(agent_calls, [("planner", "codex-parent", 1), ("generator", child_run_id, 1)])
             self.assertEqual(len(evaluator_commands), 1)
+
+    def test_governance_demand_multi_blocks_before_child_when_p0_artifacts_are_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_governance_parent(repo_root)
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="ai-infra-loop-governance-dev",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            run_dir = run_dir_for(repo_root, "ai-infra-loop-governance-dev")
+            parent = read_json_file(run_dir / "run.json")
+            preflight = read_json_file(run_dir / "governance-preflight-result.json")
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertEqual(payload["phase"], "stopped_blocked")
+            self.assertEqual(parent["child_run_ids"], [])
+            self.assertEqual(parent["next_action"], "collect_governance_preflight_evidence")
+            self.assertIn("P0 governance preflight artifacts", parent["reader_summary"]["next_step"])
+            self.assertEqual(preflight["status"], "blocked")
+            self.assertIn(".codex/loop-runs/ai-infra-loop-governance-dev/egress-proof.json", preflight["missing_artifacts"])
+            self.assertIn("governance preflight", events)
+            self.assertIn("egress-proof.json", events)
+
+    def test_governance_demand_multi_blocks_before_child_when_identity_audit_is_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_governance_parent(repo_root)
+            self._write_governance_p0_artifacts(repo_root, identity_key="github-repo:kserve/not-kserve")
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="ai-infra-loop-governance-dev",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            run_dir = run_dir_for(repo_root, "ai-infra-loop-governance-dev")
+            parent = read_json_file(run_dir / "run.json")
+            preflight = read_json_file(run_dir / "governance-preflight-result.json")
+            self.assertEqual(payload["phase"], "stopped_blocked")
+            self.assertEqual(parent["child_run_ids"], [])
+            self.assertEqual(parent["next_action"], "collect_governance_preflight_evidence")
+            self.assertTrue(
+                any("identity-key-audit.json candidates[0] identity_key" in finding for finding in preflight["findings"])
+            )
+
+    def test_governance_demand_multi_with_p0_artifacts_allows_child_and_requires_artifacts_in_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_governance_parent(repo_root)
+            self._write_governance_p0_artifacts(repo_root)
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="ai-infra-loop-governance-dev",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            parent = read_json_file(run_dir_for(repo_root, "ai-infra-loop-governance-dev") / "run.json")
+            child_run_id = parent["child_run_ids"][0]
+            task_contract = read_json_file(run_dir_for(repo_root, child_run_id) / "task-contract.json")
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
+            self.assertIn(".codex/loop-runs/ai-infra-loop-governance-dev/egress-proof.json", task_contract["artifact_paths"])
+            self.assertIn(
+                ".codex/loop-runs/ai-infra-loop-governance-dev/candidate-scoring/candidate-001.json",
+                task_contract["artifact_paths"],
+            )
+            self.assertTrue(
+                any(
+                    "P0 governance preflight artifacts are present"
+                    in expected
+                    for scenario in task_contract["user_scenarios"]
+                    for expected in scenario["expected_outcomes"]
+                )
+            )
 
     def test_run_demand_multi_fake_in_git_repo_ignores_previous_child_internal_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,11 +1,14 @@
+import json
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
+from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import parse_qsl, unquote, urlsplit, urlunsplit
 
 
+AI_INFRA_GOVERNANCE_RUN_ID = "ai-infra-loop-governance-dev"
 TRACKING_QUERY_KEYS = {
     "fbclid",
     "gclid",
@@ -65,6 +68,12 @@ SENSITIVE_SNAPSHOT_KEY_FRAGMENTS = frozenset(
         "token",
     }
 )
+GOVERNANCE_P0_ARTIFACTS = (
+    "egress-proof.json",
+    "identity-key-audit.json",
+    "depth-acquisition-smoke.json",
+)
+GOVERNANCE_CANDIDATE_SCORING_GLOB = "candidate-scoring/*.json"
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 DOMAIN_RE = re.compile(r"[^a-z0-9_-]+")
 DEFAULT_PROBE_TIME = datetime(1970, 1, 1, tzinfo=timezone.utc)
@@ -482,6 +491,183 @@ def validate_source_profile_snapshot(payload: Mapping[str, Any], db_rows: Mappin
         )
 
     return findings
+
+
+def governance_preflight_artifact_paths(run_id: str, *, candidate_scoring_paths: list[str] | None = None) -> list[str]:
+    base = f".codex/loop-runs/{run_id}"
+    paths = [f"{base}/{name}" for name in GOVERNANCE_P0_ARTIFACTS]
+    if candidate_scoring_paths:
+        paths.extend(candidate_scoring_paths)
+    else:
+        paths.append(f"{base}/{GOVERNANCE_CANDIDATE_SCORING_GLOB}")
+    return paths
+
+
+def validate_governance_preflight_evidence(run_dir: Path | str) -> dict[str, Any]:
+    """Validate run-local AI infra governance P0 artifacts before implementation children."""
+
+    run_path = Path(run_dir)
+    run_id = run_path.name
+    findings: list[str] = []
+    missing_artifacts: list[str] = []
+    artifact_paths: list[str] = []
+
+    egress = _read_governance_json(run_path / "egress-proof.json", "egress-proof.json", findings, missing_artifacts)
+    if egress is not None:
+        artifact_paths.append(_run_artifact_path(run_id, "egress-proof.json"))
+        findings.extend(f"egress-proof.json {finding}" for finding in validate_egress_proof(egress))
+
+    identity = _read_governance_json(
+        run_path / "identity-key-audit.json", "identity-key-audit.json", findings, missing_artifacts
+    )
+    if identity is not None:
+        artifact_paths.append(_run_artifact_path(run_id, "identity-key-audit.json"))
+        findings.extend(validate_identity_key_audit(identity, artifact_label="identity-key-audit.json"))
+
+    depth = _read_governance_json(
+        run_path / "depth-acquisition-smoke.json", "depth-acquisition-smoke.json", findings, missing_artifacts
+    )
+    if depth is not None:
+        artifact_paths.append(_run_artifact_path(run_id, "depth-acquisition-smoke.json"))
+        findings.extend(
+            f"depth-acquisition-smoke.json {finding}" for finding in validate_depth_acquisition_smoke(depth)
+        )
+
+    scoring_paths = sorted((run_path / "candidate-scoring").glob("*.json"))
+    if not scoring_paths:
+        missing_artifacts.append(_run_artifact_path(run_id, GOVERNANCE_CANDIDATE_SCORING_GLOB))
+    for scoring_path in scoring_paths:
+        relative = f"candidate-scoring/{scoring_path.name}"
+        payload = _read_governance_json(scoring_path, relative, findings, missing_artifacts)
+        if payload is None:
+            continue
+        artifact_path = _run_artifact_path(run_id, relative)
+        artifact_paths.append(artifact_path)
+        findings.extend(validate_candidate_scoring_artifact(payload, artifact_label=relative))
+
+    status = "blocked" if findings or missing_artifacts else "pass"
+    return {
+        "status": status,
+        "run_id": run_id,
+        "required_artifacts": governance_preflight_artifact_paths(run_id),
+        "missing_artifacts": missing_artifacts,
+        "artifact_paths": artifact_paths,
+        "findings": findings,
+        "next_action": "run_parent_planner" if status == "pass" else "collect_governance_preflight_evidence",
+        "reader_summary": _governance_preflight_reader_summary(status, findings, missing_artifacts),
+    }
+
+
+def validate_identity_key_audit(payload: Mapping[str, Any], *, artifact_label: str = "identity-key-audit") -> list[str]:
+    findings: list[str] = []
+    source = payload if isinstance(payload, Mapping) else {}
+    if str(source.get("status", "")).strip().lower() != "pass":
+        findings.append(f"{artifact_label} status must be pass")
+    candidates = source.get("candidates", source.get("items", []))
+    if not isinstance(candidates, list) or not candidates:
+        findings.append(f"{artifact_label} must contain a non-empty candidates list")
+        return findings
+    for index, item in enumerate(candidates):
+        if not isinstance(item, Mapping):
+            findings.append(f"{artifact_label} candidates[{index}] must be an object")
+            continue
+        candidate = item.get("candidate", item)
+        if not isinstance(candidate, Mapping):
+            findings.append(f"{artifact_label} candidates[{index}].candidate must be an object")
+            continue
+        expected = canonical_identity_key(candidate)
+        observed = _first_string(item, "identity_key") or _first_string(candidate, "identity_key")
+        if not expected:
+            findings.append(f"{artifact_label} candidates[{index}] has no canonical identity key")
+        elif observed != expected:
+            findings.append(
+                f"{artifact_label} candidates[{index}] identity_key {observed or '<missing>'} does not match canonical {expected}"
+            )
+    return findings
+
+
+def validate_candidate_scoring_artifact(
+    payload: Mapping[str, Any], *, artifact_label: str = "candidate-scoring"
+) -> list[str]:
+    findings: list[str] = []
+    source = payload if isinstance(payload, Mapping) else {}
+    if str(source.get("status", "")).strip().lower() != "pass":
+        findings.append(f"{artifact_label} status must be pass")
+    candidate = source.get("candidate", source)
+    if not isinstance(candidate, Mapping):
+        return [*findings, f"{artifact_label} candidate must be an object"]
+
+    computed = classify_candidate(candidate)
+    expected_identity = str(computed["identity_key"])
+    observed_identity = _first_string(source, "identity_key") or _first_string(candidate, "identity_key")
+    if not expected_identity:
+        findings.append(f"{artifact_label} candidate has no canonical identity key")
+    elif observed_identity != expected_identity:
+        findings.append(
+            f"{artifact_label} identity_key {observed_identity or '<missing>'} does not match computed {expected_identity}"
+        )
+
+    declared_classification = _first_string(source, "classification")
+    if declared_classification and declared_classification != computed["classification"]:
+        findings.append(
+            f"{artifact_label} classification {declared_classification} does not match computed {computed['classification']}"
+        )
+
+    if "high_value_eligible" in source and bool(source.get("high_value_eligible")) is not computed["high_value_eligible"]:
+        findings.append(
+            f"{artifact_label} high_value_eligible {source.get('high_value_eligible')} does not match computed "
+            f"{computed['high_value_eligible']}"
+        )
+
+    if computed["classification"] != "high_value":
+        findings.append(f"{artifact_label} must classify the selected implementation candidate as high_value")
+    return findings
+
+
+def _run_artifact_path(run_id: str, relative_path: str) -> str:
+    return f".codex/loop-runs/{run_id}/{relative_path}"
+
+
+def _read_governance_json(
+    path: Path,
+    artifact_label: str,
+    findings: list[str],
+    missing_artifacts: list[str],
+) -> dict[str, Any] | None:
+    run_id = path.parent.name if path.parent.name != "candidate-scoring" else path.parent.parent.name
+    relative = artifact_label if artifact_label.startswith("candidate-scoring/") else path.name
+    if not path.exists():
+        missing_artifacts.append(_run_artifact_path(run_id, relative))
+        return None
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except json.JSONDecodeError as exc:
+        findings.append(f"{artifact_label} invalid JSON: {exc.msg}")
+        return None
+    if not isinstance(payload, dict):
+        findings.append(f"{artifact_label} must be a JSON object")
+        return None
+    return payload
+
+
+def _governance_preflight_reader_summary(
+    status: str, findings: list[str], missing_artifacts: list[str]
+) -> dict[str, str]:
+    if status == "pass":
+        return {
+            "purpose": "AI infra loop governance preflight",
+            "current_progress": "P0 governance preflight artifacts validated",
+            "next_step": "Run parent planner",
+            "decision_needed": "No",
+        }
+    issue_count = len(findings) + len(missing_artifacts)
+    return {
+        "purpose": "AI infra loop governance preflight",
+        "current_progress": f"Blocked on {issue_count} P0 evidence issue(s)",
+        "next_step": "Collect P0 governance preflight artifacts before implementation children",
+        "decision_needed": "Yes",
+    }
 
 
 def _canonical_url_without_prefix(url: str) -> str:
