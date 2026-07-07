@@ -6259,6 +6259,60 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "blocked")
             self.assertEqual(run["next_action"], "inspect_artifact_hygiene")
 
+    def test_autonomous_artifact_hygiene_ignores_unchanged_evidence_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            run_dir = run_dir_for(repo_root, "demo-run")
+            changed_path = repo_root / "personal-wiki" / "domains" / "ai_infra" / "wiki" / "references" / "changed.md"
+            changed_path.parent.mkdir(parents=True)
+            changed_path.write_text("ok\n", encoding="utf-8")
+            old_evidence_path = repo_root / "personal-wiki" / "domains" / "ai_infra" / "raw" / "github" / "issues.json.gz"
+            old_evidence_path.parent.mkdir(parents=True)
+            old_evidence_path.write_bytes(b"\x1f\x8b" + (b"x" * 32))
+            generator_result = {
+                "task_id": "demo-run-task",
+                "status": "implemented",
+                "changed_paths": [
+                    "personal-wiki/domains/ai_infra/wiki/references/changed.md",
+                ],
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": [
+                    "personal-wiki/domains/ai_infra/wiki/references/changed.md",
+                    "personal-wiki/domains/ai_infra/raw/github/issues.json.gz",
+                ],
+                "cleanup_required": False,
+                "notes": "Existing raw issue corpus is cited as evidence, not emitted as a new artifact.",
+            }
+            write_json_file(run_dir / "generator-result.json", generator_result)
+            run = read_json_file(run_dir / "run.json")
+            run["phase"] = "artifact_hygiene"
+            run["task_id"] = "demo-run-task"
+            write_json_file(run_dir / "run.json", run)
+
+            from scripts.harness_loop_orchestrator import run_artifact_hygiene_step
+
+            result_path = run_artifact_hygiene_step(repo_root, "demo-run", max_file_bytes=10)
+
+            result = read_json_file(result_path)
+            self.assertEqual(result["status"], "pass")
+            self.assertEqual(
+                result["scanned_paths"],
+                ["personal-wiki/domains/ai_infra/wiki/references/changed.md"],
+            )
+            self.assertEqual(result["omitted_paths"], [])
+            run = read_json_file(run_dir / "run.json")
+            self.assertEqual(run["phase"], "cleanup")
+
     def test_run_cleanup_records_removed_worktree_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

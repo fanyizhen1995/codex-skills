@@ -1183,6 +1183,9 @@ def run_artifact_hygiene_step(
     generator_result = read_json_file(run_dir / "generator-result.json")
     validate_generator_result_payload(generator_result)
     artifact_paths = list(generator_result["artifacts"])
+    if run.get("policy") == "autonomous_knowledge":
+        changed_paths = {str(path) for path in generator_result["changed_paths"]}
+        artifact_paths = [path for path in artifact_paths if str(path) in changed_paths]
     scenario_results_path = run_dir / "scenario-command-results.json"
     if scenario_results_path.exists():
         scenario_results = read_json_file(scenario_results_path)
