@@ -119,7 +119,8 @@
         "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
@@ -129,15 +130,23 @@
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294079Z-developer-nvidia-com-blog-nvidia-nvbandwidth-your-essential-tool-for-measuring-gpu-interco-9a6dc9cf64.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294457Z-developer-nvidia-com-blog-next-generation-ai-factory-telemetry-with-nvidia-spectrum-x-ethe-ee194b9308.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704294770Z-developer-nvidia-com-blog-enhancing-communication-observability-of-ai-workloads-with-nccl-436a699803.md",
-        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md"
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704297605Z-developer-nvidia-com-blog-networking-reliability-and-observability-at-scale-with-nccl-2-24-db6b475ecf.md",
+        "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md"
       ],
       "candidate_gaps": [
-        "Add LLM observability and evaluation infrastructure sources such as OpenTelemetry for LLM apps, Langfuse, LangSmith, prompt/model eval harnesses, and benchmark environment state.",
-        "Add non-NCCL incident, SLO, tracing, and profiling sources such as NVIDIA Nsight or platform-level observability stacks."
+        "Add production SLO definitions, alert thresholds, incident/postmortem evidence, and alert routing sources for LLM platforms.",
+        "Add benchmark environment manifests with captured local results and compare them with trace/profiling artifacts before promoting benchmark claims.",
+        "Add non-NVIDIA platform observability and evaluation data governance sources so DCGM/Nsight coverage does not overrepresent one vendor stack."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T22:06:03Z",
-      "notes": "NCCL Inspector, Prometheus/Grafana metrics, RAS, NVBandwidth, and Spectrum-X telemetry provide dedicated source-backed GPU communication and fabric observability; LLM evaluation and broader tracing platforms remain gaps."
+      "last_scanned_at": "2026-07-07T01:18:28Z",
+      "notes": "General eval-observability coverage now includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation harness mechanics, and NVIDIA DCGM/Nsight platform telemetry/profiling. The layer remains partial because SLO, incident, benchmark-environment, non-NVIDIA platform, and evaluation data governance evidence are still thin."
     },
     "security-governance-cost": {
       "status": "partial",

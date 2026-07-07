@@ -1,0 +1,110 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r4-task-3",
+  "run_id": "ai-infra-expansion-2026-07-06-r4",
+  "layer": "eval-observability-reliability",
+  "candidate": {
+    "title": "Add non-NCCL evaluation and observability infrastructure coverage",
+    "source_type": "official_docs_source_notes",
+    "identity_key": "urlset:opentelemetry-langsmith-phoenix-ragas-lm-eval-dcgm-nsight-eval-observability-20260707"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Targeted scans of personal-wiki/domains/ai_infra/raw and raw/links found existing NCCL observability captures, SGLang issue and PR traces, Langfuse RAG observability from task 2, inference-runtime health or metrics surfaces, and incidental profiling/eval mentions in SGLang crawler pages. No existing dedicated raw/links source notes were found for OpenTelemetry GenAI semantic conventions, LangSmith observability/evaluation, Phoenix tracing/evaluation, Ragas evaluation metrics, lm-evaluation-harness, NVIDIA DCGM, or NVIDIA Nsight Systems. Pre-existing untracked 20260706 compute accelerator captures were observed in git status and excluded.",
+    "wiki_search": "Targeted scans of personal-wiki/domains/ai_infra/wiki found NCCL Technical Blog Network Observability, SGLang operational evidence, Data RAG Pipeline Infrastructure with Langfuse RAG observability, and Inference Runtime Infrastructure. No curated page existed for general LLM evaluation harnesses, OpenTelemetry GenAI telemetry schemas, LangSmith/Phoenix trace stores, Ragas/lm-evaluation-harness benchmark metadata, or non-NCCL GPU profiling/health sources.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md indexed NCCL, SGLang, Data RAG Pipeline Infrastructure, and Inference Runtime Infrastructure before this task, but did not index a dedicated evaluation observability reliability infrastructure page."
+  },
+  "gap_reason": "coverage-map.json marked eval-observability-reliability as partial and requested LLM observability/evaluation infrastructure, OpenTelemetry-style tracing, prompt/model eval harnesses, benchmark environment state, and non-NCCL profiling or observability sources. Existing curated coverage was concentrated in NCCL communication/fabric telemetry, SGLang issue evidence, and RAG-specific Langfuse evidence, so task 3 required a source-backed general evaluation and observability reference instead of extending NCCL, data/RAG, or inference-runtime pages with unrelated facts.",
+  "duplicate_policy": {
+    "inference_runtime_duplicate_avoided": true,
+    "data_rag_pipeline_duplicate_avoided": true,
+    "nccl_only_observability_duplicate_avoided": true,
+    "baseline_dirty_compute_captures_excluded": true,
+    "excluded_reason": "Pre-existing untracked 20260706 compute accelerator crawler captures are hardware-accelerator evidence and were not staged, curated, or used as source evidence for this eval-observability task.",
+    "existing_local_evidence_reused": [
+      "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
+      "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md"
+    ],
+    "not_selected_local_paths": [
+      {
+        "path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/",
+        "reason": "Contains useful runtime issue and PR traces plus incidental profiling checklist text, but it is already summarized by SGLang project/reference pages and does not replace primary evaluation harness or GenAI tracing sources."
+      },
+      {
+        "path": "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+        "reason": "Already curated for RAG pipeline observability in task 2; reused as adjacent coverage but not counted as new general eval-observability evidence."
+      }
+    ]
+  },
+  "selected_sources": [
+    {
+      "name": "OpenTelemetry GenAI semantic conventions",
+      "url": "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+      "reason": "Primary telemetry schema evidence for GenAI spans, metrics, events, agents, tools, embeddings, retrieval, and model-provider metadata."
+    },
+    {
+      "name": "LangSmith observability and evaluation documentation",
+      "url": "https://docs.smith.langchain.com/observability",
+      "secondary_urls": [
+        "https://docs.smith.langchain.com/evaluation"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+      "reason": "Primary trace-store and experiment evidence for nested runs, metadata, feedback, datasets, evaluators, and experiment result comparison."
+    },
+    {
+      "name": "Arize Phoenix tracing and evaluation documentation",
+      "url": "https://arize.com/docs/phoenix/tracing",
+      "secondary_urls": [
+        "https://arize.com/docs/phoenix/evaluation"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+      "reason": "Primary observability/evaluation evidence for LLM traces, spans, dataset-backed experiments, annotations, and evaluator scores."
+    },
+    {
+      "name": "Ragas evaluation documentation",
+      "url": "https://docs.ragas.io/en/stable/",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+      "reason": "Primary RAG/LLM evaluation evidence for datasets, metrics, and retrieval/generation quality signals."
+    },
+    {
+      "name": "EleutherAI lm-evaluation-harness",
+      "url": "https://github.com/EleutherAI/lm-evaluation-harness",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
+      "reason": "Primary benchmark harness evidence for task definitions, model backend adapters, CLI run metadata, outputs, and task metrics."
+    },
+    {
+      "name": "NVIDIA DCGM user guide",
+      "url": "https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/index.html",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
+      "reason": "Primary platform telemetry evidence for data-center GPU health, diagnostics, field values, and profiling support beyond NCCL-only signals."
+    },
+    {
+      "name": "NVIDIA Nsight Systems user guide",
+      "url": "https://docs.nvidia.com/nsight-systems/UserGuide/index.html",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
+      "reason": "Primary profiling evidence for CPU/GPU timeline analysis, CUDA workload diagnosis, synchronization analysis, and benchmark-environment context requirements."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-3-verification.json"
+  ],
+  "link_probe_evidence": {
+    "method": "browser retrieval plus sandbox urllib HEAD probe",
+    "status": "partial_pass",
+    "notes": "Official browser/web retrieval was used during curation. Sandbox urllib HEAD probes for the official source URLs are expected to be DNS-blocked in this environment and are recorded in verification rather than blocking the wiki-only task."
+  }
+}

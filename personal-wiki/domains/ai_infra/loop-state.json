@@ -3,23 +3,9 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-07T00:45:00Z",
+  "last_scan_at": "2026-07-07T01:18:28Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
-    {
-      "id": "eval-observability-reliability-primary-sources",
-      "title": "Add evaluation/tracing and non-NCCL observability/reliability coverage",
-      "source": "coverage-map:eval-observability-reliability",
-      "status": "candidate",
-      "updated_at": "2026-07-06T22:06:03Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
-        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
-        "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md"
-      ]
-    },
     {
       "id": "security-governance-cost-primary-sources",
       "title": "Add AI platform tenant isolation, governance, cost attribution, and capacity planning sources",
@@ -207,6 +193,23 @@
         "personal-wiki/domains/ai_infra/raw/links/triton-inference-server-batcher-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/llama-cpp-server-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/onnx-runtime-genai-config-official-docs-20260707.md"
+      ]
+    },
+    {
+      "id": "eval-observability-official-primary-sources",
+      "title": "OpenTelemetry, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight evaluation observability sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T01:18:28Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md"
       ]
     }
   ],

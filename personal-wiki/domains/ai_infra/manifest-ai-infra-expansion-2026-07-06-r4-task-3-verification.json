@@ -1,0 +1,142 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r4-task-3",
+  "run_id": "ai-infra-expansion-2026-07-06-r4",
+  "generated_at": "2026-07-07T01:18:28Z",
+  "summary": "Task 3 broadened eval-observability-reliability coverage beyond NCCL/SGLang and RAG-specific observability with official source notes for OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, NVIDIA DCGM, and NVIDIA Nsight Systems. Non-live validators passed. Live service, search, frontend, crawler workbench, and loop dashboard checks were intentionally delegated to orchestrator trusted live evidence per generator instructions.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/opentelemetry-genai-semconv-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langsmith-observability-evaluation-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/phoenix-evaluation-tracing-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-3-verification.json"
+  ],
+  "baseline_dirty_exclusions": [
+    "Pre-existing untracked personal-wiki/domains/ai_infra/raw/crawler/compute-* 20260706 hardware accelerator captures were not used, modified, staged, or declared as task-3 outputs."
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md and indexed Evaluation Observability Reliability Infrastructure."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness schemas and ai_infra coverage semantics after the eval-observability update."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null && python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null && python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-3-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json, loop-state.json, and task-3 gap proof parse as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-3-verification.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-3 verification manifest parses as JSON."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-06-r4-task-3') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-3 gap proof satisfies the harness gap-proof validator."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' ... assert wiki/index.md contains Evaluation Observability Reliability Infrastructure ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "wiki/index.md contains Evaluation Observability Reliability Infrastructure."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "targeted credential-shaped sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No credential-shaped API key, access token, bearer token, GitHub token, AWS access key, or private-key patterns were found in declared task-3 changed files."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "All declared non-run-artifact changed paths are under personal-wiki/domains/ai_infra/**, which is allowed by planner-output.json and run.json. Pre-existing untracked compute accelerator crawler captures remain excluded baseline-dirty paths."
+    },
+    {
+      "command": "supply-chain dependency change check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No dependency files changed."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' ... urllib HEAD probes for official OpenTelemetry, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight URLs ... PY",
+      "status": "blocked",
+      "exit_code": 1,
+      "summary": "Sandbox shell probes failed with Temporary failure in name resolution for all selected official external URLs; browser retrieval opened the official pages during curation, so link evidence is recorded as partial_pass in the gap proof."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health and /api/search visibility checks",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/service-availability.json, trusted-live-evidence/search-api-visibility.json, and trusted-live-evidence/crawler-workbench-freshness.json for task 3."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/service-availability.json and trusted-live-evidence/frontend-visibility.json for task 3."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/service-availability.json and trusted-live-evidence/loop-dashboard-freshness.json for task 3."
+    },
+    {
+      "command": "code test requirement check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No crawler, harness, frontend, backend, or dependency files changed; code-test requirement is not triggered by this wiki-only task."
+    }
+  ],
+  "delegated_live_evidence": {
+    "service-availability": "trusted-live-evidence/service-availability.json",
+    "crawler-workbench-freshness": "trusted-live-evidence/crawler-workbench-freshness.json",
+    "loop-dashboard-freshness": "trusted-live-evidence/loop-dashboard-freshness.json",
+    "search-api-visibility": "trusted-live-evidence/search-api-visibility.json",
+    "frontend-visibility": "trusted-live-evidence/frontend-visibility.json"
+  },
+  "source_urls": [
+    "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+    "https://docs.smith.langchain.com/observability",
+    "https://docs.smith.langchain.com/evaluation",
+    "https://arize.com/docs/phoenix/tracing",
+    "https://arize.com/docs/phoenix/evaluation",
+    "https://docs.ragas.io/en/stable/",
+    "https://github.com/EleutherAI/lm-evaluation-harness",
+    "https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/index.html",
+    "https://docs.nvidia.com/nsight-systems/UserGuide/index.html"
+  ]
+}

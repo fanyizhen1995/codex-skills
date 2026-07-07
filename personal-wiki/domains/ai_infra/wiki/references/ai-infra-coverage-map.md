@@ -40,6 +40,13 @@ source_refs:
   - ../../raw/links/triton-inference-server-batcher-official-docs-20260707.md
   - ../../raw/links/llama-cpp-server-official-docs-20260707.md
   - ../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md
+  - ../../raw/links/opentelemetry-genai-semconv-official-20260707.md
+  - ../../raw/links/langsmith-observability-evaluation-official-20260707.md
+  - ../../raw/links/phoenix-evaluation-tracing-official-20260707.md
+  - ../../raw/links/ragas-evaluation-metrics-official-20260707.md
+  - ../../raw/links/lm-evaluation-harness-official-20260707.md
+  - ../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md
+  - ../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md
 updated: 2026-07-07
 related:
   - ../projects/nccl.md
@@ -47,6 +54,7 @@ related:
   - ../references/data-rag-vector-infrastructure.md
   - ../references/data-rag-pipeline-infrastructure.md
   - ../references/inference-runtime-infrastructure.md
+  - ../references/evaluation-observability-reliability-infrastructure.md
   - ../projects/sglang.md
   - ../references/kubernetes-volcano-kueue-github-closed-issues.md
   - ../references/compute-accelerator-crawl-inventory.md
@@ -56,7 +64,7 @@ related:
 
 This page makes the autonomous `ai_infra` coverage scan discoverable from the curated wiki. The machine-readable state lives in [coverage-map.json](../../coverage-map.json) and [loop-state.json](../../loop-state.json); this page is the human navigation entry point.
 
-The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources; security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
+The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources. Evaluation/observability/reliability now has general LLM tracing, evaluation-harness, and platform profiling coverage through OpenTelemetry GenAI, LangSmith, Phoenix, Ragas, lm-evaluation-harness, DCGM, and Nsight Systems source notes. Security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
 
 # Layer Status
 
@@ -66,7 +74,7 @@ The scan reuses existing local evidence rather than recrawling the baseline-dirt
 | `inference-runtime` | SGLang issue/PR corpora and CUDA Green Context evidence cover serving runtime behavior and compatibility risks; [Inference Runtime Infrastructure](inference-runtime-infrastructure.md) adds vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM runtime evidence for batching, KV-cache lifecycle, model repository/config loading, OpenAI-compatible serving, provider selection, and distributed inference knobs. | Add production router/admission-control, autoscaling, model-placement, rollout, benchmark, tracing, and incident/postmortem sources. |
 | `orchestration-scheduling` | Kubernetes, Volcano, and Kueue closed-issue corpora cover scheduler, queueing, and cluster operations with comment-completeness caveats. | Add Ray, Slurm-on-Kubernetes, device plugins, and GPU quota/operator sources. |
 | `data-rag-vector` | The Hitchhiker paper gives broad RAG context. [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md) covers vector database architecture, indexing, filtered retrieval, sparse retrieval, and embedding-index lifecycle. [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md) adds Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, TEI embedding worker boundaries, DataHub/OpenLineage metadata lineage, and Langfuse RAG tracing/evaluation. | Add direct Kafka Connect/Streams, workflow scheduler, object-store table-format governance, deletion/retention propagation, embedding drift policy, retrieval-quality alerting, and RAG incident sources. |
-| `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora now supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. | Add LLM evaluation/tracing platforms, benchmark environment state, SLO, and incident sources beyond NCCL/SGLang. |
+| `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md) adds OpenTelemetry GenAI telemetry schemas, LangSmith/Phoenix trace stores and experiments, Ragas and lm-evaluation-harness evaluation mechanics, and DCGM/Nsight platform telemetry/profiling. | Add production SLO, alerting, incident/postmortem, benchmark environment, non-NVIDIA platform, and evaluation data governance sources. |
 | `security-governance-cost` | NCCL 2.22 cost-estimation and resource-efficiency evidence now complements adjacent NCCL GPU sharing/virtualization issues, DPU security positioning, and Kueue quota-aware scheduling. | Add tenant isolation, MIG/vGPU, confidential computing, cost attribution, and capacity planning sources. |
 | `hardware-accelerator` | Compute accelerator inventory, field glossary, spec catalog, and parameter comparison cover GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC evidence. | Reconcile or intentionally ignore the baseline-dirty 20260706 compute captures before using them. |
 | `network-storage-cluster` | NCCL issue evidence, DPU/SmartNIC captures, and NCCL technical-blog captures now cover RoCE, Spectrum-X, BGP PIC convergence, ECN/DC-QCN, SHARP, NIC Fusion, and fabric telemetry. | Add EFA, storage, Lustre, Weka, Ceph, NVMe-oF, and parallel filesystem evidence. |
@@ -109,3 +117,11 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Triton model repository and batcher source note](../../raw/links/triton-inference-server-batcher-official-docs-20260707.md)
 - [llama.cpp source note](../../raw/links/llama-cpp-server-official-docs-20260707.md)
 - [ONNX Runtime GenAI config/API source note](../../raw/links/onnx-runtime-genai-config-official-docs-20260707.md)
+- [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md)
+- [OpenTelemetry GenAI semantic conventions source note](../../raw/links/opentelemetry-genai-semconv-official-20260707.md)
+- [LangSmith observability and evaluation source note](../../raw/links/langsmith-observability-evaluation-official-20260707.md)
+- [Phoenix tracing and evaluation source note](../../raw/links/phoenix-evaluation-tracing-official-20260707.md)
+- [Ragas evaluation metrics source note](../../raw/links/ragas-evaluation-metrics-official-20260707.md)
+- [lm-evaluation-harness source note](../../raw/links/lm-evaluation-harness-official-20260707.md)
+- [NVIDIA DCGM source note](../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md)
+- [NVIDIA Nsight Systems source note](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
