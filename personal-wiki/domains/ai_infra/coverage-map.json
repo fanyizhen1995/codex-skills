@@ -141,15 +141,18 @@
         "personal-wiki/domains/ai_infra/raw/links/prefect-flow-task-scheduling-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/apache-iceberg-table-governance-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/delta-lake-table-lifecycle-official-docs-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md"
+        "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ],
       "candidate_gaps": [
-        "Add source-to-vector deletion and retention propagation evidence that proves table deletes, retention, and cleanup events are reflected in embedding stores, vector indexes, caches, and evaluation datasets.",
-        "Add embedding model/version drift policies, retrieval-quality alerting, production incident evidence, access policy, tenant isolation, PII controls, and cost attribution for RAG data pipelines."
+        "Add full source-to-vector deletion and retention propagation run evidence that proves source deletes, permission changes, and retention events reach every embedding store, vector index, RAG cache, and evaluation dataset.",
+        "Add embedding model/version drift policies, retrieval-quality alerting, RAG data-pipeline cost attribution, and production incident evidence with environment, impact, timing, remediation, and ownership context."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T05:37:19Z",
-      "notes": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official source notes provide primary coverage for vector database architecture, index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk placement, and embedding-index lifecycle. Data RAG Pipeline Infrastructure now adds source-backed coverage for Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, Kafka Connect/Streams connector and stream-processor boundaries, Airflow/Dagster/Prefect workflow scheduling, Hugging Face Text Embeddings Inference worker boundaries, DataHub/OpenLineage metadata lineage, Iceberg/Delta/Hudi table lifecycle controls, and Langfuse RAG traces/evaluation. The layer remains partial because source-to-vector deletion/retention propagation, embedding drift policy, retrieval-quality alerting, RAG access policy/PII controls, cost attribution, and incident evidence remain thin."
+      "last_scanned_at": "2026-07-07T07:48:26Z",
+      "notes": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official source notes provide primary coverage for vector database architecture, index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk placement, and embedding-index lifecycle. Data RAG Pipeline Infrastructure covers Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, Kafka Connect/Streams connector and stream-processor boundaries, Airflow/Dagster/Prefect workflow scheduling, TEI embedding worker boundaries, DataHub/OpenLineage metadata lineage, Iceberg/Delta/Hudi table lifecycle controls, and Langfuse RAG traces/evaluation. R7 task 2 adds bounded primary-source evidence for Milvus/Qdrant/Weaviate vector deletion and TTL controls, Azure AI Search source deletion detection, document-level RAG access metadata, chunk permission projection, PII masking, DataHub policy boundaries, Weaviate RBAC/tenancy, and Langfuse dataset versioning. The layer remains partial because local sources do not prove full end-to-end propagation across every source, vector store, cache, and evaluation dataset, and do not cover embedding drift policy, retrieval-quality alerting, cost attribution, or production incidents."
     },
     "eval-observability-reliability": {
       "status": "partial",
@@ -159,7 +162,9 @@
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
-        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md"
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
@@ -176,16 +181,17 @@
         "personal-wiki/domains/ai_infra/raw/links/ragas-evaluation-metrics-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/lm-evaluation-harness-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md"
+        "personal-wiki/domains/ai_infra/raw/links/nvidia-nsight-systems-profiling-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ],
       "candidate_gaps": [
         "Add production SLO definitions, alert thresholds, incident/postmortem evidence, and alert routing sources for LLM platforms.",
         "Add benchmark environment manifests with captured local results and compare them with trace/profiling artifacts before promoting benchmark claims.",
-        "Add non-NVIDIA platform observability and evaluation data governance sources so DCGM/Nsight coverage does not overrepresent one vendor stack."
+        "Add non-NVIDIA platform observability and retention/access audit evidence around evaluation datasets beyond Langfuse dataset versioning."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T01:18:28Z",
-      "notes": "General eval-observability coverage now includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation harness mechanics, and NVIDIA DCGM/Nsight platform telemetry/profiling. The layer remains partial because SLO, incident, benchmark-environment, non-NVIDIA platform, and evaluation data governance evidence are still thin."
+      "last_scanned_at": "2026-07-07T07:48:26Z",
+      "notes": "General eval-observability coverage includes primary source notes for OpenTelemetry GenAI semantic conventions, LangSmith and Phoenix tracing/evaluation workflows, Ragas and lm-evaluation-harness evaluation mechanics, and NVIDIA DCGM/Nsight platform telemetry/profiling. R7 task 2 adds adjacent Langfuse evaluation dataset governance through dataset items, metadata, source trace links, schema validation, and dataset versions that capture add/update/delete/archive operations. The layer remains partial because SLO, alerting, incident, benchmark-environment, non-NVIDIA platform, and evaluation dataset retention/access audit evidence are still thin."
     },
     "security-governance-cost": {
       "status": "partial",
@@ -194,7 +200,10 @@
         "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
         "personal-wiki/domains/ai_infra/wiki/references/nccl-technical-blog-network-observability.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
-        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md"
+        "personal-wiki/domains/ai_infra/wiki/projects/kueue.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260626T015710841547Z-developer-nvidia-com-blog-one-click-multi-tenant-security-with-nvidia-quantum-infiniband-5b2cd4e1d4.md",
@@ -206,16 +215,19 @@
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
-        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json"
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
       ],
       "candidate_gaps": [
-        "Add evaluation-data governance, RAG access policy, PII controls, deletion/retention governance, and incident/postmortem evidence.",
         "Add cross-cloud cost attribution and chargeback examples that normalize labels, accelerator reservations, namespace/team ownership, and cloud account quotas across providers.",
-        "Add production evidence for policy enforcement failures or remediations rather than only product documentation."
+        "Add production evidence for policy enforcement failures, delete/retention propagation failures, PII redaction failures, or remediation postmortems rather than only product documentation.",
+        "Add end-to-end policy-enforcement run evidence across source permissions, search/vector indexes, RAG caches, and evaluation datasets."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T02:38:17Z",
-      "notes": "Security Governance Cost Infrastructure now adds source-backed coverage for Quantum InfiniBand tenant isolation, MIG/vGPU accelerator sharing, NVIDIA confidential-computing attestation, Kubernetes ResourceQuota, Kueue ClusterQueue/ResourceFlavor/cohort governance, OpenCost workload cost allocation, and AWS accelerator capacity/service-quota planning. The layer remains partial because evaluation-data governance, RAG access policy, cross-cloud chargeback, and incident evidence are still thin."
+      "last_scanned_at": "2026-07-07T07:48:26Z",
+      "notes": "Security Governance Cost Infrastructure covers Quantum InfiniBand tenant isolation, MIG/vGPU accelerator sharing, NVIDIA confidential-computing attestation, Kubernetes ResourceQuota, Kueue ClusterQueue/ResourceFlavor/cohort governance, OpenCost workload cost allocation, AWS accelerator capacity/service-quota planning, and NCCL cost-estimation boundaries. R7 task 2 adds bounded RAG governance coverage for Azure AI Search document-level access control, query-time security trimming, chunk permission projection, PII masking, DataHub metadata policy, Weaviate RBAC and tenant isolation, vector delete/TTL controls, and Langfuse evaluation dataset versioning. The layer remains partial because cross-cloud chargeback, full end-to-end policy-enforcement run evidence, and incident/postmortem evidence are still thin."
     },
     "hardware-accelerator": {
       "status": "partial",

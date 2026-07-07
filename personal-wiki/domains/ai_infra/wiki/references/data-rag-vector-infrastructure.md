@@ -20,6 +20,7 @@ source_refs:
   - ../../raw/links/weaviate-vector-indexing-official-docs-20260707.md
   - ../../raw/links/pgvector-readme-official-20260707.md
   - ../../raw/links/faiss-readme-and-indexes-official-20260707.md
+  - ../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
@@ -28,7 +29,7 @@ related:
 ---
 # Summary
 
-This reference closes the first primary-source gap for the `data-rag-vector` layer. It covers vector database architecture and retrieval-index behavior using official source notes for Milvus, Qdrant, Weaviate, pgvector, and FAISS. The Hitchhiker paper remains useful for high-level RAG and memory context, but the operational facts here come from system-specific primary sources.
+This reference closes the first primary-source gap for the `data-rag-vector` layer. It covers vector database architecture and retrieval-index behavior using official source notes for Milvus, Qdrant, Weaviate, pgvector, and FAISS, and now adds bounded vector-store deletion and retention controls. The Hitchhiker paper remains useful for high-level RAG and memory context, but the operational facts here come from system-specific primary sources.
 
 # Vector Database Architecture
 
@@ -62,15 +63,21 @@ Qdrant exposes similar choices through in-memory versus on-disk payload and spar
 
 Milvus contributes lifecycle evidence around ingestion and index building: growing data is made available for query, full segments become sealed historical data, Data Nodes compact and build indexes, and Query Nodes load those built indexes. This is useful when discussing embedding ingestion pipelines because the database side has a staged durability, sealing, compaction, indexing, and serving path. [raw](../../raw/links/milvus-architecture-overview-20260707.md)
 
+# Deletion And Retention Controls
+
+The deletion and retention source note adds direct downstream vector-store controls. Milvus documents entity deletion by filter expression, primary key, or partition and collection/entity TTL where expired entities stop appearing in search or query before physical removal happens during later compaction. Qdrant documents deleting points by explicit ids or filter selector, with operation acknowledgement and optional wait/ordering controls. Weaviate documents object deletion by id, by filter, or by multiple ids; object TTL; and tenant deletion that removes a tenant shard and its objects. [raw](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md)
+
+These controls prove that the vector-store side can delete or age out records. They do not prove source-to-vector propagation by themselves. A production RAG platform still has to map source document/table identity to embedding ids, run source deletion detection, delete or expire derived vector records, invalidate caches, and decide how evaluation datasets treat old examples. That broader chain is synthesis across vector-store, pipeline, search-index, catalog, and evaluation sources, not a single-source guarantee. [raw](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md) [wiki](data-rag-pipeline-infrastructure.md)
+
 # Coverage Use
 
 Use this page as source-backed coverage for:
 
-- `data-rag-vector`: vector database architecture, vector index tradeoffs, filtered retrieval, sparse retrieval, full-text payload indexing, and embedding-index lifecycle.
+- `data-rag-vector`: vector database architecture, vector index tradeoffs, filtered retrieval, sparse retrieval, full-text payload indexing, embedding-index lifecycle, vector-object deletion, vector-store TTL, and tenant-scoped vector data deletion.
 - `network-storage-cluster`: only when explaining vector database storage/WAL/object-store dependencies; this page does not replace cluster network or parallel filesystem coverage.
 - `eval-observability-reliability`: only when explaining retrieval correctness and recall/speed tradeoffs; this page does not replace evaluation or observability tooling coverage.
 
-For ingestion, embedding worker, Kafka-style streaming, workflow scheduling, table-format lifecycle, metadata lineage, and RAG observability coverage beyond vector index mechanics, use [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md). Remaining gaps after that page include source-to-vector deletion and retention propagation evidence, embedding model drift policy, retrieval-quality alerting, RAG access policy, and production incident evidence.
+For ingestion, embedding worker, Kafka-style streaming, workflow scheduling, table-format lifecycle, metadata lineage, document ACL propagation, PII masking, evaluation-dataset versioning, and RAG observability coverage beyond vector index mechanics, use [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md). Remaining gaps after that page include full end-to-end deletion propagation across every source, vector store, cache, and evaluation dataset; embedding model drift policy; retrieval-quality alerting; cost attribution; and production incident evidence.
 
 # Citations
 
@@ -79,3 +86,4 @@ For ingestion, embedding worker, Kafka-style streaming, workflow scheduling, tab
 - [Weaviate vector indexing source note](../../raw/links/weaviate-vector-indexing-official-docs-20260707.md)
 - [pgvector README source note](../../raw/links/pgvector-readme-official-20260707.md)
 - [FAISS README and indexes source note](../../raw/links/faiss-readme-and-indexes-official-20260707.md)
+- [Source-to-vector deletion and retention source note](../../raw/links/source-to-vector-deletion-retention-official-sources-20260707.md)

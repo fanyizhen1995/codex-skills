@@ -1,0 +1,156 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r7-task-2",
+  "run_id": "ai-infra-expansion-2026-07-07-r7",
+  "layer": "data-rag-vector/security-governance-cost",
+  "candidate": {
+    "title": "RAG source-to-vector deletion, retention, access, PII, and evaluation governance evidence",
+    "source_type": "official_primary_source_notes",
+    "identity_key": "url:rag-governance-deletion-retention-access-pii-eval:2026-07-07"
+  },
+  "repo_state": {
+    "branch": "ai-infra-meta-loop-runtime",
+    "latest_commit": "2f80626",
+    "checked_at": "2026-07-07T07:48:26Z",
+    "git_status_before_task": "git status --short returned no changed paths before task-2 edits."
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local raw/links and selected r6/r7 manifests for delete, deletion, retention, TTL, expire, VACUUM, orphan, PII, privacy, RBAC, access policy, security trimming, tenant, evaluation data, dataset governance, source-to-vector, vector delete, authorization, and permission terms. Existing raw notes covered table lifecycle, vector/index mechanics, DataHub/OpenLineage lineage, Langfuse RAG traces, and tenant/quota/cost boundaries, but lacked a bounded RAG access/deletion/PII/evaluation-governance note.",
+    "wiki_search": "Data RAG Pipeline and Vector Infrastructure already covered table deletes/retention and vector mechanics while explicitly leaving source-to-vector propagation, RAG access policy, and PII controls as gaps. Security Governance Cost Infrastructure covered tenant isolation, quota, cost, and capacity planning while explicitly leaving evaluation-data governance, RAG access policy, and deletion/retention governance as gaps.",
+    "domain_index_scan": "ai_infra wiki/index.md already routed Data RAG Pipeline Infrastructure, Data RAG Vector Infrastructure, Security Governance Cost Infrastructure, Evaluation Observability Reliability Infrastructure, and AI Infra Coverage Map; the task updated those existing reference boundaries instead of adding a new standalone page."
+  },
+  "duplicate_checks": [
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "result": "duplicate boundary for ingestion, workflow, lineage, table lifecycle, RAG tracing, and evaluation workflows; updated only with source deletion detection, document access metadata, PII masking, and evaluation dataset governance."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+      "result": "duplicate boundary for vector architecture and index mechanics; updated only with downstream delete/TTL/tenant-deletion controls."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+      "result": "duplicate boundary for platform tenant isolation, quota, cost, and capacity governance; updated with RAG access policy, PII, metadata policy, vector RBAC/tenancy, and evaluation dataset governance without repeating cost/capacity claims."
+    },
+    {
+      "target": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "duplicate boundary for evaluation harnesses and tracing; not edited because Langfuse dataset governance is cited through the data/RAG and security pages while broader SLO/incident gaps remain."
+    }
+  ],
+  "selected_source_candidates": [
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+      "coverage": "Milvus entity deletion and collection TTL; Qdrant delete-points by ids/filter; Weaviate object delete, TTL, multi-tenant deletion; Azure AI Search changed/deleted blob detection boundaries."
+    },
+    {
+      "role": "new_raw_note",
+      "path": "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md",
+      "coverage": "Azure AI Search document-level access control, security filters, chunk permission projection, and PII Detection skill; Azure Language PII; Weaviate RBAC/multi-tenancy; DataHub policies; Langfuse dataset versioning."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/raw/links/apache-iceberg-table-governance-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/delta-lake-table-lifecycle-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/milvus-architecture-overview-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/kubernetes-kueue-quota-governance-official-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/opencost-cost-attribution-official-20260707.md"
+  ],
+  "link_probe_results": [
+    {
+      "url": "https://milvus.io/docs/delete-entities.md",
+      "status": "pass",
+      "evidence": "web.open returned official Milvus delete-entity documentation on 2026-07-07."
+    },
+    {
+      "url": "https://milvus.io/docs/set-collection-ttl.md",
+      "status": "pass",
+      "evidence": "web.open returned official Milvus collection TTL documentation on 2026-07-07."
+    },
+    {
+      "url": "https://api.qdrant.tech/api-reference/points/delete-points",
+      "status": "pass",
+      "evidence": "web.open returned official Qdrant delete-points API reference on 2026-07-07."
+    },
+    {
+      "url": "https://docs.weaviate.io/weaviate/manage-objects/delete",
+      "status": "pass",
+      "evidence": "web.open returned official Weaviate delete-object documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/search/search-document-level-access-overview",
+      "status": "pass",
+      "evidence": "web.open returned official Azure AI Search document-level access-control documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/search/search-security-trimming-for-azure-search",
+      "status": "pass",
+      "evidence": "web.open returned official Azure AI Search security-filter documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/search/cognitive-search-skill-pii-detection",
+      "status": "pass",
+      "evidence": "web.open returned official Azure AI Search PII Detection skill documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.datahub.com/docs/authorization/policies",
+      "status": "pass",
+      "evidence": "web.open returned official DataHub policies documentation on 2026-07-07."
+    },
+    {
+      "url": "https://langfuse.com/docs/evaluation/experiments/datasets",
+      "status": "pass",
+      "evidence": "web.open returned official Langfuse dataset documentation on 2026-07-07."
+    },
+    {
+      "url": "https://docs.weaviate.io/weaviate/concepts/data",
+      "status": "pass",
+      "evidence": "web.open returned official Weaviate data-structure and multi-tenancy documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/search/search-how-to-index-azure-blob-changed-deleted",
+      "status": "pass",
+      "evidence": "web.open returned official Azure AI Search changed/deleted blob detection documentation on 2026-07-07."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/azure/ai-services/language-service/personally-identifiable-information/overview",
+      "status": "pass",
+      "evidence": "web.open returned official Azure Language PII overview on 2026-07-07."
+    },
+    {
+      "url": "https://docs.weaviate.io/weaviate/configuration/rbac",
+      "status": "pass",
+      "evidence": "web.open returned official Weaviate RBAC documentation on 2026-07-07."
+    }
+  ],
+  "blocked_or_skipped_external_sources": [
+    {
+      "reason": "No production incident or policy-enforcement failure source was selected because the task only found bounded product/control-plane documentation, not public postmortems with environment, impact, remediation, and ownership context.",
+      "policy": "Do not add production incident or policy-enforcement claims without concrete primary evidence."
+    },
+    {
+      "reason": "No crawler source subscription or Domain Channel was added; the sources are one-shot bounded official notes.",
+      "policy": "Prefer one-shot bounded raw notes unless repeated source refresh is proven necessary."
+    }
+  ],
+  "gap_reason": "The local wiki and raw corpus already covered table lifecycle deletes/retention, vector index mechanics, lineage, RAG tracing, and platform quota/tenant/cost controls, but did not source RAG document ACL propagation, chunk permission projection, PII masking, vector-object delete/TTL controls, search-index source deletion detection, DataHub metadata policy, Weaviate RBAC/tenancy, or Langfuse evaluation dataset versioning. The new sources fill those bounded governance surfaces while leaving full end-to-end propagation, incident, SLO, drift, alerting, chargeback, and enforcement-run evidence open.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-verification.json"
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-07-r7-task-2",
+  "run_id": "ai-infra-expansion-2026-07-07-r7",
+  "domain": "ai_infra",
+  "created_at": "2026-07-07T07:53:30Z",
+  "status": "verified",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-verification.json"
+  ],
+  "duplicate_boundaries": [
+    {
+      "target": "data-rag-pipeline-infrastructure.md",
+      "result": "reused for pipeline, lifecycle, lineage, RAG trace, and evaluation boundaries; updated only with deletion/access/PII/eval governance controls."
+    },
+    {
+      "target": "data-rag-vector-infrastructure.md",
+      "result": "reused for vector architecture and index mechanics; updated only with delete/TTL/tenant deletion controls."
+    },
+    {
+      "target": "security-governance-cost-infrastructure.md",
+      "result": "reused for tenant isolation, quota, cost, and capacity; updated with bounded RAG governance controls."
+    },
+    {
+      "target": "evaluation-observability-reliability-infrastructure.md",
+      "result": "left as duplicate boundary for trace/eval harnesses; coverage map now points to adjacent Langfuse dataset governance."
+    }
+  ],
+  "selected_local_evidence": [
+    "personal-wiki/domains/ai_infra/raw/links/apache-iceberg-table-governance-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/delta-lake-table-lifecycle-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/apache-hudi-table-lifecycle-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/milvus-architecture-overview-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md"
+  ],
+  "new_external_sources": [
+    "personal-wiki/domains/ai_infra/raw/links/source-to-vector-deletion-retention-official-sources-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/rag-access-policy-pii-governance-official-sources-20260707.md"
+  ],
+  "new_crawler_subscriptions": [],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard availability captured by orchestrator-owned live probes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness for current changed knowledge targets"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "loop dashboard visibility for current run, child tasks, agent actions, evaluator scenarios, and history"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search API returns current RAG governance and deletion/retention targets"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "frontend proxy/user-visible search sees current RAG governance and deletion/retention targets"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Rebuilt personal-wiki/domains/ai_infra/wiki/index.md; no index diff remained."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json and coverage-map.json satisfy harness schema and ai_infra layer timestamp semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "gap-proof manifest parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-2-verification.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "verification manifest parses as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-07-r7-task-2') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "gap-proof manifest passed harness_ai_infra_evidence validation for the current task."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No credential, token, API-key, private-key, password, or secret assignment patterns in 11 changed paths."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Dirty path scope check allowed the 11 declared ai_infra domain paths; there were no denied or manual-confirm paths."
+    },
+    {
+      "command": "source visibility check for RAG governance, deletion, retention, PII, access policy, evaluation data governance, and source-to-vector propagation terms",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Curated pages, raw notes, and coverage state contain delete/retention/TTL, source-to-vector, document-level access, security trimming, RBAC, PII masking/redaction, evaluation dataset, and dataset version terms."
+    },
+    {
+      "command": "link probe or blocked/auth evidence for new RAG governance, deletion, access-control, PII, vector-store deletion, or evaluation-data governance primary sources",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Gap proof records web.open pass evidence for all 13 official URLs cited by the two new raw notes."
+    },
+    {
+      "command": "supply-chain dependency gate",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No package, lockfile, pyproject, requirements, or other dependency files changed; dependency verification was not triggered."
+    },
+    {
+      "command": "code test gate",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No crawler backend, crawler frontend, loop dashboard, harness, or script code changed; code tests were not triggered."
+    },
+    {
+      "command": "Domain Channels evidence for crawler source subscriptions",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No new or changed crawler source subscription was added; new_crawler_subscriptions is empty."
+    },
+    {
+      "command": "live service, search API, frontend, and loop dashboard checks",
+      "status": "delegated",
+      "exit_code": 0,
+      "summary": "Per generator instructions, no localhost curl checks, tmux, uvicorn, npm, Vite, or other long-lived services were run. Manifest delegates service-availability, crawler-workbench-freshness, loop-dashboard-freshness, search-api-visibility, and frontend-visibility to orchestrator trusted-live-evidence artifacts."
+    },
+    {
+      "command": "run-dir read-only fallback for required evidence and generator result",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run directory is read-only in this environment; required_evidence_manifest is embedded in the final generator-result payload per task instruction."
+    }
+  ],
+  "residual_gaps": [
+    "Full source-to-vector/cache/evaluation dataset delete and retention propagation run evidence.",
+    "Embedding drift policy, retrieval-quality alerting, RAG pipeline cost attribution, and production RAG incident/postmortem evidence.",
+    "Cross-cloud chargeback and production policy-enforcement failure/remediation evidence.",
+    "Evaluation dataset retention/access audit evidence beyond Langfuse dataset versioning."
+  ],
+  "notes": "Live service checks were intentionally delegated per generator instructions; no commit was created and no commit field was filled by the generator. Run directory is read-only, so required_evidence_manifest and generator-result are returned in the final JSON payload instead of written there."
+}

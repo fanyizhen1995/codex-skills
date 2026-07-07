@@ -20,6 +20,7 @@ source_refs:
   - ../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md
   - ../../raw/links/opencost-cost-attribution-official-20260707.md
   - ../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md
+  - ../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json
@@ -32,14 +33,15 @@ related:
 ---
 # Summary
 
-This reference captures the security, governance, quota, cost, and capacity-planning layer for AI infrastructure. It deliberately separates four control planes that are easy to conflate:
+This reference captures the security, governance, quota, cost, and capacity-planning layer for AI infrastructure. It deliberately separates five control planes that are easy to conflate:
 
 - tenant isolation for network and accelerator boundaries;
 - quota/admission governance for namespaces, queues, and resource flavors;
+- RAG access policy, PII controls, metadata policy, and evaluation dataset governance;
 - cost attribution after workloads run;
 - cloud capacity reservation and service-quota planning before workloads run.
 
-The layer is broader than NCCL cost-estimation evidence and broader than DPU positioning. It is still partial because local evidence now covers infrastructure controls, but not evaluation-data governance, RAG access policy, cross-cloud chargeback design, or real incident/postmortem evidence.
+The layer is broader than NCCL cost-estimation evidence and broader than DPU positioning. It is still partial because local evidence now covers infrastructure controls and selected RAG governance hooks, but not cross-cloud chargeback design, full end-to-end policy-enforcement run evidence, or real incident/postmortem evidence.
 
 # Tenant Isolation And Accelerator Sharing
 
@@ -56,6 +58,16 @@ DPU evidence remains adjacent rather than sufficient by itself. The local BlueFi
 Kubernetes ResourceQuota is the namespace-scoped baseline: it constrains aggregate resource consumption and object counts within a namespace. That is useful for shared AI platform governance, but namespace quota alone does not express queue admission, accelerator flavor placement, or cohort borrowing. [source note](../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md)
 
 Kueue fills the batch and accelerator admission layer. ClusterQueues govern resource pools and admission, ResourceFlavors distinguish node or accelerator classes, and cohorts enable configured quota sharing across ClusterQueues. The existing local Kueue issue corpus remains useful operational evidence, especially because it contains quota, ClusterQueue, ResourceFlavor, and cohort issues, but its comment join is incomplete and should not be treated as complete design documentation. [source note](../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md), [Kueue](../projects/kueue.md)
+
+# RAG Access Policy And Evaluation Data Governance
+
+RAG access policy now has direct infrastructure evidence through Azure AI Search. The documentation covers document-level access control for RAG and agentic systems, permission metadata stored with indexed documents, query-time security trimming against caller claims, and projection of permission fields or sensitivity labels into chunked indexes. This supports retrieval-time authorization and chunk-level permission propagation claims, but it does not prove instant synchronization after source permission changes or correctness across every RAG cache. [source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
+
+PII controls now have a bounded indexing-pipeline source. Azure AI Search PII Detection skill can extract and mask personally identifiable information during enrichment, and Azure Language PII APIs return entity metadata plus redacted outputs. Use this as evidence for a redaction stage in a RAG indexing pipeline; do not treat it as legal-compliance completion or as proof that pre-existing indexes were scrubbed after policy changes. [source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
+
+Catalog and vector-store policy are adjacent governance planes. DataHub policies define actors, privileges, resource targets, tags, domains, containers, glossary terms, and owner-based targeting for metadata access. Weaviate RBAC scopes data-object permissions by collection and tenant filters, while Weaviate multi-tenancy isolates each tenant on a dedicated shard and deletes the shard when the tenant is deleted. These sources support metadata and vector-store access boundaries, not whole-platform incident readiness. [source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
+
+Evaluation data governance now has a dataset-versioning boundary through Langfuse. Dataset items can include inputs, expected outputs, metadata, and source trace links; dataset versions capture item add/update/delete/archive operations so experiments can be tied to a fixed version. This is useful when evaluation examples derive from production RAG traces and must be versioned or retired after data changes. It does not replace retention policy, privacy review, or access audit evidence. [source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
 
 # Cost Attribution And Capacity Planning
 
@@ -74,11 +86,15 @@ Use this page as source-backed coverage for `security-governance-cost`:
 - confidential-computing attestation as a trust boundary;
 - namespace quota through Kubernetes ResourceQuota;
 - queued workload admission through Kueue ClusterQueue, ResourceFlavor, and cohort concepts;
+- RAG document-level access metadata, query-time security trimming, chunk permission projection, and PII masking hooks;
+- metadata access policy through DataHub policies;
+- vector-store RBAC and tenant-scoped object isolation through Weaviate;
+- evaluation dataset versioning through Langfuse;
 - Kubernetes workload cost allocation through OpenCost;
 - cloud accelerator capacity reservation and account quota planning through AWS EC2 Capacity Blocks and Service Quotas;
 - NCCL runtime cost-estimation and resource-efficiency evidence only where the claim is about communication or communicator initialization.
 
-Do not use this page to claim complete compliance posture, legal governance, data/RAG policy enforcement, evaluation-data governance, cross-cloud chargeback parity, or production incident readiness. Those remain future gaps.
+Do not use this page to claim complete compliance posture, legal governance, end-to-end data/RAG policy enforcement, cross-cloud chargeback parity, or production incident readiness. Those remain future gaps.
 
 # Citations
 
@@ -87,6 +103,7 @@ Do not use this page to claim complete compliance posture, legal governance, dat
 - [Kubernetes and Kueue quota governance source note](../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md)
 - [OpenCost cost allocation source note](../../raw/links/opencost-cost-attribution-official-20260707.md)
 - [AWS accelerator capacity and service quota source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md)
+- [RAG access policy, PII, and evaluation governance source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
 - [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
 - [NVIDIA BlueField-3 raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
 - [Kueue closed issues summary](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json)
