@@ -23,6 +23,7 @@ source_refs:
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
+  - data-rag-pipeline-infrastructure.md
   - ../papers/hitchhikers-guide-agentic-ai.md
 ---
 # Summary
@@ -69,7 +70,7 @@ Use this page as source-backed coverage for:
 - `network-storage-cluster`: only when explaining vector database storage/WAL/object-store dependencies; this page does not replace cluster network or parallel filesystem coverage.
 - `eval-observability-reliability`: only when explaining retrieval correctness and recall/speed tradeoffs; this page does not replace evaluation or observability tooling coverage.
 
-Remaining gaps include Kafka/Flink/object-store data pipelines, embedding generation workers, re-embedding workflows, metadata governance, and production RAG observability.
+For ingestion, embedding worker, refresh, metadata lineage, and RAG observability coverage beyond vector index mechanics, use [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md). Remaining gaps after that page include direct Kafka Connect or Kafka Streams evidence, workflow scheduler coverage, deletion and retention propagation, embedding model drift policy, retrieval-quality alerting, and production incident evidence.
 
 # Citations
 

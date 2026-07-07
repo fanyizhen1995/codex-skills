@@ -30,6 +30,11 @@ source_refs:
   - ../../raw/links/weaviate-vector-indexing-official-docs-20260707.md
   - ../../raw/links/pgvector-readme-official-20260707.md
   - ../../raw/links/faiss-readme-and-indexes-official-20260707.md
+  - ../../raw/links/ray-data-pipeline-official-docs-20260707.md
+  - ../../raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md
+  - ../../raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md
+  - ../../raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md
+  - ../../raw/links/langfuse-rag-observability-official-docs-20260707.md
   - ../../raw/links/vllm-readme-official-20260707.md
   - ../../raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md
   - ../../raw/links/triton-inference-server-batcher-official-docs-20260707.md
@@ -40,6 +45,7 @@ related:
   - ../projects/nccl.md
   - ../references/nccl-technical-blog-network-observability.md
   - ../references/data-rag-vector-infrastructure.md
+  - ../references/data-rag-pipeline-infrastructure.md
   - ../references/inference-runtime-infrastructure.md
   - ../projects/sglang.md
   - ../references/kubernetes-volcano-kueue-github-closed-issues.md
@@ -50,7 +56,7 @@ related:
 
 This page makes the autonomous `ai_infra` coverage scan discoverable from the curated wiki. The machine-readable state lives in [coverage-map.json](../../coverage-map.json) and [loop-state.json](../../loop-state.json); this page is the human navigation entry point.
 
-The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes; security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
+The scan reuses existing local evidence rather than recrawling the baseline-dirty 20260706 compute accelerator captures. Current coverage is strongest for NCCL communication and NCCL-adjacent observability/fabric evidence, Kubernetes-native scheduling corpora, and compute accelerator raw inventory. Inference-runtime now has multi-project primary-source coverage through vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures. Data/RAG/vector infrastructure has partial primary-source coverage through Milvus, Qdrant, Weaviate, pgvector, and FAISS source notes plus Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse pipeline sources; security/governance/cost is still partial because the current NCCL technical-blog evidence covers cost estimation and resource efficiency, not platform-wide attribution or governance.
 
 # Layer Status
 
@@ -59,7 +65,7 @@ The scan reuses existing local evidence rather than recrawling the baseline-dirt
 | `training-distributed` | NCCL release notes, closed GitHub issues, and technical-blog captures cover collective communication, SHARP offload, dynamic communicators, reliability, and cost-estimation hooks. | Add source-backed training framework, checkpointing, and elastic training pages beyond NCCL. |
 | `inference-runtime` | SGLang issue/PR corpora and CUDA Green Context evidence cover serving runtime behavior and compatibility risks; [Inference Runtime Infrastructure](inference-runtime-infrastructure.md) adds vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM runtime evidence for batching, KV-cache lifecycle, model repository/config loading, OpenAI-compatible serving, provider selection, and distributed inference knobs. | Add production router/admission-control, autoscaling, model-placement, rollout, benchmark, tracing, and incident/postmortem sources. |
 | `orchestration-scheduling` | Kubernetes, Volcano, and Kueue closed-issue corpora cover scheduler, queueing, and cluster operations with comment-completeness caveats. | Add Ray, Slurm-on-Kubernetes, device plugins, and GPU quota/operator sources. |
-| `data-rag-vector` | The Hitchhiker paper gives broad RAG context, and [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md) adds primary-source Milvus, Qdrant, Weaviate, pgvector, and FAISS coverage for vector database architecture, indexing, filtered retrieval, sparse retrieval, and embedding-index lifecycle. | Add Kafka/Flink/object-store ingestion, embedding worker, re-embedding, metadata governance, and RAG observability evidence. |
+| `data-rag-vector` | The Hitchhiker paper gives broad RAG context. [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md) covers vector database architecture, indexing, filtered retrieval, sparse retrieval, and embedding-index lifecycle. [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md) adds Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, TEI embedding worker boundaries, DataHub/OpenLineage metadata lineage, and Langfuse RAG tracing/evaluation. | Add direct Kafka Connect/Streams, workflow scheduler, object-store table-format governance, deletion/retention propagation, embedding drift policy, retrieval-quality alerting, and RAG incident sources. |
 | `eval-observability-reliability` | The Hitchhiker paper covers agentic evaluation concepts; SGLang issues and NCCL issue/blog corpora now supply reliability, debugging, NCCL Inspector, Prometheus/Grafana, RAS, NVBandwidth, and Spectrum-X telemetry evidence. | Add LLM evaluation/tracing platforms, benchmark environment state, SLO, and incident sources beyond NCCL/SGLang. |
 | `security-governance-cost` | NCCL 2.22 cost-estimation and resource-efficiency evidence now complements adjacent NCCL GPU sharing/virtualization issues, DPU security positioning, and Kueue quota-aware scheduling. | Add tenant isolation, MIG/vGPU, confidential computing, cost attribution, and capacity planning sources. |
 | `hardware-accelerator` | Compute accelerator inventory, field glossary, spec catalog, and parameter comparison cover GPU, NPU, TPU, DPU, IPU, FPGA, DSA, and AI ASIC evidence. | Reconcile or intentionally ignore the baseline-dirty 20260706 compute captures before using them. |
@@ -91,6 +97,12 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Weaviate vector indexing source note](../../raw/links/weaviate-vector-indexing-official-docs-20260707.md)
 - [pgvector README source note](../../raw/links/pgvector-readme-official-20260707.md)
 - [FAISS README and indexes source note](../../raw/links/faiss-readme-and-indexes-official-20260707.md)
+- [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md)
+- [Ray Data pipeline source note](../../raw/links/ray-data-pipeline-official-docs-20260707.md)
+- [Apache Flink stateful stream-processing source note](../../raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md)
+- [Hugging Face TEI source note](../../raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md)
+- [DataHub and OpenLineage metadata-lineage source note](../../raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md)
+- [Langfuse RAG observability source note](../../raw/links/langfuse-rag-observability-official-docs-20260707.md)
 - [Inference Runtime Infrastructure](inference-runtime-infrastructure.md)
 - [vLLM README source note](../../raw/links/vllm-readme-official-20260707.md)
 - [TensorRT-LLM KV-cache and serve source note](../../raw/links/tensorrt-llm-kv-cache-official-docs-20260707.md)

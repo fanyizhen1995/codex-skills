@@ -3,20 +3,9 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-06T23:46:40Z",
+  "last_scan_at": "2026-07-07T00:45:00Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [
-    {
-      "id": "data-rag-vector-data-pipeline-broadening",
-      "title": "Broaden data/RAG/vector coverage beyond vector indexes into ingestion, embedding, governance, and observability pipelines",
-      "source": "coverage-map:data-rag-vector",
-      "status": "candidate",
-      "updated_at": "2026-07-06T23:00:42Z",
-      "evidence": [
-        "personal-wiki/domains/ai_infra/coverage-map.json",
-        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md"
-      ]
-    },
     {
       "id": "eval-observability-reliability-primary-sources",
       "title": "Add evaluation/tracing and non-NCCL observability/reliability coverage",
@@ -185,6 +174,21 @@
         "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md"
+      ]
+    },
+    {
+      "id": "data-rag-pipeline-official-primary-sources",
+      "title": "Ray Data, Flink, TEI, DataHub/OpenLineage, and Langfuse data/RAG pipeline sources",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-07T00:45:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/raw/links/ray-data-pipeline-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md"
       ]
     },
     {

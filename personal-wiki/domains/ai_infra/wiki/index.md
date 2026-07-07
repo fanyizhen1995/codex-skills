@@ -36,6 +36,7 @@ _No pages yet._
 - [Compute Accelerator Field Glossary](references/compute-accelerator-field-glossary.md) - Canonical field names, units, and scope applicability for accelerator specifications.
 - [Compute Accelerator Parameter Comparison](references/compute-accelerator-parameter-comparison.md) - Current cross-vendor parameter comparison for accelerator, cloud offering, system, DPU, and SmartNIC records captured in ai_infra.
 - [Compute Accelerator Spec Sources](references/compute-accelerator-spec-sources.md) - Source ranking and provenance policy for the compute accelerator specification catalog.
+- [Data RAG Pipeline Infrastructure](references/data-rag-pipeline-infrastructure.md) - Source-backed reference for data/RAG ingestion, embedding workers, refresh workflows, metadata lineage, and RAG observability beyond vector index mechanics.
 - [Data RAG Vector Infrastructure](references/data-rag-vector-infrastructure.md) - Source-backed reference for vector database, retrieval, and embedding-index infrastructure across Milvus, Qdrant, Weaviate, pgvector, and FAISS.
 - [Inference Runtime Infrastructure](references/inference-runtime-infrastructure.md) - Source-backed reference for inference serving runtime mechanics across vLLM, TensorRT-LLM, Triton Inference Server, llama.cpp, ONNX Runtime GenAI, and local TensorRT/vLLM captures.
 - [Kubernetes, Volcano, And Kueue GitHub Closed Issues](references/kubernetes-volcano-kueue-github-closed-issues.md) - Local raw corpus and monthly sync setup for closed GitHub issues from Kubernetes, Volcano, and Kueue.

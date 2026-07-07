@@ -1,0 +1,150 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r4-task-2",
+  "run_id": "ai-infra-expansion-2026-07-06-r4",
+  "generated_at": "2026-07-07T00:45:00Z",
+  "summary": "Task 2 broadened data-rag-vector coverage beyond vector database/index mechanics with official source notes for Ray Data, Apache Flink, Hugging Face Text Embeddings Inference, DataHub/OpenLineage, and Langfuse. Non-live validators passed. Live service, search, frontend, crawler workbench, and loop dashboard checks were intentionally delegated to orchestrator trusted live evidence per generator instructions.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/raw/links/ray-data-pipeline-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-2-verification.json"
+  ],
+  "baseline_dirty_exclusions": [
+    "Pre-existing untracked personal-wiki/domains/ai_infra/raw/crawler/compute-* 20260706 hardware accelerator captures were not used, modified, staged, or declared as task-2 outputs."
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated personal-wiki/domains/ai_infra/wiki/index.md and indexed Data RAG Pipeline Infrastructure."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_loop_state_payload, validate_coverage_map_payload, validate_ai_infra_coverage_map_semantics ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness schemas and ai_infra coverage semantics."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-2-gap-proof.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-2 gap proof parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-2-verification.json >/dev/null",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-2 verification manifest parses as JSON."
+    },
+    {
+      "command": "python3 - <<'PY' ... validate_gap_proof_file(... expected_task_id='ai-infra-expansion-2026-07-06-r4-task-2') ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Task-2 gap proof satisfies the harness gap-proof validator."
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in the current diff."
+    },
+    {
+      "command": "targeted credential-shaped sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No credential-shaped API key, access token, bearer token, GitHub token, or private-key patterns were found. A broader first-pass keyword scan produced benign matches for normal words such as token-based batching and was superseded by this credential-shaped scan."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "All declared non-run-artifact changed paths are under personal-wiki/domains/ai_infra/**, which is allowed by planner-output.json and run.json."
+    },
+    {
+      "command": "supply-chain dependency change check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No dependency files changed."
+    },
+    {
+      "command": "python3 - <<'PY' ... urllib HEAD probes for official Ray Data, Flink, TEI, DataHub, OpenLineage, and Langfuse URLs ... PY",
+      "status": "blocked",
+      "exit_code": 0,
+      "summary": "Sandbox shell probes failed with Temporary failure in name resolution for all official external URLs; browser retrieval opened the official pages during curation, so link evidence is recorded as partial_pass in the gap proof."
+    },
+    {
+      "command": "python3 - <<'PY' ... assert wiki/index.md contains Data RAG Pipeline Infrastructure ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "wiki/index.md contains Data RAG Pipeline Infrastructure."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health and /api/search visibility checks",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/service-availability.json, trusted-live-evidence/search-api-visibility.json, and trusted-live-evidence/crawler-workbench-freshness.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsSI http://127.0.0.1:5173/",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/service-availability.json and trusted-live-evidence/frontend-visibility.json."
+    },
+    {
+      "command": "curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Not run by generator per instructions. Orchestrator must capture trusted-live-evidence/service-availability.json and trusted-live-evidence/loop-dashboard-freshness.json."
+    },
+    {
+      "command": "code test requirement check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No crawler, harness, frontend, backend, or dependency files changed; code-test requirement is not triggered by this wiki-only task."
+    }
+  ],
+  "delegated_live_evidence": {
+    "service-availability": "trusted-live-evidence/service-availability.json",
+    "crawler-workbench-freshness": "trusted-live-evidence/crawler-workbench-freshness.json",
+    "loop-dashboard-freshness": "trusted-live-evidence/loop-dashboard-freshness.json",
+    "search-api-visibility": "trusted-live-evidence/search-api-visibility.json",
+    "frontend-visibility": "trusted-live-evidence/frontend-visibility.json"
+  },
+  "source_urls": [
+    "https://docs.ray.io/en/latest/data/data.html",
+    "https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/stateful-stream-processing/",
+    "https://huggingface.co/docs/text-embeddings-inference/index",
+    "https://docs.datahub.com/docs/metadata-ingestion/",
+    "https://openlineage.io/docs/",
+    "https://langfuse.com/docs/tracing"
+  ]
+}

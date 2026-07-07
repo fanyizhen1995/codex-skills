@@ -1,0 +1,86 @@
+{
+  "task_id": "ai-infra-expansion-2026-07-06-r4-task-2",
+  "run_id": "ai-infra-expansion-2026-07-06-r4",
+  "layer": "data-rag-vector",
+  "candidate": {
+    "title": "Broaden data/RAG pipeline coverage beyond vector index mechanics",
+    "source_type": "official_docs_source_notes",
+    "identity_key": "urlset:ray-data-flink-tei-datahub-openlineage-langfuse-data-rag-pipeline-20260707"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Targeted rg/find scans of personal-wiki/domains/ai_infra/raw and raw/links found existing local source notes for Milvus, Qdrant, Weaviate, pgvector, FAISS, and inference-runtime sources, plus one incidental Langfuse mention in an unrelated AWS ML blog capture. No existing dedicated raw/links source notes were found for Ray Data, Apache Flink stateful refresh, Hugging Face Text Embeddings Inference, DataHub/OpenLineage metadata lineage, or Langfuse RAG tracing/evaluation. Pre-existing untracked 20260706 compute accelerator captures were observed in git status and excluded.",
+    "wiki_search": "Targeted rg scans of personal-wiki/domains/ai_infra/wiki found Data RAG Vector Infrastructure covering vector databases and index lifecycle, Inference Runtime Infrastructure covering serving runtimes, and NCCL/SGLang observability pages. No curated page existed for data/RAG ingestion pipelines, embedding worker boundaries, re-embedding or refresh workflows, metadata lineage, or production RAG observability beyond vector index mechanics.",
+    "domain_index_scan": "personal-wiki/domains/ai_infra/wiki/index.md indexed Data RAG Vector Infrastructure and Inference Runtime Infrastructure before this task, but did not index a dedicated data/RAG pipeline infrastructure page."
+  },
+  "gap_reason": "coverage-map.json marked data-rag-vector as partial and explicitly requested Kafka/Flink/object-store ingestion, embedding-generation workers, re-embedding workflows, metadata governance, and production RAG observability beyond vector index mechanics. Existing curated coverage was concentrated in vector database/index mechanics and recent inference-runtime work, so the task required a new source-backed pipeline reference instead of extending vector-index or runtime pages with unrelated facts.",
+  "duplicate_policy": {
+    "vector_index_duplicate_avoided": true,
+    "inference_runtime_duplicate_avoided": true,
+    "baseline_dirty_compute_captures_excluded": true,
+    "excluded_reason": "Pre-existing untracked 20260706 compute accelerator crawler captures are hardware-accelerator evidence and were not staged, curated, or used as source evidence for this data/RAG pipeline task.",
+    "existing_local_evidence_reused": [
+      "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md"
+    ],
+    "not_selected_local_paths": [
+      {
+        "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260626T015712819762Z-aws-amazon-com-blogs-machine-learning-how-loka-built-a-natural-low-latency-voice-agent-wit-35efb54f90.md",
+        "reason": "Contains an incidental Langfuse string but is an AWS application blog capture, not an official Langfuse RAG observability source."
+      }
+    ]
+  },
+  "selected_sources": [
+    {
+      "name": "Ray Data pipeline documentation",
+      "url": "https://docs.ray.io/en/latest/data/data.html",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/ray-data-pipeline-official-docs-20260707.md",
+      "reason": "Primary Ray documentation for distributed ML data loading, object-store examples, transforms, batch inference, and resource-aware workers."
+    },
+    {
+      "name": "Apache Flink stateful stream processing documentation",
+      "url": "https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/stateful-stream-processing/",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md",
+      "reason": "Primary Flink documentation for stateful streams, event time, durable checkpoints, source-position recovery, and replayable broker inputs."
+    },
+    {
+      "name": "Hugging Face Text Embeddings Inference documentation",
+      "url": "https://huggingface.co/docs/text-embeddings-inference/index",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md",
+      "reason": "Primary embedding-worker evidence for model serving boundaries, batching, queueing, CPU/GPU deployment variants, health, metrics, and OpenAI-compatible embeddings APIs."
+    },
+    {
+      "name": "DataHub metadata ingestion and OpenLineage documentation",
+      "url": "https://docs.datahub.com/docs/metadata-ingestion/",
+      "secondary_urls": [
+        "https://openlineage.io/docs/"
+      ],
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+      "reason": "Primary metadata and lineage evidence for ingestion recipes, sources/sinks, catalog metadata, jobs, runs, datasets, and lineage facets."
+    },
+    {
+      "name": "Langfuse tracing and evaluation documentation",
+      "url": "https://langfuse.com/docs/tracing",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+      "reason": "Primary RAG observability evidence for hierarchical traces, retrieval steps, generations, scores, datasets, experiments, feedback, and OpenTelemetry ingestion."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/links/ray-data-pipeline-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r4-task-2-verification.json"
+  ],
+  "link_probe_evidence": {
+    "method": "browser retrieval plus sandbox urllib HEAD probe",
+    "status": "partial_pass",
+    "notes": "Official browser/web retrieval was used during curation. Sandbox urllib HEAD probes for the official source URLs failed with Temporary failure in name resolution, so shell-level link evidence is recorded as DNS-blocked in the verification manifest."
+  }
+}

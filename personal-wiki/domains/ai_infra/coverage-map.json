@@ -87,7 +87,8 @@
       "status": "partial",
       "covered_pages": [
         "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
-        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md"
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md"
       ],
       "raw_evidence": [
         "personal-wiki/domains/ai_infra/raw/crawler/manual-url-arxiv-org-pdf-2606-24937-02f2168fd4/20260630T012708593204Z-arxiv-org-pdf-2606-24937-9d7a5b6fec.md",
@@ -96,15 +97,20 @@
         "personal-wiki/domains/ai_infra/raw/links/qdrant-indexing-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/weaviate-vector-indexing-official-docs-20260707.md",
         "personal-wiki/domains/ai_infra/raw/links/pgvector-readme-official-20260707.md",
-        "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md"
+        "personal-wiki/domains/ai_infra/raw/links/faiss-readme-and-indexes-official-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/ray-data-pipeline-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/apache-flink-stateful-stream-processing-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md",
+        "personal-wiki/domains/ai_infra/raw/links/langfuse-rag-observability-official-docs-20260707.md"
       ],
       "candidate_gaps": [
-        "Add source-backed AI data pipeline evidence for Kafka, Flink, object-store ingestion, embedding-generation workers, re-embedding workflows, and feature or metadata infrastructure.",
-        "Add production RAG observability, retrieval-quality monitoring, freshness, governance, and evaluation infrastructure sources beyond vector index mechanics."
+        "Add direct Kafka Connect or Kafka Streams primary-source coverage, Airflow/Dagster/Prefect orchestration evidence, object-store table-format governance, deletion and retention propagation, and embedding model/version drift policies.",
+        "Add retrieval-quality alerting, production incident evidence, access policy, tenant isolation, PII controls, and cost attribution for RAG data pipelines."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-06T23:00:42Z",
-      "notes": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official source notes now provide primary coverage for vector database architecture, HNSW/IVFFlat/IVF/PQ index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk placement, and embedding-index lifecycle. Broader ingestion pipelines, re-embedding operations, metadata governance, and RAG observability remain gaps."
+      "last_scanned_at": "2026-07-07T00:45:00Z",
+      "notes": "Milvus, Qdrant, Weaviate, pgvector, and FAISS official source notes provide primary coverage for vector database architecture, index tradeoffs, filtered retrieval, sparse retrieval, memory/on-disk placement, and embedding-index lifecycle. Data RAG Pipeline Infrastructure now adds source-backed coverage for Ray Data batch/object-store pipelines, Flink checkpointed streaming refresh, Hugging Face Text Embeddings Inference worker boundaries, DataHub/OpenLineage metadata lineage, and Langfuse RAG traces/evaluation. The layer remains partial because direct Kafka pipeline docs, workflow scheduler evidence, deletion/retention propagation, embedding drift policy, retrieval-quality alerting, and RAG incident evidence remain thin."
     },
     "eval-observability-reliability": {
       "status": "partial",
