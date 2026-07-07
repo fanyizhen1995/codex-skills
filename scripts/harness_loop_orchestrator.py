@@ -3135,17 +3135,68 @@ def _candidate_result_value(candidate: Any) -> str:
     return str(candidate).strip()
 
 
+def _local_text_for_live_visibility_candidate(
+    repo_root: Path | None,
+    candidate: Any,
+    target: Mapping[str, Any],
+) -> str:
+    if repo_root is None or not isinstance(candidate, Mapping):
+        return ""
+    if str(target.get("kind", "")).strip() not in {"raw_path", "source_path"}:
+        return ""
+    target_path = str(target.get("path", "")).strip().replace("\\", "/")
+    domain_match = re.match(r"personal-wiki/domains/([^/]+)/", target_path)
+    domain = domain_match.group(1) if domain_match else ""
+
+    candidate_paths: list[str] = []
+    for key in ("full_path", "path"):
+        value = str(candidate.get(key, "")).strip().replace("\\", "/")
+        if value:
+            candidate_paths.append(value)
+
+    local_paths: list[Path] = []
+    for value in candidate_paths:
+        if value.startswith("personal-wiki/"):
+            local_paths.append(repo_root / value)
+        elif value.startswith("domains/"):
+            local_paths.append(repo_root / "personal-wiki" / value)
+        elif domain and value.startswith(f"{domain}/"):
+            local_paths.append(repo_root / "personal-wiki" / "domains" / value)
+        elif domain and value.startswith(("wiki/", "references/", "concepts/", "projects/", "papers/")):
+            local_paths.append(repo_root / "personal-wiki" / "domains" / domain / "wiki" / value.removeprefix("wiki/"))
+
+    for path in local_paths:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        try:
+            resolved.relative_to(repo_root.resolve())
+        except ValueError:
+            continue
+        if resolved.is_file():
+            try:
+                return resolved.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return ""
+    return ""
+
+
 def _match_visibility_target(
     payload: Any,
     target: Mapping[str, Any],
     *,
     query: str,
+    repo_root: Path | None = None,
 ) -> dict[str, Any] | None:
     required_content_terms = [str(term).strip() for term in target.get("content_terms", []) if str(term).strip()]
     if str(target.get("kind", "")).strip() == "wiki_page" and not required_content_terms:
         return None
     for candidate in _result_candidates(payload):
         haystack = _flatten_probe_text(candidate)
+        local_candidate_text = _local_text_for_live_visibility_candidate(repo_root, candidate, target)
+        if local_candidate_text:
+            haystack = f"{haystack} {local_candidate_text.lower()}"
         normalized_haystack = _normalize_visibility_match_text(haystack)
         matched_on = ""
         for match_term in target.get("identity_terms", []):
@@ -3260,7 +3311,7 @@ def _capture_targeted_search_visibility(
                 params["domain"] = context["domain"]
             probe_url = f"{base_url}?{urlencode(params)}"
             probe = _http_probe(probe_url)
-            target_match = _match_visibility_target(probe.get("json"), target, query=query)
+            target_match = _match_visibility_target(probe.get("json"), target, query=query, repo_root=context["repo_root"])
             probes.append(
                 {
                     "target_id": str(target["target_id"]),
@@ -3334,7 +3385,7 @@ def _capture_targeted_wiki_visibility(
             primary_query = primary_query or query
             probe_url = f"{wiki_page_base_url}?{urlencode({'domain': context['domain'], 'path': query})}"
             probe = _http_probe(probe_url)
-            target_match = _match_visibility_target(probe.get("json"), target, query=query)
+            target_match = _match_visibility_target(probe.get("json"), target, query=query, repo_root=context["repo_root"])
             probes.append(
                 {
                     "target_id": str(target["target_id"]),
@@ -3352,7 +3403,7 @@ def _capture_targeted_wiki_visibility(
                     params["domain"] = context["domain"]
                 probe_url = f"{fallback_search_base_url}?{urlencode(params)}"
                 probe = _http_probe(probe_url)
-                target_match = _match_visibility_target(probe.get("json"), target, query=query)
+                target_match = _match_visibility_target(probe.get("json"), target, query=query, repo_root=context["repo_root"])
                 probes.append(
                     {
                         "target_id": str(target["target_id"]),
