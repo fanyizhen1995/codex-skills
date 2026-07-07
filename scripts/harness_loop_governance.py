@@ -619,8 +619,6 @@ def validate_candidate_scoring_artifact(
             f"{computed['high_value_eligible']}"
         )
 
-    if computed["classification"] != "high_value":
-        findings.append(f"{artifact_label} must classify the selected implementation candidate as high_value")
     return findings
 
 

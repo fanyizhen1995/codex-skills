@@ -639,6 +639,42 @@ def test_validate_governance_preflight_evidence_uses_canonical_candidate_scoring
     )
 
 
+def test_validate_governance_preflight_evidence_accepts_honest_non_high_value_candidate(tmp_path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "ai-infra-loop-governance-dev"
+    scoring_dir = run_dir / "candidate-scoring"
+    scoring_dir.mkdir(parents=True)
+    payloads = _governance_p0_payloads()
+    candidate = {
+        **_high_value_candidate(),
+        "hard_gates": {
+            **_high_value_candidate()["hard_gates"],
+            "has_depth_acquisition_proof": False,
+        },
+    }
+    classification = classify_candidate(candidate)
+    assert classification["classification"] == "needs_more_evidence"
+    (run_dir / "egress-proof.json").write_text(json_dumps(payloads["egress"]), encoding="utf-8")
+    (run_dir / "identity-key-audit.json").write_text(json_dumps(payloads["identity"]), encoding="utf-8")
+    (run_dir / "depth-acquisition-smoke.json").write_text(json_dumps(payloads["depth"]), encoding="utf-8")
+    (scoring_dir / "candidate-001.json").write_text(
+        json_dumps(
+            {
+                "status": "pass",
+                "candidate": candidate,
+                "identity_key": classification["identity_key"],
+                "classification": classification["classification"],
+                "high_value_eligible": classification["high_value_eligible"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_governance_preflight_evidence(run_dir)
+
+    assert result["status"] == "pass"
+    assert result["findings"] == []
+
+
 def json_dumps(payload: object) -> str:
     import json
 
