@@ -1,0 +1,150 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-2",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T13:33:45Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md"
+  ],
+  "source_evidence": {
+    "raw_manifest": "personal-wiki/domains/ai_infra/raw/crawler/manifest-20260705-20260707-scheduled-refresh.json",
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058336Z-github-com-sgl-project-sglang-issues-24482-c660652870.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md"
+    ],
+    "promoted_boundary": "Six new selected signals were promoted from local page-level snapshots: NIXL/UCX KV-transfer crash behavior, HiCache bootstrap-abort cleanup, KV-transfer metric-window semantics, Ascend 910B3 Mooncake Store registration failure, EAGLE DP-attention crash behavior, and MI350X GLM-5.1 sparse-MLA prefill profiling. SGLang issue #24456 was reused as prior duplicate-boundary context."
+  },
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-2'); raise SystemExit('\\\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "coverage-map and loop-state contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map contract ok; loop-state contract ok"
+    },
+    {
+      "command": "source visibility check for NIXL, UCX, disaggregated KV transfer, HiCache bootstrap abort, KV transfer metrics, prefill_kv_transfer_finish_time, Mooncake Store, Ascend 910B3, EAGLE, DP attention, router retry, health check, GLM-5.1, MI350X, TTFT, ITL, benchmark caveat, page-level supplement, full API refresh caveat",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "source visibility check passed for 19 term groups"
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "all declared changed paths are inside planner allowed paths and outside denylist patterns"
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment or non-path high-entropy credential patterns found in changed files"
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no dependency, backend, frontend, loop dashboard, harness, test, or package files changed; code tests and supply-chain review are not applicable generator-side"
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services or run localhost probes"
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend 8765, crawler frontend 5173, Loop Dashboard 8766, and loop-auto-resume liveness intent"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-2 wiki/state updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-2 SGLang NIXL, HiCache, KV metrics, Mooncake, EAGLE, and MI350X wiki content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-2 SGLang operational terms"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run, child task state, agent actions, evaluator scenarios, and completed history"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses existing local raw crawler snapshots.",
+    "No git commit was run; commit is intentionally empty for the orchestrator."
+  ]
+}

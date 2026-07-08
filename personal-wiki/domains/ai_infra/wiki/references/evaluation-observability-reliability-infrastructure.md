@@ -27,7 +27,9 @@ source_refs:
   - ../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md
   - ../../raw/links/inference-serving-incident-postmortem-sources-20260707.md
   - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
-updated: 2026-07-07
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md
+updated: 2026-07-08
 related:
   - ai-infra-coverage-map.md
   - data-rag-pipeline-infrastructure.md
@@ -58,6 +60,8 @@ This closes only the alerting-mechanics gap. These sources do not prove a local 
 The r10 RAG operations probe applied the same rule to retrieval-quality alerting. Local evidence covers Ragas metrics, LangSmith and Phoenix traces, Langfuse RAG evaluation, OpenTelemetry GenAI retrieval spans, and Grafana AI Observability quality-score and cost alert examples, but the probe did not capture a primary artifact with retrieval metric thresholds, notification route, owner, and observed RAG run. [raw](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 
 The r9 KServe and incident/postmortem source probes did not add service-specific production SLO evidence. They record that local sources already cover generic SLO and trace mechanics, but the selected KServe URLs and external incident source path were blocked by DNS or lacked captured content in this generator attempt. Treat those notes as gap evidence until a later capture includes the service, trace or metric artifact, chosen SLO/threshold, escalation owner, and observed run or incident context. [raw](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md) [raw](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
+
+The July 6-7 SGLang page supplement adds two useful but bounded observability leads. Issue #23937 is metric-semantics evidence: a KV-cache transfer speed metric can be biased if its latency window ends at request completion instead of `prefill_kv_transfer_finish_time`, because decode time is then included in the transfer window. PR #28975 is benchmark/profiling evidence for an opt-in GLM-5.1-MXFP4 MI350X/gfx950 sparse-MLA prefill kernel: it includes profiler rationale plus accuracy, TTFT, ITL, and E2EL tables for the stated setup. Neither source closes the production SLO gap, because neither records a service objective, validated alert threshold, escalation route, or incident lifecycle. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md)
 
 # Trace And Experiment Stores
 
@@ -102,7 +106,7 @@ Use this page as source-backed coverage for:
 - `inference-runtime`: only where evaluation traces or platform profiles inspect runtime behavior; keep runtime scheduler, batching, KV-cache, and model-loading mechanics in [Inference Runtime Infrastructure](inference-runtime-infrastructure.md).
 - `hardware-accelerator`: only for DCGM and Nsight platform telemetry/profiling signals; accelerator SKU and parameter evidence stays in the compute accelerator pages.
 
-Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap but do not close it.
+Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window and MI350X profiling pages add useful page-level semantics and benchmark context but do not close the production SLO or local benchmark-baseline gaps.
 
 # Citations
 
@@ -118,3 +122,5 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [KServe inference deployment SLO trace source probe](../../raw/links/kserve-inference-deployment-slo-trace-official-sources-20260707.md)
 - [Inference serving incident and postmortem source probe](../../raw/links/inference-serving-incident-postmortem-sources-20260707.md)
 - [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
+- [SGLang issue #23937 KV transfer metric window](../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md)
+- [SGLang PR #28975 AMD MI350X sparse-MLA prefill profiling](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md)

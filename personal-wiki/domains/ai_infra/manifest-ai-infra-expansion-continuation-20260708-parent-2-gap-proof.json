@@ -1,0 +1,119 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-2",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "SGLang July 6-7 page-level inference operations signals",
+    "source_type": "github_issue_page_supplement",
+    "identity_key": "github:sgl-project/sglang:scheduled-crawler:20260706-20260707:inference-ops",
+    "source_paths": [
+      "personal-wiki/domains/ai_infra/raw/crawler/manifest-20260705-20260707-scheduled-refresh.json",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058336Z-github-com-sgl-project-sglang-issues-24482-c660652870.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md"
+    ]
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Read the 2026-07-05 through 2026-07-07 scheduled refresh manifest and selected SGLang page snapshots for NIXL, UCX, disaggregated KV transfer, HiCache bootstrap abort cleanup, KV transfer metrics, prefill_kv_transfer_finish_time, Mooncake Store, Ascend 910B3, EAGLE, DP attention, router retry, health check, GLM-5.1, MI350X, TTFT, ITL, benchmark caveat, page-level supplement, and full API refresh caveat terms.",
+    "wiki_search": "Searched SGLang GitHub Closed Issues And PRs, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, AI Infra Coverage Map, coverage-map.json, loop-state.json, ingest.md, and prior r7/r9/parent-1 manifests. Prior pages already covered SGLang full API corpus through 2026-06-24, scheduled July 1-4 supplement leads, and parent-1 #24456 routed-experts return hot-path diagnosis. The selected #23499, #30053, #23937, #24482, #21210, and #28975 signals were not fully represented as durable rows before this task.",
+    "domain_index_scan": "The ai_infra index already routes to SGLang GitHub Closed Issues And PRs, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, and AI Infra Coverage Map. No new wiki page was needed; the smallest useful update was to add bounded rows and citations to these existing references."
+  },
+  "gap_reason": "The inference-runtime layer still had an actionable local-evidence-first gap for high-signal SGLang scheduled crawler snapshots after the API corpus cutoff. The selected page snapshots expose concrete operational behavior, environment, failure mode, metric semantics, or profiling context: NIXL/UCX segfault during disaggregated KV transfer, HiCache bootstrap-queue abort prefetch leak cleanup, wrong KV-transfer metric time window, Ascend 910B3 Mooncake Store buffer-registration failure, EAGLE DP-attention padded-state crash, and MI350X GLM-5.1 sparse-MLA prefill profiling. Promoting these bounded signals improves inference-runtime and eval-observability coverage without claiming full API refresh, joined comments, review comments, production postmortems, SLO thresholds, or general benchmark results.",
+  "duplicate_checks": [
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+      "finding": "Before this task the page recorded the 2026-07-05 through 2026-07-07 supplement as raw evidence and listed #23499/#30053/#24456 citations, but only #24456 had a durable selected row. Parent-2 adds bounded rows for #23499, #30053, #23937, #24482, #21210, and #28975 and keeps #24456 as a duplicate boundary."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "finding": "Existing coverage already included vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, router abort observability, PD/Mooncake issue leads, startup regressions, and #24456 routed-output hot-path stalls. It did not yet preserve the selected NIXL/UCX, HiCache bootstrap abort, KV metric, Ascend Mooncake Store, EAGLE DP attention, or MI350X sparse-MLA signals."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "finding": "Existing eval-observability coverage already had OpenTelemetry, LangSmith, Phoenix, Ragas, lm-evaluation-harness, Grafana/Prometheus/Alertmanager, DCGM/Nsight, AMD/Gaudi observability, and blocked retrieval-quality alert evidence. Parent-2 adds only SGLang metric-window semantics and bounded MI350X profiling context, not a production SLO or benchmark baseline."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/coverage-map.json",
+      "finding": "The inference-runtime layer previously listed #24456 and kept full SGLang API refresh as a possible remaining gap. Parent-2 records selected page-level supplement evidence while preserving the full API refresh caveat."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/loop-state.json",
+      "finding": "The existing SGLang runtime known source pointed to the full joined API corpus and older curated pages. Parent-2 adds a separate known source id for the July 6-7 page-level operations evidence to avoid merging it into API corpus counts."
+    }
+  ],
+  "selected_source_backed_signals": [
+    {
+      "item": "SGLang issue #23499",
+      "surface": "NIXL UCX disaggregated KV transfer",
+      "promoted_claim": "A DeepSeek-R1 FP8 disaggregated prefill+decode benchmark with NIXL transport crashed in UCX CUDA event handling while sending KV chunks; later Gloo and bootstrap errors are consequent scheduler-crash effects.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md"
+    },
+    {
+      "item": "SGLang PR #30053",
+      "surface": "HiCache prefetch resource cleanup",
+      "promoted_claim": "A merged page snapshot records a narrow fix for bootstrap-queue aborts that leaked prefetch accounting and ongoing_prefetch state until storage prefetch could remain rate-limited for the process.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md"
+    },
+    {
+      "item": "SGLang issue #23937",
+      "surface": "KV cache transfer metrics",
+      "promoted_claim": "KV-transfer latency can be overstated if the metric window ends at request completion rather than prefill_kv_transfer_finish_time, because decode time is included in the transfer window.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md"
+    },
+    {
+      "item": "SGLang issue #24482",
+      "surface": "Mooncake Store on Ascend 910B3",
+      "promoted_claim": "Mooncake Store buffer registration can fail during scheduler initialization on Ascend 910B3 when NPU host memory is allocated outside Mooncake's registered shared-memory pool.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058336Z-github-com-sgl-project-sglang-issues-24482-c660652870.md"
+    },
+    {
+      "item": "SGLang issue #21210",
+      "surface": "EAGLE DP attention padded-state failure",
+      "promoted_claim": "EAGLE speculative decoding with DP attention and MLP-sync padding can carry stale padded metadata across decode steps, causing a negative-dimension crash and cascading router retry, health check, or training hang symptoms in the reported setup.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md"
+    },
+    {
+      "item": "SGLang PR #28975",
+      "surface": "AMD MI350X GLM-5.1 sparse-MLA prefill profiling",
+      "promoted_claim": "An opt-in Triton FP8 sparse-MLA prefill path for GLM-5.1-MXFP4 on MI350X/gfx950 includes profiler rationale, accuracy check, and TTFT/ITL benchmark tables bounded to the stated setup.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md"
+    }
+  ],
+  "rejected_or_deferred_signals": [
+    {
+      "item": "SGLang issue #24456",
+      "reason": "Already promoted by parent-1 as a routed-experts return hot-path stall diagnosis; reused only as duplicate-boundary evidence."
+    },
+    {
+      "item": "Low-signal July 6-7 run-ci, documentation, label churn, and shallow implementation pages",
+      "reason": "Not promoted because they did not add infrastructure behavior, environment, failure mode, metric semantics, benchmark/profiling context, or operational caveats."
+    },
+    {
+      "item": "Production postmortem, SLO, alert, and general benchmark claims",
+      "reason": "The selected GitHub page snapshots are issue/PR evidence only; they do not include service objectives, alert routes, incident timelines, remediation ownership, joined comments, review-comment coverage, or broadly generalizable benchmark conditions."
+    },
+    {
+      "item": "Full SGLang API refresh",
+      "reason": "Not performed in this parent task; the 2026-07-05 through 2026-07-07 scheduled crawler refresh remains page-level supplement evidence and must not be merged into API corpus counts."
+    }
+  ],
+  "schema_extensions": [],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md"
+  ]
+}

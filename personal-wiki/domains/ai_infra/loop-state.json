@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-08T10:47:53Z",
+  "last_scan_at": "2026-07-08T13:24:59Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -490,6 +490,28 @@
         "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
         "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
+      ]
+    },
+    {
+      "id": "sglang-july-6-7-page-level-operations-evidence",
+      "title": "SGLang July 6-7 page-level inference operations signals",
+      "source": "local wiki/raw scheduled crawler supplement",
+      "status": "known",
+      "updated_at": "2026-07-08T13:24:59Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/manifest-20260705-20260707-scheduled-refresh.json",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260706T021453058336Z-github-com-sgl-project-sglang-issues-24482-c660652870.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md"
       ]
     }
   ],
