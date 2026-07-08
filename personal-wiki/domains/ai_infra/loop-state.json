@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-08T17:08:34Z",
+  "last_scan_at": "2026-07-08T17:48:10Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -604,6 +604,21 @@
         "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
         "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md"
+      ]
+    },
+    {
+      "id": "nvidia-blackwell-confidential-inference-evidence",
+      "title": "NVIDIA Blackwell confidential-inference security and performance evidence",
+      "source": "local wiki/raw NVIDIA developer-blog capture",
+      "status": "known",
+      "updated_at": "2026-07-08T17:48:10Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md",
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
       ]
     }
   ],

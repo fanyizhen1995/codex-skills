@@ -17,6 +17,7 @@ tags:
 source_refs:
   - ../../raw/crawler/nccl-nvidia-blog-wide/20260626T015710841547Z-developer-nvidia-com-blog-one-click-multi-tenant-security-with-nvidia-quantum-infiniband-5b2cd4e1d4.md
   - ../../raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md
+  - ../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md
   - ../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md
   - ../../raw/links/opencost-cost-attribution-official-20260707.md
   - ../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md
@@ -27,7 +28,7 @@ source_refs:
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json
-updated: 2026-07-07
+updated: 2026-07-09
 related:
   - ai-infra-coverage-map.md
   - nccl-technical-blog-network-observability.md
@@ -46,7 +47,7 @@ This reference captures the security, governance, quota, cost, and capacity-plan
 - cloud capacity reservation and service-quota planning before workloads run;
 - policy-as-code enforcement and audit reporting for resource configuration.
 
-The layer is broader than NCCL cost-estimation evidence and broader than DPU positioning. It is still partial because local evidence now covers infrastructure controls, selected RAG governance hooks, cross-cloud chargeback dimensions, and policy/audit mechanics, but not complete chargeback parity, full end-to-end policy-enforcement run evidence, or real incident/postmortem evidence.
+The layer is broader than NCCL cost-estimation evidence and broader than DPU positioning. It is still partial because local evidence now covers infrastructure controls, Blackwell confidential-inference trust and attestation boundaries, selected RAG governance hooks, cross-cloud chargeback dimensions, and policy/audit mechanics, but not complete chargeback parity, full end-to-end policy-enforcement run evidence, legal-compliance completion, or real incident/postmortem evidence.
 
 # Tenant Isolation And Accelerator Sharing
 
@@ -55,6 +56,8 @@ The local NVIDIA Quantum InfiniBand capture is direct evidence for fabric-level 
 NVIDIA MIG and vGPU documentation fills the accelerator-sharing boundary. MIG is the hardware-partitioning model: supported GPUs can be split into GPU instances with dedicated compute and memory resources. vGPU is the virtualized profile model: a hypervisor presents configured vGPU profiles to guest VMs. Use MIG/vGPU as accelerator allocation and isolation evidence; do not infer NCCL support, topology behavior, or legal compliance from those docs alone. [source note](../../raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md)
 
 NVIDIA confidential-computing documentation adds a trust and attestation boundary for sensitive GPU workloads. It supports claims about protected workload operation and remote attestation, but it does not replace quota policy, admission control, or network isolation. [source note](../../raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md)
+
+The July 2026 NVIDIA developer-blog capture narrows that confidential-computing boundary to Blackwell inference. It states that NVIDIA Blackwell GPUs such as RTX PRO 6000, HGX B200, and HGX B300 embed confidential computing in hardware; HGX B200 and HGX B300 support multi-GPU confidential computing across up to 8 GPUs with NVLink encryption. It also records that the GPU private signing key is fused during manufacturing and is not exposed to software, firmware, or the host, and that NRAS verifies a signed evidence bundle made from the GPU hardware report plus CPU TEE measurements from AMD SEV-SNP or Intel TDX against a reference integrity manifest. Model decryption keys are described as deployable only after the confidential VM is verified, and attestation is scoped as a startup event that does not add latency to individual inference requests after the workload is running. Use this as confidential-inference trust-chain evidence, not as proof of legal compliance, quota governance, production incident readiness, or a hardware SKU/catalog row. [raw](../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md)
 
 DPU evidence remains adjacent rather than sufficient by itself. The local BlueField-3 capture supports DPU/security positioning and line-rate infrastructure offload, but this page does not use it to claim tenant policy correctness without the InfiniBand, MIG/vGPU, or quota sources above. [raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
 
@@ -105,6 +108,7 @@ Use this page as source-backed coverage for `security-governance-cost`:
 - fabric-level tenant isolation through NVIDIA Quantum InfiniBand security profiles;
 - accelerator partitioning and virtualization through MIG and vGPU;
 - confidential-computing attestation as a trust boundary;
+- Blackwell confidential-inference evidence for hardware root of trust, fused private signing-key boundary, NVLink encryption across up to 8 HGX B200/B300 GPUs, NRAS attestation using GPU hardware report plus CPU TEE measurements against a RIM, model-decryption-key release after verified CVM state, and startup-only attestation latency;
 - namespace quota through Kubernetes ResourceQuota;
 - queued workload admission through Kueue ClusterQueue, ResourceFlavor, and cohort concepts;
 - RAG document-level access metadata, query-time security trimming, chunk permission projection, and PII masking hooks;
@@ -123,6 +127,7 @@ Do not use this page to claim complete compliance posture, legal governance, end
 
 - [NVIDIA Quantum InfiniBand multi-tenant security raw capture](../../raw/crawler/nccl-nvidia-blog-wide/20260626T015710841547Z-developer-nvidia-com-blog-one-click-multi-tenant-security-with-nvidia-quantum-infiniband-5b2cd4e1d4.md)
 - [NVIDIA GPU isolation and confidential-computing source note](../../raw/links/nvidia-gpu-isolation-confidential-computing-official-20260707.md)
+- [NVIDIA Blackwell confidential-inference raw capture](../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md)
 - [Kubernetes and Kueue quota governance source note](../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md)
 - [OpenCost cost allocation source note](../../raw/links/opencost-cost-attribution-official-20260707.md)
 - [AWS accelerator capacity and service quota source note](../../raw/links/aws-accelerator-capacity-quota-planning-official-20260707.md)

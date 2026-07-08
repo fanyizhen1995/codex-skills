@@ -1,0 +1,86 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-8",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "layer": "security-governance-cost/inference-runtime/eval-observability-reliability",
+  "candidate": {
+    "title": "NVIDIA Blackwell confidential-inference security and performance evidence",
+    "source_type": "local_nvidia_developer_blog_capture",
+    "identity_key": "url:https://developer.nvidia.com/blog/hardware-rooted-ai-security-that-wont-slow-you-down/",
+    "source_paths": [
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    ]
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Read the existing local NVIDIA developer-blog capture under raw/crawler/nccl-nvidia-blog-wide and verified source-visible terms for NVIDIA Confidential Computing, Blackwell, RTX PRO 6000, HGX B200, HGX B300, up to 8 GPUs, NVLink encryption, fused private signing key, NRAS, CPU TEE, AMD SEV-SNP, Intel TDX, RIM, model decryption keys, startup-only attestation latency, secure work submission latency, encrypted transfer bandwidth, FlashInfer CC-safe autotuner timing, SGLang async D2H copy worker, SGLang piecewise CUDA graph support, Qwen 3.5-397B-A17B-FP8, HGX B300, and SGLang benchmark setup.",
+    "wiki_search": "Checked coverage-map.json, loop-state.json, ingest.md, Security Governance Cost Infrastructure, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, AI Infra Coverage Map, the NVIDIA GPU isolation/confidential-computing source note, parent-1 through parent-7 manifests, and r7/r8/r10 security-governance gap proofs. Existing pages had general confidential-computing, MIG/vGPU, RAG governance, cost, policy/audit, SGLang operations, and benchmark-context boundaries, but not this precise Blackwell confidential-inference evidence slice.",
+    "domain_index_scan": "The ai_infra index already routes to Security Governance Cost Infrastructure, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, and AI Infra Coverage Map. No new wiki page or compute accelerator catalog row was needed.",
+    "prior_manifest_scan": "Parent-1 Corigine, parent-2 SGLang scheduled crawler signals, parent-3 Yusur, parent-4 H200, parent-5 Kubernetes/Kueue/Volcano, parent-6 AWS/Lambda, and parent-7 Resnics N2025 were treated as duplicate-boundary evidence and were not repeated. R7/R8/R10 security-governance manifests covered RAG access/PII/vector/dataset controls, cross-cloud chargeback and policy-audit mechanics, and blocked RAG propagation/cost run evidence; parent-8 adds only NVIDIA confidential-inference trust and performance context."
+  },
+  "gap_reason": "The local ai_infra corpus already covered general NVIDIA confidential computing, MIG/vGPU sharing, Quantum InfiniBand tenant isolation, RAG governance hooks, cross-cloud chargeback dimensions, policy/audit mechanics, and SGLang runtime operations, but it did not preserve the existing local NVIDIA hardware-rooted AI security capture as a bounded Blackwell confidential-inference slice. The source exposes hardware-rooted trust, NRAS attestation, startup-only attestation latency, confidential-computing runtime overhead surfaces, FlashInfer/SGLang mitigations, and HGX B300/Qwen 3.5/SGLang benchmark context. Promoting this fills a security and inference-performance evidence gap without claiming legal-compliance completion, production incident/postmortem evidence, a general SLO, a local benchmark baseline, an MLCommons submission, product ranking, or hardware SKU/catalog fields.",
+  "duplicate_boundary_checks": [
+    {
+      "target": "wiki/references/security-governance-cost-infrastructure.md",
+      "result": "Existing confidential-computing source note already supported general protected workload and remote-attestation boundaries. Parent-8 adds the local Blackwell-specific hardware root, fused-key, HGX B200/B300 NVLink encryption, NRAS, CPU TEE, RIM, model-key release, and startup-only attestation details."
+    },
+    {
+      "target": "wiki/references/inference-runtime-infrastructure.md",
+      "result": "Existing runtime coverage already included vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, local TensorRT/vLLM, and SGLang issue/PR operations. Parent-8 adds only NVIDIA CC overhead surfaces and FlashInfer/SGLang CC mitigations."
+    },
+    {
+      "target": "wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "Existing evaluation coverage already included telemetry, trace stores, evaluation harnesses, generic alerting mechanics, platform profiling, and SGLang metric/profiling contexts. Parent-8 adds source-owned confidential-inference benchmark context and preserves the local-benchmark-baseline gap."
+    },
+    {
+      "target": "coverage-map.json and loop-state.json",
+      "result": "Added parent-8 evidence to security-governance-cost, inference-runtime, eval-observability-reliability, and known_sources without mutating blocked KServe, inference postmortem, MLCommons exact-result, or RAG propagation/drift/alert/cost gaps."
+    },
+    {
+      "target": "data/compute_accelerators/**/*.yaml",
+      "result": "No compute accelerator structured catalog YAML was modified, and no B200/B300/HGX/Blackwell hardware SKU field was promoted."
+    }
+  ],
+  "selected_source_backed_claims": [
+    {
+      "surface": "confidential-inference hardware root of trust",
+      "claim": "NVIDIA Blackwell GPUs named in the source include RTX PRO 6000, HGX B200, and HGX B300; HGX B200/B300 support multi-GPU confidential computing up to 8 GPUs with NVLink encryption; the GPU private signing key is fused during manufacturing and not exposed to software, firmware, or host system.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    },
+    {
+      "surface": "remote attestation before secrets",
+      "claim": "NRAS verifies a signed bundle made from GPU hardware report plus CPU TEE measurements from AMD SEV-SNP or Intel TDX against RIM; model decryption keys are deployed only after the confidential VM is verified; attestation is a startup event and does not add per-request inference latency after the workload is running.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    },
+    {
+      "surface": "confidential-computing runtime overhead and mitigations",
+      "claim": "The source names secure work submission latency and reduced host-to-device CPU-to-GPU encrypted bandwidth as CC performance surfaces, and names FlashInfer CC-safe autotuner timing, SGLang async D2H copy worker, and SGLang piecewise CUDA graph support as mitigations.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    },
+    {
+      "surface": "benchmark context",
+      "claim": "The NVIDIA table reports CC Off versus CC On on HGX B300 with Blackwell Ultra using Qwen 3.5 397B-A17B FP8, SGLang server, Intel TDX VM passthrough, 1024/1024 and 8192/1024 input/output lengths, and 4-256 concurrent requests; output-throughput-per-GPU deltas range from -1.0% to -7.5% and median TPOT deltas range from -0.9% to -8.1%.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    }
+  ],
+  "non_promoted_boundaries": [
+    "No legal-compliance completion, complete compliance posture, HIPAA/GDPR readiness, or legal governance claim was promoted from the source.",
+    "No production incident, postmortem, incident readiness, remediation ownership, service-specific SLO, alert threshold, or live trace/profiling-to-SLO claim was promoted.",
+    "No local benchmark baseline, MLCommons submission, product ranking, product/provider comparison, or generalized performance guarantee was promoted from the NVIDIA benchmark table.",
+    "No compute accelerator structured catalog YAML changed, and no B200/B300/HGX/Blackwell/RTX PRO 6000 hardware SKU or product-spec field was promoted.",
+    "No KServe, full SGLang API refresh, RAG propagation, cross-cloud chargeback parity, end-to-end RAG policy enforcement, or network/storage benchmark gap was closed by this source."
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+  ],
+  "generated_at": "2026-07-08T17:48:10Z"
+}

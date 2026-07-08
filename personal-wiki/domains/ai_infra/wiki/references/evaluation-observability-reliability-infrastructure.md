@@ -30,7 +30,8 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md
   - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
-updated: 2026-07-08
+  - ../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md
+updated: 2026-07-09
 related:
   - ai-infra-coverage-map.md
   - data-rag-pipeline-infrastructure.md
@@ -40,7 +41,7 @@ related:
 ---
 # Summary
 
-This reference broadens the `eval-observability-reliability` layer beyond NCCL Inspector, SGLang operational evidence, and RAG-specific Langfuse coverage. It groups primary-source notes around six infrastructure surfaces: portable GenAI telemetry schemas, application trace stores, evaluation harnesses, SLO/alert-routing mechanics, platform profiling, and non-NVIDIA accelerator observability.
+This reference broadens the `eval-observability-reliability` layer beyond NCCL Inspector, SGLang operational evidence, and RAG-specific Langfuse coverage. It groups primary-source notes around six infrastructure surfaces: portable GenAI telemetry schemas, application trace stores, evaluation harnesses, SLO/alert-routing mechanics, platform profiling, and non-NVIDIA accelerator observability. It also records bounded benchmark-context evidence when a source exposes setup, metrics, and caveats without treating the source result as a local baseline.
 
 The boundary is operational infrastructure. Prompt-writing advice, model architecture details, and benchmark leaderboard claims are outside this page unless the source records run configuration, datasets, metrics, traces, or platform telemetry.
 
@@ -76,6 +77,10 @@ Ragas and lm-evaluation-harness supply the evaluation-harness side of the layer.
 
 For infrastructure use, the important boundary is run metadata. A benchmark result is not durable evidence unless the harness records the task set, model backend, runtime arguments, device or served-model path, output artifact, and enough environment context to compare later runs. The local source notes support that requirement at the harness-mechanics level; they do not supply a local benchmark corpus or accepted performance baseline. [raw](../../raw/links/lm-evaluation-harness-official-20260707.md) [raw](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
 
+# Benchmark Context Boundary
+
+The NVIDIA confidential-computing capture contributes benchmark context, not an accepted local benchmark baseline. It records a CC Off versus CC On comparison for HGX B300 with Blackwell Ultra, Qwen 3.5 397B-A17B at FP8 precision, VM GPU passthrough, Intel TDX, SGLang server, CUDA 13.2, SGLang `docker.io/lmsysorg/sglang:v0.5.12-cu130`, NCCL v2.28.9-1, Docker plus NVIDIA Container Toolkit, input/output lengths of 1024/1024 and 8192/1024, and 4 through 256 concurrent requests. The metrics listed are output throughput per GPU, median TTFT, and median TPOT, while the table reports throughput and TPOT deltas versus CC Off. Use this as source-visible benchmark context for confidential inference only; do not convert it into a local result, a general SLO, a validated alert threshold, a production incident/postmortem, an MLCommons submission, or a product ranking. [raw](../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md)
+
 # Platform Profiling And Health
 
 DCGM and Nsight Systems cover the platform side that LLM trace stores cannot see by themselves. DCGM provides GPU health, telemetry, diagnostics, field values, and profiling signals for data-center GPU systems. Nsight Systems provides timeline-oriented CPU/GPU profiling for CUDA workloads, host execution, synchronization, memory operations, kernels, and process/thread behavior. [raw](../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md) [raw](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
@@ -110,11 +115,12 @@ Use this page as source-backed coverage for:
 
 - `eval-observability-reliability`: GenAI telemetry schemas, LLM application trace stores, datasets, evaluator outputs, benchmark task/run metadata, SLO/alerting mechanics, GPU health telemetry, CPU/GPU profiling, and non-NVIDIA accelerator metrics.
 - `eval-observability-reliability`: AWS PCS dashboard evidence for Managed Grafana, Managed Prometheus, CloudWatch Logs, Slurm/EFA/Node/DCGM exporters, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views.
+- `eval-observability-reliability`: bounded NVIDIA confidential-inference benchmark context where the source records environment, software stack, workload parameters, and throughput/TPOT deltas, without treating those numbers as local benchmark acceptance criteria.
 - `data-rag-vector`: only where Ragas, Phoenix, or LangSmith traces explain RAG evaluation and retrieval-quality signals; keep data ingestion and embedding refresh in [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md).
 - `inference-runtime`: only where evaluation traces or platform profiles inspect runtime behavior; keep runtime scheduler, batching, KV-cache, and model-loading mechanics in [Inference Runtime Infrastructure](inference-runtime-infrastructure.md).
 - `hardware-accelerator`: only for DCGM and Nsight platform telemetry/profiling signals; accelerator SKU and parameter evidence stays in the compute accelerator pages.
 
-Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window and MI350X profiling pages add useful page-level semantics and benchmark context but do not close the production SLO or local benchmark-baseline gaps.
+Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window, MI350X profiling, and NVIDIA confidential-inference pages add useful page-level semantics or benchmark context but do not close the production SLO or local benchmark-baseline gaps.
 
 # Citations
 
@@ -133,3 +139,4 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [SGLang issue #23937 KV transfer metric window](../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md)
 - [SGLang PR #28975 AMD MI350X sparse-MLA prefill profiling](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md)
 - [AWS Parallel Computing Service monitoring capture](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
+- [NVIDIA Blackwell confidential-inference raw capture](../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md)

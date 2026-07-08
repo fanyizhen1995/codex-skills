@@ -1,0 +1,202 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-8",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T17:48:10Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    ],
+    "promoted_boundary": "Promoted only source-visible NVIDIA Blackwell confidential-inference security and performance evidence: hardware root of trust, fused private signing-key boundary, HGX B200/B300 up-to-8-GPU NVLink encryption, NRAS attestation with GPU hardware report plus AMD SEV-SNP or Intel TDX CPU TEE measurements against RIM, model-key release after verified CVM state, startup-only attestation latency, secure work submission and encrypted host-device bandwidth overhead boundaries, FlashInfer CC-safe autotuner timing, SGLang async D2H copy worker, SGLang piecewise CUDA graph support, and HGX B300/Qwen 3.5/SGLang source benchmark context. No legal-compliance, production incident/postmortem, general SLO, local benchmark baseline, MLCommons, product ranking, or hardware SKU/catalog claim was promoted."
+  },
+  "selected_claims": [
+    {
+      "surface": "security-governance-cost",
+      "claim": "Blackwell confidential-inference hardware root of trust, fused private signing-key boundary, NVLink encryption across up to 8 HGX B200/B300 GPUs, NRAS attestation bundle, CPU TEE measurements, RIM, model-key release, and startup-only attestation latency.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    },
+    {
+      "surface": "inference-runtime",
+      "claim": "Secure work submission latency and encrypted host-device bandwidth overhead boundaries plus FlashInfer and SGLang CC mitigation details.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    },
+    {
+      "surface": "eval-observability-reliability",
+      "claim": "HGX B300/Qwen 3.5/SGLang source benchmark context for near-native confidential-inference performance, explicitly not a local benchmark baseline.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-8'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "case-insensitive source visibility check over the local hardware-rooted AI security raw capture and curated boundary terms",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "source visibility passed for 22 source term groups; curated non-promoted boundary terms found",
+      "stderr": ""
+    },
+    {
+      "command": "curated source_ref check that Security Governance Cost Infrastructure, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, and AI Infra Coverage Map cite the local NVIDIA hardware-rooted AI security capture only where claims are promoted",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "curated source_ref/citation check passed for 4 pages",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no compute accelerator structured catalog YAML changed and no B200/B300/HGX hardware SKU fields were promoted",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no compute accelerator data paths changed",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "targeted sensitive-pattern scan passed for declared parent-8 changed files",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "autonomous scope check passed for 9 actual parent-8 ai_infra changed paths; generated index was rebuilt but unchanged",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, and loop-auto-resume freshness; do not stop long-lived services or run local service restarts from this wiki-only task unless code changes require it",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, or run long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "parent-task-level auditor cadence check after parent-8 completion; audit-003 last audited progress count 6 and parent-8 will bring completed parent count to 8, so ordinary Auditor should be due after parent-8 acceptance unless a hard safety gate fires earlier",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "audit-003 verdict=pass; cadence interval=2 steps_since_last_audit=2. Parent-8 acceptance reaches the ordinary parent-task audit cadence; generator did not run Auditor.",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-8-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "verification manifest JSON is valid",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-8 NVIDIA confidential-inference wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-8 NVIDIA confidential-inference updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-8 NVIDIA Confidential Computing, Blackwell, HGX B300, NRAS, NVLink encryption, FlashInfer, SGLang async D2H copy worker, Qwen 3.5, and non-promoted boundary content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-8 NVIDIA confidential-inference wiki content and boundary caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard current run, parent-8 task state, agent actions, evaluator scenarios, and completed history freshness"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses the existing local NVIDIA developer-blog capture.",
+    "No git commit was run; commit is intentionally empty for the orchestrator."
+  ]
+}
