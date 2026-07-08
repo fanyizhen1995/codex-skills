@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
-  "last_updated": "2026-07-06",
-  "current_focus": "AI Infra Meta Loop Runtime Phase A is complete: expanded policy runtime, coverage-map no-action, evidence gates, service freshness, evaluator smoke, and the demand-to-expansion transition are in place for Phase B autonomous expansion.",
+  "last_updated": "2026-07-08",
+  "current_focus": "Loop Auditor Engine is complete: deterministic audit signals, validated audit reports, active audit_blocked hard gate wiring, and Loop Dashboard visibility/evaluator coverage are in place.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -213,7 +213,7 @@
       "id": "loop-auditor-engine-01",
       "title": "Implement Loop Auditor engine",
       "description": "Fix the current Auditor dashboard truthfulness issues, then implement a real Loop Auditor engine with deterministic signal computation, audit report validation, fake/codex auditor execution, open must_fix hard gates, audit_blocked state handling, and dashboard/evaluator evidence for the generated audit artifacts.",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "blocked_by": "loop-dashboard-auditor-01",
       "verify": "python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-auditor-engine-01.json >/dev/null && git diff --check",

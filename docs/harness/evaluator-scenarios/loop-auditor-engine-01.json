@@ -1,0 +1,45 @@
+{
+  "task_id": "loop-auditor-engine-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "LOOP-AUDITOR-ENGINE-DASHBOARD-SMOKE",
+      "user_goal": "作为 loop 操作者，打开 Loop Dashboard，确认真实 Auditor 引擎已经生成确定性信号、审计报告，并在 open must_fix 时让运行进入 audit_blocked，同时保留旧 display-only 审计产物的诚实展示。",
+      "prerequisites": [
+        "FastAPI、uvicorn 和 Python Playwright 可用。",
+        "Playwright Chromium 浏览器已安装。",
+        "Evaluator 会创建临时 loop-run fixture 数据，并通过 harness orchestrator 的 run_auditor(fake) 与 run_demand_multi 路径生成 active 审计结果。"
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01",
+      "steps": [
+        "创建临时 dashboard fixture 项目。",
+        "为 active-repair-run 写入旧 display-only 审计产物，验证看板不会宣称硬阻塞已经生效。",
+        "为 loop-auditor-engine-dev 构造父需求和两个已通过子任务，其中 evaluator 结果包含重复 finding。",
+        "调用 run_auditor(fake) 生成 deterministic-signals.json 和 audit-reports/audit-001.json。",
+        "调用 run_demand_multi，让 open must_fix 审计报告触发 audit_blocked。",
+        "启动 dashboard backend 并用 Playwright 点击 active-repair-run 与 loop-auditor-engine-dev。",
+        "验证 active 引擎状态、audit_blocked 阶段、open must_fix、审计报告路径、确定性信号和 Skill inventory 都可读。"
+      ],
+      "expected_outcomes": [
+        "active-repair-run 的 Auditor tab 显示“仅展示”和“硬阻塞未生效”。",
+        "loop-auditor-engine-dev 的运行阶段显示为“审计阻塞”。",
+        "loop-auditor-engine-dev 的 Auditor tab 显示“已接入”和“硬阻塞已接入”。",
+        "审计报告路径为 .codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-001.json。",
+        "确定性信号中可见重复 finding 计数。",
+        "Evaluator 写入 status 为 pass 的 result.json 和 success.png。"
+      ],
+      "failure_signals": [
+        "看板只能显示手写 fixture，无法显示 orchestrator 生成的 active 审计结果。",
+        "open must_fix 没有让父需求进入 audit_blocked。",
+        "Auditor tab 把 display-only 产物误标成硬阻塞已接入。",
+        "Auditor tab 缺少审计报告路径或确定性信号。",
+        "浏览器点击运行记录后详情没有刷新。"
+      ],
+      "cleanup": [
+        "停止临时 dashboard server。",
+        "写入 evaluator 证据后移除临时 fixture 目录。"
+      ],
+      "automation_hint": "playwright"
+    }
+  ]
+}

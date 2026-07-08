@@ -23,6 +23,7 @@ from scripts.harness_loop_contracts import (
     write_json_file,
 )
 from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
+from scripts.harness_loop_auditor import fake_audit_report
 from scripts.harness_loop_autonomous import create_default_loop_state, write_loop_state
 from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
@@ -31,7 +32,9 @@ from scripts.harness_loop_orchestrator import (
     load_run,
     main,
     run_autonomous,
+    run_auditor,
     run_demand_multi,
+    save_run,
     status_for_run,
 )
 
@@ -259,6 +262,29 @@ def seed_candidate_loop_state(repo_root: Path, domain: str) -> dict[str, object]
     )
     commit_seeded_autonomous_state(repo_root, domain)
     return state
+
+
+def seed_open_must_fix_audit(repo_root: Path, run_id: str) -> None:
+    run_dir = run_dir_for(repo_root, run_id)
+    signal_path = run_dir / "deterministic-signals.json"
+    write_json_file(
+        signal_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "computed_at": "2026-07-08T00:00:00Z",
+            "created_by": "harness_loop_orchestrator",
+            "summary": {"same_evaluator_finding_count": 2},
+        },
+    )
+    report = fake_audit_report(
+        run_id=run_id,
+        audit_id="audit-001",
+        signals=read_json_file(signal_path),
+        signal_artifact_path=signal_path.relative_to(repo_root).as_posix(),
+        signal_artifact_sha256=hashlib.sha256(signal_path.read_bytes()).hexdigest(),
+    )
+    write_json_file(run_dir / "audit-reports" / "audit-001.json", report)
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
@@ -1068,6 +1094,36 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["attempts"]["planner"], 2)
             self.assertEqual(run["attempts"]["generator"], 1)
             self.assertEqual(run["attempts"]["evaluator"], 1)
+
+    def test_run_autonomous_open_must_fix_blocks_before_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="audit-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            seed_open_must_fix_audit(repo_root, "audit-run")
+
+            status = run_autonomous(
+                repo_root,
+                "audit-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=3,
+            )
+
+            run = load_run(repo_root, "audit-run")
+            self.assertEqual(status["phase"], "audit_blocked")
+            self.assertEqual(run["next_action"], "create_audit_remediation_task")
+            self.assertEqual(run["attempts"]["planner"], 0)
 
     def test_run_autonomous_non_ai_infra_fake_generator_does_not_write_coverage_map(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7095,6 +7151,85 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 self.assertEqual(child["run_kind"], "child")
                 self.assertEqual(child["phase"], "passed")
                 self.assertEqual(child["parent_run_id"], "parent-run")
+
+    def test_run_demand_multi_generates_audit_artifacts_before_human_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root)
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="parent-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
+            run_dir = run_dir_for(repo_root, "parent-run")
+            self.assertTrue((run_dir / "deterministic-signals.json").exists())
+            report = read_json_file(run_dir / "audit-reports" / "audit-001.json")
+            self.assertEqual(report["created_by"], "harness_loop_orchestrator")
+            self.assertEqual(report["verdict"], "pass")
+
+    def test_run_auditor_fake_writes_valid_audit_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            self._create_parent(repo_root)
+
+            report_path = run_auditor(repo_root, "parent-run", driver="fake")
+
+            report = read_json_file(report_path)
+            self.assertEqual(report["run_id"], "parent-run")
+            self.assertEqual(report["created_by"], "harness_loop_orchestrator")
+            self.assertTrue((run_dir_for(repo_root, "parent-run") / "deterministic-signals.json").exists())
+
+    def test_run_demand_multi_open_must_fix_blocks_before_new_child(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            self._create_parent(repo_root)
+            parent = load_run(repo_root, "parent-run")
+            parent["run_kind"] = "parent"
+            parent["phase"] = "planning"
+            parent["current_child_run_id"] = ""
+            parent["child_run_ids"] = []
+            parent["backlog"] = []
+            parent["accepted_changed_paths"] = []
+            parent["aggregate_acceptance"] = {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "blocked": 0,
+                "pending": 0,
+                "user_decision_required": False,
+            }
+            parent["reader_summary"] = {
+                "purpose": parent["requirement"],
+                "current_progress": "Planning",
+                "next_step": "Run parent planner",
+                "decision_needed": "No",
+            }
+            save_run(repo_root, parent)
+            seed_open_must_fix_audit(repo_root, "parent-run")
+
+            payload = run_demand_multi(
+                repo_root=repo_root,
+                run_id="parent-run",
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=1,
+            )
+
+            parent = load_run(repo_root, "parent-run")
+            self.assertEqual(payload["phase"], "audit_blocked")
+            self.assertEqual(parent["phase"], "audit_blocked")
+            self.assertEqual(parent["next_action"], "create_audit_remediation_task")
+            self.assertEqual(parent["child_run_ids"], [])
 
     def test_run_demand_multi_codex_exec_runs_parent_child_and_evaluator_without_real_codex(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

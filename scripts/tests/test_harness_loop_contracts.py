@@ -11,6 +11,7 @@ from scripts.harness_loop_contracts import (
     read_json_file,
     run_dir_for,
     validate_agent_attempt_payload,
+    validate_audit_report_payload,
     validate_artifact_hygiene_result_payload,
     validate_evaluator_result_payload,
     validate_generator_result_payload,
@@ -366,6 +367,11 @@ class HarnessLoopContractsTests(unittest.TestCase):
             payload["role"] = role
             validate_agent_attempt_payload(payload)
 
+    def test_validate_agent_attempt_payload_accepts_auditor_role(self) -> None:
+        payload = self._agent_attempt_payload()
+        payload["role"] = "auditor"
+        validate_agent_attempt_payload(payload)
+
     def test_validate_agent_attempt_payload_rejects_non_positive_attempt(self) -> None:
         for attempt in (0, -1):
             payload = self._agent_attempt_payload()
@@ -621,6 +627,90 @@ class HarnessLoopContractsTests(unittest.TestCase):
             }
         )
         validate_run_payload(autonomous_child)
+
+        audit_parent = self._run_payload()
+        audit_parent.update(
+            {
+                "run_kind": "parent",
+                "phase": "audit_blocked",
+                "current_child_run_id": "",
+                "child_run_ids": [],
+                "backlog": [],
+                "aggregate_acceptance": {
+                    "total": 0,
+                    "passed": 0,
+                    "failed": 0,
+                    "blocked": 0,
+                    "pending": 0,
+                    "user_decision_required": True,
+                },
+                "reader_summary": {
+                    "purpose": "Build feature",
+                    "current_progress": "Audit blocked",
+                    "next_step": "Create audit remediation task",
+                    "decision_needed": "No",
+                },
+                "accepted_changed_paths": [],
+            }
+        )
+        validate_run_payload(audit_parent)
+
+    def test_validate_run_payload_rejects_child_audit_blocked_phase(self) -> None:
+        child = self._run_payload()
+        child.update(
+            {
+                "run_kind": "child",
+                "parent_run_id": "demo-parent",
+                "child_index": 1,
+                "phase": "audit_blocked",
+                "reader_summary": {
+                    "purpose": "Child",
+                    "planner_action": "Planned child",
+                    "generator_action": "Implemented child",
+                    "evaluator_action": "Evaluated child",
+                    "acceptance_result": "Passed",
+                },
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "child phase"):
+            validate_run_payload(child)
+
+    def test_validate_audit_report_payload_accepts_pass_and_rejects_unproven_must_fix(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "run_id": "demo",
+            "audit_id": "audit-001",
+            "created_at": "2026-07-08T00:00:00Z",
+            "created_by": "harness_loop_orchestrator",
+            "verdict": "pass",
+            "deterministic_signals": {
+                "artifact_path": ".codex/loop-runs/demo/deterministic-signals.json",
+                "artifact_sha256": "a" * 64,
+                "summary": {"same_evaluator_finding_count": 0},
+            },
+            "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
+            "direction_control": {"action": "continue", "reason": "healthy"},
+            "finding_lifecycle": {"open_findings": [], "closed_findings": []},
+        }
+        validate_audit_report_payload(payload)
+
+        payload["verdict"] = "must_fix"
+        with self.assertRaisesRegex(ValueError, "open must_fix"):
+            validate_audit_report_payload(payload)
+
+        closed_must_fix = json.loads(json.dumps(payload))
+        closed_must_fix["finding_lifecycle"]["open_findings"] = [
+            {
+                "finding_id": "audit-001-repeat-001",
+                "severity": "must_fix",
+                "status": "closed",
+                "title": "Closed finding",
+                "summary": "A closed finding must not satisfy the open must_fix gate.",
+                "required_planner_action": "none",
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "open must_fix"):
+            validate_audit_report_payload(closed_must_fix)
 
     def test_validate_run_payload_rejects_demand_child_planning_phase(self) -> None:
         child = self._run_payload()

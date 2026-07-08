@@ -17,11 +17,15 @@ from typing import Any
 
 try:
     from scripts.harness_evaluator_scenarios import load_task_scenarios
+    from scripts.harness_loop_contracts import run_dir_for, write_json_file
     from scripts.harness_loop_governance import validate_governance_preflight_evidence
+    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_auditor, run_demand_multi, save_run
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.harness_evaluator_scenarios import load_task_scenarios
+    from scripts.harness_loop_contracts import run_dir_for, write_json_file
     from scripts.harness_loop_governance import validate_governance_preflight_evidence
+    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_auditor, run_demand_multi, save_run
 
 
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
@@ -32,6 +36,7 @@ GOVERNANCE_OUTPUT_DIR_NAME = "ai-infra-loop-governance-dev-01"
 GOVERNANCE_DASHBOARD_URL = "http://127.0.0.1:8766"
 GOVERNANCE_CRAWLER_HEALTH_URL = "http://127.0.0.1:8765/api/health"
 GOVERNANCE_FRONTEND_URL = "http://127.0.0.1:5173/"
+AUDITOR_ENGINE_RUN_ID = "loop-auditor-engine-dev"
 SENSITIVE_FIELD_NAMES = {
     "token",
     "cookie",
@@ -70,6 +75,7 @@ CHECKED = [
     "确认 evaluator 验证功能实现完整性和设计/mock 匹配，并在验收 tab 中可见",
     "查看验收 tab 中的模拟用户验收场景",
     "查看审计与 Skill tab 中的 Auditor 结论、open must_fix、确定性信号和当前项目 Skill 使用情况",
+    "通过真实 harness auditor engine fixture 验证 active 引擎、audit_blocked、审计报告路径和确定性信号在看板可见",
     "查看阻塞诊断 tab 中的 evaluator finding",
     "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
     "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
@@ -675,6 +681,7 @@ def seed_fixture_project(project_root: Path) -> None:
         len(runs),
     )
     seed_auditor_fixture(project_root)
+    seed_auditor_engine_fixture(project_root)
     seed_project_skill_fixture(project_root)
     seed_rich_evaluator_result(project_root)
     seed_demand_multi_task_dashboard_fixture(project_root)
@@ -738,6 +745,126 @@ def seed_auditor_fixture(project_root: Path) -> None:
             },
         },
     )
+
+
+def seed_auditor_engine_fixture(project_root: Path) -> None:
+    create_preflight_run(
+        repo_root=project_root,
+        mode="demand-development",
+        requirement="实现真正的 Loop Auditor 引擎，计算确定性信号、生成审计报告，并在 open must_fix 时阻断普通 loop 进展。",
+        run_id=AUDITOR_ENGINE_RUN_ID,
+        confirm=True,
+        constraints=["审计证据必须由 orchestrator 采集", "open must_fix 必须触发 audit_blocked"],
+        stop_conditions=["audit_blocked", "passed_waiting_human_merge"],
+    )
+    parent = load_run(project_root, AUDITOR_ENGINE_RUN_ID)
+    child_ids = [f"{AUDITOR_ENGINE_RUN_ID}-child-{index:03d}" for index in (1, 2)]
+    parent.update(
+        {
+            "run_kind": "parent",
+            "phase": "planning",
+            "current_child_run_id": "",
+            "child_run_ids": child_ids,
+            "backlog": [],
+            "accepted_changed_paths": ["generated/auditor-child-001.txt", "generated/auditor-child-002.txt"],
+            "aggregate_acceptance": {
+                "total": 3,
+                "passed": 2,
+                "failed": 0,
+                "blocked": 0,
+                "pending": 1,
+                "user_decision_required": False,
+            },
+            "reader_summary": {
+                "purpose": "验证真正 Auditor 引擎已经接入 loop。",
+                "current_progress": "两个子任务通过后，Auditor 发现重复 evaluator finding。",
+                "next_step": "创建审计整改子任务后再继续普通开发。",
+                "decision_needed": "不需要",
+            },
+        }
+    )
+    save_run(project_root, parent)
+    for index, child_id in enumerate(child_ids, start=1):
+        changed_path = f"generated/auditor-child-{index:03d}.txt"
+        write_json_file(
+            run_dir_for(project_root, child_id) / "run.json",
+            {
+                "run_id": child_id,
+                "run_kind": "child",
+                "parent_run_id": AUDITOR_ENGINE_RUN_ID,
+                "child_index": index,
+                "policy": "demand_development",
+                "phase": "passed",
+                "task_id": f"{child_id}-task",
+                "domain": "",
+                "branch": "main",
+                "worktree": str(project_root),
+                "requirement": f"Auditor engine child {index}",
+                "constraints": ["保持审计证据可追溯"],
+                "stop_conditions": ["passed"],
+                "baseline_dirty_paths": [],
+                "allowed_paths": [changed_path],
+                "denylist_paths": [".env", ".codex/secrets"],
+                "attempts": {"planner": 1, "generator": 1, "evaluator": 1, "artifact_hygiene": 0, "cleanup": 0},
+                "limits": parent["limits"],
+                "last_result": "pass",
+                "next_action": "return_to_parent_planner",
+                "attempt_history": [
+                    {"agent": "planner", "attempt": 1, "status": "pass"},
+                    {"agent": "generator", "attempt": 1, "status": "implemented"},
+                    {"agent": "evaluator", "attempt": 1, "status": "pass"},
+                ],
+                "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+                "reader_summary": {
+                    "purpose": f"子任务 {index} 提供审计输入。",
+                    "planner_action": "Planner 选择审计引擎验证子任务",
+                    "generator_action": "Generator 产出审计引擎实现",
+                    "evaluator_action": "Evaluator 记录同类 finding",
+                    "acceptance_result": "通过",
+                },
+            },
+        )
+        write_json_file(
+            run_dir_for(project_root, child_id) / "generator-result.json",
+            {
+                "task_id": f"{child_id}-task",
+                "status": "implemented",
+                "changed_paths": [changed_path],
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [{"command": "auditor engine fixture", "status": "pass"}],
+                "artifacts": [changed_path],
+                "cleanup_required": False,
+                "notes": "seeded auditor engine child",
+            },
+        )
+        write_json_file(
+            run_dir_for(project_root, child_id) / "evaluator-result.json",
+            {
+                "status": "pass",
+                "task_id": f"{child_id}-task",
+                "driver": "fixture",
+                "returncode": 0,
+                "stdout": "same evaluator finding: dashboard must prove real auditor engine\n",
+                "stderr": "",
+            },
+        )
+
+    report_path = run_auditor(project_root, AUDITOR_ENGINE_RUN_ID, driver="fake")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if report.get("verdict") != "must_fix":
+        raise RuntimeError("auditor engine fixture must produce a must_fix report")
+    status = run_demand_multi(
+        repo_root=project_root,
+        run_id=AUDITOR_ENGINE_RUN_ID,
+        planner_driver="fake",
+        generator_driver="fake",
+        evaluator_driver="fake",
+        max_eval_attempts=2,
+        max_children=3,
+    )
+    if status.get("phase") != "audit_blocked":
+        raise RuntimeError(f"auditor engine fixture expected audit_blocked, got {status.get('phase')}")
 
 
 def seed_project_skill_fixture(project_root: Path) -> None:
@@ -1404,6 +1531,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             if workbench_columns != 2:
                 raise AssertionError(f"dashboard should use two primary columns, got {workbench_columns}")
             expect(page.get_by_test_id("run-list")).to_contain_text("active-repair-run")
+            expect(page.get_by_test_id("run-list")).to_contain_text(AUDITOR_ENGINE_RUN_ID)
             expect(page.get_by_test_id("run-list")).to_contain_text("loop-dashboard-dev")
             expect(page.get_by_test_id("run-list")).to_contain_text("parent-run")
 
@@ -1565,6 +1693,24 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(auditor_tab).to_contain_text("近期日志提及")
             expect(auditor_tab).to_contain_text("project-status-snapshot")
             expect(auditor_tab).to_contain_text("pge-loop-agent-contract")
+
+            click_run(page, AUDITOR_ENGINE_RUN_ID)
+            engine_detail = page.get_by_test_id("run-detail")
+            expect(engine_detail).to_contain_text("审计阻塞")
+            expect(engine_detail).to_contain_text("Auditor 发现 open must_fix")
+            expect(engine_detail).to_contain_text("创建审计整改子任务")
+            tabs.get_by_role("tab", name="审计与 Skill").click()
+            engine_auditor_tab = page.get_by_test_id("tab-auditor")
+            expect(engine_auditor_tab).to_contain_text("Auditor 审计")
+            expect(engine_auditor_tab).to_contain_text("已接入")
+            expect(engine_auditor_tab).to_contain_text("硬阻塞已接入")
+            expect(engine_auditor_tab).to_contain_text("open must_fix")
+            expect(engine_auditor_tab).to_contain_text("必须整改")
+            expect(engine_auditor_tab).to_contain_text("审计产物：.codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-001.json")
+            expect(engine_auditor_tab).to_contain_text("确定性信号")
+            expect(engine_auditor_tab).to_contain_text("重复 finding")
+            expect(engine_auditor_tab).to_contain_text("2")
+            click_run(page, "active-repair-run")
 
             tabs.get_by_role("tab", name="阻塞诊断").click()
             diagnostics = page.get_by_test_id("blocked-diagnostics")

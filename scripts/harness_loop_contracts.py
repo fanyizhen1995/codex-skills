@@ -29,10 +29,24 @@ ALLOWED_PHASES = frozenset(
         "stopped_no_action",
         "stopped_budget",
         "stopped_blocked",
+        "audit_pending",
+        "auditing",
+        "audit_passed",
+        "audit_blocked",
     }
 )
 ALLOWED_RUN_KINDS = frozenset({"single", "parent", "child"})
-PARENT_ONLY_PHASES = frozenset({"planning", "child_running", "passed_waiting_human_merge"})
+PARENT_ONLY_PHASES = frozenset(
+    {
+        "planning",
+        "child_running",
+        "passed_waiting_human_merge",
+        "audit_pending",
+        "auditing",
+        "audit_passed",
+        "audit_blocked",
+    }
+)
 CHILD_ONLY_PHASES = frozenset({"planned", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
 SHARED_PARENT_CHILD_PHASES = frozenset({"repair_needed", "stopped_budget", "stopped_blocked"})
 ALLOWED_PHASES = ALLOWED_PHASES | frozenset({"child_running", "passed"})
@@ -47,7 +61,12 @@ ALLOWED_TASK_KINDS = frozenset(
 )
 ALLOWED_GENERATOR_STATUSES = frozenset({"implemented", "repaired", "blocked", "failed"})
 ALLOWED_EVALUATOR_STATUSES = frozenset({"pass", "fail", "blocked"})
-ALLOWED_AGENT_ROLES = frozenset({"planner", "generator", "evaluator"})
+ALLOWED_AGENT_ROLES = frozenset({"planner", "generator", "evaluator", "auditor"})
+ALLOWED_AUDIT_VERDICTS = frozenset({"pass", "must_fix", "should_fix", "observe", "blocked"})
+ALLOWED_AUDIT_FINDING_SEVERITIES = frozenset({"must_fix", "should_fix", "observe"})
+ALLOWED_AUDIT_FINDING_STATUSES = frozenset(
+    {"open", "planned", "in_progress", "resolved_pending_audit", "closed", "accepted_risk"}
+)
 REQUIRED_RUN_ATTEMPT_KEYS = frozenset(
     {"planner", "generator", "evaluator", "artifact_hygiene", "cleanup"}
 )
@@ -656,6 +675,79 @@ def validate_agent_attempt_payload(payload: dict[str, Any]) -> None:
     ):
         _require_string(payload, key)
     _require_list(payload, "verify_log_paths")
+
+
+def validate_audit_report_payload(payload: dict[str, Any]) -> None:
+    _require_object(payload, "audit report payload")
+    _require_keys(
+        payload,
+        {
+            "schema_version",
+            "run_id",
+            "audit_id",
+            "created_at",
+            "created_by",
+            "verdict",
+            "deterministic_signals",
+            "cadence",
+            "direction_control",
+            "finding_lifecycle",
+        },
+        "audit report payload",
+    )
+    _require_int(payload, "schema_version")
+    for key in ("run_id", "audit_id", "created_at", "created_by"):
+        _require_string(payload, key)
+    validate_run_id(payload["run_id"])
+    _require_enum(payload, "verdict", ALLOWED_AUDIT_VERDICTS)
+    signals = _require_object(payload["deterministic_signals"], "deterministic_signals")
+    for key in ("artifact_path", "artifact_sha256"):
+        _require_string(signals, key)
+    _require_object(signals.get("summary"), "deterministic_signals.summary")
+    cadence = _require_object(payload["cadence"], "cadence")
+    for key in ("unit",):
+        _require_string(cadence, key)
+    for key in ("current_interval", "steps_since_last_audit"):
+        _require_int(cadence, key)
+    direction = _require_object(payload["direction_control"], "direction_control")
+    for key in ("action", "reason"):
+        _require_string(direction, key)
+    lifecycle = _require_object(payload["finding_lifecycle"], "finding_lifecycle")
+    _require_list(lifecycle, "open_findings")
+    _require_list(lifecycle, "closed_findings")
+    open_findings = _validate_audit_findings(lifecycle["open_findings"], "finding_lifecycle.open_findings")
+    _validate_audit_findings(lifecycle["closed_findings"], "finding_lifecycle.closed_findings")
+    if payload["verdict"] == "must_fix":
+        if not signals["artifact_path"] or not signals["artifact_sha256"]:
+            raise ValueError("verdict=must_fix requires deterministic signal artifact provenance")
+        has_open_must_fix = any(
+            finding.get("severity") == "must_fix" and finding.get("status") == "open" for finding in open_findings
+        )
+        if not has_open_must_fix:
+            raise ValueError("verdict=must_fix requires at least one open must_fix finding")
+
+
+def _validate_audit_findings(findings: list[Any], label: str) -> list[dict[str, Any]]:
+    validated: list[dict[str, Any]] = []
+    for index, finding in enumerate(findings):
+        finding_label = f"{label}[{index}]"
+        if not isinstance(finding, dict):
+            raise ValueError(f"{finding_label} must be an object")
+        _validate_audit_finding(finding, finding_label)
+        validated.append(finding)
+    return validated
+
+
+def _validate_audit_finding(payload: dict[str, Any], label: str) -> None:
+    _require_keys(
+        payload,
+        {"finding_id", "severity", "status", "title", "summary", "required_planner_action"},
+        label,
+    )
+    for key in ("finding_id", "title", "summary", "required_planner_action"):
+        _require_string(payload, key)
+    _require_enum(payload, "severity", ALLOWED_AUDIT_FINDING_SEVERITIES)
+    _require_enum(payload, "status", ALLOWED_AUDIT_FINDING_STATUSES)
 
 
 def _require_object(value: Any, label: str) -> dict[str, Any]:

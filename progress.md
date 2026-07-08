@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-08 Loop Auditor Engine
+
+- Completed `loop-auditor-engine-01`: added a real Loop Auditor runtime module for deterministic signal computation, validated audit reports, fake/codex auditor execution, and open `must_fix` hard blocking.
+- Wired parent demand-development and autonomous-knowledge loop boundaries so open `must_fix` findings move runs to `audit_blocked` with `next_action=create_audit_remediation_task`.
+- Updated Loop Dashboard to distinguish display-only audit artifacts from active orchestrator-generated audit reports, and added Chinese `audit_blocked`/remediation labels.
+- Extended the browser evaluator to create a real `loop-auditor-engine-dev` fixture through `run_auditor(fake)` plus `run_demand_multi`, then verify active engine state, audit report path, deterministic signals, and dashboard visibility.
+- Evidence:
+  - `python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v` -> 255 tests passed
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests` -> 62 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01` -> pass
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/loop-auditor-engine-01.json >/dev/null`
+
 ## 2026-07-08 Loop Dashboard Auditor And Skill View
 
 - Completed `loop-dashboard-auditor-01`: added real Loop Dashboard support for `audit_summary`, deterministic audit signals, direction control, audit findings, and current project Skill inventory.

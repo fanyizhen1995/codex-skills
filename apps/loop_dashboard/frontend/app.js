@@ -4,6 +4,7 @@ const COMPLETED_PHASES = new Set([
   "stopped_no_action",
   "stopped_budget",
   "stopped_blocked",
+  "audit_blocked",
 ]);
 
 const PHASE_LABELS = {
@@ -14,6 +15,7 @@ const PHASE_LABELS = {
   stopped_no_action: "停止：无需操作",
   stopped_budget: "停止：预算耗尽",
   stopped_blocked: "停止：阻塞",
+  audit_blocked: "审计阻塞",
   repair_needed: "需要修复",
   invalid_artifact: "产物无效",
 };
@@ -63,6 +65,7 @@ const ACTION_LABELS = {
   run_evaluator: "运行 Evaluator",
   await_human_merge_confirmation: "等待人工合并确认",
   proceed_to_user_acceptance: "进入用户验收",
+  create_audit_remediation_task: "创建审计整改子任务",
   refocus: "重新聚焦",
   switch_task: "切换任务",
   stop_early: "提前停止",

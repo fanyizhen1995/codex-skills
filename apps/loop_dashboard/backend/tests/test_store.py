@@ -877,6 +877,44 @@ def test_audit_summary_filters_unknown_signal_fields(tmp_path: Path) -> None:
     assert "硬阻塞未生效" in detail["audit_summary"]["phase_notice"]
 
 
+def test_audit_summary_marks_orchestrator_reports_as_active_engine(tmp_path: Path) -> None:
+    seed_run(tmp_path, "engine-run", "audit_passed")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "engine-run"
+    write_json(
+        run_dir / "deterministic-signals.json",
+        {
+            "schema_version": 1,
+            "run_id": "engine-run",
+            "created_by": "harness_loop_orchestrator",
+            "summary": {"same_evaluator_finding_count": 0},
+        },
+    )
+    write_json(
+        run_dir / "audit-reports" / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": "engine-run",
+            "audit_id": "audit-001",
+            "created_at": "2026-07-08T00:00:00Z",
+            "created_by": "harness_loop_orchestrator",
+            "verdict": "pass",
+            "deterministic_signals": {
+                "artifact_path": ".codex/loop-runs/engine-run/deterministic-signals.json",
+                "artifact_sha256": "a" * 64,
+                "summary": {"same_evaluator_finding_count": 0},
+            },
+            "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
+            "direction_control": {"action": "continue", "reason": "healthy"},
+            "finding_lifecycle": {"open_findings": [], "closed_findings": []},
+        },
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("engine-run")
+
+    assert detail["audit_summary"]["engine_status"] == "active"
+    assert "硬阻塞已接入" in detail["audit_summary"]["phase_notice"]
+
+
 def test_latest_audit_report_prefers_numeric_audit_id(tmp_path: Path) -> None:
     seed_run(tmp_path, "audit-order-run", "audit_pending")
     run_dir = tmp_path / ".codex" / "loop-runs" / "audit-order-run"

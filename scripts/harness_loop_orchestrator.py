@@ -28,6 +28,7 @@ try:
         run_dir_for,
         validate_run_id,
         validate_artifact_hygiene_result_payload,
+        validate_audit_report_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -37,6 +38,13 @@ try:
     )
     from scripts.harness_loop_agents import run_codex_prompt
     from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
+    from scripts.harness_loop_auditor import (
+        latest_audit_report,
+        latest_audit_report_path,
+        open_must_fix_findings,
+        write_deterministic_signals,
+        write_fake_audit_report,
+    )
     from scripts.harness_loop_autonomous import (
         check_autonomous_scope,
         check_supply_chain,
@@ -71,6 +79,7 @@ except ModuleNotFoundError:
         run_dir_for,
         validate_run_id,
         validate_artifact_hygiene_result_payload,
+        validate_audit_report_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -80,6 +89,13 @@ except ModuleNotFoundError:
     )
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
     from harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands  # type: ignore[no-redef]
+    from harness_loop_auditor import (  # type: ignore[no-redef]
+        latest_audit_report,
+        latest_audit_report_path,
+        open_must_fix_findings,
+        write_deterministic_signals,
+        write_fake_audit_report,
+    )
     from harness_loop_autonomous import (  # type: ignore[no-redef]
         check_autonomous_scope,
         check_supply_chain,
@@ -289,6 +305,7 @@ def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dic
     expected_paths = {
         f".codex/loop-runs/{parent_run_id}/events.jsonl",
         f".codex/loop-runs/{parent_run_id}/depth-acquisition-smoke.json",
+        f".codex/loop-runs/{parent_run_id}/deterministic-signals.json",
         f".codex/loop-runs/{parent_run_id}/egress-proof.json",
         f".codex/loop-runs/{parent_run_id}/governance-preflight-result.json",
         f".codex/loop-runs/{parent_run_id}/identity-key-audit.json",
@@ -297,6 +314,8 @@ def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dic
         f".codex/loop-runs/{parent_run_id}/preflight.md",
         f".codex/loop-runs/{parent_run_id}/run.json",
     }
+    if path.startswith(f".codex/loop-runs/{parent_run_id}/audit-reports/"):
+        return True
     if path.startswith(f".codex/loop-runs/{parent_run_id}/candidate-scoring/"):
         return True
     for child_run_id in child_run_ids:
@@ -349,6 +368,75 @@ def _block_child(repo_root: Path, child: dict[str, Any], reason: str, *, actor: 
         summary=reason,
     )
     return status_for_run(repo_root, child["run_id"])
+
+
+def _audit_gate_applies(run: Mapping[str, Any]) -> bool:
+    return run.get("run_kind", "single") != "child" and run.get("policy") in {
+        "demand_development",
+        "autonomous_knowledge",
+    }
+
+
+def _audit_progress_exists(run: Mapping[str, Any]) -> bool:
+    aggregate = run.get("aggregate_acceptance")
+    if isinstance(aggregate, Mapping) and int(aggregate.get("passed", 0)) > 0:
+        return True
+    completed = run.get(_AUTONOMOUS_COMPLETED_TASK_IDS_KEY)
+    return isinstance(completed, list) and bool(completed)
+
+
+def _set_audit_blocked(repo_root: Path, run: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, str]:
+    run["phase"] = "audit_blocked"
+    run["last_result"] = "blocked"
+    run["next_action"] = "create_audit_remediation_task"
+    if run.get("run_kind") == "parent":
+        run = _ensure_parent_fields(run)
+        run["aggregate_acceptance"]["user_decision_required"] = False
+        run["reader_summary"]["current_progress"] = "Auditor 发现 open must_fix，普通 loop 已暂停。"
+        run["reader_summary"]["next_step"] = "创建审计整改子任务。"
+        run["reader_summary"]["decision_needed"] = "不需要"
+    save_run(repo_root, run)
+    append_loop_event(
+        repo_root,
+        run_id=str(run["run_id"]),
+        actor="auditor",
+        event_type="blocked",
+        summary="Audit gate blocked ordinary loop progress on open must_fix finding",
+        details={"finding_ids": [str(finding.get("finding_id", "")) for finding in findings]},
+    )
+    return status_for_run(repo_root, str(run["run_id"]))
+
+
+def _apply_audit_gate(repo_root: Path, run: dict[str, Any]) -> dict[str, str] | None:
+    if not _audit_gate_applies(run):
+        return None
+    try:
+        report = latest_audit_report(repo_root, str(run["run_id"]))
+    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        append_loop_event(
+            repo_root,
+            run_id=str(run["run_id"]),
+            actor="auditor",
+            event_type="audit_unavailable",
+            summary=f"Audit report unavailable or invalid: {exc}",
+        )
+        return None
+    findings = open_must_fix_findings(report)
+    if not findings:
+        return None
+    return _set_audit_blocked(repo_root, run, findings)
+
+
+def _run_audit_boundary(repo_root: Path, run: dict[str, Any], *, force: bool = False) -> dict[str, str] | None:
+    blocked = _apply_audit_gate(repo_root, run)
+    if blocked is not None:
+        return blocked
+    if not _audit_gate_applies(run):
+        return None
+    if not force and not _audit_progress_exists(run):
+        return None
+    write_fake_audit_report(repo_root, run)
+    return _apply_audit_gate(repo_root, load_run(repo_root, str(run["run_id"])))
 
 
 def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -1014,6 +1102,76 @@ def _generator_result_has_artifacts(run_dir: Path) -> bool:
     return bool(generator_result["artifacts"])
 
 
+def _next_audit_id_for_run(repo_root: Path, run_id: str) -> str:
+    latest = latest_audit_report_path(repo_root, run_id)
+    if latest is None:
+        return "audit-001"
+    try:
+        number = int(latest.stem.split("-", 1)[1])
+    except (IndexError, ValueError):
+        number = 0
+    return f"audit-{number + 1:03d}"
+
+
+def _auditor_prompt(run: Mapping[str, Any], signal_path: Path, output_path: Path) -> str:
+    return "\n".join(
+        [
+            "Loop Auditor agent task.",
+            f"Read deterministic signals from {signal_path}.",
+            f"Write audit report JSON to {output_path}.",
+            "The JSON payload must satisfy scripts.harness_loop_contracts.validate_audit_report_payload.",
+            "Do not modify run.json or repository files other than the requested audit report.",
+            "Use verdict=must_fix only when deterministic_signals has concrete repeat or tunnel-vision evidence.",
+            f"Run ID: {run.get('run_id', '')}",
+            f"Policy: {run.get('policy', '')}",
+            f"Phase: {run.get('phase', '')}",
+            "",
+        ]
+    )
+
+
+def run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+    root = Path(repo_root)
+    run = load_run(root, run_id)
+    if not _audit_gate_applies(run):
+        raise RuntimeError("run_auditor only supports parent or autonomous runs")
+    if driver == "fake":
+        return write_fake_audit_report(root, run)
+    if driver != "codex-exec":
+        raise ValueError(f"unsupported auditor driver: {driver}")
+
+    run_dir = run_dir_for(root, run_id)
+    signal_path = write_deterministic_signals(root, run)
+    audit_id = _next_audit_id_for_run(root, run_id)
+    output_path = run_dir / "audit-reports" / f"{audit_id}.json"
+    prompt_path = run_dir / "auditor-prompt.md"
+    prompt_path.write_text(_auditor_prompt(run, signal_path, output_path), encoding="utf-8")
+    attempt = int(run.get("attempts", {}).get("auditor", 0)) + 1
+    attempt_payload = run_codex_prompt(
+        role="auditor",
+        run_id=run_id,
+        repo_root=root,
+        run_dir=run_dir,
+        prompt_path=prompt_path,
+        output_json_path=output_path,
+        attempt=attempt,
+        timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+    )
+    run = load_run(root, run_id)
+    attempts = dict(run.get("attempts", {}))
+    attempts["auditor"] = attempt
+    run["attempts"] = attempts
+    save_run(root, run)
+    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
+        status = attempt_payload.get("status") if isinstance(attempt_payload, dict) else type(attempt_payload).__name__
+        raise RuntimeError(f"auditor codex-exec attempt failed with status {status}")
+    payload = read_json_file(output_path)
+    payload["created_by"] = "harness_loop_orchestrator"
+    write_json_file(output_path, payload)
+    validate_audit_report_payload(payload)
+    return output_path
+
+
 def _scenario_command_results_have_logs(run_dir: Path) -> bool:
     scenario_results_path = run_dir / "scenario-command-results.json"
     if not scenario_results_path.exists():
@@ -1389,6 +1547,7 @@ def run_loop(
         run = load_run(root, run_id)
     terminal_phases = {
         "passed_waiting_human_merge",
+        "audit_blocked",
         "repair_needed",
         "committed",
         "stopped_no_action",
@@ -1945,7 +2104,7 @@ def run_demand_multi(
     parent = _ensure_parent_fields(run)
     if parent["phase"] == "preflight":
         raise RuntimeError("run_demand_multi requires confirmed preflight")
-    if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+    if parent["phase"] in {"audit_blocked", "stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
         return status_for_run(root, run_id)
     if planner_driver not in {"fake", "fake-blocked", "fake-failed", "codex-exec"}:
         raise ValueError("unsupported demand multi planner driver")
@@ -1967,13 +2126,13 @@ def run_demand_multi(
 
     while True:
         parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+        if parent["phase"] in {"audit_blocked", "stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
             return status_for_run(root, run_id)
         reconcile_status = _reconcile_demand_parent_children(root, parent)
         if reconcile_status in {"waiting", "blocked"}:
             return status_for_run(root, run_id)
         parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+        if parent["phase"] in {"audit_blocked", "stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
             return status_for_run(root, run_id)
         if parent["phase"] == "child_running" and parent.get("current_child_run_id"):
             current_child = load_run(root, str(parent["current_child_run_id"]))
@@ -2028,6 +2187,9 @@ def run_demand_multi(
 
         passed = int(parent["aggregate_acceptance"]["passed"])
         if passed >= max_children:
+            audit_status = _run_audit_boundary(root, parent, force=True)
+            if audit_status is not None:
+                return audit_status
             parent["phase"] = "passed_waiting_human_merge"
             parent["next_action"] = "await_human_merge_confirmation"
             parent["last_result"] = "pass"
@@ -2051,6 +2213,10 @@ def run_demand_multi(
             governance_preflight_result = _run_governance_preflight_gate(root, parent)
             if governance_preflight_result["status"] != "pass":
                 return status_for_run(root, run_id)
+
+        audit_status = _run_audit_boundary(root, parent)
+        if audit_status is not None:
+            return audit_status
 
         planner_payload = _run_demand_parent_planner(
             root,
@@ -2077,6 +2243,9 @@ def run_demand_multi(
             return status_for_run(root, run_id)
 
         if planner_payload["planner_decision"] == "parent_done":
+            audit_status = _run_audit_boundary(root, parent, force=True)
+            if audit_status is not None:
+                return audit_status
             parent["phase"] = "passed_waiting_human_merge"
             parent["next_action"] = "await_human_merge_confirmation"
             parent["last_result"] = "pass"
@@ -4454,14 +4623,18 @@ def run_autonomous(
             raise RuntimeError(f"run_autonomous requires autonomous_knowledge policy; current policy is {run['policy']}")
         if run["phase"] == "preflight":
             raise RuntimeError("run_autonomous requires confirmed preflight; current phase is preflight")
-        if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
+        if run["phase"] in {"audit_blocked", "stopped_no_action", "stopped_budget", "stopped_blocked"}:
             return status_for_run(root, run_id)
-        if run["phase"] == "planning" and tasks_completed >= max_tasks:
-            return _stop_run(root, run, phase="stopped_budget", next_action="none", last_result="pass")
         if run["phase"] not in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}:
             raise RuntimeError(f"run_autonomous unsupported phase {run['phase']}")
 
         if run["phase"] == "planning":
+            audit_status = _run_audit_boundary(root, run, force=tasks_completed >= max_tasks and tasks_completed > 0)
+            if audit_status is not None:
+                return audit_status
+            run = load_run(root, run_id)
+            if tasks_completed >= max_tasks:
+                return _stop_run(root, run, phase="stopped_budget", next_action="none", last_result="pass")
             task_number = _next_autonomous_task_number(run)
             if planner_driver != "fake" and _stop_if_autonomous_no_action(root, run):
                 return status_for_run(root, run_id)
@@ -4583,6 +4756,11 @@ def _build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
     evaluate.add_argument("--max-attempts", type=int, default=2)
 
+    audit = subparsers.add_parser("run-auditor", help="Run the Loop Auditor step.")
+    audit.add_argument("--repo-root", default=".")
+    audit.add_argument("--run-id", required=True)
+    audit.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
+
     artifact_hygiene = subparsers.add_parser("artifact-hygiene", help="Run artifact hygiene for generated artifacts.")
     artifact_hygiene.add_argument("--repo-root", default=".")
     artifact_hygiene.add_argument("--run-id", required=True)
@@ -4684,6 +4862,12 @@ def main(argv: list[str] | None = None) -> int:
             max_attempts=args.max_attempts,
         )
         payload = load_run(args.repo_root, args.run_id)
+    elif args.command == "run-auditor":
+        report_path = run_auditor(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
+        payload = {
+            **status_for_run(repo_root=args.repo_root, run_id=args.run_id),
+            "audit_report_path": str(Path(report_path).resolve().relative_to(Path(args.repo_root).resolve())),
+        }
     elif args.command == "artifact-hygiene":
         run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
         payload = load_run(args.repo_root, args.run_id)

@@ -10,8 +10,8 @@ from .models import AgentSummary, Event, FlowNode, LogEntry
 from .redaction import redact_text
 
 
-COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_budget", "stopped_blocked"}
-BLOCKED_PHASES = {"stopped_blocked", "repair_needed", "invalid_artifact"}
+COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_budget", "stopped_blocked", "audit_blocked"}
+BLOCKED_PHASES = {"stopped_blocked", "audit_blocked", "repair_needed", "invalid_artifact"}
 LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
@@ -45,6 +45,7 @@ AUDITOR_CANDIDATE_SKILLS = (
     },
 )
 AUDIT_PHASE_NOTICE_DISPLAY_ONLY = "Phase 1：当前仅展示审计产物，硬阻塞未生效。"
+AUDIT_PHASE_NOTICE_ACTIVE = "Auditor 引擎已接入：open must_fix 会触发 audit_blocked，硬阻塞已接入。"
 AUDIT_SIGNAL_KEYS = frozenset(
     {
         "passed_children_since_last_audit",
@@ -447,10 +448,11 @@ class LoopDashboardStore:
             if isinstance(summary, dict):
                 signals.update(self._audit_signal_values(summary))
         cadence = report.get("cadence")
+        engine_status = self._audit_engine_status(report)
         return {
             "status": "available",
-            "engine_status": "display_only",
-            "phase_notice": AUDIT_PHASE_NOTICE_DISPLAY_ONLY,
+            "engine_status": engine_status,
+            "phase_notice": AUDIT_PHASE_NOTICE_ACTIVE if engine_status == "active" else AUDIT_PHASE_NOTICE_DISPLAY_ONLY,
             "verdict": self._first_text(report.get("verdict")),
             "open_must_fix": sum(1 for item in open_findings if str(item.get("severity") or "") == "must_fix"),
             "direction_action": self._first_text(direction.get("action")),
@@ -461,6 +463,16 @@ class LoopDashboardStore:
             "signals": signals,
             "cadence": cadence if isinstance(cadence, dict) else {},
         }
+
+    def _audit_engine_status(self, report: dict[str, Any]) -> str:
+        if report.get("created_by") != "harness_loop_orchestrator":
+            return "display_only"
+        signals = report.get("deterministic_signals")
+        if not isinstance(signals, dict):
+            return "display_only"
+        artifact_path = self._first_text(signals.get("artifact_path"))
+        artifact_sha256 = self._first_text(signals.get("artifact_sha256"))
+        return "active" if artifact_path and artifact_sha256 else "display_only"
 
     def _latest_audit_report(self, run_dir: Path) -> tuple[Path | None, dict[str, Any]]:
         audit_dir = run_dir / "audit-reports"
