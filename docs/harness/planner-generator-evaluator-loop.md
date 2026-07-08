@@ -115,14 +115,16 @@ python3 scripts/harness_loop_auto_resume.py \
 ```
 
 The watcher scans `.codex/loop-runs` and `.worktrees/*/.codex/loop-runs` for
-orchestrator-actionable phases. Supported phases include `audit_blocked` and
-autonomous `stopped_blocked` runs whose `next_action` is
-`inspect_autonomous_dirty_paths`. The watcher calls `run-demand-multi` or
-`run-autonomous` for the run's policy, so Auditor `must_fix` findings can
-create remediation work and safe mechanical dirty-path stops can be rechecked
-without a manual CLI call. The watcher requires explicit driver choices; smoke
-fixtures should use fake drivers, while real development runs should use
-`codex-exec`.
+orchestrator-actionable phases. Supported phases include `audit_blocked`,
+autonomous active phases (`planning`, `generating`, `evaluating`,
+`artifact_hygiene`, `cleanup`), and autonomous `stopped_blocked` runs whose
+`next_action` is `inspect_autonomous_dirty_paths`. The watcher calls
+`run-demand-multi` or `run-autonomous` for the run's policy, so Auditor
+`must_fix` findings can create remediation work, interrupted autonomous runs
+can continue their normal stage, and safe mechanical dirty-path stops can be
+rechecked without a manual CLI call. The watcher requires explicit driver
+choices; smoke fixtures should use fake drivers, while real development runs
+should use `codex-exec`.
 
 Until `loop-supervisor-01` replaces these separate services, every real loop
 task must keep the following long-running processes online and verify them
@@ -140,8 +142,9 @@ before reporting progress:
   frontend must show the same current data.
 - Loop Dashboard remains reachable and points at the project root whose runs
   should be monitored.
-- `loop-auto-resume` remains running so `audit_blocked` and safe autonomous
-  dirty-path stops are re-entered without a manual CLI call.
+- `loop-auto-resume` remains running so `audit_blocked`, autonomous active
+  phases, and safe autonomous dirty-path stops are re-entered without a manual
+  CLI call.
 - The loop run uses a stable run ID under `.codex/loop-runs` or a tracked
   worktree `.codex/loop-runs` directory so Loop Dashboard can display the
   active task, completed history, child tasks, audit results, and logs.

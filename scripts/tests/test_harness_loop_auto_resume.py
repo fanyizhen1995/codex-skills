@@ -69,6 +69,18 @@ def seed_autonomous_dirty_path_blocked_run(repo_root: Path, run_id: str) -> None
     write_json_file(run_dir_for(repo_root, run_id) / "run.json", run)
 
 
+def seed_autonomous_planning_run(repo_root: Path, run_id: str) -> None:
+    init_git_repo(repo_root)
+    create_preflight_run(
+        repo_root=repo_root,
+        mode="autonomous-knowledge",
+        requirement="Continue autonomous run",
+        run_id=run_id,
+        domain="ai_infra",
+        confirm=True,
+    )
+
+
 class HarnessLoopAutoResumeTests(unittest.TestCase):
     def test_resume_once_finds_worktree_audit_blocked_parent_and_runs_remediation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,6 +131,28 @@ class HarnessLoopAutoResumeTests(unittest.TestCase):
             self.assertEqual(result["resumed"][0]["run_id"], "dirty-stuck")
             self.assertEqual(result["resumed"][0]["phase"], "stopped_blocked")
             self.assertEqual(result["resumed"][0]["next_action"], "inspect_autonomous_dirty_paths")
+
+    def test_resume_once_dry_run_finds_autonomous_planning_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp)
+            seed_autonomous_planning_run(project_root, "planning-run")
+
+            result = resume_once(
+                project_root=project_root,
+                include_worktrees=False,
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+                max_tasks=3,
+                dry_run=True,
+            )
+
+            self.assertEqual(result["candidate_count"], 1, json.dumps(result, indent=2, ensure_ascii=False))
+            self.assertEqual(result["resumed"][0]["run_id"], "planning-run")
+            self.assertEqual(result["resumed"][0]["phase"], "planning")
+            self.assertEqual(result["resumed"][0]["next_action"], "run_autonomous_planner")
 
 
 if __name__ == "__main__":

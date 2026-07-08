@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - script execution from scripts/
 
 ACTIONABLE_PHASES = {"audit_blocked", "stopped_blocked"}
 ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS = {"inspect_autonomous_dirty_paths"}
+ACTIONABLE_AUTONOMOUS_RUNNING_PHASES = {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}
 
 
 def _run_json_paths(project_root: Path, *, include_worktrees: bool) -> Iterable[Path]:
@@ -59,9 +60,12 @@ def discover_actionable_runs(project_root: Path, *, include_worktrees: bool = Tr
         if policy not in {"demand_development", "autonomous_knowledge"}:
             continue
         phase = str(run.get("phase") or "")
-        if phase not in ACTIONABLE_PHASES:
-            continue
         next_action = str(run.get("next_action") or "")
+        is_actionable_phase = phase in ACTIONABLE_PHASES or (
+            policy == "autonomous_knowledge" and phase in ACTIONABLE_AUTONOMOUS_RUNNING_PHASES
+        )
+        if not is_actionable_phase:
+            continue
         if phase == "stopped_blocked" and next_action not in ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS:
             continue
         candidates.append(
