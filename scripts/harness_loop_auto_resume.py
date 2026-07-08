@@ -17,7 +17,8 @@ except ImportError:  # pragma: no cover - script execution from scripts/
     from harness_loop_orchestrator import run_autonomous, run_demand_multi  # type: ignore[no-redef]
 
 
-ACTIONABLE_PHASES = {"audit_blocked"}
+ACTIONABLE_PHASES = {"audit_blocked", "stopped_blocked"}
+ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS = {"inspect_autonomous_dirty_paths"}
 
 
 def _run_json_paths(project_root: Path, *, include_worktrees: bool) -> Iterable[Path]:
@@ -54,11 +55,14 @@ def discover_actionable_runs(project_root: Path, *, include_worktrees: bool = Tr
                 }
             )
             continue
+        policy = str(run.get("policy") or "")
+        if policy not in {"demand_development", "autonomous_knowledge"}:
+            continue
         phase = str(run.get("phase") or "")
         if phase not in ACTIONABLE_PHASES:
             continue
-        policy = str(run.get("policy") or "")
-        if policy not in {"demand_development", "autonomous_knowledge"}:
+        next_action = str(run.get("next_action") or "")
+        if phase == "stopped_blocked" and next_action not in ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS:
             continue
         candidates.append(
             {
@@ -67,7 +71,7 @@ def discover_actionable_runs(project_root: Path, *, include_worktrees: bool = Tr
                 "run_json": str(run_json),
                 "policy": policy,
                 "phase": phase,
-                "next_action": str(run.get("next_action") or ""),
+                "next_action": next_action,
             }
         )
     return candidates
@@ -191,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evaluator-driver", default="codex-exec", choices=["fake", "codex-exec"])
     parser.add_argument("--max-eval-attempts", type=int, default=2)
     parser.add_argument("--max-children", type=int, default=3)
-    parser.add_argument("--max-tasks", type=int, default=1)
+    parser.add_argument("--max-tasks", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--watch", action="store_true")
     parser.add_argument("--interval-seconds", type=float, default=30.0)

@@ -1307,6 +1307,77 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(loop_state_relative, dirty_result["unexpected_paths"])
             self.assertNotIn(loop_state_relative, dirty_result["declared_paths"])
 
+    def test_check_autonomous_dirty_paths_ignores_current_run_runtime_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            (repo_root / ".codex").mkdir()
+            runtime_log = ".codex/ai-infra-expansion-continuation.log"
+            (repo_root / runtime_log).write_text("runner output\n", encoding="utf-8")
+            run = {
+                "run_id": "ai-infra-expansion-continuation-20260708",
+                "task_id": "ai-infra-expansion-continuation-20260708-parent-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(repo_root, run, [])
+
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertIn(runtime_log, dirty_result["ignored_paths"])
+            self.assertNotIn(runtime_log, dirty_result["unexpected_paths"])
+
+    def test_autonomous_dirty_path_block_reenters_cleanup_when_only_runtime_log_is_dirty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-parent-1"
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": task_id,
+                    "next_action": "inspect_autonomous_dirty_paths",
+                    "last_result": "blocked",
+                }
+            )
+            save_run(repo_root, run)
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "No repo changes for this regression.",
+                },
+            )
+            (repo_root / ".codex" / "ai-infra-expansion-continuation.log").write_text(
+                "runner output\n",
+                encoding="utf-8",
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_dirty_path_block(repo_root, run)
+
+            self.assertTrue(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "cleanup")
+            self.assertEqual(saved["next_action"], "commit_autonomous_changes")
+            dirty_result = read_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json")
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+
     def test_run_autonomous_supports_codex_exec_agents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

@@ -5029,7 +5029,46 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
     return (
         path.startswith(f".codex/loop-runs/{run_id}/")
         or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
+        or path in _autonomous_runtime_artifact_paths(run_id)
     )
+
+
+def _autonomous_runtime_artifact_paths(run_id: str) -> set[str]:
+    stems = {run_id}
+    dated_run = re.match(r"^(?P<stem>.+)-\d{8}$", run_id)
+    if dated_run:
+        stems.add(dated_run.group("stem"))
+    return {
+        f".codex/{stem}{suffix}"
+        for stem in stems
+        for suffix in (".log", ".pid")
+    }
+
+
+def _resume_autonomous_dirty_path_block(repo_root: Path, run: dict[str, Any]) -> bool:
+    if run.get("phase") != "stopped_blocked":
+        return False
+    if run.get("next_action") != "inspect_autonomous_dirty_paths":
+        return False
+    run_id = str(run["run_id"])
+    generator_result_path = run_dir_for(repo_root, run_id) / "generator-result.json"
+    if not generator_result_path.exists():
+        return False
+    try:
+        generator_result = read_json_file(generator_result_path)
+        validate_generator_result_payload(generator_result)
+    except Exception:
+        return False
+    dirty_result = _check_autonomous_dirty_paths(repo_root, run, list(generator_result["changed_paths"]))
+    write_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json", dirty_result)
+    if not dirty_result["allowed"]:
+        return False
+    current = load_run(repo_root, run_id)
+    current["phase"] = "cleanup"
+    current["next_action"] = "commit_autonomous_changes"
+    current["last_result"] = "none"
+    save_run(repo_root, current)
+    return True
 
 
 def run_autonomous(
@@ -5069,6 +5108,10 @@ def run_autonomous(
             if not _start_autonomous_audit_remediation(root, run, task_number=task_number):
                 return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_audit_remediation_planner", last_result="blocked")
             continue
+        if run["phase"] == "stopped_blocked":
+            if _resume_autonomous_dirty_path_block(root, run):
+                continue
+            return status_for_run(root, run_id)
         if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
             return status_for_run(root, run_id)
         if run["phase"] not in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}:
