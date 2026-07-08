@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-08T16:32:34Z",
+  "last_scan_at": "2026-07-08T17:08:34Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -586,6 +586,24 @@
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-continuation-resnics-n2025-fields",
+      "title": "Resolved Resnics Stargate-N2025 DPU catalog fields",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-08T17:08:34Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md"
       ]
     }
   ],

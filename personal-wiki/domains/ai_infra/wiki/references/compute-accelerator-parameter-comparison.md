@@ -87,6 +87,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
 ---
 
 # Summary
@@ -177,9 +178,14 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   data-port bandwidth, 2 GB DDR3 onboard memory, and PCIe Base 3.0 x8
   host-interface wording; it also resolves Yusur K2-Pro form factor, 200 Gb/s
   source-stated network bandwidth, `2 x PCIe Gen3 x16` host interface, and the
-  SWIFT-2200N Pro low-latency DPU-card form factor.
+  SWIFT-2200N Pro low-latency DPU-card form factor. Continuation parent 7
+  resolves Resnics Stargate-N2025 form factor, aggregate 50 Gb/s data-port
+  bandwidth, split-pool DDR4 memory capacity, `PCIe Gen4 x8`, and 150 W power
+  while leaving SR-IOV, RDMA, P4 table, protocol, storage-offload, benchmark,
+  and production-operation values as comparison-only boundary evidence.
   [BlueField-3](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md),
   [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md),
+  [Resnics Stargate-N2025](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md),
   [Resnics Stargate-S1100](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md),
   [Yusur K2-Pro](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md),
   [Yusur SWIFT-2200N Pro](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md),
@@ -208,6 +214,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Biren Bili 166L | AI ASIC / OAM module | cold-plate liquid-cooled OAM module; 600 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md) |
 | Biren Bili 166M | AI ASIC / OAM module | 4U OAM V1.1 air-cooled module; 550 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md) |
 | Corigine Agilio CX 2x25GbE SmartNIC | DPU / SmartNIC card | 2 x 25GbE SmartNIC card; aggregate 50 Gb/s data-port bandwidth; 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with PCIe 1.1/2.0, x8 link | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
+| Resnics Stargate-N2025 | DPU / SmartNIC card | full-height double-wide three-quarter-length PCIe card; aggregate 50 Gb/s data-port bandwidth; 24 GB aggregate visible DDR4 capacity from 8 GB FPGA logic memory plus 16 GB SoC logic memory; PCIe Gen4 x8; 150 W | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
 | Yusur K2-Pro DPU | DPU chip / product-series DPU | DPU chip / product-series DPU; 200 Gb/s source-stated network bandwidth; 2 x PCIe Gen3 x16 host interface | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) |
 | Yusur SWIFT-2200N Pro | DPU / low-latency network card | low-latency network DPU card form factor; latency and jitter values remain comparison-only schema-boundary evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
 
@@ -269,7 +276,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Corigine Agilio CX 2x25GbE SmartNIC | SmartNIC | 2 x 25GbE ports; SFP+ 10GbE / SFP28 25GbE | 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with 1.1/2.0 | [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
 | JaguarMicro Yunxiao DPU | DPU product | 2 x 25G Ethernet; supports RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, and L2VPN | detailed memory/power not captured | [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) |
 | Resnics Stargate-N1025 | half-height half-length single-wide PCIe DPU SmartNIC | 2 x SFP28 25G Ethernet and 1000BASE-T management port; P4 programmable vSwitch acceleration | quad-core Cortex-A53; 8 GB DDR4 SDRAM x72; PCIe Gen3 x8; 25 W typical | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) |
-| Resnics Stargate-N2025 | full-height double-wide 3/4-length PCIe DPU | 2 x SFP28 25G Ethernet; SR-IOV 32 PF and 2K VF; RDMA queue pair 256 | 6-core Intel Icelake-D eCPU; 8 GB DDR4 FPGA memory and 16 GB DDR4 SoC memory; PCIe Gen4 x8; 150 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
+| Resnics Stargate-N2025 | full-height double-wide 3/4-length PCIe DPU | 2 x SFP28 25G Ethernet; SR-IOV 32 PF and 2K VF, RDMA queue pair 256, P4 flow-table/session/protocol/storage-offload, line-rate, low-latency, benchmark, and production-operation values are comparison-only boundary evidence | 6-core Intel Icelake-D eCPU; 8 GB DDR4 FPGA memory and 16 GB DDR4 SoC memory; PCIe Gen4 x8; 150 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
 | Resnics Stargate-S1100 | NVMe-oF storage accelerator | 2 x QSFP28 100G Ethernet; 4K block, 4 SSD: read 2.7M IOPS and write 2M IOPS; added latency read <10 us, write <20 us | PCIe Gen3 x16; 16 GB DDR4 FPGA memory and 16 GB DDR4 ARM CPU memory; 35 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) |
 | Yusur K2-Pro | DPU chip / DPU product family | 16 clusters / 128 NP cores; DOE lookup 600M/s; NoC 3 Tbps / 1500 Mpps; LAN 200 Gb/s line-rate switching; NVMe-oF engine; 2M IOPS | product series lists 2 x 100/40/25/10GbE ports and 2 x PCIe Gen3 x16; DOE/NoC/packet-rate/NVMe-oF/unspecified IOPS values are comparison-only unless a schema field and read/write boundary are added | [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) |
 | Yusur SWIFT-2200N Pro | low-latency network DPU card | PCIe one-way pass-through latency <230 ns; 1/2 RTT loopback latency 1 us; network jitter <20 ns | interface, memory, and power not captured in local page; latency and jitter remain comparison-only because the catalog lacks general network-latency and jitter fields | [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
@@ -314,9 +321,14 @@ network bandwidth, and `2 x PCIe Gen3 x16` host interface, plus the
 SWIFT-2200N Pro low-latency DPU-card form factor. K2-Pro DOE lookup, NoC
 throughput, packet rate, NVMe-oF engine, unspecified 2M IOPS, and SWIFT latency
 or jitter values stay in the raw comparison table until a schema field and
-exact metric boundary support promotion. Remaining DPU/SmartNIC rows likewise
-stay raw-only until a future task promotes their exact product or variant
-boundaries.
+exact metric boundary support promotion. Continuation parent 7 adds Resnics
+Stargate-N2025 form factor, aggregate 50 Gb/s data-port bandwidth,
+split-pool DDR4 memory capacity, `PCIe Gen4 x8`, and 150 W power as a
+product-spec catalog slice. It does not promote N2025 SR-IOV counts, RDMA
+queue-pair count, P4 table/session/protocol/storage-offload details,
+line-rate or low-latency wording, benchmarks, or production-operation claims.
+Remaining DPU/SmartNIC rows likewise stay raw-only until a future task promotes
+their exact product or variant boundaries.
 
 # Citations
 
@@ -345,3 +357,4 @@ boundaries.
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json

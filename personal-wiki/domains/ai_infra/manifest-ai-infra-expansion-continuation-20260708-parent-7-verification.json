@@ -1,0 +1,177 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-7",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T17:23:53Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-7-verification.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported Resnics Stargate-N2025 product-spec fields: DPU SmartNIC form factor, aggregate 50 Gb/s data-port bandwidth from 2 x SFP28 25G Ethernet ports, split-pool DDR4 memory capacity recorded as 24 GB from 8 GB FPGA logic memory plus 16 GB SoC logic memory, PCIe Gen4 x8 host interface, and 150 W power. No SR-IOV counts, RDMA queue-pair count, P4 table/session/protocol/storage-offload details, line-rate, low-latency, benchmark, production-operations, storage-fabric, SLO, or generalized network/storage claim was promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "resnics-stargate-n2025",
+      "fields": {
+        "form_factor": "full-height double-wide three-quarter-length PCIe card",
+        "network_bandwidth": "50 Gb/s aggregate data-port bandwidth from 2 x SFP28 25G Ethernet",
+        "memory_capacity": "24 GB aggregate visible DDR4 capacity from 8 GB FPGA logic memory plus 16 GB SoC logic memory",
+        "host_interface": "PCIe Gen4 x8",
+        "tdp": "150 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -c 'from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file(\"personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json\", expected_task_id=\"ai-infra-expansion-continuation-20260708-parent-7\"); raise SystemExit(\"\\n\".join(findings) if findings else 0)'",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "coverage-map and loop-state contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed"
+    },
+    {
+      "command": "planner output contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed"
+    },
+    {
+      "command": "case-insensitive source visibility check over local Stargate-N2025 raw capture for promoted and explicitly non-promoted boundary terms",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "source visibility check passed for 19 term groups over the local Stargate-N2025 raw capture"
+    },
+    {
+      "command": "structured catalog consistency check for resnics-stargate-n2025 SKU, observation, and resolved-spec links",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "catalog linkage/unique ID consistency check passed for resnics-stargate-n2025"
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "targeted sensitive-pattern scan passed for declared changed files"
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "autonomous scope check passed for 12 declared ai_infra paths"
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side"
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, or run long-lived processes"
+    },
+    {
+      "command": "parent-task-level auditor cadence observation after parent-7 completion",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "audit-003 verdict pass/action continue; run.json audit_cadence interval is 2 and audit-003 steps_since_last_audit is 2. Generator did not run Auditor."
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-7 Resnics N2025 wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-7 Resnics N2025 catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-7 Resnics Stargate-N2025, DPU SmartNIC, 2 x SFP28 25G, PCIe Gen4 x8, 24 GB split DDR4 memory, and 150 W content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-7 Resnics Stargate-N2025 catalog content and boundary caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard current run, child task state, agent actions, evaluator scenarios, and completed history freshness for parent-7"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses the existing local Resnics Stargate-N2025 product-page raw capture.",
+    "No git commit was run; commit is intentionally empty for the orchestrator."
+  ]
+}

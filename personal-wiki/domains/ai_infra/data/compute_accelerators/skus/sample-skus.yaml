@@ -53,6 +53,15 @@ skus:
     form_factor: half-height half-length single-wide PCIe card
     release_status: released
     source_refs: [resnics-stargate-n1025-product-page]
+  - sku_id: resnics-stargate-n2025
+    vendor_id: resnics
+    family_id: resnics-stargate
+    canonical_name: Resnics Stargate-N2025
+    aliases: [Stargate-N2025, Stargate-N2025 DPU SmartNIC]
+    scope: dpu
+    form_factor: full-height double-wide three-quarter-length PCIe card
+    release_status: released
+    source_refs: [resnics-stargate-n2025-product-page]
   - sku_id: resnics-stargate-s1100
     vendor_id: resnics
     family_id: resnics-stargate

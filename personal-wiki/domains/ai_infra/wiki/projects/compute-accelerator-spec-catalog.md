@@ -26,6 +26,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md
   - ../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
+  - ../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
   - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
   - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
@@ -36,6 +37,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
 ---
 
 # Summary
@@ -84,9 +86,9 @@ product pages. Stargate-N1025 now has resolved form factor, aggregate
 source-stated data-port bandwidth, memory capacity, host interface, and typical
 power fields. Stargate-S1100 now has resolved host interface, power, 4K/4-SSD
 read and write IOPS, and source-stated added-latency upper-bound fields. Broader
-Resnics N2025, Asterfusion, Dayu, and Nebula rows remain comparison or
-duplicate-boundary evidence unless their exact product or variant boundary is
-promoted in a future scoped slice.
+Resnics N2025, Asterfusion, Dayu, and Nebula rows remained comparison or
+duplicate-boundary evidence until later scoped slices promoted exact product or
+variant boundaries.
 
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
@@ -104,6 +106,18 @@ engine, and unspecified 2M IOPS value stay out of resolved fields because the
 catalog has no matching DOE/NoC/generic IOPS fields. The SWIFT PCIe pass-through
 latency, loopback latency, and jitter values remain comparison-only because the
 schema has no general network-latency or jitter field. [K2-Pro raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) [SWIFT raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md)
+
+Continuation parent 7 promotes a bounded Resnics Stargate-N2025 DPU SmartNIC
+product-spec slice from the local Resnics product-page capture. Stargate-N2025
+now has resolved form factor, aggregate 50 Gb/s data-port bandwidth from
+`2 x SFP28 25G Ethernet`, memory capacity, `PCIe Gen4 x8` host interface, and
+150 W power fields. The memory field is explicitly scoped to the source-visible
+split DDR4 pools: 8 GB FPGA logic memory plus 16 GB SoC logic memory, recorded
+as 24 GB aggregate visible capacity rather than one uniform memory pool. SR-IOV
+counts, RDMA queue-pair count, P4 flow-table values, session rates, protocol
+support, storage offload, line-rate forwarding, low-latency, benchmark, and
+production-operations claims remain boundary evidence, not resolved catalog
+fields. [N2025 raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md)
 
 # Data Flow
 
@@ -138,6 +152,7 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
 - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
+- ../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md
 - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
 - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
@@ -145,3 +160,4 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
 - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json

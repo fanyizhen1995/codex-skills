@@ -1,0 +1,106 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-7",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Resnics Stargate-N2025 DPU catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:resnics:stargate-n2025:dpu-smartnic"
+  },
+  "identity_keys": [
+    {
+      "title": "Resnics Stargate-N2025",
+      "source_type": "hardware",
+      "identity_key": "hardware:resnics:stargate-n2025:dpu-smartnic"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local capture found and reused: raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated references mentioned Stargate-N2025 as a raw DPU/SmartNIC comparison row, but no resnics-stargate-n2025 SKU, observation, or resolved-spec row existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, and AI Infra Coverage Map; no dedicated Resnics page was needed.",
+    "prior_manifest_scan": "Prior Resnics r10 task-3 resolved Stargate-N1025 and Stargate-S1100 and explicitly deferred N2025; continuation parent-1 resolved Corigine, parent-3 resolved Yusur, parent-4 resolved H200 SXM, parent-5 resolved Kubernetes/Kueue/Volcano issue signals, and parent-6 resolved AWS/Lambda operational signals. This task does not repeat those rows."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing resnics-stargate-n2025 SKU row; added one product-specific DPU row."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing N2025 observations; added observations only for form_factor, network_bandwidth, memory_capacity, host_interface, and tdp."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing N2025 resolved fields; added five resolved fields pointing to new N2025 observations."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing N2025 row remains a raw comparison row for unsupported virtualization, RDMA, P4, protocol, storage-offload, benchmark, and operations text; the resolved table adds only the bounded product-spec fields."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "N2025 is kept as product-specific DPU SmartNIC catalog evidence, not a general storage-fabric, benchmark, operations, or SLO claim."
+    },
+    {
+      "target": "coverage-map.json",
+      "result": "Only hardware-accelerator and network-storage-cluster layers were updated; blocked KServe, inference-serving postmortem, MLCommons exact-result, and RAG propagation/drift/alert/cost gaps remain unresolved."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added a separate known_source entry for parent-7 Resnics N2025 fields without mutating blocked_items or existing blocked coverage_gaps."
+    }
+  ],
+  "gap_reason": "The local corpus already contained a product-specific Resnics Stargate-N2025 capture with schema-supported DPU SmartNIC fields that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "resnics-stargate-n2025",
+      "fields": {
+        "form_factor": "full-height double-wide three-quarter-length PCIe card",
+        "network_bandwidth": "50 Gb/s aggregate data-port bandwidth from 2 x SFP28 25G Ethernet",
+        "memory_capacity": "24 GB aggregate visible DDR4 capacity from 8 GB FPGA logic memory plus 16 GB SoC logic memory",
+        "host_interface": "PCIe Gen4 x8",
+        "tdp": "150 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "SRIOV: 32 PF, 2K VF",
+      "boundary": "Not promoted because the catalog has no SR-IOV PF/VF count field and the task is bounded to product-spec fields listed by the planner."
+    },
+    {
+      "source_value": "RDMA Queue pair 256",
+      "boundary": "Not promoted because the catalog has no RDMA queue-pair count field."
+    },
+    {
+      "source_value": "P4 flow-table count, flow-table offload performance, connection-tracking table size, and new-session rate",
+      "boundary": "Not promoted because spec-fields.yaml has no P4 flow-table, flow-update-rate, CT table, or session-rate fields."
+    },
+    {
+      "source_value": "virtio, NVMe-oF/TCP, iSCSI, Ceph, iSER, OVS, storage acceleration, line-rate forwarding, low-latency, and protocol-support text",
+      "boundary": "Comparison-only product-page text; not promoted as protocol, storage-fabric, benchmark, operations, or SLO evidence."
+    },
+    {
+      "source_value": "FPGA logic memory 8GB DDR4 SDRAM x72 bits and SoC logic memory 16GB DDR4 SDRAM x72 bits",
+      "boundary": "Promoted as memory_capacity only with explicit split-pool notes. The catalog records 24 GB aggregate visible capacity and does not treat it as a single uniform memory pool."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Resnics Stargate-N1025 or Stargate-S1100 resolved fields were modified.",
+    "No Corigine, Yusur, Asterfusion, Dayu, Nebula, Huawei, Biren, Cambricon, Kunlunxin, H200, AWS/Lambda, Kubernetes/Kueue/Volcano, SGLang, KServe, inference-serving postmortem, MLCommons exact-result, or RAG propagation/drift/alert/cost row was modified except as duplicate-boundary text where already present.",
+    "No benchmark, production-operations, generalized storage-performance, protocol, RDMA performance, or SLO claim was promoted from the N2025 capture."
+  ]
+}

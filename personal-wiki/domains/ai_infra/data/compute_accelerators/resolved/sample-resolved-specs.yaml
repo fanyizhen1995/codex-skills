@@ -171,6 +171,48 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-07"
+  - sku_id: resnics-stargate-n2025
+    resolved_fields:
+      form_factor:
+        value: full-height double-wide three-quarter-length PCIe card
+        unit: none
+        source_observation_id: obs-resnics-stargate-n2025-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      network_bandwidth:
+        value: 50
+        unit: Gb/s
+        source_observation_id: obs-resnics-stargate-n2025-network-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 24
+        unit: GB
+        source_observation_id: obs-resnics-stargate-n2025-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: PCIe Gen4 x8
+        unit: none
+        source_observation_id: obs-resnics-stargate-n2025-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 150
+        unit: W
+        source_observation_id: obs-resnics-stargate-n2025-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
   - sku_id: resnics-stargate-s1100
     resolved_fields:
       host_interface:

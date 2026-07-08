@@ -259,6 +259,71 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page lists 25 W typical power.
+  - observation_id: obs-resnics-stargate-n2025-form-factor
+    sku_id: resnics-stargate-n2025
+    field: form_factor
+    value: full-height double-wide three-quarter-length PCIe card
+    unit: none
+    source_id: resnics-stargate-n2025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N2025 product page; hardware specifications physical form"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists a full-height, double-wide, three-quarter-length PCIe card with independent 1000BASE-T management ports.
+  - observation_id: obs-resnics-stargate-n2025-network-bandwidth
+    sku_id: resnics-stargate-n2025
+    field: network_bandwidth
+    value: 50
+    unit: Gb/s
+    source_id: resnics-stargate-n2025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N2025 product page; hardware specifications network interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 2 x SFP28 25G Ethernet data ports and 2 x 1000BASE-T GE management ports; value records aggregate data-port bandwidth only.
+  - observation_id: obs-resnics-stargate-n2025-memory-capacity
+    sku_id: resnics-stargate-n2025
+    field: memory_capacity
+    value: 24
+    unit: GB
+    source_id: resnics-stargate-n2025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N2025 product page; hardware specifications memory interface"
+    is_official: true
+    is_inferred: true
+    confidence: high
+    notes: "Official product page lists split DDR4 pools: FPGA logic memory 8GB DDR4 SDRAM x72 bits and SoC logic memory 16GB DDR4 SDRAM x72 bits. The value records their aggregate visible capacity and must not be treated as one uniform memory pool."
+  - observation_id: obs-resnics-stargate-n2025-host-interface
+    sku_id: resnics-stargate-n2025
+    field: host_interface
+    value: PCIe Gen4 x8
+    unit: none
+    source_id: resnics-stargate-n2025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N2025 product page; hardware specifications host interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe Gen4 x8.
+  - observation_id: obs-resnics-stargate-n2025-tdp
+    sku_id: resnics-stargate-n2025
+    field: tdp
+    value: 150
+    unit: W
+    source_id: resnics-stargate-n2025-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Resnics Stargate-N2025 product page; hardware specifications power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 150 W power.
   - observation_id: obs-resnics-stargate-s1100-host-interface
     sku_id: resnics-stargate-s1100
     field: host_interface
