@@ -71,6 +71,24 @@ skus:
     form_factor: 2 x 25GbE SmartNIC card
     release_status: released
     source_refs: [corigine-agilio-cx-product-brief]
+  - sku_id: yusur-k2-pro-dpu
+    vendor_id: yusur
+    family_id: yusur-k2
+    canonical_name: Yusur K2-Pro DPU
+    aliases: [K2-Pro, YUSUR K2-Pro DPU, Yusur K2 Pro]
+    scope: dpu
+    form_factor: DPU chip / product-series DPU
+    release_status: released
+    source_refs: [yusur-k2-pro-product-page]
+  - sku_id: yusur-swift-2200n-pro
+    vendor_id: yusur
+    family_id: yusur-swift
+    canonical_name: Yusur SWIFT-2200N Pro
+    aliases: [SWIFT-2200N Pro, SWIFT-2200N, Yusur 2200N Pro]
+    scope: dpu
+    form_factor: low-latency network DPU card
+    release_status: released
+    source_refs: [yusur-swift-2200n-product-page]
   - sku_id: aws-trainium2-trn2-offering
     vendor_id: aws
     family_id: aws-trainium

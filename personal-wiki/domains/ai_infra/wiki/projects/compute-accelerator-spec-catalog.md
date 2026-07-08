@@ -27,10 +27,13 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
   - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
+  - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
+  - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
 ---
 
 # Summary
@@ -67,7 +70,7 @@ product pages. Stargate-N1025 now has resolved form factor, aggregate
 source-stated data-port bandwidth, memory capacity, host interface, and typical
 power fields. Stargate-S1100 now has resolved host interface, power, 4K/4-SSD
 read and write IOPS, and source-stated added-latency upper-bound fields. Broader
-Resnics N2025, Yusur, Asterfusion, Dayu, and Nebula rows remain comparison or
+Resnics N2025, Asterfusion, Dayu, and Nebula rows remain comparison or
 duplicate-boundary evidence unless their exact product or variant boundary is
 promoted in a future scoped slice.
 
@@ -77,6 +80,16 @@ form factor, aggregate data-port bandwidth, memory type, memory capacity, and
 host interface fields. The slice uses only the official PDF product brief and
 does not promote power, latency, IOPS, packet-processing, benchmark, or
 production-operations claims.
+
+Continuation parent 3 promotes a bounded Yusur DPU slice from existing local
+product captures. Yusur K2-Pro now has resolved form factor, 200 Gb/s
+source-stated network bandwidth, and `2 x PCIe Gen3 x16` host-interface fields.
+Yusur SWIFT-2200N Pro now has a resolved low-latency network DPU card form
+factor. The K2-Pro DOE lookup rate, NoC bandwidth and packet rate, NVMe-oF
+engine, and unspecified 2M IOPS value stay out of resolved fields because the
+catalog has no matching DOE/NoC/generic IOPS fields. The SWIFT PCIe pass-through
+latency, loopback latency, and jitter values remain comparison-only because the
+schema has no general network-latency or jitter field. [K2-Pro raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) [SWIFT raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md)
 
 # Data Flow
 
@@ -113,3 +126,6 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
 - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
+- ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
+- ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json

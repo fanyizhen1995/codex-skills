@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-08T13:24:59Z",
+  "last_scan_at": "2026-07-08T14:02:58Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -512,6 +512,25 @@
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-continuation-yusur-dpu-fields",
+      "title": "Resolved Yusur K2-Pro and SWIFT-2200N Pro DPU catalog fields",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-08T14:02:58Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/schema/spec-fields.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md"
       ]
     }
   ],

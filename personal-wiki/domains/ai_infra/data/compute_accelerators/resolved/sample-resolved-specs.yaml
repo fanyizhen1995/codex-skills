@@ -191,6 +191,42 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-08"
+  - sku_id: yusur-k2-pro-dpu
+    resolved_fields:
+      form_factor:
+        value: DPU chip / product-series DPU
+        unit: none
+        source_observation_id: obs-yusur-k2-pro-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      network_bandwidth:
+        value: 200
+        unit: Gb/s
+        source_observation_id: obs-yusur-k2-pro-network-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: 2 x PCIe Gen3 x16
+        unit: none
+        source_observation_id: obs-yusur-k2-pro-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: yusur-swift-2200n-pro
+    resolved_fields:
+      form_factor:
+        value: low-latency network DPU card
+        unit: none
+        source_observation_id: obs-yusur-swift-2200n-pro-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
   - sku_id: aws-trainium2-trn2-offering
     resolved_fields:
       cloud_accelerator_count:

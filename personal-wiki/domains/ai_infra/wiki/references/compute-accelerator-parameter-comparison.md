@@ -84,6 +84,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
 ---
 
 # Summary
@@ -160,15 +161,19 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [Atlas 800T A3](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md),
   [R480-X8](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md)
 - DPU/SmartNIC records are not FLOPS peers. NVIDIA BlueField-3, Asterfusion
-  Helium, Resnics Stargate, Yusur K2-Pro, and Corigine Agilio are better
-  compared by line rate, packet/storage offload, PCIe generation, memory, IOPS,
-  and latency. The structured catalog now resolves Corigine Agilio CX
-  2x25GbE SmartNIC for form factor, aggregate 50 Gb/s data-port bandwidth,
-  2 GB DDR3 onboard memory, and PCIe Base 3.0 x8 host-interface wording.
+  Helium, Resnics Stargate, Yusur K2-Pro, Yusur SWIFT-2200N Pro, and Corigine
+  Agilio are better compared by line rate, packet/storage offload, PCIe
+  generation, memory, IOPS, and latency. The structured catalog now resolves
+  Corigine Agilio CX 2x25GbE SmartNIC for form factor, aggregate 50 Gb/s
+  data-port bandwidth, 2 GB DDR3 onboard memory, and PCIe Base 3.0 x8
+  host-interface wording; it also resolves Yusur K2-Pro form factor, 200 Gb/s
+  source-stated network bandwidth, `2 x PCIe Gen3 x16` host interface, and the
+  SWIFT-2200N Pro low-latency DPU-card form factor.
   [BlueField-3](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md),
   [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md),
   [Resnics Stargate-S1100](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md),
   [Yusur K2-Pro](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md),
+  [Yusur SWIFT-2200N Pro](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md),
   [Corigine Agilio CX](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md)
 
 # Resolved Catalog Fields
@@ -194,6 +199,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Biren Bili 166L | AI ASIC / OAM module | cold-plate liquid-cooled OAM module; 600 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md) |
 | Biren Bili 166M | AI ASIC / OAM module | 4U OAM V1.1 air-cooled module; 550 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md) |
 | Corigine Agilio CX 2x25GbE SmartNIC | DPU / SmartNIC card | 2 x 25GbE SmartNIC card; aggregate 50 Gb/s data-port bandwidth; 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with PCIe 1.1/2.0, x8 link | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
+| Yusur K2-Pro DPU | DPU chip / product-series DPU | DPU chip / product-series DPU; 200 Gb/s source-stated network bandwidth; 2 x PCIe Gen3 x16 host interface | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) |
+| Yusur SWIFT-2200N Pro | DPU / low-latency network card | low-latency network DPU card form factor; latency and jitter values remain comparison-only schema-boundary evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
 
 # Unresolved Runtime Evidence
 
@@ -255,8 +262,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Resnics Stargate-N1025 | half-height half-length single-wide PCIe DPU SmartNIC | 2 x SFP28 25G Ethernet and 1000BASE-T management port; P4 programmable vSwitch acceleration | quad-core Cortex-A53; 8 GB DDR4 SDRAM x72; PCIe Gen3 x8; 25 W typical | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) |
 | Resnics Stargate-N2025 | full-height double-wide 3/4-length PCIe DPU | 2 x SFP28 25G Ethernet; SR-IOV 32 PF and 2K VF; RDMA queue pair 256 | 6-core Intel Icelake-D eCPU; 8 GB DDR4 FPGA memory and 16 GB DDR4 SoC memory; PCIe Gen4 x8; 150 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
 | Resnics Stargate-S1100 | NVMe-oF storage accelerator | 2 x QSFP28 100G Ethernet; 4K block, 4 SSD: read 2.7M IOPS and write 2M IOPS; added latency read <10 us, write <20 us | PCIe Gen3 x16; 16 GB DDR4 FPGA memory and 16 GB DDR4 ARM CPU memory; 35 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) |
-| Yusur K2-Pro | DPU chip / DPU product family | 16 clusters / 128 NP cores; DOE lookup 600M/s; NoC 3 Tbps / 1500 Mpps; LAN 200 Gb/s line-rate switching; NVMe-oF engine; 2M IOPS | product series lists 2 x 100/40/25/10GbE ports and 2 x PCIe Gen3 x16 | [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) |
-| Yusur SWIFT-2200N Pro | low-latency network DPU card | PCIe one-way pass-through latency <230 ns; 1/2 RTT loopback latency 1 us; network jitter <20 ns | interface, memory, and power not captured in local page | [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
+| Yusur K2-Pro | DPU chip / DPU product family | 16 clusters / 128 NP cores; DOE lookup 600M/s; NoC 3 Tbps / 1500 Mpps; LAN 200 Gb/s line-rate switching; NVMe-oF engine; 2M IOPS | product series lists 2 x 100/40/25/10GbE ports and 2 x PCIe Gen3 x16; DOE/NoC/packet-rate/NVMe-oF/unspecified IOPS values are comparison-only unless a schema field and read/write boundary are added | [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) |
+| Yusur SWIFT-2200N Pro | low-latency network DPU card | PCIe one-way pass-through latency <230 ns; 1/2 RTT loopback latency 1 us; network jitter <20 ns | interface, memory, and power not captured in local page; latency and jitter remain comparison-only because the catalog lacks general network-latency and jitter fields | [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
 | Nebula DPU200 / RNIC IP / SNIC S1400 | DPU/RNIC/SmartNIC pages | no parameter captured by local text extraction | no parameter captured | [DPU200](../../raw/crawler/compute-accelerators-nebula-dpu200/20260628T060655740838Z-www-nebula-matrix-com-dpu200-7e44cc4782.md), [RNIC IP](../../raw/crawler/compute-accelerators-nebula-rnic-ip/20260628T060656128184Z-www-nebula-matrix-com-rnic-ip-6a2d630a55.md), [SNIC S1400](../../raw/crawler/compute-accelerators-nebula-snic-s1400/20260628T060656459873Z-www-nebula-matrix-com-snic-s1400-3a683422fd.md) |
 
 # Synthesis
@@ -280,9 +287,10 @@ catalog should add observations later if official compute and memory tables are
 captured.
 
 DPU and SmartNIC records have a separate comparison axis. NVIDIA BlueField-3,
-Yusur K2-Pro, Asterfusion Helium, Resnics Stargate, and Corigine Agilio are
-infrastructure accelerators where network bandwidth, programmable packet
-processing, storage offload, IOPS, and latency matter more than tensor FLOPS.
+Yusur K2-Pro, Yusur SWIFT-2200N Pro, Asterfusion Helium, Resnics Stargate, and
+Corigine Agilio are infrastructure accelerators where network bandwidth,
+programmable packet processing, storage offload, IOPS, and latency matter more
+than tensor FLOPS.
 R10 task 3 promotes a bounded Resnics slice into structured facts:
 Stargate-N1025 resolves form factor, source-stated aggregate data-port
 bandwidth, memory, host interface, and typical power, while Stargate-S1100
@@ -290,8 +298,14 @@ resolves host interface, power, 4K/4-SSD read and write IOPS, and added-latency
 upper bounds. The 2026-07-08 continuation adds Corigine Agilio CX 2x25GbE as a
 structured SmartNIC row for official product-brief form factor, 50 Gb/s
 aggregate port bandwidth, 2 GB DDR3 memory, and PCIe x8 host-interface wording.
-The remaining DPU/SmartNIC rows stay in the raw comparison table until a future
-task promotes their exact product or variant boundaries.
+Continuation parent 3 adds Yusur K2-Pro form factor, 200 Gb/s source-stated
+network bandwidth, and `2 x PCIe Gen3 x16` host interface, plus the
+SWIFT-2200N Pro low-latency DPU-card form factor. K2-Pro DOE lookup, NoC
+throughput, packet rate, NVMe-oF engine, unspecified 2M IOPS, and SWIFT latency
+or jitter values stay in the raw comparison table until a schema field and
+exact metric boundary support promotion. Remaining DPU/SmartNIC rows likewise
+stay raw-only until a future task promotes their exact product or variant
+boundaries.
 
 # Citations
 
@@ -317,3 +331,4 @@ task promotes their exact product or variant boundaries.
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json

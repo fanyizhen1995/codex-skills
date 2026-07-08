@@ -285,6 +285,58 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product brief lists PCIe Base 3.0 compatibility with PCIe 1.1/2.0 and 2.5/5.0/8.0 GT/s x8 link rates.
+  - observation_id: obs-yusur-k2-pro-form-factor
+    sku_id: yusur-k2-pro-dpu
+    field: form_factor
+    value: DPU chip / product-series DPU
+    unit: none
+    source_id: yusur-k2-pro-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Yusur K2-Pro product page; product title and product-series list"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page identifies K2-Pro as a flagship third-generation DPU chip and product-series DPU.
+  - observation_id: obs-yusur-k2-pro-network-bandwidth
+    sku_id: yusur-k2-pro-dpu
+    field: network_bandwidth
+    value: 200
+    unit: Gb/s
+    source_id: yusur-k2-pro-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Yusur K2-Pro product page; LAN offload module and product-series port list"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page lists 200Gbps line-speed switching and 2 x 100/40/25/10GbE ports; value records the source-stated line-rate or aggregate 100GbE port bandwidth.
+  - observation_id: obs-yusur-k2-pro-host-interface
+    sku_id: yusur-k2-pro-dpu
+    field: host_interface
+    value: 2 x PCIe Gen3 x16
+    unit: none
+    source_id: yusur-k2-pro-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Yusur K2-Pro product page; product-series interface list"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page lists 2 x PCIe Gen 3.0 x16 for the K2-Pro product-series entries.
+  - observation_id: obs-yusur-swift-2200n-pro-form-factor
+    sku_id: yusur-swift-2200n-pro
+    field: form_factor
+    value: low-latency network DPU card
+    unit: none
+    source_id: yusur-swift-2200n-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Yusur SWIFT-2200N product page; application and product-advantage text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page describes SWIFT-2200N Pro as a low-latency network DPU card; latency and jitter values remain comparison-only because no general network-latency schema field exists.
   - observation_id: obs-aws-trn2-accelerator-count
     sku_id: aws-trainium2-trn2-offering
     field: cloud_accelerator_count

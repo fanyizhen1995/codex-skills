@@ -1,0 +1,107 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-3",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Yusur K2-Pro and SWIFT-2200N Pro DPU catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:yusur:k2-pro-and-swift-2200n-pro:parent-3"
+  },
+  "identity_keys": [
+    {
+      "title": "Yusur K2-Pro DPU",
+      "source_type": "hardware",
+      "identity_key": "hardware:yusur:k2-pro:dpu"
+    },
+    {
+      "title": "Yusur SWIFT-2200N Pro",
+      "source_type": "hardware",
+      "identity_key": "hardware:yusur:swift-2200n-pro:low-latency-dpu-card"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local captures found and reused: raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md and raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated references mentioned Yusur K2-Pro and SWIFT-2200N Pro in raw comparison context, but no structured SKU, observation, or resolved-spec row existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, and AI Infra Coverage Map; no dedicated Yusur page was needed."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing yusur-k2-pro-dpu or yusur-swift-2200n-pro SKU row; added two product-specific rows only."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing Yusur rows were raw comparison rows. The update adds resolved-field references while preserving comparison-only boundary text for unsupported metrics."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "K2-Pro and SWIFT evidence is kept as product-specific DPU/SmartNIC catalog or comparison evidence, not a general NVMe-oF, benchmark, operations, or SLO claim."
+    },
+    {
+      "target": "coverage-map.json",
+      "result": "Only hardware-accelerator and network-storage-cluster layers were updated; blocked KServe, inference-serving postmortem, MLCommons exact-result, and RAG propagation/drift/alert/cost gaps remain unresolved."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added a separate known_source entry for parent-3 Yusur DPU fields without mutating blocked_items or existing blocked coverage_gaps."
+    },
+    {
+      "target": "ingest.md",
+      "result": "Added a new done entry for the bounded Yusur parent task."
+    }
+  ],
+  "gap_reason": "The local corpus already contained product-specific Yusur K2-Pro and SWIFT-2200N Pro captures with schema-supported DPU fields that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "yusur-k2-pro-dpu",
+      "fields": {
+        "form_factor": "DPU chip / product-series DPU",
+        "network_bandwidth": "200 Gb/s",
+        "host_interface": "2 x PCIe Gen3 x16"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md"
+    },
+    {
+      "sku_id": "yusur-swift-2200n-pro",
+      "fields": {
+        "form_factor": "low-latency network DPU card"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "K2-Pro DOE lookup performance 600M/s",
+      "boundary": "Not promoted because spec-fields.yaml has no DOE/table-lookup performance field."
+    },
+    {
+      "source_value": "K2-Pro NoC 3Tbps / 1500Mpps",
+      "boundary": "Not promoted because spec-fields.yaml has no on-chip NoC throughput or packet-rate field."
+    },
+    {
+      "source_value": "K2-Pro NVMe-oF acceleration engine and 2M IOPS",
+      "boundary": "NVMe-oF remains protocol/offload evidence and the 2M IOPS value is not mapped to storage_read_iops or storage_write_iops because the source does not state read/write direction, block size, or storage configuration."
+    },
+    {
+      "source_value": "SWIFT-2200N Pro PCIe one-way pass-through latency below 230ns, 1/2 RTT loopback latency 1us, and network jitter below 20ns",
+      "boundary": "Comparison-only latency evidence; spec-fields.yaml has storage added-latency fields but no general network latency or jitter fields."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Dayu, Nebula, Asterfusion, Resnics, Corigine, Huawei, Biren, Cambricon, Kunlunxin, or other accelerator row was modified except as comparison-boundary text.",
+    "No benchmark, production-operations, storage-performance, protocol, or SLO claim was promoted from the Yusur captures.",
+    "No blocked KServe, inference-serving postmortem, MLCommons exact-result, or RAG propagation/drift/alert/cost source family was retried."
+  ]
+}
