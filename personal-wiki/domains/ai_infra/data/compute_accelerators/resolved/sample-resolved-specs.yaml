@@ -551,6 +551,154 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-07"
+  - sku_id: kunlunxin-r200
+    resolved_fields:
+      int8_tops:
+        value: 256
+        unit: TOPS
+        source_observation_id: obs-kunlunxin-r200-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp16_tflops:
+        value: 128
+        unit: TFLOPS
+        source_observation_id: obs-kunlunxin-r200-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp32_tflops:
+        value: 32
+        unit: TFLOPS
+        source_observation_id: obs-kunlunxin-r200-fp32-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_type:
+        value: GDDR6
+        unit: none
+        source_observation_id: obs-kunlunxin-r200-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 16
+        unit: GB
+        source_observation_id: obs-kunlunxin-r200-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_bandwidth:
+        value: 512
+        unit: GB/s
+        source_observation_id: obs-kunlunxin-r200-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: PCIe Gen4 x16 compatible with Gen3/2/1
+        unit: none
+        source_observation_id: obs-kunlunxin-r200-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 150
+        unit: W
+        source_observation_id: obs-kunlunxin-r200-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      form_factor:
+        value: full-height full-length dual-slot PCIe card
+        unit: none
+        source_observation_id: obs-kunlunxin-r200-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: kunlunxin-r200-8f
+    resolved_fields:
+      int8_tops:
+        value: 256
+        unit: TOPS
+        source_observation_id: obs-kunlunxin-r200-8f-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp16_tflops:
+        value: 128
+        unit: TFLOPS
+        source_observation_id: obs-kunlunxin-r200-8f-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp32_tflops:
+        value: 32
+        unit: TFLOPS
+        source_observation_id: obs-kunlunxin-r200-8f-fp32-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_type:
+        value: GDDR6
+        unit: none
+        source_observation_id: obs-kunlunxin-r200-8f-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 32
+        unit: GB
+        source_observation_id: obs-kunlunxin-r200-8f-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_bandwidth:
+        value: 512
+        unit: GB/s
+        source_observation_id: obs-kunlunxin-r200-8f-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: PCIe Gen4 x16 compatible with Gen3/2/1
+        unit: none
+        source_observation_id: obs-kunlunxin-r200-8f-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 160
+        unit: W
+        source_observation_id: obs-kunlunxin-r200-8f-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      form_factor:
+        value: full-height full-length dual-slot PCIe card
+        unit: none
+        source_observation_id: obs-kunlunxin-r200-8f-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
   - sku_id: kunlunxin-rg800
     resolved_fields:
       int8_tops:

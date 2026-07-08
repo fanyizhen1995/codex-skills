@@ -19,6 +19,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
+  - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md
   - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
   - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
   - ../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md
@@ -41,6 +42,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
 ---
 
 # Summary
@@ -73,9 +75,9 @@ spec rows: Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800. The
 resolved fields include INT8, FP16, BF16 where visible, FP32, memory type,
 memory capacity, memory bandwidth, host interface, form factor, interconnect
 where visible, and power. Multi-variant and aggregate records such as Huawei
-Atlas 300I A2, Cambricon MLU370-S4/S8, Kunlunxin R200/R200-8F, R480-X8, and
-cloud offerings remain outside this resolved slice unless the source exposes a
-single unambiguous card value.
+Atlas 300I A2, Cambricon MLU370-S4/S8, Kunlunxin R480-X8, and cloud offerings
+remain outside this resolved slice unless the source exposes a single
+unambiguous card value.
 
 R10 task 2 adds a narrower Biren deployment-envelope slice from existing
 product-specific captures. Biren Bili 106B, 106M, 166C, 166L, and 166M now
@@ -104,6 +106,18 @@ one- or two-DPU gateway variants, and Helium 4 x 25GE / 2 x 100GE port variants,
 NFV processing, latency, session-count, offload, storage-acceleration, and cost
 reduction claims remain boundary or raw-comparison evidence rather than broad
 network/storage, benchmark, SLO, or production-operation claims. [Helium raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) [CX102S raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md)
+
+Continuation parent 10 promotes the local Kunlunxin R200 series product-page
+capture as two explicit structured variants: Kunlunxin R200 and Kunlunxin
+R200-8F. Both variants resolve full-height full-length dual-slot PCIe card
+form factor, 256 TOPS INT8, 128 TFLOPS FP16, 32 TFLOPS FP32, GDDR6 memory type,
+512 GB/s memory bandwidth, and `PCIe Gen4 x16` host-interface compatibility
+with older PCIe generations. The per-variant fields remain separate: R200
+resolves 16 GB memory and 150 W power, while R200-8F resolves 32 GB memory and
+160 W power. The source-visible INT16 value remains comparison-only because the
+catalog schema has no INT16 field. The R200 page is product-spec hardware
+catalog evidence, not benchmark, production-operation, service-SLO, training
+throughput, inference-throughput, or aggregate-system evidence. [R200 raw](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md)
 
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
@@ -158,6 +172,7 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
+- ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
 - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
 - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
@@ -179,3 +194,4 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
 - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json

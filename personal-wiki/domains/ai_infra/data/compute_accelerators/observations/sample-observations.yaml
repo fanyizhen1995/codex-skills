@@ -857,6 +857,240 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page describes a full-height full-length dual-slot card.
+  - observation_id: obs-kunlunxin-r200-int8-tops
+    sku_id: kunlunxin-r200
+    field: int8_tops
+    value: 256
+    unit: TOPS
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists INT8 256 TOPS for the R200 series.
+  - observation_id: obs-kunlunxin-r200-fp16-tflops
+    sku_id: kunlunxin-r200
+    field: fp16_tflops
+    value: 128
+    unit: TFLOPS
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists FP16 128 TFLOPS for the R200 series.
+  - observation_id: obs-kunlunxin-r200-fp32-tflops
+    sku_id: kunlunxin-r200
+    field: fp32_tflops
+    value: 32
+    unit: TFLOPS
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists FP32 32 TFLOPS for the R200 series.
+  - observation_id: obs-kunlunxin-r200-memory-type
+    sku_id: kunlunxin-r200
+    field: memory_type
+    value: GDDR6
+    unit: none
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists GDDR6 memory for R200.
+  - observation_id: obs-kunlunxin-r200-memory-capacity
+    sku_id: kunlunxin-r200
+    field: memory_capacity
+    value: 16
+    unit: GB
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 16 GB GDDR6 memory for R200.
+  - observation_id: obs-kunlunxin-r200-memory-bandwidth
+    sku_id: kunlunxin-r200
+    field: memory_bandwidth
+    value: 512
+    unit: GB/s
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications memory bandwidth"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 512 GB/s memory bandwidth for the R200 series.
+  - observation_id: obs-kunlunxin-r200-host-interface
+    sku_id: kunlunxin-r200
+    field: host_interface
+    value: PCIe Gen4 x16 compatible with Gen3/2/1
+    unit: none
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications system interconnect"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe Gen4 x16 compatibility with older PCIe generations.
+  - observation_id: obs-kunlunxin-r200-tdp
+    sku_id: kunlunxin-r200
+    field: tdp
+    value: 150
+    unit: W
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 150 W power for R200.
+  - observation_id: obs-kunlunxin-r200-form-factor
+    sku_id: kunlunxin-r200
+    field: form_factor
+    value: full-height full-length dual-slot PCIe card
+    unit: none
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications form factor"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length dual-slot card.
+  - observation_id: obs-kunlunxin-r200-8f-int8-tops
+    sku_id: kunlunxin-r200-8f
+    field: int8_tops
+    value: 256
+    unit: TOPS
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists INT8 256 TOPS for the R200-8F series variant.
+  - observation_id: obs-kunlunxin-r200-8f-fp16-tflops
+    sku_id: kunlunxin-r200-8f
+    field: fp16_tflops
+    value: 128
+    unit: TFLOPS
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists FP16 128 TFLOPS for the R200-8F series variant.
+  - observation_id: obs-kunlunxin-r200-8f-fp32-tflops
+    sku_id: kunlunxin-r200-8f
+    field: fp32_tflops
+    value: 32
+    unit: TFLOPS
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications compute performance"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists FP32 32 TFLOPS for the R200-8F series variant.
+  - observation_id: obs-kunlunxin-r200-8f-memory-type
+    sku_id: kunlunxin-r200-8f
+    field: memory_type
+    value: GDDR6
+    unit: none
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists GDDR6 memory for R200-8F.
+  - observation_id: obs-kunlunxin-r200-8f-memory-capacity
+    sku_id: kunlunxin-r200-8f
+    field: memory_capacity
+    value: 32
+    unit: GB
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 32 GB GDDR6 memory for R200-8F.
+  - observation_id: obs-kunlunxin-r200-8f-memory-bandwidth
+    sku_id: kunlunxin-r200-8f
+    field: memory_bandwidth
+    value: 512
+    unit: GB/s
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications memory bandwidth"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 512 GB/s memory bandwidth for the R200-8F series variant.
+  - observation_id: obs-kunlunxin-r200-8f-host-interface
+    sku_id: kunlunxin-r200-8f
+    field: host_interface
+    value: PCIe Gen4 x16 compatible with Gen3/2/1
+    unit: none
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications system interconnect"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe Gen4 x16 compatibility with older PCIe generations.
+  - observation_id: obs-kunlunxin-r200-8f-tdp
+    sku_id: kunlunxin-r200-8f
+    field: tdp
+    value: 160
+    unit: W
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications power"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 160 W power for R200-8F.
+  - observation_id: obs-kunlunxin-r200-8f-form-factor
+    sku_id: kunlunxin-r200-8f
+    field: form_factor
+    value: full-height full-length dual-slot PCIe card
+    unit: none
+    source_id: kunlunxin-r200-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Kunlunxin R200 series product page; specifications form factor"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length dual-slot card.
   - observation_id: obs-kunlunxin-rg800-int8-tops
     sku_id: kunlunxin-rg800
     field: int8_tops

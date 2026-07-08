@@ -1,0 +1,131 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-10",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Kunlunxin R200 and R200-8F accelerator catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:kunlunxin:r200:r200-r200-8f"
+  },
+  "identity_keys": [
+    {
+      "title": "Kunlunxin R200",
+      "source_type": "hardware",
+      "identity_key": "hardware:kunlunxin:r200:16gb"
+    },
+    {
+      "title": "Kunlunxin R200-8F",
+      "source_type": "hardware",
+      "identity_key": "hardware:kunlunxin:r200-8f:32gb"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local capture found and reused: raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison text mentioned Kunlunxin R200/R200-8F as raw comparison evidence, but no kunlunxin-r200 or kunlunxin-r200-8f SKU, observation, or resolved-spec row existed before this parent task. Kunlunxin RG800 resolved rows from r9 task-2 remain unchanged.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map; no dedicated Kunlunxin R200 page was needed.",
+    "prior_manifest_scan": "Prior continuation parent-1 through parent-9 manifests cover Corigine, SGLang, Yusur, NVIDIA H200, Kubernetes/Kueue/Volcano, AWS/Lambda, Resnics N2025, NVIDIA confidential inference, and Asterfusion. This task does not repeat those rows and promotes only the Kunlunxin R200 source-visible product-spec slice."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Hardware layer previously listed Kunlunxin R200/R200-8F as unresolved multi-variant evidence. Parent-10 records a narrower boundary where the product page explicitly separates R200 and R200-8F memory and power while sharing series compute, memory bandwidth, host interface, and form factor values."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added one known_source entry for parent-10 Kunlunxin R200 fields without mutating blocked_items or unrelated coverage gaps."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing kunlunxin-r200 or kunlunxin-r200-8f SKU rows; added one SKU per source-visible variant. Existing kunlunxin-rg800 rows were not changed."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing R200/R200-8F observations; added variant-scoped observations for form_factor, int8_tops, fp16_tflops, fp32_tflops, memory_type, memory_capacity, memory_bandwidth, host_interface, and tdp."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing R200/R200-8F resolved fields; added resolved fields pointing to new R200/R200-8F observations only."
+    },
+    {
+      "target": "source-registry.yaml",
+      "result": "Existing kunlunxin-r200-product-page source registry entry was reused; the source registry was not modified because it was outside the planner allowed_paths and already contained the needed source_id."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing raw comparison row remains, now with resolved-spec citation and explicit INT16 comparison-only caveat."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog coverage text now treats R200 and R200-8F as separated structured variants and keeps unsupported INT16/benchmark/throughput claims outside resolved fields."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official product-specific Kunlunxin R200 series capture with source-visible, schema-supported fields for two explicit variants that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "kunlunxin-r200",
+      "fields": {
+        "form_factor": "full-height full-length dual-slot PCIe card",
+        "int8_tops": "256 TOPS",
+        "fp16_tflops": "128 TFLOPS",
+        "fp32_tflops": "32 TFLOPS",
+        "memory_type": "GDDR6",
+        "memory_capacity": "16 GB",
+        "memory_bandwidth": "512 GB/s",
+        "host_interface": "PCIe Gen4 x16 compatible with Gen3/2/1",
+        "tdp": "150 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md"
+    },
+    {
+      "sku_id": "kunlunxin-r200-8f",
+      "fields": {
+        "form_factor": "full-height full-length dual-slot PCIe card",
+        "int8_tops": "256 TOPS",
+        "fp16_tflops": "128 TFLOPS",
+        "fp32_tflops": "32 TFLOPS",
+        "memory_type": "GDDR6",
+        "memory_capacity": "32 GB",
+        "memory_bandwidth": "512 GB/s",
+        "host_interface": "PCIe Gen4 x16 compatible with Gen3/2/1",
+        "tdp": "160 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "INT16: 128 TOPS",
+      "boundary": "Kept as comparison-only evidence because spec-fields.yaml has no int16_tops field. No resolved INT16 catalog field was added."
+    },
+    {
+      "source_value": "R200 and R200-8F share architecture, precision, compute, memory bandwidth, PCIe compatibility, process, encode/decode, cooling, ECC, application, form factor, and software text on one product page.",
+      "boundary": "Shared source-visible values receive separate per-variant observation IDs so each resolved SKU points to its own source observation; variant-specific memory capacity and power remain separated."
+    },
+    {
+      "source_value": "Product page states inference and training applications plus NLP, CV, speech, and traditional ML tasks.",
+      "boundary": "Application text is not promoted into throughput, benchmark, production-operation, service-SLO, training-performance, or inference-performance fields."
+    },
+    {
+      "source_value": "R480-X8 and other Kunlunxin products are linked from the page navigation.",
+      "boundary": "No R480-X8 aggregate-system, R100, K100, K200, RG800, cloud offering, or portfolio row is modified or promoted by parent-10."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Kunlunxin RG800 resolved field changed; prior r9 task-2 Kunlunxin RG800 boundaries remain intact.",
+    "No Kunlunxin R480-X8, R100, K100, K200, Huawei Atlas, Cambricon, Biren, MetaX, Moore Threads, NVIDIA, AMD, Intel, DPU, SmartNIC, cloud offering, or aggregate system row was promoted by this task.",
+    "No benchmark ranking, production incident/postmortem, service SLO, training throughput, inference throughput, local benchmark baseline, MLCommons submission, legal-compliance completion, or general AI cluster performance claim was promoted from the Kunlunxin R200 page.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

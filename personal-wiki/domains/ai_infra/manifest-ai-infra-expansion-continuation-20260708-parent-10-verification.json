@@ -1,0 +1,227 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-10",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T18:51:06Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported Kunlunxin R200/R200-8F fields: form factor, INT8 TOPS, FP16 TFLOPS, FP32 TFLOPS, GDDR6 memory type, per-variant memory capacity, 512 GB/s memory bandwidth, PCIe Gen4 x16 host interface, and per-variant power. INT16, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, aggregate-system, and other Kunlunxin product claims were not promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "kunlunxin-r200",
+      "fields": {
+        "form_factor": "full-height full-length dual-slot PCIe card",
+        "int8_tops": "256 TOPS",
+        "fp16_tflops": "128 TFLOPS",
+        "fp32_tflops": "32 TFLOPS",
+        "memory_type": "GDDR6",
+        "memory_capacity": "16 GB",
+        "memory_bandwidth": "512 GB/s",
+        "host_interface": "PCIe Gen4 x16 compatible with Gen3/2/1",
+        "tdp": "150 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md"
+    },
+    {
+      "sku_id": "kunlunxin-r200-8f",
+      "fields": {
+        "form_factor": "full-height full-length dual-slot PCIe card",
+        "int8_tops": "256 TOPS",
+        "fp16_tflops": "128 TFLOPS",
+        "fp32_tflops": "32 TFLOPS",
+        "memory_type": "GDDR6",
+        "memory_capacity": "32 GB",
+        "memory_bandwidth": "512 GB/s",
+        "host_interface": "PCIe Gen4 x16 compatible with Gen3/2/1",
+        "tdp": "160 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/tmp/coverage-map.json.json && echo ok",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/tmp/loop-state.json.json && echo ok",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json >/tmp/manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json.json && echo ok",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-10'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"Kunlunxin|R200|R200-8F|INT8|INT16|FP16|FP32|GDDR6|512 GB/s|PCIe Gen4|150W|160W|full-height full-length dual-slot\" personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-r200 personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/data/compute_accelerators personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner text scan matched Kunlunxin, R200, R200-8F, INT8, INT16, FP16, FP32, GDDR6, 512 GB/s, PCIe Gen4, 150W, 160W, and full-height full-length dual-slot terms across local raw, catalog data, and curated wiki paths",
+      "stderr": ""
+    },
+    {
+      "command": "structured catalog consistency check that every new sku_id, observation_id, source_observation_id, source_id, and source_ref for R200 and R200-8F is unique and internally linked across sample-skus.yaml, sample-observations.yaml, sample-resolved-specs.yaml, source-registry.yaml, and curated wiki references",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "R200 and R200-8F SKU, observation, resolved-field, source_id, and source_ref linkage is unique and internally consistent; INT16 is not resolved",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no Kunlunxin RG800 resolved fields changed and no R480-X8 aggregate system fields were promoted",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Kunlunxin RG800 rows match HEAD and no Kunlunxin R480-X8 SKU, observation, or resolved rows changed or were promoted",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in final declared changed files",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "11 final declared ai_infra changed paths are inside planner allowed_paths and avoid denylist-sensitive filenames; run artifacts are handled separately by the loop harness",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, and loop-auto-resume freshness; do not start long-lived services, run localhost probes, or restart services from this wiki-only task unless code changes require it",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "parent-task-level auditor cadence check after parent-10 completion; audit-004 last audited progress count 8 and parent-10 brings completed parent count to 10, so ordinary Auditor should be due after parent-10 acceptance unless a hard safety gate fires earlier",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "run.json records last_audited_progress_count=8 and nine completed parents before parent-10; accepting parent-10 brings completed parent count to 10, so the next planner/auditor step should trigger ordinary parent-task Auditor cadence",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-10-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-10 Kunlunxin R200 wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-10 Kunlunxin R200 catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-10 Kunlunxin R200, R200-8F, INT8, INT16 boundary, FP16, FP32, GDDR6, 512 GB/s, PCIe Gen4 x16, 150 W, and 160 W content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-10 R200/R200-8F catalog content and INT16/benchmark/throughput boundary caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard current run, parent-10 task state, agent actions, evaluator scenarios, completed history, and auditor-cadence visibility"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses the existing local Kunlunxin R200 product-page raw capture.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Source registry already contained kunlunxin-r200-product-page and was not modified because it was outside the planner allowed_paths."
+  ]
+}

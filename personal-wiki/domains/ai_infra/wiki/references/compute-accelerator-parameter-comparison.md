@@ -90,6 +90,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
 ---
 
 # Summary
@@ -137,9 +138,12 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   H200 NVL, benchmarks, and server/system claims out of the single-GPU
   resolved row. R9 task 2 adds source-backed structured rows for Cambricon
   MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800, including compute,
-  memory, host-interface, form-factor, and power fields. R10 task 2 adds Biren
-  Bili 106B, 106M, 166C, 166L, and 166M form-factor and peak power fields only;
-  compute and memory remain unresolved for those Biren rows.
+  memory, host-interface, form-factor, and power fields. Continuation parent 10
+  adds Kunlunxin R200 and R200-8F resolved rows for schema-supported compute,
+  memory, host-interface, form-factor, and power fields while leaving INT16 as
+  raw comparison evidence. R10 task 2 adds Biren Bili 106B, 106M, 166C, 166L,
+  and 166M form-factor and peak power fields only; compute and memory remain
+  unresolved for those Biren rows.
   [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
 - Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. The
   structured catalog resolves only the H200 SXM column for schema-supported
@@ -158,8 +162,10 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [NCCL issue page](../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz),
   [SGLang comment page](../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz)
 - Strong domestic card-level comparison set: Huawei Atlas 300I A2, Cambricon
-  MLU370, and Kunlunxin R200/RG800 all expose enough local raw parameters to
-  compare compute, memory, host interface, and power as individual cards.
+  MLU370, and Kunlunxin R200/R200-8F/RG800 all expose enough local raw
+  parameters to compare compute, memory, host interface, and power as
+  individual cards. R200/R200-8F and RG800 now have structured resolved rows
+  for schema-supported fields; INT16 remains comparison-only.
   [Atlas 300I A2](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md),
   [MLU370-S4/S8](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260628T060442871520Z-www-cambricon-com-index-php-dd51e6b9e9.md),
   [MLU370-X4](../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md),
@@ -250,7 +256,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Iluvatar Tiangai 100 | full-length full-height dual-slot PCIe card | not captured | 32 GB HBM2 | PCIe Gen4 x16; 250 W; 64 GB/s host bidirectional bandwidth and 64 GB/s inter-chip bandwidth | [raw](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md) |
 | Iluvatar Tiangai 150 | training accelerator | not captured | 64 GB HBM | board power 350 W | [raw](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md) |
 | Iluvatar ZK50 / ZK100 | ZK50 half-length half-height single-slot PCIe; ZK100 full-length full-height single-slot PCIe | supports FP32, FP16, INT8; exact peaks not captured | ZK50: 16 GB HBM2E; ZK100: 32 GB HBM2E | ZK50: 75 W; ZK100: 150 W; PCIe Gen4 x16 | [raw](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md) |
-| Kunlunxin R200 / R200-8F | full-height full-length dual-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32 | R200: 16 GB GDDR6; R200-8F: 32 GB GDDR6; 512 GB/s | PCIe Gen4 x16 compatible with Gen3/2/1; R200 150 W; R200-8F 160 W | [raw](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md) |
+| Kunlunxin R200 / R200-8F | full-height full-length dual-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32. INT8, FP16, and FP32 are resolved; INT16 is comparison-only because the catalog has no INT16 field. | R200: 16 GB GDDR6; R200-8F: 32 GB GDDR6; 512 GB/s | PCIe Gen4 x16 compatible with Gen3/2/1; R200 150 W; R200-8F 160 W | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md) |
 | Kunlunxin R480-X8 | 8 OAM modules on UBB | 256 TOPS INT8 x8; 128 TOPS INT16 x8; 128 TFLOPS FP16 x8; 32 TFLOPS FP32 x8 | 32 GB x8 GDDR6; 512 GB/s x8 | 200 GB/s chip-to-chip interconnect | [raw](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md) |
 | Kunlunxin RG800 | full-height full-length single-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32 | 32 GB GDDR6; 512 GB/s | PCIe 4.0 x16; 130 W | [raw](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md) |
 | MetaX C500 | full-height full-length dual-slot PCIe card | not captured | 64 GB high-bandwidth memory | MetaXLink 2-card or 4-card interconnect; 350 W | [raw](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md) |
@@ -293,9 +299,13 @@ record: it combines 141 GB HBM3e, 4.8 TB/s memory bandwidth, resolved FP64,
 FP32, BF16, FP16, and FP8 peaks, NVLink plus PCIe Gen5 interconnect evidence,
 and an up to 700 W configurable TDP. H200 NVL and benchmark text remain useful
 comparison boundaries, not fields in the H200 SXM resolved row. Huawei Atlas
-300I A2, Cambricon MLU370, and Kunlunxin R200/RG800 expose more modest
+300I A2, Cambricon MLU370, and Kunlunxin R200/R200-8F/RG800 expose more modest
 card-level performance and memory, with power envelopes from 75 W to 350 W
-depending on form factor.
+depending on form factor. The structured catalog now resolves Kunlunxin
+R200/R200-8F INT8, FP16, FP32, GDDR6 memory, per-variant memory capacity, memory
+bandwidth, PCIe host-interface, form-factor, and power fields from the local
+product page; source-visible INT16 remains a raw comparison value rather than a
+resolved catalog field.
 
 The highest aggregate numbers are cloud/system records, not single cards. AWS
 Trn2 and Huawei Atlas 800T A3 report multi-chip or multi-server totals, while
@@ -353,6 +363,7 @@ their exact product or variant boundaries.
 - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
 - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
 - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md
 - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md
 - ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz

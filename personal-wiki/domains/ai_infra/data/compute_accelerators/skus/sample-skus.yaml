@@ -179,6 +179,24 @@ skus:
     form_factor: full-height full-length dual-slot PCIe card
     release_status: released
     source_refs: [cambricon-mlu370-x8-product-page]
+  - sku_id: kunlunxin-r200
+    vendor_id: kunlunxin
+    family_id: kunlunxin-xpu-r
+    canonical_name: Kunlunxin R200
+    aliases: [R200, Kunlunxin AI accelerator card R200]
+    scope: ai_asic
+    form_factor: full-height full-length dual-slot PCIe card
+    release_status: released
+    source_refs: [kunlunxin-r200-product-page]
+  - sku_id: kunlunxin-r200-8f
+    vendor_id: kunlunxin
+    family_id: kunlunxin-xpu-r
+    canonical_name: Kunlunxin R200-8F
+    aliases: [R200-8F, Kunlunxin AI accelerator card R200-8F]
+    scope: ai_asic
+    form_factor: full-height full-length dual-slot PCIe card
+    release_status: released
+    source_refs: [kunlunxin-r200-product-page]
   - sku_id: kunlunxin-rg800
     vendor_id: kunlunxin
     family_id: kunlunxin-xpu-r
