@@ -435,8 +435,110 @@ def _run_audit_boundary(repo_root: Path, run: dict[str, Any], *, force: bool = F
         return None
     if not force and not _audit_progress_exists(run):
         return None
+    if _audit_remediation_is_current(run):
+        return None
     write_rule_based_audit_report(repo_root, run)
     return _apply_audit_gate(repo_root, load_run(repo_root, str(run["run_id"])))
+
+
+def _audit_progress_count(run: Mapping[str, Any]) -> int:
+    if run.get("run_kind") == "parent":
+        child_ids = run.get("child_run_ids")
+        return len(child_ids) if isinstance(child_ids, list) else 0
+    return _completed_autonomous_task_count(run)
+
+
+def _audit_remediation_is_current(run: Mapping[str, Any]) -> bool:
+    remediation = run.get("_audit_remediation")
+    if not isinstance(remediation, Mapping) or remediation.get("status") != "resolved":
+        return False
+    return _audit_progress_count(run) <= int(remediation.get("progress_count", -1))
+
+
+def _audit_finding_ids(findings: Sequence[Mapping[str, Any]]) -> list[str]:
+    return [str(finding.get("finding_id") or finding.get("id") or "").strip() for finding in findings if str(finding.get("finding_id") or finding.get("id") or "").strip()]
+
+
+def _closed_audit_findings(findings: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    closed: list[dict[str, Any]] = []
+    for finding in findings:
+        item = dict(finding)
+        item["status"] = "closed"
+        closed.append(item)
+    return closed
+
+
+def _write_audit_remediation_pass_report(
+    repo_root: Path,
+    run: dict[str, Any],
+    *,
+    remediation_run_id: str,
+    remediation_kind: str,
+) -> Path:
+    run_id = str(run["run_id"])
+    latest_report = latest_audit_report(repo_root, run_id)
+    findings = open_must_fix_findings(latest_report)
+    finding_ids = _audit_finding_ids(findings)
+    signal_path = write_deterministic_signals(repo_root, run)
+    signal_payload = read_json_file(signal_path)
+    audit_id = _next_audit_id_for_run(repo_root, run_id)
+    summary = signal_payload.get("summary") if isinstance(signal_payload.get("summary"), Mapping) else {}
+    git_info = signal_payload.get("git") if isinstance(signal_payload.get("git"), Mapping) else {}
+    report = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "audit_id": audit_id,
+        "created_at": _timestamp(),
+        "created_by": "harness_loop_orchestrator",
+        "verdict": "pass",
+        "deterministic_signals": {
+            "artifact_path": signal_path.relative_to(repo_root).as_posix(),
+            "artifact_sha256": hashlib.sha256(signal_path.read_bytes()).hexdigest(),
+            "summary": dict(summary),
+            "git_head_sha": str(git_info.get("head_sha") or ""),
+        },
+        "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
+        "direction_control": {
+            "action": "resume_after_audit_remediation",
+            "reason": f"Audit remediation {remediation_run_id} handled open must_fix findings.",
+            "recommended_next_focus": "return_to_ordinary_loop",
+        },
+        "finding_lifecycle": {"open_findings": [], "closed_findings": _closed_audit_findings(findings)},
+    }
+    validate_audit_report_payload(report)
+    report_path = write_json_file(run_dir_for(repo_root, run_id) / "audit-reports" / f"{audit_id}.json", report)
+    run = load_run(repo_root, run_id)
+    run["_audit_remediation"] = {
+        "status": "resolved",
+        "audit_id": str(latest_report.get("audit_id", "")) if isinstance(latest_report, Mapping) else "",
+        "handled_findings": finding_ids,
+        "remediation_run_id": remediation_run_id,
+        "remediation_kind": remediation_kind,
+        "progress_count": _audit_progress_count(run),
+        "resolved_at": _timestamp(),
+    }
+    save_run(repo_root, run)
+    write_json_file(
+        run_dir_for(repo_root, run_id) / "audit-remediation-result.json",
+        {
+            "status": "pass",
+            "audit_id": str(latest_report.get("audit_id", "")) if isinstance(latest_report, Mapping) else "",
+            "handled_findings": finding_ids,
+            "remediation_run_id": remediation_run_id,
+            "remediation_kind": remediation_kind,
+            "new_audit_report": report_path.relative_to(repo_root).as_posix(),
+        },
+    )
+    append_loop_event(
+        repo_root,
+        run_id=run_id,
+        actor="auditor",
+        event_type="audit_remediated",
+        summary=f"Audit remediation {remediation_run_id} closed open must_fix findings",
+        details={"finding_ids": finding_ids, "new_audit_id": audit_id},
+        artifact_paths=[report_path.relative_to(repo_root).as_posix()],
+    )
+    return report_path
 
 
 def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -518,6 +620,7 @@ def _create_child_run(
         "run_kind": "child",
         "parent_run_id": parent["run_id"],
         "child_index": child_index,
+        "audit_remediation": bool(child_task.get("audit_remediation")),
         "policy": "demand_development",
         "phase": "generating",
         "task_id": f"{child_run_id}-task",
@@ -538,7 +641,9 @@ def _create_child_run(
         "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
         "reader_summary": {
             "purpose": str(child_task.get("title", "")),
-            "planner_action": "Parent planner selected this child",
+            "planner_action": "Parent planner selected audit remediation child"
+            if child_task.get("audit_remediation")
+            else "Parent planner selected this child",
             "generator_action": "",
             "evaluator_action": "",
             "acceptance_result": "",
@@ -560,6 +665,9 @@ def _create_child_run(
         "stop_conditions": ["passed"],
         "next_planning_hint": "return to parent planner",
     }
+    if child_task.get("audit_remediation"):
+        planner_payload["audit_remediation"] = True
+        planner_payload["audit_response"] = dict(child_task.get("audit_response", {}))
     validate_planner_output_payload(planner_payload)
     write_json_file(run_dir_for(repo_root, child_run_id) / "planner-output.json", planner_payload)
 
@@ -583,6 +691,7 @@ def _create_child_run(
         "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
         "allowed_scope": "local_repo_and_harness",
         "must_simulate": True,
+        "audit_remediation": bool(child_task.get("audit_remediation")),
         "user_scenarios": [
             {
                 "scenario_id": f"{child_run_id}-scenario",
@@ -1891,6 +2000,149 @@ def _run_demand_parent_planner(
     return planner_payload
 
 
+def _audit_remediation_child_task(parent: dict[str, Any], findings: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    child_index = len(parent.get("child_run_ids", [])) + 1
+    finding_ids = _audit_finding_ids(findings)
+    return {
+        "child_id": f"audit-remediation-{child_index:03d}",
+        "title": f"Audit remediation {child_index}",
+        "description": f"Resolve Auditor must_fix findings: {', '.join(finding_ids)}",
+        "allowed_paths": [f"generated/child-{child_index:03d}.txt"],
+        "denylist_paths": [".env", ".codex/secrets"],
+        "verify_commands": [],
+        "scenario_commands": [],
+        "done_criteria": ["open must_fix audit findings are handled and Auditor can resume ordinary loop"],
+        "audit_remediation": True,
+    }
+
+
+def _audit_remediation_parent_planner_payload(
+    parent: dict[str, Any],
+    report: Mapping[str, Any],
+    findings: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    child_index = len(parent.get("child_run_ids", [])) + 1
+    remediation_run_id = _child_run_id(str(parent["run_id"]), child_index)
+    finding_ids = _audit_finding_ids(findings)
+    child_task = _audit_remediation_child_task(parent, findings)
+    audit_response = {
+        "audit_id": str(report.get("audit_id") or ""),
+        "handled_findings": finding_ids,
+        "planned_remediation_task": remediation_run_id,
+        "deferred_findings": [],
+        "reason": "open must_fix finding requires remediation before ordinary planning",
+    }
+    child_task["audit_response"] = audit_response
+    payload = {
+        "task_id": parent.get("task_id", ""),
+        "policy": "demand_development",
+        "task_kind": "registered_task",
+        "title": "Demand parent audit remediation planner",
+        "goal": parent.get("requirement", ""),
+        "non_goals": [],
+        "allowed_paths": [],
+        "denylist_paths": [],
+        "verify_commands": [],
+        "evaluator_scenarios_path": "",
+        "stop_conditions": ["passed_waiting_human_merge", "stopped_blocked", "stopped_budget"],
+        "next_planning_hint": "run audit remediation child before ordinary planning",
+        "planner_decision": "next_child",
+        "next_child_task": child_task,
+        "backlog": list(parent.get("backlog", [])),
+        "blocked_reason": "",
+        "done_criteria": [],
+        "reader_summary": {
+            "purpose": parent.get("requirement", ""),
+            "current_progress": "Auditor requested remediation",
+            "next_step": "Run audit remediation child",
+            "decision_needed": "No",
+        },
+        "decision_required": False,
+        "audit_response": audit_response,
+    }
+    validate_planner_output_payload(payload)
+    return payload
+
+
+def _run_demand_audit_remediation(
+    repo_root: Path,
+    parent: dict[str, Any],
+    *,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+    max_children: int,
+) -> dict[str, str] | None:
+    del planner_driver
+    del max_children
+    parent = _ensure_parent_fields(load_run(repo_root, str(parent["run_id"])))
+    report = latest_audit_report(repo_root, str(parent["run_id"]))
+    findings = open_must_fix_findings(report)
+    if not findings:
+        parent["phase"] = "planning"
+        parent["next_action"] = "run_parent_planner"
+        parent["last_result"] = "pass"
+        save_run(repo_root, parent)
+        return None
+    planner_payload = _audit_remediation_parent_planner_payload(parent, report or {}, findings)
+    run_dir = run_dir_for(repo_root, str(parent["run_id"]))
+    write_json_file(run_dir / "planner-output.json", planner_payload)
+    parent["attempts"]["planner"] = int(parent["attempts"]["planner"]) + 1
+    save_run(repo_root, parent)
+
+    parent = _ensure_parent_fields(load_run(repo_root, str(parent["run_id"])))
+    parent["reader_summary"] = planner_payload["reader_summary"]
+    child_index = len(parent["child_run_ids"]) + 1
+    child_task = planner_payload["next_child_task"]
+    child = _create_child_run(repo_root, parent, child_index, child_task)
+    parent["child_run_ids"].append(child["run_id"])
+    parent["current_child_run_id"] = child["run_id"]
+    parent["phase"] = "child_running"
+    parent["next_action"] = "run_child_generator"
+    parent["aggregate_acceptance"]["total"] = max(int(parent["aggregate_acceptance"].get("total", 0)), child_index)
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
+    save_run(repo_root, parent)
+
+    if generator_driver == "codex-exec":
+        _run_codex_demand_child(
+            repo_root,
+            parent,
+            child,
+            evaluator_driver=evaluator_driver,
+            max_eval_attempts=max_eval_attempts,
+        )
+    else:
+        _run_fake_demand_child(
+            repo_root,
+            parent,
+            child,
+            generator_driver=generator_driver,
+            max_eval_attempts=max_eval_attempts,
+        )
+
+    parent_after_child = _ensure_parent_fields(load_run(repo_root, str(parent["run_id"])))
+    if parent_after_child["phase"] in {"stopped_blocked", "stopped_budget", "child_running"}:
+        return status_for_run(repo_root, str(parent["run_id"]))
+    if parent_after_child["phase"] == "planning":
+        _write_audit_remediation_pass_report(
+            repo_root,
+            parent_after_child,
+            remediation_run_id=str(child["run_id"]),
+            remediation_kind="demand_child",
+        )
+        parent_after_child = _ensure_parent_fields(load_run(repo_root, str(parent["run_id"])))
+        parent_after_child["phase"] = "planning"
+        parent_after_child["next_action"] = "run_parent_planner"
+        parent_after_child["last_result"] = "pass"
+        parent_after_child["reader_summary"]["current_progress"] = "Audit remediation completed"
+        parent_after_child["reader_summary"]["next_step"] = "Run parent planner"
+        parent_after_child["reader_summary"]["decision_needed"] = "No"
+        save_run(repo_root, parent_after_child)
+        return None
+    return status_for_run(repo_root, str(parent["run_id"]))
+
+
 def _is_ai_infra_governance_demand_run(parent: Mapping[str, Any]) -> bool:
     if str(parent.get("run_id", "")) == AI_INFRA_GOVERNANCE_RUN_ID:
         return True
@@ -2104,7 +2356,20 @@ def run_demand_multi(
     parent = _ensure_parent_fields(run)
     if parent["phase"] == "preflight":
         raise RuntimeError("run_demand_multi requires confirmed preflight")
-    if parent["phase"] in {"audit_blocked", "stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+    if parent["phase"] == "audit_blocked":
+        remediation_status = _run_demand_audit_remediation(
+            root,
+            parent,
+            planner_driver=planner_driver,
+            generator_driver=generator_driver,
+            evaluator_driver=evaluator_driver,
+            max_eval_attempts=max_eval_attempts,
+            max_children=max_children,
+        )
+        if remediation_status is not None:
+            return remediation_status
+        parent = _ensure_parent_fields(load_run(root, run_id))
+    if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
         return status_for_run(root, run_id)
     if planner_driver not in {"fake", "fake-blocked", "fake-failed", "codex-exec"}:
         raise ValueError("unsupported demand multi planner driver")
@@ -2126,13 +2391,28 @@ def run_demand_multi(
 
     while True:
         parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] in {"audit_blocked", "stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+        if parent["phase"] == "audit_blocked":
+            remediation_status = _run_demand_audit_remediation(
+                root,
+                parent,
+                planner_driver=planner_driver,
+                generator_driver=generator_driver,
+                evaluator_driver=evaluator_driver,
+                max_eval_attempts=max_eval_attempts,
+                max_children=max_children,
+            )
+            if remediation_status is not None:
+                return remediation_status
+            continue
+        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
             return status_for_run(root, run_id)
         reconcile_status = _reconcile_demand_parent_children(root, parent)
         if reconcile_status in {"waiting", "blocked"}:
             return status_for_run(root, run_id)
         parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] in {"audit_blocked", "stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
+        if parent["phase"] == "audit_blocked":
+            continue
+        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
             return status_for_run(root, run_id)
         if parent["phase"] == "child_running" and parent.get("current_child_run_id"):
             current_child = load_run(root, str(parent["current_child_run_id"]))
@@ -2448,6 +2728,67 @@ def _run_fake_autonomous_planner(
     run["phase"] = "generating"
     run["next_action"] = "run_autonomous_generator"
     save_run(repo_root, run)
+    return True
+
+
+def _start_autonomous_audit_remediation(repo_root: Path, run: dict[str, Any], *, task_number: int) -> bool:
+    report = latest_audit_report(repo_root, str(run["run_id"]))
+    findings = open_must_fix_findings(report)
+    if not findings:
+        run["phase"] = "planning"
+        run["next_action"] = "run_autonomous_planner"
+        run["last_result"] = "pass"
+        save_run(repo_root, run)
+        return True
+    finding_ids = _audit_finding_ids(findings)
+    task_id = f"{run['run_id']}-audit-remediation-{task_number:03d}"
+    allowed_patterns, denied_patterns, _manual_patterns = policy_patterns_for_run(run, domain=run["domain"])
+    audit_response = {
+        "audit_id": str(report.get("audit_id") or "") if isinstance(report, Mapping) else "",
+        "handled_findings": finding_ids,
+        "planned_remediation_task": task_id,
+        "deferred_findings": [],
+        "reason": "open must_fix finding requires remediation before ordinary autonomous planning",
+    }
+    planner_payload = {
+        "task_id": task_id,
+        "policy": "autonomous_knowledge",
+        "task_kind": "autonomous_implementation_task",
+        "title": f"Autonomous audit remediation task {task_number}",
+        "goal": f"Resolve Auditor must_fix findings: {', '.join(finding_ids)}",
+        "non_goals": [],
+        "allowed_paths": allowed_patterns,
+        "denylist_paths": denied_patterns,
+        "verify_commands": [],
+        "evaluator_scenarios_path": "",
+        "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
+        "next_planning_hint": "return to planning after audit remediation commit",
+        "audit_response": audit_response,
+        "audit_remediation": True,
+    }
+    validate_planner_output_payload(planner_payload)
+    write_json_file(run_dir_for(repo_root, str(run["run_id"])) / "planner-output.json", planner_payload)
+    run["attempts"]["planner"] = int(run["attempts"]["planner"]) + 1
+    run["task_id"] = task_id
+    run["phase"] = "generating"
+    run["next_action"] = "run_autonomous_generator"
+    run["_audit_remediation"] = {
+        "status": "planned",
+        "audit_id": audit_response["audit_id"],
+        "handled_findings": finding_ids,
+        "planned_remediation_task": task_id,
+        "progress_count": _audit_progress_count(run),
+        "planned_at": _timestamp(),
+    }
+    save_run(repo_root, run)
+    append_loop_event(
+        repo_root,
+        run_id=str(run["run_id"]),
+        actor="planner",
+        event_type="plan",
+        summary=f"Planner created audit remediation task {task_id}",
+        details={"finding_ids": finding_ids},
+    )
     return True
 
 
@@ -4505,7 +4846,19 @@ def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
     save_run(repo_root, run)
     run_cleanup(repo_root, run_id)
     run = load_run(repo_root, run_id)
+    remediation = run.get("_audit_remediation")
+    remediation_task_id = str(remediation.get("planned_remediation_task", "")) if isinstance(remediation, Mapping) else ""
+    is_audit_remediation_task = remediation_task_id and remediation_task_id == str(run.get("task_id", ""))
     _record_completed_autonomous_task(run)
+    save_run(repo_root, run)
+    if is_audit_remediation_task:
+        _write_audit_remediation_pass_report(
+            repo_root,
+            run,
+            remediation_run_id=remediation_task_id,
+            remediation_kind="autonomous_task",
+        )
+        run = load_run(repo_root, run_id)
     run["phase"] = "planning"
     run["next_action"] = "run_autonomous_planner"
     run["last_result"] = "pass"
@@ -4623,7 +4976,12 @@ def run_autonomous(
             raise RuntimeError(f"run_autonomous requires autonomous_knowledge policy; current policy is {run['policy']}")
         if run["phase"] == "preflight":
             raise RuntimeError("run_autonomous requires confirmed preflight; current phase is preflight")
-        if run["phase"] in {"audit_blocked", "stopped_no_action", "stopped_budget", "stopped_blocked"}:
+        if run["phase"] == "audit_blocked":
+            task_number = _next_autonomous_task_number(run)
+            if not _start_autonomous_audit_remediation(root, run, task_number=task_number):
+                return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_audit_remediation_planner", last_result="blocked")
+            continue
+        if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
             return status_for_run(root, run_id)
         if run["phase"] not in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}:
             raise RuntimeError(f"run_autonomous unsupported phase {run['phase']}")

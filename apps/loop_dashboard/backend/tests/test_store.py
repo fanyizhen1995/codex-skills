@@ -1056,6 +1056,7 @@ def seed_parent_child_runs(repo_root: Path) -> None:
                 "run_kind": "child",
                 "parent_run_id": "parent-run",
                 "child_index": index,
+                "audit_remediation": index == 2,
                 "policy": "demand_development",
                 "phase": phase,
                 "task_id": f"{child_id}-task",
@@ -1118,6 +1119,7 @@ def test_parent_child_runs_are_aggregated_with_children_and_events(tmp_path: Pat
     assert detail["reader_summary"]["purpose"] == "Explain parent"
     assert [child["run_id"] for child in detail["children"]] == ["parent-run-child-001", "parent-run-child-002"]
     assert detail["children"][0]["reader_summary"]["acceptance_result"] == "Passed"
+    assert detail["children"][1]["audit_remediation"] is True
     assert any(event["kind"] == "plan" and "Planner selected child 1" in event["message"] for event in events)
     assert any(item["kind"] == "child_artifact_missing" for item in detail["relationship_diagnostics"])
 

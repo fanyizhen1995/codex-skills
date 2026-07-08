@@ -356,6 +356,7 @@ class LoopDashboardStore:
             "run_kind": self._run_kind(run_data),
             "parent_run_id": str(run_data.get("parent_run_id") or ""),
             "child_index": self._safe_int(run_data.get("child_index")),
+            "audit_remediation": bool(run_data.get("audit_remediation")),
             "current_child_run_id": str(run_data.get("current_child_run_id") or ""),
             "reader_summary": reader_summary if isinstance(reader_summary, dict) else {},
             "children_summary": self._children_summary(aggregate_acceptance),

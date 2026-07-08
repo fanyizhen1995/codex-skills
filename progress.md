@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-07-08 Loop Auditor Automatic Remediation
+
+- Completed `loop-auditor-remediation-auto-01`: `audit_blocked` no longer remains a manual dead end for loop execution.
+- Demand-development parent loops now create an orchestrator-owned audit remediation child task, pass the open `must_fix` finding IDs into the child contract, and write a follow-up passing audit report that closes the remediated findings.
+- Autonomous-knowledge loops now schedule an audit remediation implementation task from `audit_blocked`, run the existing generator/evaluator/cleanup path, then re-open the loop through a passing audit report.
+- Loop Dashboard now marks remediation children with `审计整改`, includes the remediation flag in backend run detail, and the browser evaluator verifies the remediated run reaches `通过，等待人工合并` with `audit-002.json`.
+- Evidence:
+  - RED/GREEN focused coverage: `python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopDemandMultiTaskTests.test_run_demand_multi_audit_blocked_uses_deterministic_remediation_planner_with_codex_driver scripts.tests.test_harness_loop_orchestrator.HarnessLoopDemandMultiTaskTests.test_run_demand_multi_audit_blocked_runs_remediation_child_and_rechecks scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_audit_blocked_runs_remediation_task_and_rechecks -v` -> 3 passed after implementation
+  - `python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v` -> 261 tests passed
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests` -> 62 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-remediation-01` -> pass
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01` -> pass
+  - `python3 -m json.tool docs/harness/evaluator-scenarios/loop-auditor-engine-01.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-08 Loop Auditor Engine Review Fixes
 
 - Completed `loop-auditor-engine-review-fixes-01`: addressed review items 1-4 for the Auditor engine and Dashboard.

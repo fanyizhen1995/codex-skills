@@ -576,9 +576,10 @@ function renderChildQueue(children) {
     const card = el("article", "child-card");
     const reader = child.reader_summary || {};
     const titlePrefix = childIndexPrefix(child.child_index);
+    const remediationSuffix = child.audit_remediation ? " · 审计整改" : "";
     card.append(
       el("div", "child-card-title", `${titlePrefix}${text(child.task_description || child.task_summary || child.run_id)}`),
-      el("div", "child-card-meta", `${phaseLabel(child.phase)} · ${text(child.run_id)}`),
+      el("div", "child-card-meta", `${phaseLabel(child.phase)} · ${text(child.run_id)}${remediationSuffix}`),
       childReaderRow("Planner", reader.planner_action),
       childReaderRow("Generator", reader.generator_action),
       childReaderRow("Evaluator", reader.evaluator_action),
@@ -633,6 +634,9 @@ function childDetailCard(child) {
     el("div", "child-detail-title", `${childIndexPrefix(child.child_index)}${text(child.task_description || child.task_summary || child.run_id)}`),
     el("span", `status-pill status-${status}`, phaseLabel(child.phase)),
   );
+  if (child.audit_remediation) {
+    header.append(el("span", "status-pill status-running", "审计整改"));
+  }
   card.append(
     header,
     el("div", "child-detail-meta", text(child.run_id)),
