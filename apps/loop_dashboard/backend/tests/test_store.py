@@ -828,6 +828,115 @@ def test_skill_inventory_reuses_project_skill_scan_for_recent_usage(tmp_path: Pa
     assert store.project_skill_scan_count == 1
 
 
+def test_audit_summary_filters_unknown_signal_fields(tmp_path: Path) -> None:
+    seed_run(tmp_path, "signal-run", "audit_pending")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "signal-run"
+    write_json(
+        run_dir / "deterministic-signals.json",
+        {
+            "schema_version": 1,
+            "run_id": "signal-run",
+            "progress_counters": {
+                "passed_children_since_last_audit": 2,
+                "unexpected_counter": 99,
+            },
+            "repeat_counters": {
+                "same_evaluator_finding_count": 3,
+            },
+            "arbitrary": {
+                "looks_numeric": 1234,
+            },
+        },
+    )
+    write_json(
+        run_dir / "audit-reports" / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": "signal-run",
+            "audit_id": "audit-001",
+            "verdict": "observe",
+            "deterministic_signals": {
+                "summary": {
+                    "same_dirty_path_count": 1,
+                    "unknown_from_report": 55,
+                }
+            },
+            "direction_control": {"action": "continue"},
+            "finding_lifecycle": {"open_findings": []},
+        },
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("signal-run")
+
+    assert detail["audit_summary"]["signals"] == {
+        "passed_children_since_last_audit": 2,
+        "same_evaluator_finding_count": 3,
+        "same_dirty_path_count": 1,
+    }
+    assert detail["audit_summary"]["engine_status"] == "display_only"
+    assert "硬阻塞未生效" in detail["audit_summary"]["phase_notice"]
+
+
+def test_latest_audit_report_prefers_numeric_audit_id(tmp_path: Path) -> None:
+    seed_run(tmp_path, "audit-order-run", "audit_pending")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "audit-order-run"
+    write_json(
+        run_dir / "audit-reports" / "audit-010.json",
+        {
+            "schema_version": 1,
+            "run_id": "audit-order-run",
+            "audit_id": "audit-010",
+            "verdict": "pass",
+            "direction_control": {"action": "continue"},
+            "finding_lifecycle": {"open_findings": []},
+        },
+    )
+    write_json(
+        run_dir / "audit-reports" / "audit-002.json",
+        {
+            "schema_version": 1,
+            "run_id": "audit-order-run",
+            "audit_id": "audit-002",
+            "verdict": "must_fix",
+            "direction_control": {"action": "refocus"},
+            "finding_lifecycle": {
+                "open_findings": [
+                    {
+                        "finding_id": "audit-002-repeat-001",
+                        "severity": "must_fix",
+                        "title": "stale",
+                        "summary": "older audit report",
+                    }
+                ]
+            },
+        },
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("audit-order-run")
+
+    assert detail["audit_summary"]["verdict"] == "pass"
+    assert detail["audit_summary"]["latest_report_path"] == ".codex/loop-runs/audit-order-run/audit-reports/audit-010.json"
+    assert detail["audit_summary"]["open_must_fix"] == 0
+
+
+def test_skill_inventory_labels_recent_usage_as_log_mentions(tmp_path: Path) -> None:
+    seed_run(tmp_path, "skill-label-run", "passed_waiting_human_merge")
+    skill_path = tmp_path / "loop-helper" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "---\nname: loop-helper\ndescription: Use when testing loop dashboard skill inventory.\n---\n",
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "skill-label-run"
+    (run_dir / "planner-attempt-1.stdout.log").write_text("loop-helper was mentioned in this log.\n", encoding="utf-8")
+
+    detail = LoopDashboardStore(tmp_path).get_run("skill-label-run")
+
+    assert detail["skill_inventory"]["used_recently"] == 1
+    assert detail["skill_inventory"]["usage_signal"] == "log_mentions"
+    assert detail["skill_inventory"]["usage_label"] == "近期日志提及"
+
+
 def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,

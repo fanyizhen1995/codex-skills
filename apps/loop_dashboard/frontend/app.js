@@ -746,11 +746,17 @@ function renderAuditSummary(summary) {
   const metrics = el("div", "audit-metrics");
   [
     ["状态", auditStatusLabel(summary.status)],
+    ["引擎", text(summary.engine_status) === "active" ? "已接入" : "仅展示"],
     ["结论", auditVerdictLabel(summary.verdict)],
     ["open must_fix", String(Number(summary.open_must_fix) || 0)],
     ["方向控制", actionLabel(summary.direction_action)],
   ].forEach(([label, value]) => metrics.append(summaryMetric(label, value)));
   wrapper.append(metrics);
+
+  const phaseNotice = text(summary.phase_notice, "");
+  if (phaseNotice) {
+    wrapper.append(el("div", "auditor-note auditor-phase-notice", phaseNotice));
+  }
 
   const reason = text(summary.direction_reason || summary.recommended_next_focus, "");
   if (reason) {
@@ -812,7 +818,7 @@ function renderSkillInventory(inventory) {
   [
     ["项目 Skill", String(Number(inventory.total_project_skills) || 0)],
     ["Loop 相关", String(Number(inventory.loop_related_skills) || 0)],
-    ["近期调用", String(Number(inventory.used_recently) || 0)],
+    [text(inventory.usage_label, "近期日志提及"), String(Number(inventory.used_recently) || 0)],
     ["候选沉淀", String(Number(inventory.candidate_skills) || 0)],
   ].forEach(([label, value]) => metrics.append(summaryMetric(label, value)));
   wrapper.append(metrics);

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -42,6 +43,28 @@ AUDITOR_CANDIDATE_SKILLS = (
         "description": "git dirty 分类、validate、commit、push、Dashboard/API/前端可见性检查。",
         "recommendation": "优先沉淀",
     },
+)
+AUDIT_PHASE_NOTICE_DISPLAY_ONLY = "Phase 1：当前仅展示审计产物，硬阻塞未生效。"
+AUDIT_SIGNAL_KEYS = frozenset(
+    {
+        "passed_children_since_last_audit",
+        "autonomous_rounds_since_last_audit",
+        "commits_since_last_audit",
+        "coverage_layers_changed",
+        "new_raw_files",
+        "new_or_updated_wiki_pages",
+        "same_evaluator_finding_count",
+        "same_dirty_path_count",
+        "same_identity_key_blocked_count",
+        "same_file_modified_consecutively",
+        "unclassified_dirty_paths",
+        "unpushed_commits",
+        "missing_required_evidence",
+        "dashboard_visibility_failures",
+        "same_local_issue_rounds",
+        "core_goal_progress_delta",
+        "remaining_value_estimate",
+    }
 )
 
 
@@ -397,6 +420,8 @@ class LoopDashboardStore:
         if not report:
             return {
                 "status": "missing",
+                "engine_status": "display_only",
+                "phase_notice": AUDIT_PHASE_NOTICE_DISPLAY_ONLY,
                 "verdict": "",
                 "open_must_fix": 0,
                 "direction_action": "",
@@ -420,10 +445,12 @@ class LoopDashboardStore:
         if isinstance(report_signals, dict):
             summary = report_signals.get("summary")
             if isinstance(summary, dict):
-                signals.update(self._flat_numeric_values(summary))
+                signals.update(self._audit_signal_values(summary))
         cadence = report.get("cadence")
         return {
             "status": "available",
+            "engine_status": "display_only",
+            "phase_notice": AUDIT_PHASE_NOTICE_DISPLAY_ONLY,
             "verdict": self._first_text(report.get("verdict")),
             "open_must_fix": sum(1 for item in open_findings if str(item.get("severity") or "") == "must_fix"),
             "direction_action": self._first_text(direction.get("action")),
@@ -440,20 +467,26 @@ class LoopDashboardStore:
         safe_audit_dir = self._safe_dir_under(audit_dir, run_dir)
         if safe_audit_dir is None:
             return None, {}
-        candidates: list[tuple[float, Path]] = []
+        candidates: list[tuple[int, float, Path]] = []
         for path in safe_audit_dir.glob("*.json"):
             safe_path = self._safe_file_under(path, safe_audit_dir)
             if safe_path is None:
                 continue
             try:
-                candidates.append((safe_path.stat().st_mtime, safe_path))
+                candidates.append((self._audit_report_number(safe_path), safe_path.stat().st_mtime, safe_path))
             except OSError:
                 continue
-        for _mtime, path in sorted(candidates, reverse=True):
+        for _number, _mtime, path in sorted(candidates, reverse=True):
             payload = self._read_json(path, allowed_root=safe_audit_dir)
             if isinstance(payload, dict):
                 return path, payload
-        return (candidates[0][1], {}) if candidates else (None, {})
+        return (candidates[0][2], {}) if candidates else (None, {})
+
+    def _audit_report_number(self, path: Path) -> int:
+        match = re.match(r"^audit-(\d+)\.json$", path.name)
+        if not match:
+            return -1
+        return int(match.group(1))
 
     def _latest_deterministic_signals(self, run_dir: Path) -> dict[str, Any]:
         candidates: list[tuple[float, Path]] = []
@@ -469,24 +502,21 @@ class LoopDashboardStore:
         for _mtime, path in sorted(candidates, reverse=True):
             payload = self._read_json(path, allowed_root=run_dir)
             if isinstance(payload, dict):
-                return self._flat_numeric_values(payload)
+                return self._audit_signal_values(payload)
         return {}
 
-    def _flat_numeric_values(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _audit_signal_values(self, payload: dict[str, Any]) -> dict[str, Any]:
         values: dict[str, Any] = {}
-        metadata_keys = {"schema_version", "run_id", "computed_at", "artifact_path", "artifact_sha256"}
 
         def visit(item: Any) -> None:
             if not isinstance(item, dict):
                 return
             for key, value in item.items():
-                if key in metadata_keys:
-                    continue
                 if isinstance(value, dict):
                     visit(value)
-                elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                elif key in AUDIT_SIGNAL_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
                     values[str(key)] = value
-                elif isinstance(value, str) and value:
+                elif key in AUDIT_SIGNAL_KEYS and isinstance(value, str) and value:
                     values[str(key)] = self._trim(redact_text(value), 120)
 
         visit(payload)
@@ -529,6 +559,8 @@ class LoopDashboardStore:
             "total_project_skills": len(project_skills),
             "loop_related_skills": len(loop_related),
             "used_recently": sum(1 for skill in project_skills if skill["name"] in recent_skill_names),
+            "usage_signal": "log_mentions",
+            "usage_label": "近期日志提及",
             "candidate_skills": len(AUDITOR_CANDIDATE_SKILLS),
             "items": sorted(items, key=lambda item: (item["kind"] == "candidate", item["name"])),
         }

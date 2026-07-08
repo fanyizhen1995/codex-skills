@@ -1555,11 +1555,14 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(auditor_tab).to_contain_text("Auditor 审计")
             if "暂无审计与 Skill 数据" in auditor_tab.inner_text():
                 raise AssertionError("auditor tab should render audit and skill data after selecting a run")
+            expect(auditor_tab).to_contain_text("仅展示")
+            expect(auditor_tab).to_contain_text("硬阻塞未生效")
             expect(auditor_tab).to_contain_text("open must_fix")
             expect(auditor_tab).to_contain_text("必须整改")
             expect(auditor_tab).to_contain_text("确定性信号")
             expect(auditor_tab).to_contain_text("重复 finding")
             expect(auditor_tab).to_contain_text("当前项目 Skill 使用情况")
+            expect(auditor_tab).to_contain_text("近期日志提及")
             expect(auditor_tab).to_contain_text("project-status-snapshot")
             expect(auditor_tab).to_contain_text("pge-loop-agent-contract")
 
