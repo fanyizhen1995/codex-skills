@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-08",
-  "current_focus": "Loop Auditor audit_blocked runs can now be resumed by a long-running auto-resume watcher, and Dashboard no longer classifies audit_blocked as completed.",
+  "current_focus": "Loop Auditor auto-resume is running; next harness backlog item is a unified Loop Supervisor for service health, run ownership, recovery, and Dashboard traceability.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -271,6 +271,24 @@
       "priority": "high",
       "blocked_by": "loop-auditor-remediation-auto-01",
       "verify": "python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_auto_resume scripts.tests.test_harness_loop_orchestrator -v && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-auto-resume-01 && python3 -m json.tool tasks.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_harness",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "loop-supervisor-01",
+      "title": "Implement unified Loop Supervisor",
+      "description": "Design and implement a unified long-running Loop Supervisor that owns loop start/resume/retry/stop orchestration across demand-development and autonomous-knowledge runs, keeps Crawler Workbench, Loop Dashboard, and loop auto-resume online, guarantees every loop run is discoverable in Loop Dashboard, consolidates audit remediation recovery with broader stale-run and service-health supervision, and records operator-visible evidence for recovery decisions.",
+      "status": "todo",
+      "priority": "high",
+      "blocked_by": "loop-auditor-auto-resume-runner-01",
+      "verify": "Add a supervisor design spec reviewed with grill-me; implement supervisor unit tests for run discovery, service health checks, audit_blocked recovery, stale-run recovery, and dashboard traceability; run Loop Dashboard browser evaluator proving active and completed supervised runs are visible; verify crawler backend, crawler frontend, loop dashboard, and supervisor health endpoints or tmux sessions are online.",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,

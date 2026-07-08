@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-07-08 Loop Supervisor Backlog
+
+- Recorded `loop-supervisor-01` as a high-priority TODO after `loop-auditor-auto-resume-runner-01`.
+- Documented the interim operating rule: future loop tasks must keep Crawler Workbench backend/frontend, Loop Dashboard, and `loop-auto-resume` online, and must use loop run directories visible to Loop Dashboard.
+- Evidence:
+  - `curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health` -> crawler backend online
+  - `curl --noproxy '*' -fsSI http://127.0.0.1:5173/` -> crawler frontend online
+  - `curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health` -> loop dashboard online
+  - `tmux has-session -t loop-auto-resume` -> loop auto-resume watcher online
+
 ## 2026-07-08 Loop Auditor Auto Resume Runner
 
 - Completed `loop-auditor-auto-resume-runner-01`: `audit_blocked` runs now have a standalone auto-resume watcher instead of relying on a human or dashboard refresh to call the orchestrator again.

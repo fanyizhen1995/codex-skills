@@ -120,6 +120,20 @@ so Auditor `must_fix` findings can create remediation work and then recheck the
 audit gate. The watcher requires explicit driver choices; smoke fixtures should
 use fake drivers, while real development runs should use `codex-exec`.
 
+Until `loop-supervisor-01` replaces these separate services, every real loop
+task must keep the following long-running processes online and verify them
+before reporting progress:
+
+- Crawler Workbench backend and frontend remain reachable at the configured
+  remote-accessible ports.
+- Loop Dashboard remains reachable and points at the project root whose runs
+  should be monitored.
+- `loop-auto-resume` remains running so `audit_blocked` runs are re-entered
+  without a manual CLI call.
+- The loop run uses a stable run ID under `.codex/loop-runs` or a tracked
+  worktree `.codex/loop-runs` directory so Loop Dashboard can display the
+  active task, completed history, child tasks, audit results, and logs.
+
 For expanded autonomous knowledge runs, point `preflight` at a repo-relative
 policy fixture. The fixture must stay inside the repository, be JSON, and
 declare the same policy as `--mode`:
