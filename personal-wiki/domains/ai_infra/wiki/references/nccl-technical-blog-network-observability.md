@@ -22,7 +22,11 @@ source_refs:
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704299278Z-developer-nvidia-com-blog-oci-accelerates-hpc-ai-and-database-using-roce-and-nvidia-connec-904a22fed4.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704299596Z-developer-nvidia-com-blog-turbocharging-ai-workloads-with-nvidia-spectrum-x-networking-pla-752fd3e399.md
-updated: 2026-07-07
+  - ../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json
+  - ../../raw/crawler/nccl-technical-blog/20260705T041116696876Z-developer-nvidia-com-blog-fusing-communication-and-compute-with-new-device-api-and-copy-en-cf91fab287.md
+  - ../../raw/crawler/nccl-technical-blog/20260705T041116698296Z-developer-nvidia-com-blog-enabling-fast-inference-and-resilient-training-with-nccl-2-27-a2adc32762.md
+  - ../../raw/crawler/nccl-technical-blog/20260705T041116697949Z-developer-nvidia-com-blog-understanding-nccl-tuning-to-accelerate-gpu-to-gpu-communication-6d17a8a015.md
+updated: 2026-07-08
 aliases:
   - NCCL network observability
   - NCCL Inspector Prometheus evidence
@@ -38,6 +42,8 @@ related:
 This reference organizes the local NVIDIA technical-blog captures that complement the NCCL release-note and GitHub issue corpora. The selected sources cover live NCCL Inspector metrics, offline communication analysis, NCCL 2.24 reliability reporting, AI-fabric convergence, Spectrum-X and RoCE behavior, SHARP in-network collective acceleration, NVBandwidth diagnostics, and NCCL 2.22 cost-estimation APIs.
 
 The practical coverage boundary is NCCL-adjacent infrastructure: distributed training communication, GPU interconnect diagnostics, and cluster fabric operations. It does not close the remaining `data-rag-vector` gap, nor does it replace broader cost-attribution, governance, or non-NVIDIA fabric evidence.
+
+The 2026-07-05 scheduled crawler refresh adds 21 NCCL-adjacent blog/vendor snapshots and 25 arXiv discovery captures in the batch manifest. Some NVIDIA technical-blog URLs are content-hash refreshes of already curated sources; new or separately useful leads include NCCL 2.28 device API/copy-engine collectives, NCCL 2.27 resilient training and inference notes, NCCL tuning guidance, TensorRT multi-device inference, wide expert parallelism on NVL72, AWS/Lambda cluster operations examples, vLLM RL/PegaFlow posts, and [NCCL Arxiv Papers](nccl-arxiv-papers.md). Treat the non-NVIDIA and arXiv entries as discovery/source-refresh evidence unless a later page promotes specific claims with direct citations. [raw](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 
 # Observability And Debugging
 
@@ -77,6 +83,10 @@ NCCL 2.22 adds `ncclGroupSimulateEnd`, which estimates how long NCCL believes a 
 
 The same NCCL 2.22 capture also records resource-efficiency signals that matter for capacity planning: lazy connection establishment reduces GPU memory overhead by creating algorithm/protocol connections only when needed, and intra-node topology fusion plus lazy establishment can reduce `ncclCommInitRank` initialization time for many-communicator workloads. [raw](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
 
+# 20260705 Refresh Leads
+
+The July 5 technical-blog refresh adds three NCCL-specific leads that were not part of the earlier June curated set. The NCCL 2.28 article is relevant for device API and copy-engine collective questions, the NCCL 2.27 article is relevant for fast inference and resilient training, and the NCCL tuning article is a source lead for environment/configuration guidance. They are recorded here as refresh leads; promote concrete version behavior only after cross-checking against release notes or the corresponding raw article body. [raw](../../raw/crawler/nccl-technical-blog/20260705T041116696876Z-developer-nvidia-com-blog-fusing-communication-and-compute-with-new-device-api-and-copy-en-cf91fab287.md) [raw](../../raw/crawler/nccl-technical-blog/20260705T041116698296Z-developer-nvidia-com-blog-enabling-fast-inference-and-resilient-training-with-nccl-2-27-a2adc32762.md) [raw](../../raw/crawler/nccl-technical-blog/20260705T041116697949Z-developer-nvidia-com-blog-understanding-nccl-tuning-to-accelerate-gpu-to-gpu-communication-6d17a8a015.md)
+
 # Coverage Use
 
 Use this page as source-backed coverage for:
@@ -99,3 +109,7 @@ Use this page as source-backed coverage for:
 - [NVBandwidth raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704294079Z-developer-nvidia-com-blog-nvidia-nvbandwidth-your-essential-tool-for-measuring-gpu-interco-9a6dc9cf64.md)
 - [Fault-tolerant NCCL applications raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704295462Z-developer-nvidia-com-blog-building-scalable-and-fault-tolerant-nccl-applications-839bad0938.md)
 - [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
+- [AI infra scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
+- [NCCL 2.28 device API and copy-engine collectives raw capture](../../raw/crawler/nccl-technical-blog/20260705T041116696876Z-developer-nvidia-com-blog-fusing-communication-and-compute-with-new-device-api-and-copy-en-cf91fab287.md)
+- [NCCL 2.27 fast inference and resilient training raw capture](../../raw/crawler/nccl-technical-blog/20260705T041116698296Z-developer-nvidia-com-blog-enabling-fast-inference-and-resilient-training-with-nccl-2-27-a2adc32762.md)
+- [NCCL tuning raw capture](../../raw/crawler/nccl-technical-blog/20260705T041116697949Z-developer-nvidia-com-blog-understanding-nccl-tuning-to-accelerate-gpu-to-gpu-communication-6d17a8a015.md)

@@ -6,7 +6,8 @@
     "domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues"
   ],
   "domains/ai_infra/wiki/projects/kueue": [
-    "domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues"
+    "domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues",
+    "domains/ai_infra/wiki/references/security-governance-cost-infrastructure"
   ],
   "domains/ai_infra/wiki/projects/nccl": [
     "domains/ai_infra/wiki/references/nccl-github-closed-issues",
@@ -19,20 +20,72 @@
     "domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues"
   ],
   "domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison": [
-    "domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory"
+    "domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory",
+    "domains/ai_infra/wiki/references/network-storage-cluster-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/data-rag-vector-infrastructure",
+    "domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/data-rag-vector-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/distributed-training-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map"
+  ],
+  "domains/ai_infra/wiki/references/inference-runtime-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure",
+    "domains/ai_infra/wiki/references/distributed-training-infrastructure",
+    "domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure",
+    "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs"
   ],
   "domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues": [
     "domains/ai_infra/wiki/projects/kubernetes",
     "domains/ai_infra/wiki/projects/kueue",
-    "domains/ai_infra/wiki/projects/volcano"
+    "domains/ai_infra/wiki/projects/volcano",
+    "domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/nccl-arxiv-papers": [
+    "domains/ai_infra/wiki/projects/nccl",
+    "domains/ai_infra/wiki/references/nccl-technical-blog-network-observability"
   ],
   "domains/ai_infra/wiki/references/nccl-github-closed-issues": [
     "domains/ai_infra/wiki/projects/nccl",
+    "domains/ai_infra/wiki/references/nccl-arxiv-papers",
     "domains/ai_infra/wiki/references/nccl-release-notes"
   ],
   "domains/ai_infra/wiki/references/nccl-release-notes": [
     "domains/ai_infra/wiki/projects/nccl",
+    "domains/ai_infra/wiki/references/nccl-arxiv-papers",
     "domains/ai_infra/wiki/references/nccl-github-closed-issues"
+  ],
+  "domains/ai_infra/wiki/references/nccl-technical-blog-network-observability": [
+    "domains/ai_infra/wiki/projects/nccl",
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure",
+    "domains/ai_infra/wiki/references/distributed-training-infrastructure",
+    "domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure",
+    "domains/ai_infra/wiki/references/nccl-arxiv-papers",
+    "domains/ai_infra/wiki/references/network-storage-cluster-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/network-storage-cluster-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map"
+  ],
+  "domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/distributed-training-infrastructure"
+  ],
+  "domains/ai_infra/wiki/references/security-governance-cost-infrastructure": [
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/network-storage-cluster-infrastructure",
+    "domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure"
   ],
   "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs": [
     "domains/ai_infra/wiki/concepts/nvidia-green-context",

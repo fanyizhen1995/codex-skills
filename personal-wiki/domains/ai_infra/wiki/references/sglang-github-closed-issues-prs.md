@@ -21,6 +21,7 @@ source_refs:
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest.json
   - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json
+  - ../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260701T021208949433Z-github-com-sgl-project-sglang-issues-24220-d10eb2dd3d.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349139142Z-github-com-sgl-project-sglang-pull-29915-e345899286.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260703T021321693976Z-github-com-sgl-project-sglang-pull-29017-e3dfacd27b.md
@@ -31,7 +32,9 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md
-updated: 2026-07-07
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md
+updated: 2026-07-08
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -65,6 +68,8 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | Crawler supplement overlap | 10 items overlap the API corpus; 41 are later selected page captures |
 | Scheduled crawler supplement capture | 318 Markdown page snapshots captured 2026-07-01 through 2026-07-04 |
 | Scheduled crawler supplement composition | 41 issues, 277 pull requests, including 198 merged pull requests |
+| Scheduled crawler refresh capture | 192 Markdown page snapshots captured 2026-07-05 through 2026-07-07 |
+| Scheduled crawler refresh composition | 19 issues, 173 pull requests, including 122 merged pull requests |
 
 Raw files:
 
@@ -79,6 +84,7 @@ Raw files:
 - [PR review comment pages](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-pr-review-comments-api-pages.json.gz)
 - [Crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
 - [Scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
+- [Scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 
 # Capture Notes
 
@@ -90,6 +96,8 @@ The crawler supplement under `raw/crawler/sglang-github-closed-issues-prs/` is s
 
 The scheduled crawler supplement manifest for 2026-07-01 through 2026-07-04 records 318 additional Markdown page snapshots: 41 issues and 277 pull requests, including 198 merged pull requests. This supplement is useful for near-term operational discovery after the API corpus cutoff, but it remains page-level evidence without joined comments or PR review comments. Its highest-count labels are `run-ci`, `documentation`, `run-ci-extra`, `deepseek`, `diffusion`, `amd`, `jit-kernel`, `inactive`, `bypass-fastfail`, `npu`, `quant`, `dependencies`, `high priority`, `sgl-kernel`, `intel`, `release-highlight`, `blackwell`, and `xpu`.
 
+The 2026-07-05 through 2026-07-07 scheduled crawler refresh records 192 additional page snapshots: 19 issues and 173 pull requests, including 122 merged pull requests. It is still page-level evidence only. Use it to find recent SGLang operational leads, but do not merge it into the API corpus counts or treat it as joined comment/review-comment evidence. Its highest-count labels are `run-ci`, `deepseek`, `documentation`, `diffusion`, `jit-kernel`, `run-ci-extra`, `npu`, `quant`, `bypass-fastfail`, `inactive`, `blackwell`, `amd`, and `hicache`. [raw](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
+
 # Operational Signals
 
 The issue workflow state is mostly completed: 5,585 closed issues are `completed`, 35 are `not_planned`, and 13 are `duplicate`. Treat issue `state_reason` as workflow metadata, not as a direct quality or severity signal.
@@ -99,6 +107,8 @@ The highest-count issue labels are `inactive`, `high priority`, `bug`, `good fir
 Keyword-derived themes are retrieval aids rather than mutually exclusive taxonomy. In the captured corpus, frequent surfaces include distributed parallelism and cluster behavior, serving runtime/API work, model support, kernel/attention backend work, memory and KV cache behavior, installation/build/packaging, performance, and reliability/correctness.
 
 In the 2026-07 scheduled crawler supplement, the strongest new operational surfaces are CI and merge workflow (`run-ci`, `run-ci-extra`, `bypass-fastfail`), accelerator-specific backend work (`amd`, `npu`, `intel`, `xpu`, `blackwell`), DeepSeek and GLM-family serving work, diffusion serving, JIT/kernel work, quantization, and documentation. Representative page snapshots include AMD/ROCm disaggregation and MI300X/MI355X issues, Ascend NPU DeepSeek work, Intel XPU graph and kernel support, Blackwell FP8/prefill work, and memory/KV-cache regressions. Treat these as discovery leads until a full API refresh joins comments and review comments.
+
+The 2026-07-05 through 2026-07-07 refresh adds more disaggregated-serving and accelerator-backend leads. Examples include a NIXL UCX worker segfault during disaggregated KV transfer with DeepSeek-R1 FP8, a HiCache prefetch cleanup fix for disaggregated prefill bootstrap aborts, Mooncake Store buffer-registration failure on Ascend 910B3, KV-cache transfer metric window errors, ROCm/Triton FP8 and online-quantization startup failures, and DeepSeek/NPU/DSA/JIT-kernel implementation work. These are discovery and troubleshooting leads until a full API refresh verifies linked comments, review discussion, and final resolution state. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md)
 
 Selected 2026-07 page-level leads now promoted into [Inference Runtime Infrastructure](inference-runtime-infrastructure.md):
 
@@ -156,3 +166,6 @@ High-discussion examples in the captured corpus include:
 - [SGLang PR #27704 benchmark profiling support](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md)
 - [SGLang PR #29211 KV-event publisher port collision fix](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md)
 - [SGLang PR #25377 HiCache UMBP storage backend](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md)
+- [AI infra scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
+- [SGLang issue #23499 NIXL UCX worker segfault](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530899576Z-github-com-sgl-project-sglang-issues-23499-22090e3cb2.md)
+- [SGLang PR #30053 HiCache prefetch cleanup](../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453060525Z-github-com-sgl-project-sglang-pull-30053-c86bbf35fb.md)

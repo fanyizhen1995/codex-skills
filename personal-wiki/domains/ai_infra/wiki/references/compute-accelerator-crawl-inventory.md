@@ -11,6 +11,10 @@ tags:
   - accelerators
   - crawler
   - provenance
+source_refs:
+  - ../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json
+  - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
+updated: 2026-07-08
 ---
 
 # Summary
@@ -27,9 +31,13 @@ This inventory is the curated entry point for compute accelerator raw captures u
 # Coverage Summary
 
 - Source groups: 130
-- Raw files: 232
+- Raw files: 233
 - Discovery groups: 16
 - One-shot source groups: 114
+
+# 20260705 H200 Refresh
+
+The July 5 scheduled crawler batch adds one H200 product-page refresh under the existing `compute-accelerators-nvidia-h200` source profile. The page records `Last-Modified: Thu, 02 Jul 2026 07:03:40 GMT` and repeats the already represented H200 SXM and H200 NVL evidence, including 141 GB HBM3e memory, 4.8 TB/s memory bandwidth, FP8/INT8 Tensor Core performance rows, configurable TDP, SXM/PCIe form-factor boundaries, NVLink and PCIe Gen5 interconnect rows, and NVIDIA AI Enterprise inclusion for H200 NVL. This is refresh evidence for an existing model/source profile, not a new accelerator SKU or a reason to duplicate the parameter-comparison row. [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md)
 
 # 20260706 Tracked Baseline Reconciliation
 
@@ -213,7 +221,7 @@ Field-promotion boundary: product-specific July captures may refresh existing co
 | `compute-accelerators-nvidia-bluefield4` | One-shot spec/source evidence | [BlueField Networking Platform \| NVIDIA NVIDIA Home Menu Menu Close Close Close](https://www.nvidia.com/en-us/networking/products/data-processing-unit/) | [20260629T055416117375Z-www-nvidia-com-en-us-network...](../../raw/crawler/compute-accelerators-nvidia-bluefield4/20260629T055416117375Z-www-nvidia-com-en-us-networking-products-data-processing-unit-68d8df06c1.md) |
 | `compute-accelerators-nvidia-gb200` | One-shot spec/source evidence | [Accelerating the Next Wave of AI Innovation \| NVIDIA Data Center Products NVIDIA](https://www.nvidia.com/en-us/data-center/products/) | [20260629T055416811672Z-www-nvidia-com-en-us-data-ce...](../../raw/crawler/compute-accelerators-nvidia-gb200/20260629T055416811672Z-www-nvidia-com-en-us-data-center-products-bb811f331e.md) |
 | `compute-accelerators-nvidia-gb300` | One-shot spec/source evidence | [Accelerating the Next Wave of AI Innovation \| NVIDIA Data Center Products NVIDIA](https://www.nvidia.com/en-us/data-center/products/) | [20260628T143110957451Z-www-nvidia-com-en-us-data-ce...](../../raw/crawler/compute-accelerators-nvidia-gb300/20260628T143110957451Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md) |
-| `compute-accelerators-nvidia-h200` | One-shot spec/source evidence | [H200 GPU \| NVIDIA NVIDIA Home Menu Menu Close Close Close Caret down icon Caret](https://www.nvidia.com/en-us/data-center/h200/) | [20260627T102027151096Z-www-nvidia-com-en-us-data-ce...](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T102027151096Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md), [20260627T153310569545Z-www-nvidia-com-en-us-data-ce...](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md) |
+| `compute-accelerators-nvidia-h200` | One-shot spec/source evidence | [H200 GPU \| NVIDIA NVIDIA Home Menu Menu Close Close Close Caret down icon Caret](https://www.nvidia.com/en-us/data-center/h200/) | [20260627T102027151096Z-www-nvidia-com-en-us-data-ce...](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T102027151096Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md), [20260627T153310569545Z-www-nvidia-com-en-us-data-ce...](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md), [20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md) |
 | `compute-accelerators-resnics-stargate-n1025` | One-shot spec/source evidence | [Stargate-N1025 DPU 智能网卡 – www.resnics.com](https://www.resnics.com/product/stargate-n1025-dpu/) | [20260627T153530498961Z-www-resnics-com-product-star...](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260627T153530498961Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md), [20260628T060657022930Z-www-resnics-com-product-star...](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) |
 | `compute-accelerators-resnics-stargate-n2025` | One-shot spec/source evidence | [Stargate-N2025 DPU 智能网卡 – www.resnics.com](https://www.resnics.com/product/stargate-n2025-dpu/) | [20260627T153530903943Z-www-resnics-com-product-star...](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260627T153530903943Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md), [20260628T060657411423Z-www-resnics-com-product-star...](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
 | `compute-accelerators-resnics-stargate-s1100` | One-shot spec/source evidence | [Stargate-S1100 NVMe-oF 存储加速卡 – www.resnics.com](https://www.resnics.com/product/stargate-s1100-nvme-of/) | [20260627T153531293563Z-www-resnics-com-product-star...](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260627T153531293563Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md), [20260628T060657808728Z-www-resnics-com-product-star...](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) |
@@ -229,4 +237,5 @@ The raw captures listed above have been admitted into the `ai_infra` evidence la
 # Citations
 
 - Raw crawler evidence listed in the Source Groups table above.
+- [AI infra scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 - [Compute Accelerator Parameter Comparison](compute-accelerator-parameter-comparison.md)
