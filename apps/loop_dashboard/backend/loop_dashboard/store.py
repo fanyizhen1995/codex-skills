@@ -10,7 +10,7 @@ from .models import AgentSummary, Event, FlowNode, LogEntry
 from .redaction import redact_text
 
 
-COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_budget", "stopped_blocked", "audit_blocked"}
+COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_budget", "stopped_blocked"}
 BLOCKED_PHASES = {"stopped_blocked", "audit_blocked", "repair_needed", "invalid_artifact"}
 LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"

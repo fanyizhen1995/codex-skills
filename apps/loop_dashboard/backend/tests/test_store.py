@@ -920,6 +920,21 @@ def test_audit_summary_marks_orchestrator_reports_as_active_engine(tmp_path: Pat
     assert "会触发 audit_blocked" in detail["audit_summary"]["phase_notice"]
 
 
+def test_audit_blocked_is_blocked_but_not_completed(tmp_path: Path) -> None:
+    seed_run(
+        tmp_path,
+        "audit-blocked-run",
+        "audit_blocked",
+        last_result="blocked",
+        next_action="create_audit_remediation_task",
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("audit-blocked-run")
+
+    assert detail["health"] == "blocked"
+    assert detail["completed"] is False
+
+
 def test_latest_audit_report_prefers_numeric_audit_id(tmp_path: Path) -> None:
     seed_run(tmp_path, "audit-order-run", "audit_pending")
     run_dir = tmp_path / ".codex" / "loop-runs" / "audit-order-run"

@@ -96,6 +96,30 @@ The `codex-exec` parent planner must write a planner payload that satisfies
 does not wait for human merge by itself; the child returns `phase=passed` and
 the parent records accepted changed paths before planning the next child.
 
+### Auto Resume
+
+`audit_blocked` is actionable only when an orchestrator process runs again.
+For long-running local operation, start the auto-resume watcher separately from
+the read-only Loop Dashboard backend:
+
+```bash
+python3 scripts/harness_loop_auto_resume.py \
+  --project-root /home/fyz/codex-skills \
+  --include-worktrees \
+  --planner-driver codex-exec \
+  --generator-driver codex-exec \
+  --evaluator-driver codex-exec \
+  --watch \
+  --interval-seconds 30
+```
+
+The watcher scans `.codex/loop-runs` and `.worktrees/*/.codex/loop-runs` for
+orchestrator-actionable phases. The first supported phase is `audit_blocked`:
+the watcher calls `run-demand-multi` or `run-autonomous` for the run's policy,
+so Auditor `must_fix` findings can create remediation work and then recheck the
+audit gate. The watcher requires explicit driver choices; smoke fixtures should
+use fake drivers, while real development runs should use `codex-exec`.
+
 For expanded autonomous knowledge runs, point `preflight` at a repo-relative
 policy fixture. The fixture must stay inside the repository, be JSON, and
 declare the same policy as `--mode`:

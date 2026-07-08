@@ -304,6 +304,7 @@ def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dic
     child_run_ids.add(str(child["run_id"]))
     expected_paths = {
         f".codex/loop-runs/{parent_run_id}/events.jsonl",
+        f".codex/loop-runs/{parent_run_id}/audit-remediation-result.json",
         f".codex/loop-runs/{parent_run_id}/depth-acquisition-smoke.json",
         f".codex/loop-runs/{parent_run_id}/deterministic-signals.json",
         f".codex/loop-runs/{parent_run_id}/egress-proof.json",

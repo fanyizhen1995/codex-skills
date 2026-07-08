@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-07-08 Loop Auditor Auto Resume Runner
+
+- Completed `loop-auditor-auto-resume-runner-01`: `audit_blocked` runs now have a standalone auto-resume watcher instead of relying on a human or dashboard refresh to call the orchestrator again.
+- Confirmed the visible stuck run `.worktrees/loop-dashboard-auditor/.codex/loop-runs/loop-auditor-engine-dev` was resumed from `audit_blocked` to `passed_waiting_human_merge`; `audit-002.json` closes the open `must_fix` finding and the Dashboard API reports `open_must_fix=0`.
+- Added `scripts/harness_loop_auto_resume.py`, which scans project-local and worktree loop runs and invokes `run-demand-multi` or `run-autonomous` for orchestrator-actionable phases.
+- Fixed a dirty-path false block where `.codex/loop-runs/<run>/audit-remediation-result.json` was treated as an unexpected child change after remediation.
+- Updated Loop Dashboard state classification so `audit_blocked` is blocked but not completed.
+- Evidence:
+  - RED: `test_audit_blocked_is_blocked_but_not_completed` failed because `completed=True`; `test_harness_loop_auto_resume` failed because the runner module did not exist.
+  - GREEN focused: `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests/test_store.py::test_audit_blocked_is_blocked_but_not_completed` -> 1 passed
+  - GREEN focused: `python3 -m unittest scripts.tests.test_harness_loop_auto_resume -v` -> 1 passed
+  - `python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_auto_resume scripts.tests.test_harness_loop_orchestrator -v` -> 262 tests passed
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests` -> 63 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-auto-resume-01` -> pass
+
 ## 2026-07-08 Loop Auditor Automatic Remediation
 
 - Completed `loop-auditor-remediation-auto-01`: `audit_blocked` no longer remains a manual dead end for loop execution.
