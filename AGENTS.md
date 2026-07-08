@@ -76,6 +76,7 @@ curl --noproxy '*' -X POST http://127.0.0.1:8765/api/accelerator-candidates/9999
 2. 只 stage 本次入库相关路径，不能混入 `.codex/*.log`、pid、临时 `generated/`、本地服务状态或无关工作树改动。
 3. 提交信息使用 `chore(wiki): ...` 或 `docs(wiki): ...`，并在最终汇报中列出 commit hash、入库来源范围和验证命令。
 4. 如果入库后还需要前后端刷新验证，按上一节完成搜索、Wiki 浏览或相关 API 的可见性检查后再提交或补交。
+5. 入库 commit 创建或合入 `main` 后，立即执行 `git push origin main`；如果推送失败，在最终汇报中说明远端、错误输出和当前分支状态。
 
 ### 隔离验证
 ```bash
@@ -129,6 +130,7 @@ python3 scripts/wiki_crawler_e2e_evaluator.py --repo-root . --output-dir .codex/
 2. 若 `requires_eval=true`，运行或等待 Step4 evaluator gate 通过后再标记 `done`。
 3. 提交只属于本任务的文件，commit 格式优先用 `type(scope): summary`。
 4. 在 `progress.md` 顶部追加本次记录和证据路径。
+5. 任务 commit 创建或合入 `main` 后，立即执行 `git push origin main`；如果推送失败，不要静默忽略，必须报告失败原因和待处理状态。
 
 ## 禁止事项
 - 不要把 token、cookie 或私有凭据写入 wiki、sources yaml 或 git。
