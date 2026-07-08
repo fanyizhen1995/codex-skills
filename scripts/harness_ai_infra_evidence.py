@@ -349,6 +349,10 @@ def _validate_freshness_payload(
         return findings
 
     required_dimensions = FRESHNESS_REQUIRED_DIMENSIONS.get(evidence_id, ())
+    if evidence_id == "loop-dashboard-freshness" and _loop_dashboard_details_describe_active_run(details):
+        required_dimensions = tuple(
+            dimension for dimension in required_dimensions if dimension != "completed_history"
+        )
     missing_dimensions = [
         dimension for dimension in required_dimensions if not _freshness_detail_is_pass_like(details.get(dimension))
     ]
@@ -425,7 +429,7 @@ def _validate_freshness_payload(
                 findings.append(
                     f"{evidence_id} artifact {artifact_path} must bind current run_id to details.evaluator_scenarios"
                 )
-        if isinstance(completed_history, Mapping):
+        if isinstance(completed_history, Mapping) and not _loop_dashboard_details_describe_active_run(details):
             history_payload = completed_history.get("json")
             if not any(
                 isinstance(item, Mapping) and str(item.get("run_id", "")).strip() == expected_run_id
@@ -453,6 +457,19 @@ def _freshness_detail_is_pass_like(value: Any) -> bool:
             if isinstance(candidate, str) and candidate.strip().lower() in {"pass", "passed", "ok", "success", "true"}:
                 return True
     return False
+
+
+def _loop_dashboard_details_describe_active_run(details: Mapping[str, Any]) -> bool:
+    current_run = details.get("current_run")
+    if not isinstance(current_run, Mapping):
+        return False
+    payload = current_run.get("json")
+    if not isinstance(payload, Mapping):
+        return False
+    if payload.get("completed") is False:
+        return True
+    phase = str(payload.get("phase", "")).strip().lower()
+    return phase in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup", "audit_blocked"}
 
 
 def _loop_dashboard_child_state_present(payload: Mapping[str, Any]) -> bool:

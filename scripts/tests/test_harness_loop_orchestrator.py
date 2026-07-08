@@ -1378,6 +1378,54 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             dirty_result = read_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json")
             self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
 
+    def test_autonomous_required_evidence_block_reenters_cleanup_after_revalidation_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-parent-4"
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": task_id,
+                    "next_action": "inspect_required_evidence",
+                    "last_result": "blocked",
+                    "required_evidence": [],
+                }
+            )
+            save_run(repo_root, run)
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "No repo changes for this regression.",
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_required_evidence_block(repo_root, run)
+
+            self.assertTrue(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "cleanup")
+            self.assertEqual(saved["next_action"], "commit_autonomous_changes")
+            required_evidence_result = read_json_file(run_dir_for(repo_root, run_id) / "required-evidence-result.json")
+            self.assertEqual(required_evidence_result["status"], "pass")
+
     def test_run_autonomous_supports_codex_exec_agents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -4316,6 +4364,52 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["current_run"]["status"], "blocked")
             self.assertEqual(payload["details"]["completed_history"]["status"], "blocked")
             self.assertEqual(payload["details"]["project"]["status"], "blocked")
+
+    def test_capture_live_loop_dashboard_freshness_allows_active_run_without_completed_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0, max_body_bytes: int = 16 * 1024 * 1024) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
+                if url.endswith("/api/runs/expanded-run"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {
+                            "run_id": "expanded-run",
+                            "project_root": str(repo_root),
+                            "source_path": ".codex/loop-runs/expanded-run",
+                            "completed": False,
+                            "children_summary": {"total": 0},
+                        },
+                    }
+                if url.endswith("/api/runs/expanded-run/events"):
+                    return {"url": url, "status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "events": []}}
+                if url.endswith("/api/runs/expanded-run/logs"):
+                    return {"url": url, "status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "logs": []}}
+                if url.endswith("/api/projects/current"):
+                    return {"url": url, "status": "pass", "http_status": 200, "json": {"project_root": str(repo_root)}}
+                if url.endswith("/api/runs"):
+                    return {"url": url, "status": "blocked", "http_status": 0, "error": "timed out"}
+                return {"url": url, "status": "pass", "http_status": 200, "json": {}}
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "loop-dashboard-freshness",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["details"]["current_run"]["status"], "pass")
+            self.assertEqual(payload["details"]["completed_history"]["status"], "not_applicable")
 
     def test_http_probe_parses_large_json_response(self) -> None:
         body = json.dumps(

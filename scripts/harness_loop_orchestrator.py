@@ -4119,6 +4119,16 @@ def _result_candidates(payload: Any) -> list[Any]:
     return []
 
 
+def _loop_dashboard_current_run_is_active(probe: Mapping[str, Any]) -> bool:
+    payload = probe.get("json")
+    if not isinstance(payload, Mapping):
+        return False
+    if payload.get("completed") is False:
+        return True
+    phase = str(payload.get("phase", "")).strip().lower()
+    return phase in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup", "audit_blocked"}
+
+
 def _flatten_probe_text(value: Any) -> str:
     parts: list[str] = []
 
@@ -4573,8 +4583,35 @@ def _capture_live_evidence_payload(
             child_state = str(payload.get("child_state", "")).strip().lower()
             return "pass" if child_state in {"none", "no-children", "no_children"} else "blocked"
 
+        current_run_detail = {**current_run, "status": run_probe_status(current_run)}
+        active_current_run = _loop_dashboard_current_run_is_active(current_run_detail)
+        completed_history_detail = {
+            **completed_history,
+            "status": "pass"
+            if completed_history.get("status") == "pass"
+            and any(
+                isinstance(item, Mapping)
+                and str(item.get("run_id", "")).strip() == run_id
+                and (
+                    not item.get("project_root")
+                    or str(item.get("project_root", "")).strip() == expected_root
+                )
+                and (
+                    not item.get("source_path")
+                    or run_id in str(item.get("source_path", "")).strip()
+                )
+                for item in _result_candidates(completed_history.get("json"))
+            )
+            else "blocked",
+        }
+        if active_current_run and completed_history_detail.get("status") != "pass":
+            completed_history_detail = {
+                **completed_history_detail,
+                "status": "not_applicable",
+                "reason": "current run is active; completed history is required after completion",
+            }
         details = {
-            "current_run": {**current_run, "status": run_probe_status(current_run)},
+            "current_run": current_run_detail,
             "child_tasks": {**child_tasks, "status": child_probe_status(child_tasks)},
             "agent_actions": {
                 **agent_actions,
@@ -4592,25 +4629,7 @@ def _capture_live_evidence_payload(
                 and str(evaluator_scenarios["json"].get("run_id", "")).strip() == run_id
                 else "blocked",
             },
-            "completed_history": {
-                **completed_history,
-                "status": "pass"
-                if completed_history.get("status") == "pass"
-                and any(
-                    isinstance(item, Mapping)
-                    and str(item.get("run_id", "")).strip() == run_id
-                    and (
-                        not item.get("project_root")
-                        or str(item.get("project_root", "")).strip() == expected_root
-                    )
-                    and (
-                        not item.get("source_path")
-                        or run_id in str(item.get("source_path", "")).strip()
-                    )
-                    for item in _result_candidates(completed_history.get("json"))
-                )
-                else "blocked",
-            },
+            "completed_history": completed_history_detail,
             "project": {
                 **project,
                 "status": "pass"
@@ -4620,14 +4639,20 @@ def _capture_live_evidence_payload(
                 else "blocked",
             },
         }
+        required_details = [
+            value
+            for key, value in details.items()
+            if not (active_current_run and key == "completed_history")
+        ]
+        details_pass = all(isinstance(value, Mapping) and value.get("status") == "pass" for value in required_details)
         return {
-            "status": "pass" if all(isinstance(value, Mapping) and value.get("status") == "pass" for value in details.values()) else "blocked",
+            "status": "pass" if details_pass else "blocked",
             "run_id": run_id,
             "task_id": str(run.get("task_id", "")).strip(),
             "domain": str(run.get("domain", "")).strip(),
             "worktree": expected_root,
             "summary": "loop dashboard freshness matched current run and worktree"
-            if all(isinstance(value, Mapping) and value.get("status") == "pass" for value in details.values())
+            if details_pass
             else "loop dashboard freshness did not match current run and worktree",
             "details": details,
             "captured_at": captured_at,
@@ -5071,6 +5096,43 @@ def _resume_autonomous_dirty_path_block(repo_root: Path, run: dict[str, Any]) ->
     return True
 
 
+def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, Any]) -> bool:
+    if run.get("phase") != "stopped_blocked":
+        return False
+    if run.get("next_action") != "inspect_required_evidence":
+        return False
+    run_id = str(run["run_id"])
+    run_dir = run_dir_for(repo_root, run_id)
+    generator_result_path = run_dir / "generator-result.json"
+    if not generator_result_path.exists():
+        return False
+    try:
+        generator_result = read_json_file(generator_result_path)
+        validate_generator_result_payload(generator_result)
+    except Exception:
+        return False
+    required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
+    if required_evidence:
+        _materialize_embedded_required_evidence_manifest(repo_root, run, generator_result)
+        required_evidence_result = _validate_required_evidence(repo_root, run, required_evidence)
+    else:
+        required_evidence_result = {
+            "status": "pass",
+            "manifest_path": "required-evidence-manifest.json",
+            "gap_proof_result_path": "",
+            "findings": [],
+        }
+    write_json_file(run_dir / "required-evidence-result.json", required_evidence_result)
+    if required_evidence_result["status"] != "pass":
+        return False
+    current = load_run(repo_root, run_id)
+    current["phase"] = "cleanup"
+    current["next_action"] = "commit_autonomous_changes"
+    current["last_result"] = "none"
+    save_run(repo_root, current)
+    return True
+
+
 def run_autonomous(
     repo_root: Path | str,
     run_id: str,
@@ -5110,6 +5172,8 @@ def run_autonomous(
             continue
         if run["phase"] == "stopped_blocked":
             if _resume_autonomous_dirty_path_block(root, run):
+                continue
+            if _resume_autonomous_required_evidence_block(root, run):
                 continue
             return status_for_run(root, run_id)
         if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
