@@ -20,6 +20,8 @@ source_refs:
   - ../../raw/links/kubeflow-training-operator-official-docs-20260707.md
   - ../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md
   - ../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-summary.json
+  - ../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-index.json
+  - ../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz
   - ../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-summary.json
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json
   - ../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-index.json
@@ -27,7 +29,7 @@ source_refs:
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json
-updated: 2026-07-07
+updated: 2026-07-08
 related:
   - ai-infra-coverage-map.md
   - distributed-training-infrastructure.md
@@ -80,6 +82,14 @@ Volcano issues add a second operational slice for gang scheduling, preemption, a
 
 Volcano also supplies upgrade and scheduler-health examples. Issue #3301 reports scheduler panics around insufficient resource operations, #2416 reports gang-scheduled tasks staying unschedulable after installing a newer chart/source tree, and #2379 reports a GKE upgrade from Volcano 1.5 to 1.6 failing because components requested reserved priority-class quota. These examples fill local operator and scheduler failure evidence, but they are not production postmortems with service-impact timelines. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-index.json)
 
+Parent-5 adds a bounded DRA and device-plugin scheduling slice from local issue records that were not already promoted. Kubernetes issue #139016 reports pods getting stuck when DRA scheduling combines a shared multi-node `ResourceSlice` or `ResourceClaim` with per-node GPU claims. Issue #137617 reports repeated `FailedScheduling` for gang scheduling with a shared ResourceClaim, with preemption not helping. Issue #138882 reports a kube-scheduler panic when a DRA `allocationMode: All` request matches a device consuming counters from a pool with shared counters, and issue #135661 reports a DynamicResources CEL selector runtime error when a device lacks the expected `gpu.nvidia.com` nested attribute. These are issue-level scheduler and DRA-plugin signals, not scheduler benchmark results. [raw](../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz)
+
+The same local Kubernetes slice adds device-plugin transition signals. Issue #133702 reports kubelet `unhealthyDevices` and endpoint state getting out of sync after a DRA extended-resource plus ResourceClaim e2e test. Issue #133488 reports the DRA extended-resource device-plugin test leaving an extended resource in node `Allocatable` or `Capacity` after plugin cleanup. Issue #135901 reports kubelet failing container creation when a second pod adds another ResourceClaim after one claim is already prepared, and issue #138407 reports `pod.status.resourceClaimStatuses` flapping for a pending pod using ResourceClaimTemplates. Treat these as kubelet/device-management issue signals around DRA and legacy device-plugin coexistence. [raw](../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz)
+
+Kueue issue #12207 adds quota-admission evidence for DRA partitionable devices: mixed ClusterQueue units for `gpu.memory` allowed a device-count-style queue to borrow far more memory than intended from a counter-based queue, with the issue environment naming OpenShift, Kueue Operator, NVIDIA GPU Operator, a DRA driver, and the `DRAPartitionableDevices` feature gate. Kueue issue #9868 is kept as a feature-boundary record for DRA extended resources bridging legacy `nvidia.com/gpu` requests to ResourceClaims; it is not counted as a failure by itself. [raw](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz)
+
+Volcano issue #5119 reports a `vcjob` using `ResourceClaimTemplate` failing dynamic-resource preparation when the pod skipped DRA scheduler-plugin operations. Issue #4692 reports Volcano's DRA PreBind integration blocking the main scheduling workflow when a lock is not released until timeout. Issue #5335 reports dry-run rollback leaving vGPU assignment annotations that bypass later capacity validation and can over-subscribe GPUs, and issue #5361 reports Hami vGPU scheduling taking more than ten minutes on a 200-node, 8-GPU-per-node cluster after a Volcano and device-plugin upgrade because API-server rate limiting delayed resource-view generation. Older issue #2965 remains a device-plugin reinstall boundary: node `OutOfSync` marking prevented scheduling after GPU resource reporting dropped to zero. These stay issue-level operational signals, not GPU-operator upgrade postmortems with full service impact and remediation ownership. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
+
 The SGLang index remains a downstream runtime lead for Slurm and accelerator scheduling. In particular, issue #23627 records DP scheduler workers escaping a Slurm job cgroup and surviving job termination, blocking GPU reuse. This is useful evidence that runtime-level schedulers can violate HPC allocation cleanup boundaries, but it should be paired with Slurm or runtime-specific source captures before becoming a general Slurm-on-Kubernetes or Slurm operations claim. [raw](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
 
 # Duplicate Boundaries
@@ -98,7 +108,7 @@ Use this page as source-backed coverage for:
 - `hardware-accelerator`: only where device plugins and GPU operators expose or manage accelerators; do not use this page for SKU parameters.
 
 Remaining gaps for this layer are production scheduling incidents, cross-scheduler migration reports, Slurm-on-Kubernetes bridge deployments, scheduler benchmark evidence, and operator upgrade failure/postmortem evidence.
-The local issue corpora now cover issue-level admission, preemption, GPU device, and upgrade failure signals. They do not yet close the need for production incidents, scheduler benchmarks, Slurm-on-Kubernetes bridge deployments, or GPU-operator/device-plugin upgrade postmortems with full environment and remediation context.
+The local issue corpora now cover issue-level admission, preemption, DRA ResourceClaim/ResourceSlice, GPU device, device-plugin coexistence, vGPU, and upgrade-adjacent failure signals. They do not yet close the need for production incidents, scheduler benchmarks, Slurm-on-Kubernetes bridge deployments, or GPU-operator/device-plugin upgrade postmortems with full environment and remediation context.
 
 # Citations
 
@@ -108,8 +118,10 @@ The local issue corpora now cover issue-level admission, preemption, GPU device,
 - [Kubeflow Trainer source note](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
 - [Kubernetes and Kueue quota governance source note](../../raw/links/kubernetes-kueue-quota-governance-official-20260707.md)
 - [Kubernetes closed issues summary](../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-summary.json)
+- [Kubernetes closed issues index](../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-index.json)
 - [Volcano closed issues summary](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-summary.json)
 - [Kueue closed issues summary](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json)
+- [Kubernetes joined issues and comments](../../raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz)
 - [Volcano closed issues with comments](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
 - [Kueue closed issues with comments](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz)
 - [SGLang closed issue and PR index](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)

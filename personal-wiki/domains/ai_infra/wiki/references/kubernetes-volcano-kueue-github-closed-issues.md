@@ -26,7 +26,7 @@ source_refs:
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-api-pages.json.gz
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-issue-comments-api-pages.json.gz
-updated: 2026-07-01
+updated: 2026-07-08
 aliases:
   - Kubernetes closed issue corpus
   - Volcano closed issue corpus
@@ -103,6 +103,18 @@ The profile URLs include `state=closed` so monthly checks stay aligned with the 
 # Retrieval Notes
 
 Use the summary JSON files for counts, `state_reason` splits, top labels, capture limits, and comment completeness fields. Use the index JSON files for quick issue lookup by number, title, URL, labels, state reason, close time, and joined comment count. Use the joined `.json.gz` files when locally captured comment text, reported per-issue GitHub comment counters, or full GitHub issue objects are needed.
+
+# Parent-5 DRA And Device-Plugin Slice
+
+The continuation parent-5 retrieval pass used only the existing local GitHub corpora and checked the curated orchestration page, this corpus page, coverage map, loop state, ingest log, and prior parent manifests before promotion. Previously promoted duplicate-boundary issue numbers were left unchanged: Kueue #1726, #696, #6143, #1407, #3094, #2867, #2941; Volcano #452, #2547, #3329, #2701, #3384, #3301, #2416, #2379; and downstream SGLang #23627.
+
+The newly promoted Kubernetes issue slice is DRA and device-management focused: #139016 for stuck pods when shared multi-node claims mix with per-node GPU claims, #137617 for gang scheduling with shared ResourceClaims repeatedly failing scheduling, #138882 for a kube-scheduler panic around `allocationMode: All` plus shared counters, #135661 for a DynamicResources CEL selector error on missing `gpu.nvidia.com` attributes, #133702 for device-plugin unhealthy-device endpoint state drift after a DRA extended-resource test, #133488 for device-plugin cleanup leaving extended resources in node allocatable/capacity, #135901 for kubelet handling of multiple ResourceClaims after one is prepared, and #138407 for flapping `resourceClaimStatuses`.
+
+The Kueue slice adds #12207 as a DRA partitionable-device quota borrowing bug with OpenShift, Kueue Operator, NVIDIA GPU Operator, DRA Driver, and `DRAPartitionableDevices` context. Kueue #9868 is retained as a non-failure feature boundary showing why DRA extended resources bridge legacy extended-resource requests such as `nvidia.com/gpu` into ResourceClaims for quota accounting.
+
+The Volcano slice adds #5119 for `ResourceClaimTemplate` preparation failure in `vcjob`, #4692 for an unreleased DRA PreBind lock blocking the main scheduling workflow until timeout, #5335 for stale vGPU annotations after dry-run rollback causing over-subscription, #5361 for Hami vGPU scheduling delays in a 200-node, 8-GPU-per-node cluster after a Volcano and device-plugin upgrade, and #2965 as an older device-plugin reinstall and node `OutOfSync` scheduling boundary.
+
+This slice is local issue-level evidence. It is not a complete comment corpus, production postmortem set, scheduler benchmark corpus, Slurm-on-Kubernetes bridge proof, or GPU-operator upgrade incident closure.
 
 # Relationships
 

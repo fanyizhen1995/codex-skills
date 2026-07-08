@@ -1,0 +1,269 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-5",
+  "layer": "orchestration-scheduling",
+  "candidate": {
+    "title": "Kubernetes DRA and device-plugin scheduling issue slice",
+    "source_type": "github_issue_set",
+    "identity_key": "github_issue_set:kubernetes-kueue-volcano-dra-device-plugin-scheduling:parent-5"
+  },
+  "identity_keys": [
+    {
+      "title": "Kubernetes DRA shared multi-node/per-node claim stuck pod",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 139016,
+      "identity_key": "github:kubernetes/kubernetes#139016"
+    },
+    {
+      "title": "Kubernetes DRA gang scheduling shared ResourceClaim",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 137617,
+      "identity_key": "github:kubernetes/kubernetes#137617"
+    },
+    {
+      "title": "Kubernetes DRA allocationMode All scheduler panic",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 138882,
+      "identity_key": "github:kubernetes/kubernetes#138882"
+    },
+    {
+      "title": "Kubernetes DRA CEL gpu.nvidia.com selector failure",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 135661,
+      "identity_key": "github:kubernetes/kubernetes#135661"
+    },
+    {
+      "title": "Kubernetes DRA extended resource device-plugin endpoint drift",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 133702,
+      "identity_key": "github:kubernetes/kubernetes#133702"
+    },
+    {
+      "title": "Kubernetes DRA extended resource device-plugin cleanup leak",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 133488,
+      "identity_key": "github:kubernetes/kubernetes#133488"
+    },
+    {
+      "title": "Kubernetes kubelet multiple ResourceClaims after prepared claim",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 135901,
+      "identity_key": "github:kubernetes/kubernetes#135901"
+    },
+    {
+      "title": "Kubernetes ResourceClaim status flapping",
+      "source_type": "github_issue",
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "number": 138407,
+      "identity_key": "github:kubernetes/kubernetes#138407"
+    },
+    {
+      "title": "Kueue DRA partitionable-device quota borrowing",
+      "source_type": "github_issue",
+      "owner": "kubernetes-sigs",
+      "repo": "kueue",
+      "number": 12207,
+      "identity_key": "github:kubernetes-sigs/kueue#12207"
+    },
+    {
+      "title": "Kueue DRA extended resource feature boundary",
+      "source_type": "github_issue",
+      "owner": "kubernetes-sigs",
+      "repo": "kueue",
+      "number": 9868,
+      "identity_key": "github:kubernetes-sigs/kueue#9868"
+    },
+    {
+      "title": "Volcano DRA ResourceClaimTemplate vcjob failure",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 5119,
+      "identity_key": "github:volcano-sh/volcano#5119"
+    },
+    {
+      "title": "Volcano DRA PreBind lock scheduling block",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 4692,
+      "identity_key": "github:volcano-sh/volcano#4692"
+    },
+    {
+      "title": "Volcano vGPU stale annotations over-subscription",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 5335,
+      "identity_key": "github:volcano-sh/volcano#5335"
+    },
+    {
+      "title": "Volcano Hami vGPU scale scheduling delay",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 5361,
+      "identity_key": "github:volcano-sh/volcano#5361"
+    },
+    {
+      "title": "Volcano device plugin reinstall OutOfSync boundary",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 2965,
+      "identity_key": "github:volcano-sh/volcano#2965"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Searched existing local Kubernetes, Kueue, and Volcano raw GitHub index and joined-comment corpora under personal-wiki/domains/ai_infra/raw/github. No network fetch was used. Selected issue numbers are visible in local index or joined-comment files with DRA, ResourceClaim, ResourceSlice, device-plugin, GPU, vGPU, Hami, scheduler, quota, preemption, panic, stuck, or failed scheduling terms.",
+    "wiki_search": "Searched Orchestration Scheduling Infrastructure, Kubernetes/Volcano/Kueue GitHub Closed Issues, AI Infra Coverage Map, coverage-map.json, loop-state.json, ingest.md, and prior continuation parent-1 through parent-4 manifests. Existing pages already promoted Kueue #1726/#696/#6143/#1407/#3094/#2867/#2941, Volcano #452/#2547/#3329/#2701/#3384/#3301/#2416/#2379, and SGLang #23627 as duplicate boundaries or prior issue-level signals; parent-5 selected only non-promoted Kubernetes DRA/device-plugin, Kueue DRA quota, and Volcano DRA/vGPU/device-plugin issue records.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Orchestration Scheduling Infrastructure, Kubernetes/Volcano/Kueue GitHub Closed Issues, and AI Infra Coverage Map; no new standalone page was needed."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "wiki/references/orchestration-scheduling-infrastructure.md",
+      "result": "Before parent-5, local scheduling issue signals covered Kueue admission/preemption/ResourceFlavor/MultiKueue examples, Volcano gang scheduling/preemption/vGPU/scheduler panic/upgrade examples, and SGLang Slurm cgroup cleanup. The selected Kubernetes DRA ResourceClaim/ResourceSlice, device-plugin, Kueue DRA quota borrowing, and Volcano DRA/vGPU scale issues were not already represented as durable text."
+    },
+    {
+      "target": "wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+      "result": "The corpus page documented counts, raw files, sync setup, and retrieval rules but did not yet summarize a DRA/device-plugin scheduling slice or list the selected parent-5 issue numbers."
+    },
+    {
+      "target": "wiki/references/ai-infra-coverage-map.md and coverage-map.json",
+      "result": "The orchestration-scheduling layer was partial with candidate gaps for incidents, Slurm-on-Kubernetes bridge captures, scheduler benchmarks, and operator/device-plugin postmortems. Parent-5 adds only issue-level signals and preserves those remaining gaps."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added a separate known_source entry for parent-5 DRA/device-plugin scheduling issue signals without mutating blocked_items or existing blocked coverage_gaps."
+    },
+    {
+      "target": "prior continuation parent manifests",
+      "result": "Parent-1 covered Corigine hardware, parent-2 SGLang scheduled crawler inference operations, parent-3 Yusur DPU hardware, and parent-4 NVIDIA H200 hardware. None promoted Kubernetes/Kueue/Volcano DRA or device-plugin scheduling issue signals."
+    }
+  ],
+  "gap_reason": "The local GitHub issue corpora contained non-duplicate DRA, ResourceClaim/ResourceSlice, device-plugin, GPU/vGPU, quota, and scheduler-failure records that improve orchestration-scheduling coverage while staying within existing raw evidence and without claiming production postmortems or benchmarks.",
+  "promoted_issue_signals": [
+    {
+      "repo": "kubernetes/kubernetes",
+      "issues": [
+        139016,
+        137617,
+        138882,
+        135661
+      ],
+      "signal": "DRA scheduler failures around shared multi-node/per-node ResourceClaims, gang scheduling with shared claims, allocationMode All shared-counter panic, and CEL selector runtime errors on missing gpu.nvidia.com attributes.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz"
+    },
+    {
+      "repo": "kubernetes/kubernetes",
+      "issues": [
+        133702,
+        133488,
+        135901,
+        138407
+      ],
+      "signal": "DRA and legacy device-plugin coexistence signals in kubelet/device management: unhealthy-device endpoint drift, extended-resource cleanup leakage, multiple ResourceClaim prepare handling, and resourceClaimStatuses flapping.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz"
+    },
+    {
+      "repo": "kubernetes-sigs/kueue",
+      "issues": [
+        12207
+      ],
+      "signal": "DRA partitionable-device quota borrowing with OpenShift, Kueue Operator, NVIDIA GPU Operator, DRA Driver, and DRAPartitionableDevices context.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz"
+    },
+    {
+      "repo": "volcano-sh/volcano",
+      "issues": [
+        5119,
+        4692,
+        5335,
+        5361,
+        2965
+      ],
+      "signal": "Volcano DRA ResourceClaimTemplate preparation failure, PreBind lock scheduling block, stale vGPU annotation over-subscription, Hami vGPU scale delay, and device-plugin reinstall OutOfSync boundaries.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz"
+    }
+  ],
+  "duplicate_or_boundary_issues": [
+    {
+      "repo": "kubernetes-sigs/kueue",
+      "issues": [
+        1726,
+        696,
+        6143,
+        1407,
+        3094,
+        2867,
+        2941
+      ],
+      "reason": "Previously promoted by task-3 as Kueue admission, ResourceQuota, preemption, ResourceFlavor, MultiKueue, extended-resource, or DRA concerns; not re-promoted."
+    },
+    {
+      "repo": "volcano-sh/volcano",
+      "issues": [
+        452,
+        2547,
+        3329,
+        2701,
+        3384,
+        3301,
+        2416,
+        2379
+      ],
+      "reason": "Previously promoted by task-3 as Volcano gang scheduling, preemption, GPU sharing, vGPU, scheduler panic, or upgrade/quota examples; not re-promoted."
+    },
+    {
+      "repo": "sgl-project/sglang",
+      "issues": [
+        23627
+      ],
+      "reason": "Previously noted as a downstream Slurm cgroup cleanup lead; parent-5 stays in Kubernetes/Kueue/Volcano local corpora."
+    },
+    {
+      "repo": "kubernetes-sigs/kueue",
+      "issues": [
+        9868
+      ],
+      "reason": "Kept as a feature-boundary record for DRA extended resources and quota accounting, not as a runtime failure signal."
+    },
+    {
+      "repo": "kubernetes/kubernetes",
+      "issues": [
+        139677
+      ],
+      "reason": "Same DRA quota-borrowing theme as Kueue #12207; treated as duplicate/parallel boundary rather than promoted alongside the Kueue issue."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-5-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-5-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md"
+  ],
+  "non_promoted_boundaries": [
+    "No new network source, crawler subscription, raw fetch, or external link probe was added; existing local raw issue corpora were sufficient.",
+    "No claim is made that the selected issue set is a complete comment corpus; Kubernetes and Kueue summaries still mark comment joins incomplete.",
+    "No production incident/postmortem, service-impact timeline, scheduler benchmark, Slurm-on-Kubernetes bridge deployment, or GPU-operator upgrade closure is claimed.",
+    "No parent-1 Corigine, parent-2 SGLang, parent-3 Yusur, parent-4 H200, or previously promoted task-3 Kueue/Volcano/SGLang issue signal was modified or re-promoted."
+  ]
+}

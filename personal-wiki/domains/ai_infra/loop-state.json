@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-08T14:33:43Z",
+  "last_scan_at": "2026-07-08T15:28:45Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -549,6 +549,25 @@
         "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
         "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md"
+      ]
+    },
+    {
+      "id": "orchestration-scheduling-parent-5-dra-device-plugin-issue-signals",
+      "title": "Kubernetes DRA and device-plugin scheduling issue signals",
+      "source": "local wiki/raw issue corpora",
+      "status": "known",
+      "updated_at": "2026-07-08T15:28:45Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-5-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz"
       ]
     }
   ],

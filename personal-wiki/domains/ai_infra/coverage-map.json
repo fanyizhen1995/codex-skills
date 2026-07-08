@@ -119,16 +119,19 @@
         "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
         "personal-wiki/domains/ai_infra/raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json",
         "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json",
-        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json"
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r6-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-index.json",
+        "personal-wiki/domains/ai_infra/raw/github/kubernetes-kubernetes-closed-issues/kubernetes-kubernetes-closed-issues-with-comments.json.gz",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-5-gap-proof.json"
       ],
       "candidate_gaps": [
         "Add production scheduling incident/postmortem evidence with service impact, environment, and remediation details.",
         "Add Slurm-on-Kubernetes bridge deployment captures and scheduler benchmark evidence; local issue records are operational signals, not benchmark or deployment proof.",
-        "Add GPU operator and device-plugin upgrade failure/postmortem sources beyond Kueue and Volcano issue examples."
+        "Add GPU operator and device-plugin upgrade failure/postmortem sources beyond local Kubernetes, Kueue, and Volcano issue examples."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T06:13:47Z",
-      "notes": "Kubernetes, Volcano, and Kueue remain covered by local closed-issue corpora with comment-completeness caveats. Orchestration Scheduling Infrastructure covers Ray/KubeRay, Slurm GPU/GRES, Kubernetes device plugin, NVIDIA and AMD GPU operator, Kubeflow Trainer, and Kueue/ResourceQuota admission boundaries. Task 3 adds local issue-level evidence for Kueue admitted-but-unsuspended jobs, ResourceQuota admission risk, serialized preemption, ResourceFlavor-to-PyTorchJob placement, MultiKueue admission debugging, Volcano GPU gang scheduling, preemption, vGPU/device-plugin allocation, scheduler panic, and upgrade/quota failures, plus a downstream SGLang Slurm cgroup cleanup lead. The layer remains partial for production incidents, Slurm-on-Kubernetes bridges, scheduler benchmarks, and operator upgrade postmortems with complete context."
+      "last_scanned_at": "2026-07-08T15:28:45Z",
+      "notes": "Kubernetes, Volcano, and Kueue remain covered by local closed-issue corpora with comment-completeness caveats. Orchestration Scheduling Infrastructure covers Ray/KubeRay, Slurm GPU/GRES, Kubernetes device plugin, NVIDIA and AMD GPU operator, Kubeflow Trainer, and Kueue/ResourceQuota admission boundaries. Task 3 adds local issue-level evidence for Kueue admitted-but-unsuspended jobs, ResourceQuota admission risk, serialized preemption, ResourceFlavor-to-PyTorchJob placement, MultiKueue admission debugging, Volcano GPU gang scheduling, preemption, vGPU/device-plugin allocation, scheduler panic, and upgrade/quota failures, plus a downstream SGLang Slurm cgroup cleanup lead. Continuation parent 5 adds a bounded local DRA/device-plugin scheduling slice: Kubernetes #139016, #137617, #138882, #135661, #133702, #133488, #135901, and #138407 cover ResourceClaim/ResourceSlice stuck pods, gang scheduling, scheduler panic, CEL selector failure, kubelet ResourceClaim handling, and legacy device-plugin cleanup/state drift; Kueue #12207 covers DRA partitionable-device quota borrowing with OpenShift, Kueue Operator, NVIDIA GPU Operator, DRA Driver, and DRAPartitionableDevices context, while #9868 is only a feature-boundary record for DRA extended resources; Volcano #5119, #4692, #5335, #5361, and #2965 cover ResourceClaimTemplate preparation, DRA PreBind lock, vGPU over-subscription, Hami vGPU scale delay, and device-plugin reinstall OutOfSync scheduling boundaries. The layer remains partial for production incidents, Slurm-on-Kubernetes bridges, scheduler benchmarks, and operator/device-plugin upgrade postmortems with complete environment, impact, remediation, and ownership context."
     },
     "data-rag-vector": {
       "status": "partial",
