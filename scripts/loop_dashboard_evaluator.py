@@ -1410,6 +1410,8 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             page.get_by_role("button").filter(has_text="active-repair-run").first.click()
             detail = page.get_by_test_id("run-detail")
             expect(detail).to_contain_text("实现独立本地 Loop Dashboard")
+            if "请选择一个运行" in detail.inner_text():
+                raise AssertionError("selecting a run should replace the empty detail placeholder")
             expect(detail).to_contain_text("需要修复")
             expect(detail).to_contain_text("任务摘要")
             expect(detail).to_contain_text("当前进展")
@@ -1551,6 +1553,8 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             auditor_tab = page.get_by_test_id("tab-auditor")
             expect(auditor_tab).to_be_visible()
             expect(auditor_tab).to_contain_text("Auditor 审计")
+            if "暂无审计与 Skill 数据" in auditor_tab.inner_text():
+                raise AssertionError("auditor tab should render audit and skill data after selecting a run")
             expect(auditor_tab).to_contain_text("open must_fix")
             expect(auditor_tab).to_contain_text("必须整改")
             expect(auditor_tab).to_contain_text("确定性信号")

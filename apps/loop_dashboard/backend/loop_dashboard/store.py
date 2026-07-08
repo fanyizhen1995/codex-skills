@@ -15,7 +15,22 @@ LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
-SKILL_SCAN_EXCLUDED_DIRS = {".git", ".worktrees", "node_modules", "generated", "__pycache__"}
+SKILL_SCAN_EXCLUDED_DIRS = {
+    ".codex",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".worktrees",
+    "__pycache__",
+    "build",
+    "dist",
+    "generated",
+    "node_modules",
+    "raw",
+    "venv",
+}
 AUDITOR_CANDIDATE_SKILLS = (
     {
         "name": "pge-loop-agent-contract",
@@ -487,7 +502,7 @@ class LoopDashboardStore:
 
     def _skill_inventory(self) -> dict[str, Any]:
         project_skills = self._project_skill_items()
-        recent_skill_names = self._recent_skill_names()
+        recent_skill_names = self._recent_skill_names(project_skills)
         items = [
             {
                 **skill,
@@ -520,9 +535,7 @@ class LoopDashboardStore:
 
     def _project_skill_items(self) -> list[dict[str, str]]:
         items: list[dict[str, str]] = []
-        for path in sorted(self.project_root.rglob("SKILL.md")):
-            if self._skip_skill_path(path):
-                continue
+        for path in self._iter_skill_files(self.project_root):
             safe_path = self._safe_file_under(path, self.project_root)
             if safe_path is None:
                 continue
@@ -537,12 +550,27 @@ class LoopDashboardStore:
             )
         return items
 
-    def _skip_skill_path(self, path: Path) -> bool:
-        try:
-            relative = path.resolve().relative_to(self.project_root)
-        except (OSError, ValueError):
-            return True
-        return any(part in SKILL_SCAN_EXCLUDED_DIRS for part in relative.parts)
+    def _iter_skill_files(self, root: Path) -> list[Path]:
+        skill_files: list[Path] = []
+
+        def visit(directory: Path) -> None:
+            try:
+                entries = sorted(directory.iterdir(), key=lambda path: path.name)
+            except OSError:
+                return
+            for entry in entries:
+                try:
+                    if entry.name in SKILL_SCAN_EXCLUDED_DIRS or entry.is_symlink():
+                        continue
+                    if entry.is_file() and entry.name == "SKILL.md":
+                        skill_files.append(entry)
+                    elif entry.is_dir():
+                        visit(entry)
+                except OSError:
+                    continue
+
+        visit(root)
+        return skill_files
 
     def _skill_frontmatter(self, path: Path) -> tuple[str, str]:
         try:
@@ -562,8 +590,11 @@ class LoopDashboardStore:
                 description = line.split(":", 1)[1].strip().strip("\"'")
         return name, description
 
-    def _recent_skill_names(self) -> set[str]:
+    def _recent_skill_names(self, project_skills: list[dict[str, str]]) -> set[str]:
         names: set[str] = set()
+        skill_names = [skill["name"] for skill in project_skills if skill.get("name")]
+        if not skill_names:
+            return names
         loop_root = self.project_root / ".codex" / "loop-runs"
         safe_loop_root = self._safe_dir_under(loop_root, self.project_root)
         if safe_loop_root is None:
@@ -576,9 +607,9 @@ class LoopDashboardStore:
                 text = safe_path.read_text(encoding="utf-8", errors="replace").lower()
             except OSError:
                 continue
-            for skill in self._project_skill_items():
-                if skill["name"].lower() in text:
-                    names.add(skill["name"])
+            for name in skill_names:
+                if name.lower() in text:
+                    names.add(name)
         return names
 
     def _skill_recommendation(self, name: str, description: str) -> str:

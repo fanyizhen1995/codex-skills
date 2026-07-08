@@ -795,6 +795,39 @@ def test_detail_exposes_audit_summary_and_project_skill_inventory(tmp_path: Path
     assert {"pge-loop-agent-contract", "loop-closeout-audit"} <= candidate_names
 
 
+def test_skill_inventory_reuses_project_skill_scan_for_recent_usage(tmp_path: Path) -> None:
+    seed_run(tmp_path, "skill-usage-run", "passed_waiting_human_merge")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "skill-usage-run"
+    for index in range(3):
+        (run_dir / f"generator-attempt-{index + 1}.stdout.log").write_text(
+            "Using loop-helper to validate dashboard skill inventory.\n",
+            encoding="utf-8",
+        )
+
+    class SpyStore(LoopDashboardStore):
+        def __init__(self, project_root: Path) -> None:
+            super().__init__(project_root)
+            self.project_skill_scan_count = 0
+
+        def _project_skill_items(self) -> list[dict[str, str]]:
+            self.project_skill_scan_count += 1
+            return [
+                {
+                    "name": "loop-helper",
+                    "description": "Use when testing loop dashboard skill inventory.",
+                    "source_path": "loop-helper/SKILL.md",
+                    "kind": "project",
+                }
+            ]
+
+    store = SpyStore(tmp_path)
+
+    detail = store.get_run("skill-usage-run")
+
+    assert detail["skill_inventory"]["used_recently"] == 1
+    assert store.project_skill_scan_count == 1
+
+
 def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,
