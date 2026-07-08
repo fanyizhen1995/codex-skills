@@ -25,6 +25,123 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official page lists up to 4.8TB/s memory bandwidth.
+  - observation_id: obs-nvidia-h200-memory-type
+    sku_id: nvidia-h200-sxm
+    field: memory_type
+    value: HBM3e
+    unit: none
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; benefits text and specifications section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page describes H200 as using 141 GB of HBM3e memory.
+  - observation_id: obs-nvidia-h200-fp64-tflops
+    sku_id: nvidia-h200-sxm
+    field: fp64_tflops
+    value: 34
+    unit: TFLOPS
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM FP64 as 34 TFLOPS; the separate FP64 Tensor Core row is not resolved because the catalog has no separate FP64 tensor-core field.
+  - observation_id: obs-nvidia-h200-fp32-tflops
+    sku_id: nvidia-h200-sxm
+    field: fp32_tflops
+    value: 67
+    unit: TFLOPS
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM FP32 as 67 TFLOPS.
+  - observation_id: obs-nvidia-h200-bf16-tflops
+    sku_id: nvidia-h200-sxm
+    field: bf16_tflops
+    value: 1979
+    unit: TFLOPS
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM BFLOAT16 Tensor Core performance as 1,979 TFLOPS with the source footnote indicating sparsity.
+  - observation_id: obs-nvidia-h200-fp16-tflops
+    sku_id: nvidia-h200-sxm
+    field: fp16_tflops
+    value: 1979
+    unit: TFLOPS
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM FP16 Tensor Core performance as 1,979 TFLOPS with the source footnote indicating sparsity.
+  - observation_id: obs-nvidia-h200-fp8-tflops
+    sku_id: nvidia-h200-sxm
+    field: fp8_tflops
+    value: 3958
+    unit: TFLOPS
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM FP8 Tensor Core performance as 3,958 TFLOPS with the source footnote indicating sparsity.
+  - observation_id: obs-nvidia-h200-tdp
+    sku_id: nvidia-h200-sxm
+    field: tdp
+    value: 700
+    unit: W
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM maximum thermal design power as up to 700 W configurable.
+  - observation_id: obs-nvidia-h200-form-factor
+    sku_id: nvidia-h200-sxm
+    field: form_factor
+    value: SXM
+    unit: none
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists H200 SXM form factor as SXM.
+  - observation_id: obs-nvidia-h200-interconnect
+    sku_id: nvidia-h200-sxm
+    field: interconnect
+    value: "NVIDIA NVLink: 900GB/s; PCIe Gen5: 128GB/s"
+    unit: none
+    source_id: nvidia-h200-product-page
+    source_rank: S1
+    captured_at: "2026-07-05"
+    source_locator: "NVIDIA H200 product page; specifications table H200 SXM column"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official H200 SXM interconnect row lists NVIDIA NVLink at 900GB/s and PCIe Gen5 at 128GB/s.
   - observation_id: obs-amd-mi325x-memory-capacity
     sku_id: amd-mi325x-oam
     field: memory_capacity

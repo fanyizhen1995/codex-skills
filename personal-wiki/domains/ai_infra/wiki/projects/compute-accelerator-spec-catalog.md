@@ -16,6 +16,7 @@ source_refs:
   - ../../data/compute_accelerators/skus/sample-skus.yaml
   - ../../data/compute_accelerators/observations/sample-observations.yaml
   - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
+  - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
   - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
@@ -34,6 +35,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
 ---
 
 # Summary
@@ -47,6 +49,18 @@ source-backed observations, and resolved fields with provenance.
 The seed catalog validates the schema across representative GPU, NPU, TPU,
 DPU, IPU, FPGA, DSA, and AI ASIC records. It intentionally leaves incomplete
 public fields unresolved instead of inventing missing values.
+
+Continuation parent 4 expands the existing NVIDIA H200 SXM row with the
+remaining source-visible, schema-supported single-GPU fields from the local
+official H200 product-page capture. H200 SXM now resolves HBM3e memory type,
+34 TFLOPS FP64, 67 TFLOPS FP32, 1,979 TFLOPS BFLOAT16, 1,979 TFLOPS FP16,
+3,958 TFLOPS FP8, up to 700 W configurable TDP, SXM form factor, and
+NVIDIA NVLink 900GB/s plus PCIe Gen5 128GB/s interconnect, while preserving
+the existing 141 GB memory and 4.8 TB/s memory-bandwidth rows. H200 NVL
+values, TF32, INT8, FP64 Tensor Core, benchmark uplift, MIG, confidential
+computing, NVIDIA AI Enterprise bundle, server/system options, H800 runtime
+mentions, and Blackwell portfolio pages remain outside this resolved single
+H200 SXM slice. [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md)
 
 R9 task 2 promotes three single-card AI accelerator records from existing
 product-specific raw captures into structured SKU, observation, and resolved
@@ -111,6 +125,8 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../data/compute_accelerators/skus/sample-skus.yaml
 - ../../data/compute_accelerators/observations/sample-observations.yaml
 - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
+- ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md

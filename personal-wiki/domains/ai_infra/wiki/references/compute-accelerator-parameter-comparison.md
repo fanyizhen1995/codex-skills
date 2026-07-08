@@ -16,6 +16,8 @@ source_refs:
   - ../../data/compute_accelerators/observations/sample-observations.yaml
   - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md
+  - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md
   - ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz
@@ -126,15 +128,22 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 
 - Highest single-accelerator memory captured in the structured catalog:
   AMD Instinct MI325X at 256 GB, followed by NVIDIA H200 SXM at 141 GB and
-  Intel Gaudi 3 HL-338 at 128 GB. R9 task 2 adds source-backed structured
-  rows for Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800,
-  including compute, memory, host-interface, form-factor, and power fields. R10
-  task 2 adds Biren Bili 106B, 106M, 166C, 166L, and 166M form-factor and peak
-  power fields only; compute and memory remain unresolved for those Biren rows.
+  Intel Gaudi 3 HL-338 at 128 GB. Continuation parent 4 now resolves H200 SXM
+  HBM3e memory type, FP64, FP32, BF16, FP16, FP8, configurable TDP, SXM form
+  factor, and NVLink/PCIe Gen5 interconnect fields while keeping TF32, INT8,
+  H200 NVL, benchmarks, and server/system claims out of the single-GPU
+  resolved row. R9 task 2 adds source-backed structured rows for Cambricon
+  MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800, including compute,
+  memory, host-interface, form-factor, and power fields. R10 task 2 adds Biren
+  Bili 106B, 106M, 166C, 166L, and 166M form-factor and peak power fields only;
+  compute and memory remain unresolved for those Biren rows.
   [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
-- Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. It is the
-  only captured single-GPU row with complete high-end tensor, memory bandwidth,
-  NVLink, PCIe, and power fields. [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md)
+- Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. The
+  structured catalog resolves only the H200 SXM column for schema-supported
+  fields; the H200 NVL column, TF32 row, INT8 row with incompatible catalog
+  unit boundary, benchmark speedups, server options, MIG, confidential
+  computing, and NVIDIA AI Enterprise bundle text remain comparison or boundary
+  evidence. [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md)
 - NVIDIA H800 is present in local runtime and release-note evidence, but not as
   a resolved product-spec record. The local evidence supports only limited
   facts: NCCL groups H800 with H100 as Hopper GPUs, one NCCL issue log reports
@@ -180,7 +189,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 
 | Record | Type | Resolved parameters | Citation |
 | --- | --- | --- | --- |
-| NVIDIA H200 SXM | GPU module | 141 GB memory; 4.8 TB/s memory bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
+| NVIDIA H200 SXM | GPU module | 141 GB HBM3e; 4.8 TB/s memory bandwidth; 34 TFLOPS FP64; 67 TFLOPS FP32; 1,979 TFLOPS BF16; 1,979 TFLOPS FP16; 3,958 TFLOPS FP8; up to 700 W configurable TDP; SXM form factor; NVIDIA NVLink 900GB/s and PCIe Gen5 128GB/s interconnect | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md) |
 | AMD Instinct MI325X | GPU module | 256 GB memory | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | Intel Gaudi 3 HL-338 | AI ASIC / PCIe card | 128 GB memory | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | NXP i.MX 95 eIQ Neutron NPU | integrated SoC NPU | integrated SoC NPU form factor | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
@@ -212,7 +221,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 
 | Record | Form | Compute | Memory and bandwidth | Power / interface / interconnect | Citation |
 | --- | --- | --- | --- | --- | --- |
-| NVIDIA H200 SXM / H200 NVL | SXM module / PCIe dual-slot air-cooled | H200 SXM: FP64 34 TFLOPS, FP32 67 TFLOPS, TF32 989 TFLOPS, BF16/FP16 1,979 TFLOPS, FP8/INT8 3,958 TFLOPS; H200 NVL: FP64 30 TFLOPS, FP32 60 TFLOPS, BF16/FP16 1,671 TFLOPS, FP8/INT8 3,341 TFLOPS | 141 GB; 4.8 TB/s | SXM up to 700 W; NVL up to 600 W; NVLink 900 GB/s; PCIe Gen5 128 GB/s | [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md) |
+| NVIDIA H200 SXM / H200 NVL | SXM module / PCIe dual-slot air-cooled | H200 SXM: FP64 34 TFLOPS, FP32 67 TFLOPS, TF32 989 TFLOPS, BF16/FP16 1,979 TFLOPS, FP8/INT8 3,958 TFLOPS; H200 NVL: FP64 30 TFLOPS, FP32 60 TFLOPS, BF16/FP16 1,671 TFLOPS, FP8/INT8 3,341 TFLOPS. Only H200 SXM FP64, FP32, BF16, FP16, and FP8 are resolved; TF32 lacks a catalog field and INT8 stays out because the source row uses the incompatible TFLOPS wording for the catalog's TOPS field. | 141 GB HBM3e; 4.8 TB/s | SXM up to 700 W; NVL up to 600 W; H200 SXM interconnect row lists NVIDIA NVLink 900GB/s and PCIe Gen5 128GB/s | [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md) |
 | AWS Trainium2 Trn2 / Trn2 UltraServer | cloud offering | Trn2 instance: up to 20.8 FP8 PFLOPS; UltraServer: up to 83.2 FP8 PFLOPS | Trn2: 1.5 TB HBM3 and 46 TBps total memory bandwidth; UltraServer: 6 TB HBM and 185 TBps total bandwidth | Trn2: 16 Trainium2 chips and 3.2 Tbps EFAv3; UltraServer: 64 chips and 12.8 Tbps EFAv3 | [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) |
 | Huawei Atlas 300I A2 | dual-slot full-height full-length PCIe inference card | 560 TOPS INT8; 280 TFLOPS FP16; 8-core 2.0 GHz CPU | 32 GB at 0.8 TB/s or 64 GB at 1.6 TB/s on-card memory | PCIe 5.0; maximum 350 W; passive air cooling | [raw](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md) |
 | Huawei Atlas 800T A3 | 10U training supernode server | 8 Ascend 910 processors; up to 6.0 PFLOPS FP16 and 12.0 POPS INT8 | 8 x 128 GB on-chip memory; 3.2 TB/s memory bandwidth | D2D 784 GB/s bidirectional; 8 x 400GE RoCE direct and 56 x 400GE bus-protocol interfaces; up to 5 PCIe 5.0 slots | [raw](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md) |
@@ -268,12 +277,14 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 
 # Synthesis
 
-In the current evidence, NVIDIA H200 is the clearest high-end single GPU record:
-it combines 141 GB HBM3e, 4.8 TB/s memory bandwidth, and multi-petaflop
-tensor/INT8 figures, but at a 600-700 W power envelope. Huawei Atlas 300I A2,
-Cambricon MLU370, and Kunlunxin R200/RG800 expose more modest card-level
-performance and memory, with power envelopes from 75 W to 350 W depending on
-form factor.
+In the current evidence, NVIDIA H200 SXM is the clearest high-end single GPU
+record: it combines 141 GB HBM3e, 4.8 TB/s memory bandwidth, resolved FP64,
+FP32, BF16, FP16, and FP8 peaks, NVLink plus PCIe Gen5 interconnect evidence,
+and an up to 700 W configurable TDP. H200 NVL and benchmark text remain useful
+comparison boundaries, not fields in the H200 SXM resolved row. Huawei Atlas
+300I A2, Cambricon MLU370, and Kunlunxin R200/RG800 expose more modest
+card-level performance and memory, with power envelopes from 75 W to 350 W
+depending on form factor.
 
 The highest aggregate numbers are cloud/system records, not single cards. AWS
 Trn2 and Huawei Atlas 800T A3 report multi-chip or multi-server totals, while
@@ -313,6 +324,8 @@ boundaries.
 - ../../data/compute_accelerators/observations/sample-observations.yaml
 - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
 - ../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md
+- ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
 - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md
 - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md
 - ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz

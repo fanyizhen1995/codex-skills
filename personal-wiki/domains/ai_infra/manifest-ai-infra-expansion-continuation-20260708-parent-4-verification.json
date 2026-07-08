@@ -1,0 +1,157 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-4",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T14:45:25Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-4-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md"
+    ],
+    "promoted_boundary": "Promoted only schema-supported NVIDIA H200 SXM fields from the official local H200 product-page capture: memory_type HBM3e, fp64_tflops 34, fp32_tflops 67, bf16_tflops 1979, fp16_tflops 1979, fp8_tflops 3958, tdp 700 W, form_factor SXM, and interconnect NVIDIA NVLink 900GB/s plus PCIe Gen5 128GB/s. Existing 141 GB memory_capacity and 4.8 TB/s memory_bandwidth rows were preserved unchanged. H200 NVL, TF32, INT8, FP64 Tensor Core, benchmark, server/system, MIG, confidential-computing, NVIDIA AI Enterprise bundle, H800 runtime, and Blackwell portfolio claims remain boundary evidence."
+  },
+  "promoted_fields": {
+    "nvidia-h200-sxm": [
+      "memory_type",
+      "fp64_tflops",
+      "fp32_tflops",
+      "bf16_tflops",
+      "fp16_tflops",
+      "fp8_tflops",
+      "tdp",
+      "form_factor",
+      "interconnect"
+    ]
+  },
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-4'); raise SystemExit('\\\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "coverage-map and loop-state contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed"
+    },
+    {
+      "command": "case-insensitive source visibility check for NVIDIA H200 GPU, H200 SXM, 34 TFLOPS FP64, 67 TFLOPS FP32, 1,979 TFLOPS BFLOAT16, 1,979 TFLOPS FP16, 3,958 TFLOPS FP8, 141GB, 4.8TB/s, up to 700W, SXM, NVIDIA NVLink 900GB/s, PCIe Gen5 128GB/s, preliminary specifications, H200 NVL boundary, TF32 schema boundary, INT8 unit boundary, benchmark non-goal, and duplicate boundary",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "case-insensitive source visibility check passed for 19 required term groups"
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "all declared domain changed paths are inside planner allowed paths and outside denylist patterns; run artifacts are generator-output exceptions and are not declared for autonomous commit scope"
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment patterns found in declared changed files"
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no dependency, backend, frontend, dashboard, harness, package, or test files changed; code tests and supply-chain review are not applicable generator-side"
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services or run localhost probes"
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend 8765, crawler frontend 5173, Loop Dashboard 8766, and loop-auto-resume liveness intent"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-4 H200 SXM catalog/wiki updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-4 H200 SXM, HBM3e, FP64, FP32, BF16, FP16, FP8, TDP, SXM, NVLink, PCIe Gen5, and schema-boundary caveats"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-4 H200 SXM catalog/wiki content and boundary caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run, child task state, agent actions, evaluator scenarios, and completed history"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses existing local NVIDIA H200 raw crawler captures.",
+    "No git commit was run; commit is intentionally empty for the orchestrator."
+  ]
+}

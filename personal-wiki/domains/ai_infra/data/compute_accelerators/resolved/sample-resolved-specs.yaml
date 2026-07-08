@@ -17,6 +17,78 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-06-27"
+      memory_type:
+        value: HBM3e
+        unit: none
+        source_observation_id: obs-nvidia-h200-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp64_tflops:
+        value: 34
+        unit: TFLOPS
+        source_observation_id: obs-nvidia-h200-fp64-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp32_tflops:
+        value: 67
+        unit: TFLOPS
+        source_observation_id: obs-nvidia-h200-fp32-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      bf16_tflops:
+        value: 1979
+        unit: TFLOPS
+        source_observation_id: obs-nvidia-h200-bf16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp16_tflops:
+        value: 1979
+        unit: TFLOPS
+        source_observation_id: obs-nvidia-h200-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      fp8_tflops:
+        value: 3958
+        unit: TFLOPS
+        source_observation_id: obs-nvidia-h200-fp8-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 700
+        unit: W
+        source_observation_id: obs-nvidia-h200-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      form_factor:
+        value: SXM
+        unit: none
+        source_observation_id: obs-nvidia-h200-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      interconnect:
+        value: "NVIDIA NVLink: 900GB/s; PCIe Gen5: 128GB/s"
+        unit: none
+        source_observation_id: obs-nvidia-h200-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
   - sku_id: amd-mi325x-oam
     resolved_fields:
       memory_capacity:

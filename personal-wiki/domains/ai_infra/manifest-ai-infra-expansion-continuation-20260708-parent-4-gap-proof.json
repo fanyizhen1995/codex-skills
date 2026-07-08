@@ -1,0 +1,134 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-4",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "NVIDIA H200 SXM catalog field slice",
+    "source_type": "hardware",
+    "identity_key": "hardware:nvidia:h200-sxm:141gb"
+  },
+  "identity_keys": [
+    {
+      "title": "NVIDIA H200 SXM",
+      "source_type": "hardware",
+      "identity_key": "hardware:nvidia:h200-sxm:141gb"
+    },
+    {
+      "title": "NVIDIA H200 NVL boundary",
+      "source_type": "hardware",
+      "identity_key": "hardware:nvidia:h200-nvl:141gb-boundary-only"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local H200 product-page captures found and reused: raw/crawler/compute-accelerators-nvidia-h200/20260627T102027151096Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md, raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md, and raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated pages already cited H200 as raw comparison and refresh evidence, and the structured catalog already had nvidia-h200-sxm with 141 GB memory and 4.8 TB/s memory-bandwidth resolved. The gap was the remaining source-visible, schema-supported H200 SXM fields in the official H200 specifications table.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Compute Accelerator Crawl Inventory, and AI Infra Coverage Map; no dedicated H200 page was needed."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "nvidia-h200-sxm already existed as the canonical H200 SXM SKU with source_refs to nvidia-h200-product-page; no duplicate SKU row was added."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "Existing H200 observations covered memory_capacity and memory_bandwidth only; added new observations for memory_type, FP64, FP32, BF16, FP16, FP8, TDP, form_factor, and interconnect."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "Existing H200 resolved fields covered 141 GB memory and 4.8 TB/s bandwidth only; added resolved fields pointing to new H200 SXM observations without changing the existing memory rows."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing H200 raw comparison row already showed SXM and NVL side by side; the update narrows resolved catalog text to H200 SXM and keeps H200 NVL, TF32, INT8, benchmark, and server/system claims as boundary evidence."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-crawl-inventory.md",
+      "result": "The July 5 H200 refresh was already tracked as refresh evidence for an existing source profile; this task reused it rather than creating a new crawler source or duplicate accelerator row."
+    },
+    {
+      "target": "coverage-map.json",
+      "result": "Only the hardware-accelerator layer was updated for parent-4 H200 SXM field promotion; blocked KServe, inference-serving postmortem, MLCommons exact-result, and RAG propagation/drift/alert/cost gaps remain unresolved."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added a separate known_source entry for parent-4 H200 SXM fields without mutating blocked_items or existing blocked coverage_gaps."
+    },
+    {
+      "target": "previous hardware manifests",
+      "result": "Earlier hardware manifests covered Cambricon, Kunlunxin, Biren, Resnics, Corigine, and Yusur field slices or H200 refresh inventory. None had promoted the remaining H200 SXM compute, TDP, form-factor, or interconnect fields into resolved_specs."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official NVIDIA H200 product-page capture whose H200 SXM column exposed schema-supported fields beyond the previously resolved 141 GB memory and 4.8 TB/s memory bandwidth rows.",
+  "promoted_fields": [
+    {
+      "sku_id": "nvidia-h200-sxm",
+      "fields": {
+        "memory_type": "HBM3e",
+        "fp64_tflops": "34 TFLOPS",
+        "fp32_tflops": "67 TFLOPS",
+        "bf16_tflops": "1,979 TFLOPS",
+        "fp16_tflops": "1,979 TFLOPS",
+        "fp8_tflops": "3,958 TFLOPS",
+        "tdp": "up to 700 W configurable",
+        "form_factor": "SXM",
+        "interconnect": "NVIDIA NVLink 900GB/s; PCIe Gen5 128GB/s"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md"
+    }
+  ],
+  "existing_duplicate_fields": [
+    {
+      "sku_id": "nvidia-h200-sxm",
+      "fields": {
+        "memory_capacity": "141 GB",
+        "memory_bandwidth": "4.8 TB/s"
+      },
+      "boundary": "Already resolved before parent-4; left unchanged to avoid duplicate observations or churn."
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "H200 NVL column values",
+      "boundary": "Not mixed into nvidia-h200-sxm because the source distinguishes H200 SXM and H200 NVL columns with different compute, TDP, form-factor, interconnect, and AI Enterprise values."
+    },
+    {
+      "source_value": "TF32 Tensor Core 989 TFLOPS",
+      "boundary": "Not promoted because spec-fields.yaml has no tf32_tflops field."
+    },
+    {
+      "source_value": "INT8 Tensor Core 3,958 TFLOPS",
+      "boundary": "Not promoted because spec-fields.yaml models INT8 as int8_tops with TOPS units, while the source row is written as TFLOPS in the local capture."
+    },
+    {
+      "source_value": "FP64 Tensor Core 67 TFLOPS",
+      "boundary": "Not promoted because spec-fields.yaml has only fp64_tflops, and the non-tensor FP64 row already provides 34 TFLOPS for that field."
+    },
+    {
+      "source_value": "Llama2, GPT-3, and HPC speedup claims",
+      "boundary": "Not promoted because benchmark uplift ratios are comparison/performance context, not single-GPU theoretical spec fields."
+    },
+    {
+      "source_value": "Decoders, Confidential Computing, Multi-Instance GPUs, Server Options, and NVIDIA AI Enterprise rows",
+      "boundary": "Not promoted because the current catalog slice targets core single-GPU spec fields and does not have decoder, confidential-computing, MIG, server-option, or software-bundle fields."
+    },
+    {
+      "source_value": "H800 runtime mentions and Blackwell B200/B300/GB200/GB300 portfolio captures",
+      "boundary": "Not promoted because they are separate runtime or portfolio evidence and do not provide H200 SXM product-spec fields."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json"
+  ],
+  "non_promoted_boundaries": [
+    "No new H200 NVL SKU row was created because this task is bounded to the existing H200 SXM identity.",
+    "No H200 benchmark speedup, server option, HGX/MGX aggregate, MIG, confidential-computing, decoder, or NVIDIA AI Enterprise software claim was promoted into resolved fields.",
+    "No H800 runtime issue, Blackwell portfolio page, KServe, inference-serving postmortem, MLCommons exact-result, RAG propagation/drift/alert/cost, Corigine, Yusur, Resnics, Biren, Cambricon, or Kunlunxin row was modified."
+  ]
+}
