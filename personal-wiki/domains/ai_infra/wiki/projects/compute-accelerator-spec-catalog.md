@@ -21,6 +21,8 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
   - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md
   - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
+  - ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
+  - ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
   - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
   - ../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md
   - ../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md
@@ -43,6 +45,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
 ---
 
 # Summary
@@ -118,6 +121,18 @@ resolves 16 GB memory and 150 W power, while R200-8F resolves 32 GB memory and
 catalog schema has no INT16 field. The R200 page is product-spec hardware
 catalog evidence, not benchmark, production-operation, service-SLO, training
 throughput, inference-throughput, or aggregate-system evidence. [R200 raw](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md)
+
+Continuation parent 11 promotes a bounded Iluvatar Tiangai slice from existing
+local official product-page captures. Tiangai 100 now has resolved
+full-length full-height dual-slot PCIe card form factor, 32 GB HBM2 memory,
+`PCIe Gen4.0 x16 lane` host interface, source-stated 64 GB/s inter-chip
+bandwidth, and 250 W board power. Tiangai 150 now resolves only the source
+visible 64 GB HBM memory and 350 W board power fields. The Tiangai pages do
+not expose exact compute peaks, memory bandwidth, TG150 card form factor,
+TG150 host interface, benchmark parity, model-count performance, ecosystem
+compatibility, production-operation, service-SLO, training-throughput, or
+inference-throughput proof, so those claims remain boundary evidence outside
+resolved catalog fields. [TG100 raw](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md) [TG150 raw](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md)
 
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
@@ -195,3 +210,6 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
+- ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
+- ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json

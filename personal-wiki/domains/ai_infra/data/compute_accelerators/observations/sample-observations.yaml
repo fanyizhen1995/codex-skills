@@ -1442,3 +1442,120 @@ observations:
     is_inferred: false
     confidence: medium
     notes: Official page identifies the DPU memory as DDR4. It does not expose a separate host-interface field for the internal DPU module.
+  - observation_id: obs-iluvatar-tiangai-100-form-factor
+    sku_id: iluvatar-tiangai-100
+    field: form_factor
+    value: full-length full-height dual-slot PCIe card
+    unit: none
+    source_id: iluvatar-tg100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 100 product page; product specifications size row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-length full-height dual-slot PCIe card compatible with mainstream servers.
+  - observation_id: obs-iluvatar-tiangai-100-memory-capacity
+    sku_id: iluvatar-tiangai-100
+    field: memory_capacity
+    value: 32
+    unit: GB
+    source_id: iluvatar-tg100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 100 product page; product specifications memory row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 32 GB DRAM HBM2.
+  - observation_id: obs-iluvatar-tiangai-100-memory-type
+    sku_id: iluvatar-tiangai-100
+    field: memory_type
+    value: HBM2
+    unit: none
+    source_id: iluvatar-tg100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 100 product page; product specifications memory row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page identifies the memory as HBM2.
+  - observation_id: obs-iluvatar-tiangai-100-host-interface
+    sku_id: iluvatar-tiangai-100
+    field: host_interface
+    value: PCIe Gen4.0 x16 lane
+    unit: none
+    source_id: iluvatar-tg100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 100 product page; product specifications interface row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists PCIe Gen4.0 x 16 lane. The adjacent 64 GB/s host bidirectional bandwidth text is not normalized into a separate catalog field.
+  - observation_id: obs-iluvatar-tiangai-100-interconnect
+    sku_id: iluvatar-tiangai-100
+    field: interconnect
+    value: 64 GB/s inter-chip bandwidth
+    unit: none
+    source_id: iluvatar-tg100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 100 product page; product specifications interface row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states a shared 64 GB/s inter-chip interconnect bandwidth. The source does not expose a named fabric topology, so the resolved string stays limited to the visible bandwidth wording.
+  - observation_id: obs-iluvatar-tiangai-100-tdp
+    sku_id: iluvatar-tiangai-100
+    field: tdp
+    value: 250
+    unit: W
+    source_id: iluvatar-tg100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 100 product page; product specifications power row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 250 W board power.
+  - observation_id: obs-iluvatar-tiangai-150-memory-capacity
+    sku_id: iluvatar-tiangai-150
+    field: memory_capacity
+    value: 64
+    unit: GB
+    source_id: iluvatar-tg150-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 150 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page says Tiangai 150 is equipped with 64 GB of HBM memory.
+  - observation_id: obs-iluvatar-tiangai-150-memory-type
+    sku_id: iluvatar-tiangai-150
+    field: memory_type
+    value: HBM
+    unit: none
+    source_id: iluvatar-tg150-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 150 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page identifies the memory technology as HBM but does not expose the generation.
+  - observation_id: obs-iluvatar-tiangai-150-tdp
+    sku_id: iluvatar-tiangai-150
+    field: tdp
+    value: 350
+    unit: W
+    source_id: iluvatar-tg150-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Tiangai 150 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states board power is 350 W.

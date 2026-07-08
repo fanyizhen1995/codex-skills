@@ -1,0 +1,240 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-11",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T19:17:19Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported Iluvatar Tiangai fields: TG100 form factor, memory capacity/type, host interface, source-stated inter-chip bandwidth string, and board power; TG150 memory capacity/type and board power. Compute peaks, memory bandwidth, host bandwidth normalization, TG150 form factor/interface, qualitative performance, benchmark, ecosystem, production-operation, service-SLO, training-throughput, and inference-throughput claims were not promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "iluvatar-tiangai-100",
+      "fields": {
+        "form_factor": "full-length full-height dual-slot PCIe card",
+        "memory_capacity": "32 GB",
+        "memory_type": "HBM2",
+        "host_interface": "PCIe Gen4.0 x16 lane",
+        "interconnect": "64 GB/s inter-chip bandwidth",
+        "tdp": "250 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md"
+    },
+    {
+      "sku_id": "iluvatar-tiangai-150",
+      "fields": {
+        "memory_capacity": "64 GB",
+        "memory_type": "HBM",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/tmp/coverage-map-parent11.json && echo ok",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/tmp/loop-state-parent11.json && echo ok",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json >/tmp/gap-proof-parent11.json && echo ok",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-11'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"Iluvatar|Tiangai|TG100|TG150|BI -V100|32 GB|64 GB|HBM2|HBM|250W|350W|250 W|350 W|PCIe Gen4|64 GB/s|benchmark|ecosystem|production-operation\" personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg100 personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg150 personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/data/compute_accelerators personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner text scan matched Iluvatar, Tiangai, TG100/TG150, BI -V100, 32 GB, 64 GB, HBM2/HBM, 250 W/350 W, PCIe Gen4, 64 GB/s, and boundary terms across local raw, catalog data, and curated wiki paths",
+      "stderr": ""
+    },
+    {
+      "command": "structured catalog consistency check that every new Iluvatar sku_id, observation_id, source_observation_id, source_id, and source_ref is unique and internally linked across sample-skus.yaml, sample-observations.yaml, sample-resolved-specs.yaml, source-registry.yaml, and curated wiki references",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Tiangai SKU, observation, resolved-field, source_id, and source_ref linkage is unique and internally consistent",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no Iluvatar qualitative performance, ecosystem, benchmark, production-operation, or unsupported compute-throughput claims were promoted as resolved catalog fields",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No Iluvatar qualitative performance, ecosystem, benchmark, production-operation, memory-bandwidth, compute-throughput, or unsupported TG150 interface/form-factor claims were promoted as resolved catalog fields",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no non-Iluvatar accelerator rows or previously resolved H200, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, or Asterfusion fields changed except for surrounding wiki comparison/context text required by this task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no non-Iluvatar accelerator data rows changed in structured catalog diff",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in 11 final declared ai_infra files",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "11 final declared ai_infra changed paths are inside planner allowed_paths and avoid denylist-sensitive filenames",
+      "stderr": ""
+    },
+    {
+      "command": "coverage-map hardware layer semantic check for parent-11 Tiangai evidence",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map hardware layer includes parent-11 Tiangai raw evidence, gap proof, notes, and unresolved boundary gap",
+      "stderr": ""
+    },
+    {
+      "command": "loop-state known source semantic check for parent-11 Tiangai evidence",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "loop-state contains parent-11 Tiangai known_source evidence without blocked_items changes",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, and loop-auto-resume freshness; do not start long-lived services, run localhost probes, or restart services from this wiki-only task unless code changes require it",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "parent-task-level auditor cadence check after parent-11 completion; run.json records last_audited_progress_count=10, so ordinary Auditor should be due after parent-12 acceptance unless a hard safety gate fires earlier",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "run.json records 10 completed parents before parent-11 and last_audited_progress_count=10; accepting parent-11 brings progress to 11, so ordinary Auditor remains due after parent-12 acceptance unless a hard safety gate fires",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-11 Iluvatar Tiangai wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-11 Iluvatar Tiangai catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-11 Iluvatar Tiangai 100, Tiangai 150, TG100, TG150, HBM2, HBM, PCIe Gen4.0 x16, 64 GB/s inter-chip bandwidth, 250 W, 350 W, and non-promoted benchmark/ecosystem/production boundaries"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-11 Tiangai catalog content and unsupported compute, memory-bandwidth, benchmark, ecosystem, production-operation, and TG150 interface/form-factor boundary caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard current run, parent-11 task state, agent actions, evaluator scenarios, completed history, and auditor-cadence visibility"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses existing local Iluvatar Tiangai product-page raw captures.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Source registry already contained iluvatar-tg100-product-page and iluvatar-tg150-product-page and was not modified."
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-11",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Iluvatar Tiangai 100 and Tiangai 150 accelerator catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:iluvatar:tiangai:tg100-tg150"
+  },
+  "identity_keys": [
+    {
+      "title": "Iluvatar Tiangai 100",
+      "source_type": "hardware",
+      "identity_key": "hardware:iluvatar:tiangai-100:32gb"
+    },
+    {
+      "title": "Iluvatar Tiangai 150",
+      "source_type": "hardware",
+      "identity_key": "hardware:iluvatar:tiangai-150:64gb"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local captures found and reused: raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md and raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison text mentioned Iluvatar Tiangai 100 and Tiangai 150 as raw comparison evidence, but no iluvatar-tiangai-100 or iluvatar-tiangai-150 SKU, observation, or resolved-spec rows existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map; no dedicated Iluvatar Tiangai page was needed.",
+    "prior_manifest_scan": "Prior continuation parent-1 through parent-10 manifests cover Corigine, SGLang, Yusur, NVIDIA H200, Kubernetes/Kueue/Volcano, AWS/Lambda, Resnics N2025, NVIDIA confidential inference, Asterfusion, and Kunlunxin R200. This task does not repeat those rows and promotes only the Iluvatar Tiangai source-visible product-spec slice."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Hardware layer previously listed Iluvatar Tiangai 100 and Tiangai 150 as raw comparison evidence only. Parent-11 records a narrower boundary where TG100 exposes physical, memory, host-interface, inter-chip-bandwidth, and power fields, while TG150 exposes only memory and board power."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added one known_source entry for parent-11 Iluvatar Tiangai fields without mutating blocked_items or unrelated coverage gaps."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing iluvatar-tiangai-100 or iluvatar-tiangai-150 SKU rows; added one SKU per product page."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing Tiangai observations; added TG100 observations for form_factor, memory_capacity, memory_type, host_interface, interconnect, and tdp, and TG150 observations for memory_capacity, memory_type, and tdp."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing Tiangai resolved fields; added resolved fields pointing to new Tiangai observations only."
+    },
+    {
+      "target": "source-registry.yaml",
+      "result": "Existing iluvatar-tg100-product-page and iluvatar-tg150-product-page source registry entries were reused; the source registry was not modified because it already contained the needed source IDs."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing raw comparison rows now include resolved-spec citations and explicit caveats for unsupported compute, memory-bandwidth, benchmark, ecosystem, production-operation, and TG150 interface/form-factor claims."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog coverage text now treats TG100 and TG150 as bounded structured product rows and keeps unsupported qualitative, benchmark, throughput, and production-operation claims outside resolved fields."
+    }
+  ],
+  "gap_reason": "The local corpus already contained official product-specific Iluvatar Tiangai 100 and Tiangai 150 captures with source-visible, schema-supported fields that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "iluvatar-tiangai-100",
+      "fields": {
+        "form_factor": "full-length full-height dual-slot PCIe card",
+        "memory_capacity": "32 GB",
+        "memory_type": "HBM2",
+        "host_interface": "PCIe Gen4.0 x16 lane",
+        "interconnect": "64 GB/s inter-chip bandwidth",
+        "tdp": "250 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md"
+    },
+    {
+      "sku_id": "iluvatar-tiangai-150",
+      "fields": {
+        "memory_capacity": "64 GB",
+        "memory_type": "HBM",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "TG100 product page states a shared 64 GB/s host bidirectional bandwidth.",
+      "boundary": "Kept as raw comparison evidence because the catalog has no host-bandwidth field and the planner forbids host bandwidth normalization."
+    },
+    {
+      "source_value": "TG100 product page states a shared 64 GB/s inter-chip bandwidth.",
+      "boundary": "Recorded only as a bounded interconnect string because spec-fields.yaml supports an interconnect field; no named fabric, topology, or aggregate system behavior is inferred."
+    },
+    {
+      "source_value": "TG100 and TG150 pages include qualitative compatibility, migration, model coverage, and performance-parity language.",
+      "boundary": "Not promoted as benchmark, ecosystem-completion, production-operation, service-SLO, training-throughput, inference-throughput, or product-ranking evidence."
+    },
+    {
+      "source_value": "TG150 page states 64 GB HBM memory and 350 W board power but does not expose a TG150 form-factor table, host-interface value, exact compute peaks, or memory bandwidth.",
+      "boundary": "TG150 resolved fields are limited to memory_capacity, memory_type, and tdp."
+    },
+    {
+      "source_value": "Iluvatar Zhikai 50, Zhikai 100, other Iluvatar families, Metax, Huawei, Enflame, and unrelated accelerators appear in navigation or adjacent comparison evidence.",
+      "boundary": "No non-Tiangai SKU, observation, or resolved row is created or modified by parent-11."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-11-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Iluvatar Zhikai 50, Zhikai 100, other Iluvatar family, Metax, Huawei, Enflame, or unrelated accelerator row was promoted by this task.",
+    "No exact compute peak, memory-bandwidth, host-bandwidth, benchmark ranking, benchmark parity, model-count performance, ecosystem compatibility, production incident/postmortem, service SLO, training throughput, inference throughput, local benchmark baseline, MLCommons submission, legal-compliance completion, or aggregate-system claim was promoted from the Tiangai pages.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed.",
+    "Existing H200, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, and Asterfusion resolved fields were not intentionally changed."
+  ]
+}

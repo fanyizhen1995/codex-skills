@@ -931,3 +931,79 @@ resolved_specs:
         confidence: medium
         conflict_status: clean
         updated_at: "2026-07-08"
+  - sku_id: iluvatar-tiangai-100
+    resolved_fields:
+      form_factor:
+        value: full-length full-height dual-slot PCIe card
+        unit: none
+        source_observation_id: obs-iluvatar-tiangai-100-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 32
+        unit: GB
+        source_observation_id: obs-iluvatar-tiangai-100-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_type:
+        value: HBM2
+        unit: none
+        source_observation_id: obs-iluvatar-tiangai-100-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: PCIe Gen4.0 x16 lane
+        unit: none
+        source_observation_id: obs-iluvatar-tiangai-100-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      interconnect:
+        value: 64 GB/s inter-chip bandwidth
+        unit: none
+        source_observation_id: obs-iluvatar-tiangai-100-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 250
+        unit: W
+        source_observation_id: obs-iluvatar-tiangai-100-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: iluvatar-tiangai-150
+    resolved_fields:
+      memory_capacity:
+        value: 64
+        unit: GB
+        source_observation_id: obs-iluvatar-tiangai-150-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_type:
+        value: HBM
+        unit: none
+        source_observation_id: obs-iluvatar-tiangai-150-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 350
+        unit: W
+        source_observation_id: obs-iluvatar-tiangai-150-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
