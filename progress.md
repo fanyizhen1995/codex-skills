@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-07-08 Loop Auditor Global Review Backlog
+
+- Recorded `loop-auditor-global-review-01` as a high-priority harness task.
+- Scope: redesign Loop Auditor as a global loop process reviewer that inspects recent Planner, Generator, Evaluator, cleanup, auto-resume, service freshness, Dashboard visibility, commit/push, skill inventory, repeated blockers, tunnel vision, and direction-control evidence across multiple rounds.
+- Expected output: operator-readable process findings, remediation recommendations, and loop decisions (`must_fix`, `should_fix`, `refocus`, `stop`, or `continue`) that feed back into the loop before more work proceeds.
+- Evidence:
+  - `tasks.json` updated with a complete task record and verification plan.
+
 ## 2026-07-08 AI Infra Expansion Continuation Cadence Gate
 
 - Registered `ai-infra-expansion-continuation-20260708` and implemented the P0 precondition for the continuation plan: autonomous AI infra Auditor cadence is now policy/run-state driven and the expanded policy audits once per 2 completed parent tasks.
