@@ -98,6 +98,24 @@ skus:
     form_factor: low-latency network DPU card
     release_status: released
     source_refs: [yusur-swift-2200n-product-page]
+  - sku_id: asterfusion-helium-dpu
+    vendor_id: asterfusion
+    family_id: asterfusion-helium
+    canonical_name: Asterfusion Helium DPU SmartNIC
+    aliases: [Helium DPU, Helium EC2004Y, Helium EC2002P, Asterfusion Helium DPU]
+    scope: dpu
+    form_factor: PCIe DPU SmartNIC
+    release_status: released
+    source_refs: [asterfusion-helium-dpu-product-page]
+  - sku_id: asterfusion-cx102s-dpu-module
+    vendor_id: asterfusion
+    family_id: asterfusion-cx102s
+    canonical_name: Asterfusion CX102S-DPU Module
+    aliases: [CX102S-DPU, CX102S DPU module, Asterfusion CX102S-DPU]
+    scope: dpu
+    form_factor: DPU module inside 1U open intelligent gateway
+    release_status: released
+    source_refs: [asterfusion-cx102s-dpu-product-page]
   - sku_id: aws-trainium2-trn2-offering
     vendor_id: aws
     family_id: aws-trainium

@@ -1,0 +1,124 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-9",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Asterfusion Helium and CX102S-DPU catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:asterfusion:helium-cx102s:dpu-smartnic"
+  },
+  "identity_keys": [
+    {
+      "title": "Asterfusion Helium DPU SmartNIC",
+      "source_type": "hardware",
+      "identity_key": "hardware:asterfusion:helium:dpu-smartnic"
+    },
+    {
+      "title": "Asterfusion CX102S-DPU module",
+      "source_type": "hardware",
+      "identity_key": "hardware:asterfusion:cx102s:dpu-module-gateway"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local captures found and reused: raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md and raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated references mentioned Asterfusion Helium and CX102S only as raw DPU/SmartNIC comparison rows. No asterfusion-helium-dpu or asterfusion-cx102s-dpu-module SKU, observation, or resolved-spec row existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, and AI Infra Coverage Map; no dedicated Asterfusion page was needed.",
+    "prior_manifest_scan": "Prior tasks resolved Corigine, Yusur, Resnics, NVIDIA H200, Biren, Cambricon, Kunlunxin, Kubernetes/Kueue/Volcano, AWS/Lambda, SGLang, and NVIDIA confidential-inference slices. This task does not repeat those rows and uses only Asterfusion-specific local raw captures."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing Asterfusion SKU rows; added one Helium DPU SmartNIC row and one CX102S-DPU module-scoped row."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing Asterfusion observations; added observations only for Helium form_factor, network_bandwidth, memory_capacity, host_interface, tdp, and CX102S-DPU module form_factor, memory_capacity, memory_type."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing Asterfusion resolved fields; added resolved fields pointing to the new Asterfusion observations."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing Asterfusion raw comparison rows remain for unsupported or system-scoped text; the resolved table adds only the bounded source-visible fields."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "Asterfusion remains product-specific DPU/SmartNIC catalog evidence, not general storage-fabric, benchmark, operations, incident, or SLO evidence."
+    },
+    {
+      "target": "coverage-map.json",
+      "result": "Only hardware-accelerator and network-storage-cluster layers were updated; blocked KServe, inference-serving postmortem, MLCommons exact-result, RAG propagation/drift/alert/cost, chargeback, and production incident gaps remain unresolved."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added a separate known_source entry for parent-9 Asterfusion DPU fields without mutating blocked_items or existing blocked coverage_gaps."
+    }
+  ],
+  "gap_reason": "The local corpus already contained product-specific Asterfusion Helium and CX102S-DPU captures with schema-supported DPU fields that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "asterfusion-helium-dpu",
+      "fields": {
+        "form_factor": "PCIe DPU SmartNIC",
+        "network_bandwidth": "100 Gb/s source-stated mixed-service processing capability",
+        "memory_capacity": "64 GB expandable memory capacity",
+        "host_interface": "PCIe x8 Gen3.0/4.0",
+        "tdp": "60 W source comparison power"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md"
+    },
+    {
+      "sku_id": "asterfusion-cx102s-dpu-module",
+      "fields": {
+        "form_factor": "DPU module inside 1U open intelligent gateway",
+        "memory_capacity": "8 GB module-scoped memory",
+        "memory_type": "DDR4"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "Helium EC2004Y 4 x 25GE SFP28 and Helium EC2002P 2 x 100GE QSFP28",
+      "boundary": "Physical port variants are not aggregated into a single resolved network_bandwidth field. The resolved 100 Gb/s value comes from the source-stated up-to-100Gbps mixed-service processing capability."
+    },
+    {
+      "source_value": "Helium NFV comparison: 60G processing, 100 microsecond latency, 150k new sessions, 60w power",
+      "boundary": "Only the 60 W product-page power value is promoted as source comparison power. Processing, latency, session-count, and benchmark-like comparison values remain boundary evidence because the catalog lacks matching fields or validated benchmark context."
+    },
+    {
+      "source_value": "Helium offload and acceleration text for network, security, storage, NVMe-oF(TCP), compression, UPF, IPSec, SSL, XDP/eBPF, vFW/vLB/vNAT, DPI, and DDoS",
+      "boundary": "Capability text is retained as raw comparison evidence only; it is not promoted as storage-fabric behavior, protocol performance, security correctness, incident evidence, or production-operation proof."
+    },
+    {
+      "source_value": "CX102S 16 x 1GE RJ45, 2 x 10GE SFP+, and 72Gbps switching capacity",
+      "boundary": "Gateway switching capacity and port layout are system-scoped and not promoted as DPU network_bandwidth."
+    },
+    {
+      "source_value": "CX102S product variants with one or two DPU modules",
+      "boundary": "The catalog row is module-scoped. It records 8 GB DDR4 module memory and does not aggregate memory across one-DPU or two-DPU gateway variants."
+    },
+    {
+      "source_value": "CX102S software appliance scenarios such as router, firewall, VPN, IDS/IPS, NPB, OpenWrt, Debian, Ubuntu, OpenVPN, Snort, HAProxy, and ntopng",
+      "boundary": "Application and gateway software scenarios remain raw product-positioning evidence, not resolved accelerator fields or operations claims."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Corigine, Yusur, Resnics, NVIDIA H200/B200/B300/HGX, Biren, Cambricon, Kunlunxin, Kubernetes/Kueue/Volcano, AWS/Lambda, SGLang, KServe, inference-serving postmortem, MLCommons exact-result, RAG propagation/drift/alert/cost, chargeback, or production incident row was modified except as duplicate-boundary text where already present.",
+    "No benchmark ranking, service SLO, production incident/postmortem, protocol-level storage-fabric performance, legal-compliance completion, or generalized network/storage operations claim was promoted from the Asterfusion product pages.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

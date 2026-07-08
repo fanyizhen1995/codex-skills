@@ -81,6 +81,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md
   - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
+  - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
   - ../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
@@ -88,6 +89,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
 ---
 
 # Summary
@@ -122,7 +124,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | AMD Instinct and Alveo refreshes | Track as portfolio/source-monitoring evidence. The local July text advertises MI350/MI300/MI200 and Alveo families, but the task does not promote per-SKU numeric fields from the portfolio pages. [AMD Instinct discovery](../../raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md), [MI350P source profile](../../raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md) |
 | Biren 106B, 106M, 166L, and 166M | Refresh existing form-factor and peak-power rows; no new compute or memory fields are added because the visible local text still does not expose those values. [106B](../../raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md), [106M](../../raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md), [166L](../../raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md), [166M](../../raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md) |
 | Cambricon MLU370-S4/S8 and MLU370-X8 | Exact content-hash refreshes for already-curated product tables. Existing compute, memory, interface, and power rows remain source-backed and require no duplicate row. [S4/S8](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md), [X8](../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md) |
-| Corigine Agilio CX PDF and Asterfusion DPU captures | Corigine is now promoted as a bounded structured SmartNIC slice from the official product brief; Asterfusion remains raw comparison evidence because Helium has model variants and CX102S is a gateway/appliance boundary. [Corigine](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md), [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
+| Corigine Agilio CX PDF and Asterfusion DPU captures | Corigine is promoted as a bounded structured SmartNIC slice from the official product brief. Parent 9 promotes only the source-visible Asterfusion subset that fits the catalog schema: Helium form factor, mixed-service 100 Gb/s capability, expandable memory, PCIe host interface, source comparison power, and CX102S module memory; Helium port variants and CX102S gateway capacity remain boundary evidence. [Corigine](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md), [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md), [Asterfusion CX102S](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
 | Enflame S60 July capture | Intentionally not used to replace the older S60-specific citation because the July capture resolves to the Enflame homepage and does not expose the old PCIe 5.0 field in local text. [July homepage capture](../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md) |
 
 # Quick Read
@@ -217,6 +219,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Resnics Stargate-N2025 | DPU / SmartNIC card | full-height double-wide three-quarter-length PCIe card; aggregate 50 Gb/s data-port bandwidth; 24 GB aggregate visible DDR4 capacity from 8 GB FPGA logic memory plus 16 GB SoC logic memory; PCIe Gen4 x8; 150 W | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
 | Yusur K2-Pro DPU | DPU chip / product-series DPU | DPU chip / product-series DPU; 200 Gb/s source-stated network bandwidth; 2 x PCIe Gen3 x16 host interface | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md) |
 | Yusur SWIFT-2200N Pro | DPU / low-latency network card | low-latency network DPU card form factor; latency and jitter values remain comparison-only schema-boundary evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
+| Asterfusion Helium DPU SmartNIC | DPU / PCIe SmartNIC | PCIe DPU SmartNIC; 100 Gb/s source-stated mixed-service processing capability; expandable 64 GB memory; PCIe x8 Gen3.0/4.0 host interface; 60 W source comparison power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
+| Asterfusion CX102S-DPU Module | DPU module inside 1U gateway | DPU module inside a 1U open intelligent gateway; 8 GB DDR4 module memory; 72 Gb/s switching capacity and 16 x 1GE plus 2 x 10GE gateway ports remain gateway-level comparison evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
 
 # Unresolved Runtime Evidence
 
@@ -271,8 +275,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Record | Form | Network / offload parameters | Memory / host interface / power | Citation |
 | --- | --- | --- | --- | --- |
 | NVIDIA BlueField-3 DPU | infrastructure compute DPU | 400 Gb/s infrastructure compute platform; line-rate software-defined networking, storage, and cybersecurity | detailed SKU memory/power not captured in local page | [raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md) |
-| Asterfusion CX102S-DPU | 1U open intelligent gateway with 1 or 2 DPU modules | 16 x 1GE RJ45 and 2 x 10GE SFP+; 72 Gb/s switching capacity; internal 2 x 10G links between DPU and switch chip | DPU modules use quad-core ARMv8 Cortex-A72 CPU and 8 GB DDR4 memory | [raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260628T060437955885Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
-| Asterfusion Helium DPU | PCIe DPU SmartNIC | 4 x 25GE SFP28 or 2 x 100GE QSFP28; up to 100 Gb/s mixed-service processing; NFV comparison lists 60G processing | PCIe x8 Gen3/4; 24-core ARM processor; memory expandable to 64 GB; comparison row lists 60 W card power | [raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
+| Asterfusion CX102S-DPU | 1U open intelligent gateway with 1 or 2 DPU modules | 16 x 1GE RJ45 and 2 x 10GE SFP+; 72 Gb/s switching capacity; internal 2 x 10G links between DPU and switch chip are gateway-level evidence, not resolved DPU network_bandwidth | DPU modules use quad-core ARMv8 Cortex-A72 CPU and 8 GB DDR4 memory; only the module form factor and 8 GB DDR4 memory are resolved | [raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
+| Asterfusion Helium DPU | PCIe DPU SmartNIC | 4 x 25GE SFP28 or 2 x 100GE QSFP28 variants; up to 100 Gb/s mixed-service processing is resolved as source-stated network processing capability; NFV comparison lists 60G processing as boundary evidence | PCIe x8 Gen3.0/4.0; 24-core ARM processor; memory expandable to 64 GB; NFV comparison row lists 60 W card power | [raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
 | Corigine Agilio CX 2x25GbE SmartNIC | SmartNIC | 2 x 25GbE ports; SFP+ 10GbE / SFP28 25GbE | 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with 1.1/2.0 | [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
 | JaguarMicro Yunxiao DPU | DPU product | 2 x 25G Ethernet; supports RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, and L2VPN | detailed memory/power not captured | [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) |
 | Resnics Stargate-N1025 | half-height half-length single-wide PCIe DPU SmartNIC | 2 x SFP28 25G Ethernet and 1000BASE-T management port; P4 programmable vSwitch acceleration | quad-core Cortex-A53; 8 GB DDR4 SDRAM x72; PCIe Gen3 x8; 25 W typical | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) |
@@ -327,6 +331,14 @@ split-pool DDR4 memory capacity, `PCIe Gen4 x8`, and 150 W power as a
 product-spec catalog slice. It does not promote N2025 SR-IOV counts, RDMA
 queue-pair count, P4 table/session/protocol/storage-offload details,
 line-rate or low-latency wording, benchmarks, or production-operation claims.
+Continuation parent 9 adds Asterfusion Helium DPU SmartNIC resolved fields for
+PCIe DPU SmartNIC form factor, source-stated 100 Gb/s mixed-service processing
+capability, expandable 64 GB memory, `PCIe x8 Gen3.0/4.0`, and 60 W source
+comparison power, plus a CX102S-DPU module row for 8 GB DDR4 memory inside a 1U
+gateway. CX102S 72 Gb/s switching capacity, gateway port layout, one- or
+two-DPU system variants, Helium physical port variant aggregation, NFV latency,
+session-count, offload, storage-acceleration, and cost-reduction claims remain
+raw comparison or boundary evidence.
 Remaining DPU/SmartNIC rows likewise stay raw-only until a future task promotes
 their exact product or variant boundaries.
 
@@ -338,6 +350,9 @@ their exact product or variant boundaries.
 - ../../raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md
 - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
+- ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
+- ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
 - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md
 - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-18-3-html.md
 - ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz

@@ -1,0 +1,184 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-9",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T18:28:25Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-9-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported Asterfusion DPU fields: Helium PCIe DPU SmartNIC form factor, 100 Gb/s source-stated mixed-service processing capability, expandable 64 GB memory, PCIe x8 Gen3.0/4.0 host interface, and 60 W source comparison power; plus CX102S-DPU module form factor, 8 GB module memory, and DDR4 memory type. No CX102S gateway switching-capacity, gateway-port, one/two-DPU system-variant, Helium physical port aggregate, NFV latency/session, offload, storage-acceleration, benchmark, SLO, incident, operations, or generalized fabric/storage claim was promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "asterfusion-helium-dpu",
+      "fields": {
+        "form_factor": "PCIe DPU SmartNIC",
+        "network_bandwidth": "100 Gb/s source-stated mixed-service processing capability",
+        "memory_capacity": "64 GB expandable memory capacity",
+        "host_interface": "PCIe x8 Gen3.0/4.0",
+        "tdp": "60 W source comparison power"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md"
+    },
+    {
+      "sku_id": "asterfusion-cx102s-dpu-module",
+      "fields": {
+        "form_factor": "DPU module inside 1U open intelligent gateway",
+        "memory_capacity": "8 GB module-scoped memory",
+        "memory_type": "DDR4"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-9'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "coverage-map and loop-state contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "planner output contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"Asterfusion|Helium|CX102S|PCIe|100Gbps|72Gbps|DDR4|64G|60w|DPU\" personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-helium-dpu personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-asterfusion-cx102s-dpu personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/data/compute_accelerators personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner text scan matched Asterfusion, Helium, CX102S, PCIe, 100Gbps, 72Gbps, DDR4, 64G, 60w, and DPU terms across local raw, catalog data, and curated wiki paths",
+      "stderr": ""
+    },
+    {
+      "command": "targeted catalog linkage, raw source term visibility, autonomous scope, and sensitive-pattern checks for Asterfusion parent-9",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "catalog linkage, raw term visibility, scope, and sensitive-pattern checks passed for 10 ai_infra changed paths",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, or run long-lived processes",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-9 Asterfusion wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-9 Asterfusion catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-9 Asterfusion Helium, CX102S-DPU, PCIe x8 Gen3.0/4.0, 100Gbps, 64 GB memory, 60 W power, 72Gbps boundary, and 8 GB DDR4 module content"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-9 Asterfusion catalog content and boundary caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard current run, parent-9 task state, agent actions, evaluator scenarios, and completed history freshness"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses existing local Asterfusion product-page raw captures.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "A first validate-accelerators run caught a YAML ownership error caused by an inserted Asterfusion block interrupting the existing Biren 166M tdp field. The root cause was fixed by restoring the Biren tdp block under biren-bili-166m and rerunning the accelerator validator successfully."
+  ]
+}

@@ -1104,3 +1104,107 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page lists 550 W peak power.
+  - observation_id: obs-asterfusion-helium-dpu-form-factor
+    sku_id: asterfusion-helium-dpu
+    field: form_factor
+    value: PCIe DPU SmartNIC
+    unit: none
+    source_id: asterfusion-helium-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion Helium DPU product page; product title, overview, and PCIe interface text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page identifies Helium as a DPU network card based on a high-performance DPU chip with a PCIe x8 Gen3.0/4.0 host interface.
+  - observation_id: obs-asterfusion-helium-dpu-network-bandwidth
+    sku_id: asterfusion-helium-dpu
+    field: network_bandwidth
+    value: 100
+    unit: Gb/s
+    source_id: asterfusion-helium-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion Helium DPU product page; overview and product features"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page states support for up to 100Gbps multi-function or typical mixed-service processing capability. The value is not an aggregate port-bandwidth calculation; the model table separately lists 4 x 25GE SFP28 and 2 x 100GE QSFP28 variants, and the NFV comparison row lists 60G processing.
+  - observation_id: obs-asterfusion-helium-dpu-memory-capacity
+    sku_id: asterfusion-helium-dpu
+    field: memory_capacity
+    value: 64
+    unit: GB
+    source_id: asterfusion-helium-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion Helium DPU product page; product features"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official page says memory can be expanded to 64G; the resolved value records the source-stated maximum expandable capacity, not a guaranteed base memory configuration.
+  - observation_id: obs-asterfusion-helium-dpu-host-interface
+    sku_id: asterfusion-helium-dpu
+    field: host_interface
+    value: PCIe x8 Gen3.0/4.0
+    unit: none
+    source_id: asterfusion-helium-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion Helium DPU product page; product specifications host interface"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product specification table lists PCIe x8 Gen3.0/4.0 for the visible Helium models.
+  - observation_id: obs-asterfusion-helium-dpu-tdp
+    sku_id: asterfusion-helium-dpu
+    field: tdp
+    value: 60
+    unit: W
+    source_id: asterfusion-helium-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion Helium DPU product page; NFV performance comparison power row"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Official page's NFV comparison row lists 60w for the Helium DPU card. Treat this as source-stated product-page power evidence, not a generalized benchmark, SLO, or maximum board-power guarantee beyond the comparison context.
+  - observation_id: obs-asterfusion-cx102s-dpu-module-form-factor
+    sku_id: asterfusion-cx102s-dpu-module
+    field: form_factor
+    value: DPU module inside 1U open intelligent gateway
+    unit: none
+    source_id: asterfusion-cx102s-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion CX102S-DPU product page; overview, product specifications, and hardware architecture"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a 1U open intelligent gateway with model variants containing one or two DPU modules.
+  - observation_id: obs-asterfusion-cx102s-dpu-module-memory-capacity
+    sku_id: asterfusion-cx102s-dpu-module
+    field: memory_capacity
+    value: 8
+    unit: GB
+    source_id: asterfusion-cx102s-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion CX102S-DPU product page; server feature paragraph"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Official page says the two DPUs use quad-core ARMv8 Cortex-A72 CPUs and 8GB DDR4 memory. The value is recorded as module-scoped memory and must not be aggregated across the one-DPU and two-DPU gateway variants.
+  - observation_id: obs-asterfusion-cx102s-dpu-module-memory-type
+    sku_id: asterfusion-cx102s-dpu-module
+    field: memory_type
+    value: DDR4
+    unit: none
+    source_id: asterfusion-cx102s-dpu-product-page
+    source_rank: S1
+    captured_at: "2026-07-06"
+    source_locator: "Asterfusion CX102S-DPU product page; server feature paragraph"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Official page identifies the DPU memory as DDR4. It does not expose a separate host-interface field for the internal DPU module.

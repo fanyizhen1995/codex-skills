@@ -715,3 +715,71 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-07"
+  - sku_id: asterfusion-helium-dpu
+    resolved_fields:
+      form_factor:
+        value: PCIe DPU SmartNIC
+        unit: none
+        source_observation_id: obs-asterfusion-helium-dpu-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      network_bandwidth:
+        value: 100
+        unit: Gb/s
+        source_observation_id: obs-asterfusion-helium-dpu-network-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 64
+        unit: GB
+        source_observation_id: obs-asterfusion-helium-dpu-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: PCIe x8 Gen3.0/4.0
+        unit: none
+        source_observation_id: obs-asterfusion-helium-dpu-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 60
+        unit: W
+        source_observation_id: obs-asterfusion-helium-dpu-tdp
+        resolved_by: rule
+        confidence: medium
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: asterfusion-cx102s-dpu-module
+    resolved_fields:
+      form_factor:
+        value: DPU module inside 1U open intelligent gateway
+        unit: none
+        source_observation_id: obs-asterfusion-cx102s-dpu-module-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 8
+        unit: GB
+        source_observation_id: obs-asterfusion-cx102s-dpu-module-memory-capacity
+        resolved_by: rule
+        confidence: medium
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_type:
+        value: DDR4
+        unit: none
+        source_observation_id: obs-asterfusion-cx102s-dpu-module-memory-type
+        resolved_by: rule
+        confidence: medium
+        conflict_status: clean
+        updated_at: "2026-07-08"

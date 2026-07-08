@@ -31,6 +31,8 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
   - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
   - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
+  - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
+  - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
@@ -38,6 +40,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
 ---
 
 # Summary
@@ -89,6 +92,18 @@ read and write IOPS, and source-stated added-latency upper-bound fields. Broader
 Resnics N2025, Asterfusion, Dayu, and Nebula rows remained comparison or
 duplicate-boundary evidence until later scoped slices promoted exact product or
 variant boundaries.
+
+Continuation parent 9 promotes a bounded Asterfusion DPU slice from existing
+local product-page captures. Helium DPU SmartNIC now has resolved PCIe DPU
+SmartNIC form factor, 100 Gb/s source-stated mixed-service processing
+capability, expandable 64 GB memory capacity, `PCIe x8 Gen3.0/4.0` host
+interface, and 60 W source comparison power. CX102S-DPU now has a module-scoped
+catalog row for a DPU module inside a 1U open intelligent gateway with 8 GB DDR4
+memory. CX102S 72 Gb/s switching capacity, 16 x 1GE plus 2 x 10GE gateway ports,
+one- or two-DPU gateway variants, and Helium 4 x 25GE / 2 x 100GE port variants,
+NFV processing, latency, session-count, offload, storage-acceleration, and cost
+reduction claims remain boundary or raw-comparison evidence rather than broad
+network/storage, benchmark, SLO, or production-operation claims. [Helium raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) [CX102S raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md)
 
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
@@ -161,3 +176,6 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
+- ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
+- ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
