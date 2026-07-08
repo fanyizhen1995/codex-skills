@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-07-08 Loop Auditor Engine Review Fixes
+
+- Completed `loop-auditor-engine-review-fixes-01`: addressed review items 1-4 for the Auditor engine and Dashboard.
+- Fixed deterministic git signals so `commits_since_last_audit` counts from the previous audit HEAD, and `git status` failures are explicit errors instead of being treated as clean.
+- Renamed the production auditor path to `rule_based_audit_report` / `write_rule_based_audit_report` while keeping compatibility aliases for older tests.
+- Grouped repeated evaluator findings by structured `category` + `title` keys before falling back to text, reducing fragile full-stdout comparisons.
+- Clarified Dashboard audit/skill wording: active engine notices are per-run, display-only artifacts say they do not hard-block, and skill log matches are shown as "日志线索（非使用证明）" rather than usage facts.
+- Evidence:
+  - RED: focused auditor/store tests failed before implementation on missing `rule_based_audit_report`, old phase notices, and `used_recently`.
+  - `python3 -m unittest scripts.tests.test_harness_loop_auditor -v` -> 7 passed
+  - `python3 -m unittest scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v` -> 191 passed
+  - `python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts -v` -> 67 passed
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests` -> 62 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01` -> pass
+
 ## 2026-07-08 Loop Auditor Engine
 
 - Completed `loop-auditor-engine-01`: added a real Loop Auditor runtime module for deterministic signal computation, validated audit reports, fake/codex auditor execution, and open `must_fix` hard blocking.

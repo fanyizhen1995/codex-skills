@@ -814,14 +814,14 @@ function renderAuditFindings(findings) {
 function renderSkillInventory(inventory) {
   const wrapper = el("section", "auditor-section");
   const title = el("div", "reader-summary-title");
-  title.append(el("span", "", "当前项目 Skill 使用情况"), el("span", "badge status-running", "repo hygiene cadence"));
+  title.append(el("span", "", "当前项目 Skill 使用情况"));
   wrapper.append(title);
 
   const metrics = el("div", "skill-metrics");
   [
     ["项目 Skill", String(Number(inventory.total_project_skills) || 0)],
     ["Loop 相关", String(Number(inventory.loop_related_skills) || 0)],
-    [text(inventory.usage_label, "近期日志提及"), String(Number(inventory.used_recently) || 0)],
+    [text(inventory.usage_label, "日志线索（非使用证明）"), String(Number(inventory.log_reference_count) || 0)],
     ["候选沉淀", String(Number(inventory.candidate_skills) || 0)],
   ].forEach(([label, value]) => metrics.append(summaryMetric(label, value)));
   wrapper.append(metrics);

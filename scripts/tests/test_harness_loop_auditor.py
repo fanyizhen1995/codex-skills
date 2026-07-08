@@ -3,10 +3,11 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.harness_loop_auditor import (
     compute_deterministic_signals,
-    fake_audit_report,
+    rule_based_audit_report,
     write_deterministic_signals,
 )
 from scripts.harness_loop_contracts import (
@@ -25,6 +26,16 @@ def init_git_repo(repo_root: Path) -> None:
     (repo_root / "README.md").write_text("temporary repo\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     subprocess.run(["git", "commit", "-m", "test: initial"], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+def git_head(repo_root: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 def seed_child(repo_root: Path, parent: dict, index: int, *, evaluator_stdout: str, changed_path: str) -> str:
@@ -90,6 +101,84 @@ def seed_child(repo_root: Path, parent: dict, index: int, *, evaluator_stdout: s
 
 
 class HarnessLoopAuditorTests(unittest.TestCase):
+    def test_compute_deterministic_signals_counts_commits_since_previous_audit_not_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build audited feature",
+                run_id="commit-run",
+                confirm=True,
+            )
+            run = load_run(repo_root, "commit-run")
+
+            first_payload = compute_deterministic_signals(repo_root, run)
+
+            self.assertEqual(first_payload["summary"]["commits_since_last_audit"], 0)
+            self.assertEqual(first_payload["git"]["head_sha"], git_head(repo_root))
+
+            write_json_file(
+                run_dir_for(repo_root, "commit-run") / "audit-reports" / "audit-001.json",
+                {
+                    "schema_version": 1,
+                    "run_id": "commit-run",
+                    "audit_id": "audit-001",
+                    "created_at": "2026-07-08T00:00:00Z",
+                    "created_by": "harness_loop_orchestrator",
+                    "verdict": "pass",
+                    "deterministic_signals": {
+                        "artifact_path": ".codex/loop-runs/commit-run/deterministic-signals.json",
+                        "artifact_sha256": "a" * 64,
+                        "summary": first_payload["summary"],
+                        "git_head_sha": first_payload["git"]["head_sha"],
+                    },
+                    "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
+                    "direction_control": {"action": "continue", "reason": "healthy"},
+                    "finding_lifecycle": {"open_findings": [], "closed_findings": []},
+                },
+            )
+            (repo_root / "CHANGELOG.md").write_text("one new commit\n", encoding="utf-8")
+            subprocess.run(["git", "add", "CHANGELOG.md"], cwd=repo_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "test: change"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            second_payload = compute_deterministic_signals(repo_root, run)
+
+            self.assertEqual(second_payload["summary"]["commits_since_last_audit"], 1)
+            self.assertEqual(second_payload["git"]["previous_audit_head_sha"], first_payload["git"]["head_sha"])
+
+    def test_compute_deterministic_signals_reports_git_dirty_failure_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build audited feature",
+                run_id="dirty-error-run",
+                confirm=True,
+            )
+
+            def fake_run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+                if args[:1] == ["status"]:
+                    return subprocess.CompletedProcess(["git", *args], 128, "", "fatal: not a git repository")
+                if args[:2] == ["rev-parse", "HEAD"]:
+                    return subprocess.CompletedProcess(["git", *args], 0, "abc123\n", "")
+                if args[:1] == ["rev-list"]:
+                    return subprocess.CompletedProcess(["git", *args], 0, "0\n", "")
+                return subprocess.CompletedProcess(["git", *args], 1, "", "unsupported")
+
+            with patch("scripts.harness_loop_auditor._run_git", side_effect=fake_run_git):
+                with self.assertRaisesRegex(RuntimeError, "git status failed"):
+                    compute_deterministic_signals(repo_root, run)
+
     def test_compute_deterministic_signals_counts_parent_progress_and_repeated_evaluator_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -153,6 +242,75 @@ class HarnessLoopAuditorTests(unittest.TestCase):
             self.assertEqual(summary["unclassified_dirty_paths"], 0)
             self.assertEqual(payload["created_by"], "harness_loop_orchestrator")
 
+    def test_compute_deterministic_signals_groups_structured_evaluator_findings_by_stable_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="demand-development",
+                requirement="Build multi child feature",
+                run_id="finding-parent",
+                confirm=True,
+            )
+            parent = load_run(repo_root, "finding-parent")
+            parent.update(
+                {
+                    "run_kind": "parent",
+                    "phase": "planning",
+                    "current_child_run_id": "",
+                    "child_run_ids": [],
+                    "backlog": [],
+                    "accepted_changed_paths": ["generated/child-001.txt", "generated/child-002.txt"],
+                    "aggregate_acceptance": {
+                        "total": 2,
+                        "passed": 2,
+                        "failed": 0,
+                        "blocked": 0,
+                        "pending": 0,
+                        "user_decision_required": False,
+                    },
+                    "reader_summary": {
+                        "purpose": "Build multi child feature",
+                        "current_progress": "2 children passed",
+                        "next_step": "Run parent planner",
+                        "decision_needed": "No",
+                    },
+                }
+            )
+            parent["child_run_ids"] = [
+                seed_child(repo_root, parent, 1, evaluator_stdout="", changed_path="generated/child-001.txt"),
+                seed_child(repo_root, parent, 2, evaluator_stdout="", changed_path="generated/child-002.txt"),
+            ]
+            for child_id, path_value in zip(parent["child_run_ids"], ["frontend/a.ts", "frontend/b.ts"], strict=True):
+                child = read_json_file(run_dir_for(repo_root, child_id) / "run.json")
+                write_json_file(
+                    run_dir_for(repo_root, child_id) / "evaluator-result.json",
+                    {
+                        "status": "fail",
+                        "task_id": child["task_id"],
+                        "driver": "fake",
+                        "returncode": 1,
+                        "stdout": "",
+                        "stderr": "",
+                        "findings": [
+                            {
+                                "id": f"LD-{path_value}",
+                                "severity": "major",
+                                "category": "frontend_click",
+                                "title": "Log filter broken",
+                                "summary": f"Log filter failed for {path_value}.",
+                                "evidence": [path_value],
+                            }
+                        ],
+                    },
+                )
+            save_run(repo_root, parent)
+
+            payload = compute_deterministic_signals(repo_root, parent)
+
+            self.assertEqual(payload["summary"]["same_evaluator_finding_count"], 2)
+
     def test_write_deterministic_signals_persists_schema_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -215,7 +373,7 @@ class HarnessLoopAuditorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "deterministic signal"):
             validate_audit_report_payload(missing_signal)
 
-    def test_fake_audit_report_escalates_repeated_evaluator_findings(self) -> None:
+    def test_rule_based_audit_report_escalates_repeated_evaluator_findings(self) -> None:
         signals = {
             "schema_version": 1,
             "run_id": "audited-run",
@@ -228,7 +386,7 @@ class HarnessLoopAuditorTests(unittest.TestCase):
             },
         }
 
-        report = fake_audit_report(
+        report = rule_based_audit_report(
             run_id="audited-run",
             audit_id="audit-001",
             signals=signals,

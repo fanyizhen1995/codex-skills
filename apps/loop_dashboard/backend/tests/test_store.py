@@ -785,9 +785,12 @@ def test_detail_exposes_audit_summary_and_project_skill_inventory(tmp_path: Path
     assert detail["audit_summary"]["signals"]["same_evaluator_finding_count"] == 1
     assert detail["audit_summary"]["cadence"]["current_interval"] == 2
     assert detail["audit_summary"]["findings"][0]["finding_id"] == "audit-003-structure-001"
+    assert "此运行仅展示" in detail["audit_summary"]["phase_notice"]
+    assert "不会触发硬阻塞" in detail["audit_summary"]["phase_notice"]
     assert detail["skill_inventory"]["total_project_skills"] == 1
     assert detail["skill_inventory"]["loop_related_skills"] == 0
-    assert detail["skill_inventory"]["used_recently"] >= 0
+    assert "used_recently" not in detail["skill_inventory"]
+    assert detail["skill_inventory"]["usage_signal"] == "log_reference_only"
     assert detail["skill_inventory"]["candidate_skills"] == 2
     assert detail["skill_inventory"]["items"][0]["name"] == "custom-skill"
     assert detail["skill_inventory"]["items"][0]["source_path"] == "custom-skill/SKILL.md"
@@ -824,7 +827,8 @@ def test_skill_inventory_reuses_project_skill_scan_for_recent_usage(tmp_path: Pa
 
     detail = store.get_run("skill-usage-run")
 
-    assert detail["skill_inventory"]["used_recently"] == 1
+    assert detail["skill_inventory"]["log_reference_count"] == 1
+    assert detail["skill_inventory"]["usage_signal"] == "log_reference_only"
     assert store.project_skill_scan_count == 1
 
 
@@ -874,7 +878,7 @@ def test_audit_summary_filters_unknown_signal_fields(tmp_path: Path) -> None:
         "same_dirty_path_count": 1,
     }
     assert detail["audit_summary"]["engine_status"] == "display_only"
-    assert "硬阻塞未生效" in detail["audit_summary"]["phase_notice"]
+    assert "不会触发硬阻塞" in detail["audit_summary"]["phase_notice"]
 
 
 def test_audit_summary_marks_orchestrator_reports_as_active_engine(tmp_path: Path) -> None:
@@ -912,7 +916,8 @@ def test_audit_summary_marks_orchestrator_reports_as_active_engine(tmp_path: Pat
     detail = LoopDashboardStore(tmp_path).get_run("engine-run")
 
     assert detail["audit_summary"]["engine_status"] == "active"
-    assert "硬阻塞已接入" in detail["audit_summary"]["phase_notice"]
+    assert "此运行由 Auditor 引擎生成" in detail["audit_summary"]["phase_notice"]
+    assert "会触发 audit_blocked" in detail["audit_summary"]["phase_notice"]
 
 
 def test_latest_audit_report_prefers_numeric_audit_id(tmp_path: Path) -> None:
@@ -957,7 +962,7 @@ def test_latest_audit_report_prefers_numeric_audit_id(tmp_path: Path) -> None:
     assert detail["audit_summary"]["open_must_fix"] == 0
 
 
-def test_skill_inventory_labels_recent_usage_as_log_mentions(tmp_path: Path) -> None:
+def test_skill_inventory_labels_recent_log_matches_as_non_usage_proof(tmp_path: Path) -> None:
     seed_run(tmp_path, "skill-label-run", "passed_waiting_human_merge")
     skill_path = tmp_path / "loop-helper" / "SKILL.md"
     skill_path.parent.mkdir(parents=True)
@@ -970,9 +975,12 @@ def test_skill_inventory_labels_recent_usage_as_log_mentions(tmp_path: Path) -> 
 
     detail = LoopDashboardStore(tmp_path).get_run("skill-label-run")
 
-    assert detail["skill_inventory"]["used_recently"] == 1
-    assert detail["skill_inventory"]["usage_signal"] == "log_mentions"
-    assert detail["skill_inventory"]["usage_label"] == "近期日志提及"
+    assert "used_recently" not in detail["skill_inventory"]
+    assert detail["skill_inventory"]["usage_signal"] == "log_reference_only"
+    assert detail["skill_inventory"]["usage_label"] == "日志线索（非使用证明）"
+    project_item = next(item for item in detail["skill_inventory"]["items"] if item["name"] == "loop-helper")
+    assert project_item["log_reference_only"] is True
+    assert "used_recently" not in project_item
 
 
 def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:

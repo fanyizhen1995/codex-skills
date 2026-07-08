@@ -44,8 +44,8 @@ AUDITOR_CANDIDATE_SKILLS = (
         "recommendation": "优先沉淀",
     },
 )
-AUDIT_PHASE_NOTICE_DISPLAY_ONLY = "Phase 1：当前仅展示审计产物，硬阻塞未生效。"
-AUDIT_PHASE_NOTICE_ACTIVE = "Auditor 引擎已接入：open must_fix 会触发 audit_blocked，硬阻塞已接入。"
+AUDIT_PHASE_NOTICE_DISPLAY_ONLY = "此运行仅展示审计产物，不会触发硬阻塞。"
+AUDIT_PHASE_NOTICE_ACTIVE = "此运行由 Auditor 引擎生成，open must_fix 会触发 audit_blocked。"
 AUDIT_SIGNAL_KEYS = frozenset(
     {
         "passed_children_since_last_audit",
@@ -544,11 +544,11 @@ class LoopDashboardStore:
 
     def _skill_inventory(self) -> dict[str, Any]:
         project_skills = self._project_skill_items()
-        recent_skill_names = self._recent_skill_names(project_skills)
+        log_referenced_skill_names = self._log_referenced_skill_names(project_skills)
         items = [
             {
                 **skill,
-                "used_recently": skill["name"] in recent_skill_names,
+                "log_reference_only": skill["name"] in log_referenced_skill_names,
                 "recommendation": self._skill_recommendation(skill["name"], skill["description"]),
             }
             for skill in project_skills
@@ -559,7 +559,7 @@ class LoopDashboardStore:
                 "description": candidate["description"],
                 "source_path": "候选",
                 "kind": "candidate",
-                "used_recently": False,
+                "log_reference_only": False,
                 "recommendation": candidate["recommendation"],
             }
             for candidate in AUDITOR_CANDIDATE_SKILLS
@@ -570,9 +570,9 @@ class LoopDashboardStore:
         return {
             "total_project_skills": len(project_skills),
             "loop_related_skills": len(loop_related),
-            "used_recently": sum(1 for skill in project_skills if skill["name"] in recent_skill_names),
-            "usage_signal": "log_mentions",
-            "usage_label": "近期日志提及",
+            "log_reference_count": sum(1 for skill in project_skills if skill["name"] in log_referenced_skill_names),
+            "usage_signal": "log_reference_only",
+            "usage_label": "日志线索（非使用证明）",
             "candidate_skills": len(AUDITOR_CANDIDATE_SKILLS),
             "items": sorted(items, key=lambda item: (item["kind"] == "candidate", item["name"])),
         }
@@ -634,7 +634,7 @@ class LoopDashboardStore:
                 description = line.split(":", 1)[1].strip().strip("\"'")
         return name, description
 
-    def _recent_skill_names(self, project_skills: list[dict[str, str]]) -> set[str]:
+    def _log_referenced_skill_names(self, project_skills: list[dict[str, str]]) -> set[str]:
         names: set[str] = set()
         skill_names = [skill["name"] for skill in project_skills if skill.get("name")]
         if not skill_names:

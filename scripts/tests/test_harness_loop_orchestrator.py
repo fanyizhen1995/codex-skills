@@ -6813,6 +6813,8 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
 class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
     def _create_parent(self, repo_root: Path, run_id: str = "parent-run") -> dict[str, object]:
+        if not (repo_root / ".git").exists():
+            init_git_repo(repo_root)
         payload = create_preflight_run(
             repo_root=repo_root,
             mode="demand-development",
@@ -7155,6 +7157,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
     def test_run_demand_multi_generates_audit_artifacts_before_human_merge(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
+            init_git_repo(repo_root)
             self._create_parent(repo_root)
 
             payload = run_demand_multi(

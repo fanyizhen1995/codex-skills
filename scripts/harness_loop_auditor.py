@@ -39,10 +39,13 @@ def compute_deterministic_signals(repo_root: Path | str, run: Mapping[str, Any])
     child_run_ids = [str(value) for value in run.get("child_run_ids", []) if str(value).strip()]
     changed_paths = _generator_changed_paths(root, run_id)
     child_changed_paths = [_generator_changed_paths(root, child_id) for child_id in child_run_ids]
+    head_sha = _git_head_sha(root)
+    previous_audit_head_sha = _previous_audit_head_sha(root, run_id)
+    commits_since_last_audit = _commits_since_last_audit(root, head_sha, previous_audit_head_sha)
     summary = {
         "passed_children_since_last_audit": _passed_children(run),
         "autonomous_rounds_since_last_audit": _completed_autonomous_rounds(run),
-        "commits_since_last_audit": _commits_since_last_audit(root, run),
+        "commits_since_last_audit": commits_since_last_audit,
         "coverage_layers_changed": _covered_layer_count(root, run),
         "new_raw_files": _count_paths(changed_paths, "/raw/"),
         "new_or_updated_wiki_pages": _count_wiki_pages(changed_paths),
@@ -64,6 +67,10 @@ def compute_deterministic_signals(repo_root: Path | str, run: Mapping[str, Any])
         "computed_at": timestamp(),
         "created_by": CREATED_BY,
         "summary": summary,
+        "git": {
+            "head_sha": head_sha,
+            "previous_audit_head_sha": previous_audit_head_sha,
+        },
         "progress_counters": {
             "passed_children_since_last_audit": summary["passed_children_since_last_audit"],
             "autonomous_rounds_since_last_audit": summary["autonomous_rounds_since_last_audit"],
@@ -98,7 +105,7 @@ def write_deterministic_signals(repo_root: Path | str, run: Mapping[str, Any]) -
     return write_json_file(run_dir_for(root, str(run["run_id"])) / DETERMINISTIC_SIGNALS_FILENAME, payload)
 
 
-def fake_audit_report(
+def rule_based_audit_report(
     *,
     run_id: str,
     audit_id: str,
@@ -155,6 +162,7 @@ def fake_audit_report(
             "artifact_path": signal_artifact_path,
             "artifact_sha256": signal_artifact_sha256,
             "summary": dict(summary),
+            "git_head_sha": _signal_git_head_sha(signals),
         },
         "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
         "direction_control": {"action": action, "reason": reason, "recommended_next_focus": ""},
@@ -164,13 +172,13 @@ def fake_audit_report(
     return report
 
 
-def write_fake_audit_report(repo_root: Path | str, run: Mapping[str, Any]) -> Path:
+def write_rule_based_audit_report(repo_root: Path | str, run: Mapping[str, Any]) -> Path:
     root = Path(repo_root)
     run_id = str(run["run_id"])
     signal_path = write_deterministic_signals(root, run)
     signal_payload = read_json_file(signal_path)
     audit_id = _next_audit_id(root, run_id)
-    report = fake_audit_report(
+    report = rule_based_audit_report(
         run_id=run_id,
         audit_id=audit_id,
         signals=signal_payload,
@@ -178,6 +186,10 @@ def write_fake_audit_report(repo_root: Path | str, run: Mapping[str, Any]) -> Pa
         signal_artifact_sha256=hashlib.sha256(signal_path.read_bytes()).hexdigest(),
     )
     return write_json_file(run_dir_for(root, run_id) / "audit-reports" / f"{audit_id}.json", report)
+
+
+fake_audit_report = rule_based_audit_report
+write_fake_audit_report = write_rule_based_audit_report
 
 
 def latest_audit_report(repo_root: Path | str, run_id: str) -> dict[str, Any] | None:
@@ -252,12 +264,42 @@ def _completed_autonomous_rounds(run: Mapping[str, Any]) -> int:
     return len(completed) if isinstance(completed, list) else 0
 
 
-def _commits_since_last_audit(repo_root: Path, run: Mapping[str, Any]) -> int:
-    del run
-    result = _run_git(repo_root, ["rev-list", "--count", "--max-count=100", "HEAD"])
+def _git_head_sha(repo_root: Path) -> str:
+    result = _run_git(repo_root, ["rev-parse", "HEAD"])
+    if result is None or result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def _previous_audit_head_sha(repo_root: Path, run_id: str) -> str:
+    latest = latest_audit_report_path(repo_root, run_id)
+    if latest is None:
+        return ""
+    try:
+        payload = read_json_file(latest)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return ""
+    signals = payload.get("deterministic_signals")
+    if not isinstance(signals, Mapping):
+        return ""
+    value = signals.get("git_head_sha")
+    return str(value).strip() if value else ""
+
+
+def _commits_since_last_audit(repo_root: Path, head_sha: str, previous_audit_head_sha: str) -> int:
+    if not head_sha or not previous_audit_head_sha:
+        return 0
+    result = _run_git(repo_root, ["rev-list", "--count", f"{previous_audit_head_sha}..{head_sha}"])
     if result is None or result.returncode != 0:
         return 0
     return min(_safe_int(result.stdout.strip()), 100)
+
+
+def _signal_git_head_sha(signals: Mapping[str, Any]) -> str:
+    git_info = signals.get("git")
+    if not isinstance(git_info, Mapping):
+        return ""
+    return str(git_info.get("head_sha") or "").strip()
 
 
 def _covered_layer_count(repo_root: Path, run: Mapping[str, Any]) -> int:
@@ -309,13 +351,47 @@ def _same_evaluator_finding_count(repo_root: Path, run_ids: Sequence[str]) -> in
             payload = read_json_file(path)
         except (OSError, ValueError, json.JSONDecodeError):
             continue
+        structured_keys = _structured_evaluator_finding_keys(payload)
+        if structured_keys:
+            findings.extend(structured_keys)
+            continue
         if payload.get("status") == "pass" and "finding" not in str(payload.get("stdout", "")).lower():
             continue
-        text = str(payload.get("stdout") or payload.get("stderr") or "").strip().lower()
+        text = _normalize_finding_text(str(payload.get("stdout") or payload.get("stderr") or ""))
         if text:
             findings.append(text)
     counts = Counter(findings)
     return max(counts.values(), default=0)
+
+
+def _structured_evaluator_finding_keys(payload: Mapping[str, Any]) -> list[str]:
+    raw_findings = payload.get("findings")
+    if not isinstance(raw_findings, list):
+        return []
+    keys: list[str] = []
+    for finding in raw_findings:
+        if not isinstance(finding, Mapping):
+            continue
+        category = _normalize_key_part(str(finding.get("category") or ""))
+        title = _normalize_key_part(str(finding.get("title") or finding.get("key") or ""))
+        if category and title:
+            keys.append(f"finding:{category}:{title}")
+            continue
+        finding_id = _normalize_key_part(str(finding.get("id") or finding.get("finding_id") or ""))
+        if finding_id:
+            keys.append(f"finding-id:{finding_id}")
+    return keys
+
+
+def _normalize_finding_text(value: str) -> str:
+    text = " ".join(value.strip().lower().split())
+    if not text:
+        return ""
+    return text[:500]
+
+
+def _normalize_key_part(value: str) -> str:
+    return " ".join(value.strip().lower().split())
 
 
 def _same_dirty_path_count(repo_root: Path, run_id: str) -> int:
@@ -386,7 +462,8 @@ def _unclassified_dirty_paths(repo_root: Path, run: Mapping[str, Any]) -> list[s
 def _git_dirty_paths(repo_root: Path) -> list[str]:
     result = _run_git(repo_root, ["status", "--porcelain", "--untracked-files=all"])
     if result is None or result.returncode != 0:
-        return []
+        stderr = "" if result is None else result.stderr.strip()
+        raise RuntimeError(f"git status failed: {stderr or 'git command did not complete'}")
     return sorted({path for line in result.stdout.splitlines() for path in _parse_porcelain_paths(line)})
 
 

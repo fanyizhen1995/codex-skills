@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-08",
-  "current_focus": "Loop Auditor Engine is complete: deterministic audit signals, validated audit reports, active audit_blocked hard gate wiring, and Loop Dashboard visibility/evaluator coverage are in place.",
+  "current_focus": "Loop Auditor Engine review fixes are complete: git-derived audit signals, rule-based auditor naming, stable evaluator finding grouping, and clearer Dashboard audit/skill wording are verified.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -216,6 +216,24 @@
       "status": "done",
       "priority": "high",
       "blocked_by": "loop-dashboard-auditor-01",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-auditor-engine-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_harness",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "loop-auditor-engine-review-fixes-01",
+      "title": "Fix Loop Auditor engine review findings",
+      "description": "Address review findings for the Loop Auditor engine by counting commits since the previous audit instead of repository history, making git dirty failures explicit, renaming the production rule auditor path, grouping evaluator findings by stable structured keys, and clarifying Dashboard audit/skill wording.",
+      "status": "done",
+      "priority": "high",
+      "blocked_by": "loop-auditor-engine-01",
       "verify": "python3 -m unittest scripts.tests.test_harness_loop_auditor scripts.tests.test_harness_loop_contracts scripts.tests.test_harness_loop_agents scripts.tests.test_harness_loop_orchestrator -v && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01 && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-auditor-engine-01.json >/dev/null && git diff --check",
       "requires_eval": true,
       "eval_policy": {

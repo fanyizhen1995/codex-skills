@@ -43,7 +43,7 @@ try:
         latest_audit_report_path,
         open_must_fix_findings,
         write_deterministic_signals,
-        write_fake_audit_report,
+        write_rule_based_audit_report,
     )
     from scripts.harness_loop_autonomous import (
         check_autonomous_scope,
@@ -94,7 +94,7 @@ except ModuleNotFoundError:
         latest_audit_report_path,
         open_must_fix_findings,
         write_deterministic_signals,
-        write_fake_audit_report,
+        write_rule_based_audit_report,
     )
     from harness_loop_autonomous import (  # type: ignore[no-redef]
         check_autonomous_scope,
@@ -435,7 +435,7 @@ def _run_audit_boundary(repo_root: Path, run: dict[str, Any], *, force: bool = F
         return None
     if not force and not _audit_progress_exists(run):
         return None
-    write_fake_audit_report(repo_root, run)
+    write_rule_based_audit_report(repo_root, run)
     return _apply_audit_gate(repo_root, load_run(repo_root, str(run["run_id"])))
 
 
@@ -1136,7 +1136,7 @@ def run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     if not _audit_gate_applies(run):
         raise RuntimeError("run_auditor only supports parent or autonomous runs")
     if driver == "fake":
-        return write_fake_audit_report(root, run)
+        return write_rule_based_audit_report(root, run)
     if driver != "codex-exec":
         raise ValueError(f"unsupported auditor driver: {driver}")
 
