@@ -4488,6 +4488,27 @@ def _live_evidence_ids_from_manifest(manifest_payload: Mapping[str, Any]) -> set
     return evidence_ids
 
 
+def _loop_dashboard_logs_detail(probe: Mapping[str, Any], *, run_id: str) -> dict[str, Any]:
+    payload = probe.get("json")
+    if (
+        probe.get("status") == "pass"
+        and isinstance(payload, Mapping)
+        and str(payload.get("run_id", "")).strip() == run_id
+    ):
+        return {**probe, "status": "pass"}
+
+    body_excerpt = str(probe.get("body_excerpt", ""))
+    match = re.search(r'"run_id"\s*:\s*"([^"]+)"', body_excerpt)
+    if probe.get("status") == "pass" and match and match.group(1) == run_id:
+        return {
+            **probe,
+            "status": "pass",
+            "json": {"run_id": run_id, "logs_truncated": True},
+            "truncated_json": True,
+        }
+    return {**probe, "status": "blocked"}
+
+
 def _capture_live_evidence_payload(
     evidence_id: str,
     *,
@@ -4621,14 +4642,7 @@ def _capture_live_evidence_payload(
                 and str(agent_actions["json"].get("run_id", "")).strip() == run_id
                 else "blocked",
             },
-            "evaluator_scenarios": {
-                **evaluator_scenarios,
-                "status": "pass"
-                if evaluator_scenarios.get("status") == "pass"
-                and isinstance(evaluator_scenarios.get("json"), Mapping)
-                and str(evaluator_scenarios["json"].get("run_id", "")).strip() == run_id
-                else "blocked",
-            },
+            "evaluator_scenarios": _loop_dashboard_logs_detail(evaluator_scenarios, run_id=run_id),
             "completed_history": completed_history_detail,
             "project": {
                 **project,

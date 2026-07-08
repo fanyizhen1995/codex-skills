@@ -4411,6 +4411,59 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["current_run"]["status"], "pass")
             self.assertEqual(payload["details"]["completed_history"]["status"], "not_applicable")
 
+    def test_capture_live_loop_dashboard_freshness_allows_truncated_logs_when_run_id_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(url: str, timeout_seconds: float = 2.0, max_body_bytes: int = 16 * 1024 * 1024) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
+                if url.endswith("/api/runs/expanded-run"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": {
+                            "run_id": "expanded-run",
+                            "project_root": str(repo_root),
+                            "source_path": ".codex/loop-runs/expanded-run",
+                            "completed": False,
+                            "children_summary": {"total": 0},
+                        },
+                    }
+                if url.endswith("/api/runs/expanded-run/events"):
+                    return {"url": url, "status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "events": []}}
+                if url.endswith("/api/runs/expanded-run/logs"):
+                    return {
+                        "url": url,
+                        "status": "pass",
+                        "http_status": 200,
+                        "json": None,
+                        "body_excerpt": '{"run_id":"expanded-run","logs":[{"source":"large.log","stream":"stdout","content":"',
+                    }
+                if url.endswith("/api/projects/current"):
+                    return {"url": url, "status": "pass", "http_status": 200, "json": {"project_root": str(repo_root)}}
+                if url.endswith("/api/runs"):
+                    return {"url": url, "status": "blocked", "http_status": 0, "error": "timed out"}
+                return {"url": url, "status": "pass", "http_status": 200, "json": {}}
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "loop-dashboard-freshness",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["details"]["evaluator_scenarios"]["status"], "pass")
+            self.assertEqual(payload["details"]["evaluator_scenarios"]["json"]["run_id"], "expanded-run")
+            self.assertTrue(payload["details"]["evaluator_scenarios"]["json"]["logs_truncated"])
+
     def test_http_probe_parses_large_json_response(self) -> None:
         body = json.dumps(
             {
