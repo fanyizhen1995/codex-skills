@@ -29,6 +29,7 @@ source_refs:
   - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md
+  - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
 updated: 2026-07-08
 related:
   - ai-infra-coverage-map.md
@@ -81,6 +82,12 @@ DCGM and Nsight Systems cover the platform side that LLM trace stores cannot see
 
 Use these sources to connect evaluation or trace anomalies with platform signals, not to assert model quality. For example, a regression triage workflow can pair evaluator scores and request traces with DCGM health fields or an Nsight Systems profile when latency, synchronization, or GPU activity changes. That is a synthesis pattern across the cited observability and profiling sources, not a vendor-specific product claim. [raw](../../raw/links/langsmith-observability-evaluation-official-20260707.md) [raw](../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md) [raw](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
 
+# Cluster Observability Dashboards
+
+The AWS Parallel Computing Service monitoring capture adds dashboard-level observability evidence for HPC and AI clusters. Its architecture sends Slurm, EFA, Node, and DCGM exporter metrics to Amazon Managed Service for Prometheus, displays them in Amazon Managed Grafana, and pulls instance details from Amazon CloudWatch Logs. The dashboard set is useful coverage for Jobs, Nodes, GPUs, Slurm, Amazon FSx for Lustre, Logs, Partitions, and EFA views, including GPU load/consumed memory, searchable logs, partition state, EFA nodes, RDMA reads/writes, processed traffic, and dropped-packet visibility. [raw](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
+
+Keep this as observability-solution evidence. It does not define service-specific LLM SLOs, validated alert thresholds, routing or escalation ownership, production incident timelines, or benchmark acceptance criteria. Pair it with application traces, evaluation artifacts, or incident records before using dashboard views as reliability claims. [raw](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
+
 # Non-NVIDIA Platform Observability
 
 AMD Device Metrics Exporter and ROCm/AMD SMI add AMD-side observability surfaces. The AMD exporter documents Prometheus-format GPU and NIC metrics, Kubernetes and Slurm deployment paths, and telemetry for utilization, memory, clocks, power, energy, VRAM, PCIe bandwidth, PCIe errors, RDMA, congestion, CNP, ECN, and NIC queue signals. ROCm SMI and AMD SMI provide system-management interfaces for querying driver/GPU information and controlling GPU applications. [raw](../../raw/links/non-nvidia-platform-observability-official-sources-20260707.md)
@@ -102,6 +109,7 @@ Use this as non-NVIDIA observability mechanics only. It does not prove productio
 Use this page as source-backed coverage for:
 
 - `eval-observability-reliability`: GenAI telemetry schemas, LLM application trace stores, datasets, evaluator outputs, benchmark task/run metadata, SLO/alerting mechanics, GPU health telemetry, CPU/GPU profiling, and non-NVIDIA accelerator metrics.
+- `eval-observability-reliability`: AWS PCS dashboard evidence for Managed Grafana, Managed Prometheus, CloudWatch Logs, Slurm/EFA/Node/DCGM exporters, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views.
 - `data-rag-vector`: only where Ragas, Phoenix, or LangSmith traces explain RAG evaluation and retrieval-quality signals; keep data ingestion and embedding refresh in [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md).
 - `inference-runtime`: only where evaluation traces or platform profiles inspect runtime behavior; keep runtime scheduler, batching, KV-cache, and model-loading mechanics in [Inference Runtime Infrastructure](inference-runtime-infrastructure.md).
 - `hardware-accelerator`: only for DCGM and Nsight platform telemetry/profiling signals; accelerator SKU and parameter evidence stays in the compute accelerator pages.
@@ -124,3 +132,4 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 - [SGLang issue #23937 KV transfer metric window](../../raw/crawler/sglang-github-closed-issues-prs/20260706T021453058039Z-github-com-sgl-project-sglang-issues-23937-c70c6119e4.md)
 - [SGLang PR #28975 AMD MI350X sparse-MLA prefill profiling](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md)
+- [AWS Parallel Computing Service monitoring capture](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)

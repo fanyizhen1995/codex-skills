@@ -41,6 +41,8 @@ source_refs:
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
+  - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
+  - ../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md
 updated: 2026-07-08
 related:
   - ai-infra-coverage-map.md
@@ -75,6 +77,8 @@ The local AWS Trainium2 capture is adjacent EFA evidence because it records EFAv
 
 Existing local NVIDIA technical-blog evidence remains the strongest fabric operations corpus. It covers Spectrum-X telemetry, BGP Prefix Independent Convergence, RoCE congestion behavior, ECN/DC-QCN design, NIC Fusion, SHARP in-network collective offload, and NCCL RAS. That evidence is valid for NVIDIA/Spectrum-X/RoCE cluster fabric claims, but it does not close EFA, Lustre, WEKA, Ceph, or generic storage gaps. [wiki](nccl-technical-blog-network-observability.md)
 
+The AWS Parallel Computing Service monitoring capture adds an operations-dashboard view of cluster fabric and storage surfaces. Its Managed Grafana dashboards include Jobs, Nodes, GPUs, Slurm, Amazon FSx for Lustre, Logs, Partitions, and EFA, and the architecture sends Slurm, EFA, Node, and DCGM exporter metrics to Amazon Managed Service for Prometheus while pulling instance details from CloudWatch Logs. This is dashboard and observability coverage for cluster operators, not evidence of a production incident response loop, fabric SLO, or product/provider benchmark result. [raw](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
+
 # Shared And Parallel Storage
 
 Amazon FSx for Lustre is managed Lustre evidence for shared high-performance filesystems. The AWS documentation positions FSx for Lustre for compute-intensive workloads including machine learning and HPC, and the source note records the S3-linked data repository boundary that matters for dataset staging. Use it for shared training data, scratch, and checkpoint filesystem claims; do not infer EFA or NVMe-oF behavior from it. [source note](../../raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md)
@@ -101,6 +105,12 @@ MLCommons Storage is the benchmark-method boundary for AI storage in this page. 
 
 This page does not rank FSx for Lustre, WEKA, Ceph, SPDK, or NVMe-oF systems from MLCommons results. A future product-specific benchmark claim must cite the exact submission or report and preserve workload, topology, hardware or cloud environment, storage/fabric configuration, and measured result boundaries. [source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
 
+# Co-Packaged Optics Planning Boundary
+
+The Lambda/NVIDIA co-packaged optics capture is fabric-planning evidence for large NVIDIA cluster deployments, centered on the Quantum-X Photonics Q3450-LD switch and GB300 NVL72-scale 800G fabrics. Source-visible planning signals include a 4U liquid-cooled switch with 144 x 800G InfiniBand ports and 115.2 Tb/s non-blocking switching capacity, 48V busbar power input, UDQ4 liquid-cooling quick disconnects, removable light-source modules, and front-panel fiber-array connections replacing traditional OSFP transceiver cages. The source frames switch-layer power as a planning constraint, including a 3.95 kW CPO switch versus 7.0 kW standard-switch comparison and roughly 655,000 pluggable transceiver modules as a large-fabric failure-point class. [raw](../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md)
+
+Use this as early operational-planning evidence: rack fit, busbar alignment, liquid cooling, pressure checks, fiber routing, fiber termination, and installation procedure testing with the vendor. Do not promote it as a production postmortem, generalized availability claim, exact reliability measurement, guaranteed GB300 NVL72 deployment capacity, or accelerator SKU catalog row. [raw](../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md)
+
 # Exact Result Artifact Probe Boundary
 
 R9 task 3 searched local raw, crawler, GitHub, curated wiki, coverage, and loop-state evidence for exact MLCommons Storage result artifacts and provider benchmark submissions. It found benchmark-method and result-framework evidence, but no local per-submission result file with source-backed submitter, workload, backend, storage system, compute-node count, accelerator count where present, networking/topology, storage configuration, and measured throughput. [source note](../../raw/links/network-storage-exact-benchmark-results-20260707.md)
@@ -121,6 +131,8 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - Ceph as distributed storage evidence for RADOS, CephFS, and RBD file/block primitives;
 - SPDK NVMe-oF as storage-fabric protocol evidence for target/subsystem/namespace behavior;
 - AWS HyperPod topology-aware scheduling, Slurm topology plugin behavior, EFA health checks, node replacement, and checkpoint-aware resume as managed training-cluster topology and data-path evidence;
+- AWS PCS dashboard coverage for Slurm/EFA/Node/DCGM exporter metrics, CloudWatch Logs, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views;
+- Lambda/NVIDIA CPO planning evidence for Quantum-X Photonics Q3450-LD, 800G/GB300 NVL72 fabric power, reliability, cooling, fiber routing, and installation-procedure boundaries;
 - MLCommons Storage benchmark mechanics and result-framework fields for AI storage benchmarking;
 - blocked-source evidence showing exact MLCommons measured-result artifacts were not available from local corpus or bounded shell probes in r9 task 3;
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
@@ -147,3 +159,5 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [Yusur K2-Pro raw capture](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md)
 - [Yusur SWIFT-2200N Pro raw capture](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md)
 - [Continuation parent-3 Yusur gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json)
+- [AWS Parallel Computing Service monitoring capture](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
+- [Lambda/NVIDIA co-packaged optics capture](../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md)

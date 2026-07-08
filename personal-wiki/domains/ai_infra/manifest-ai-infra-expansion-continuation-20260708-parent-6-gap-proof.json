@@ -1,0 +1,138 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-6",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "layer": "training-distributed; eval-observability-reliability; network-storage-cluster",
+  "candidate": {
+    "title": "AWS training case-study, PCS observability, and Lambda CPO fabric-planning signals",
+    "source_type": "local_blog_capture_set",
+    "identity_key": "local_blog_capture_set:aws-lambda-training-observability-cpo:parent-6",
+    "source_paths": [
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md"
+    ]
+  },
+  "identity_keys": [
+    {
+      "title": "Outpost VFX AWS distributed training case study",
+      "source_type": "blog_capture",
+      "identity_key": "url:https://aws.amazon.com/blogs/machine-learning/how-outpost-vfx-uses-aws-to-accelerate-ai-model-training-for-visual-effects/"
+    },
+    {
+      "title": "SageMaker AI Blackwell P6-B200 training tuning",
+      "source_type": "blog_capture",
+      "identity_key": "url:https://aws.amazon.com/blogs/machine-learning/optimize-model-training-on-amazon-sagemaker-ai-with-nvidia-blackwell/"
+    },
+    {
+      "title": "AWS Parallel Computing Service monitoring",
+      "source_type": "blog_capture",
+      "identity_key": "url:https://aws.amazon.com/blogs/hpc/the-complete-picture-unified-monitoring-for-aws-parallel-computing-service/"
+    },
+    {
+      "title": "Lambda NVIDIA co-packaged optics switch unboxing",
+      "source_type": "blog_capture",
+      "identity_key": "url:https://lambda.ai/blog/unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Searched existing local AWS Machine Learning, AWS HPC, Lambda, NVIDIA, coverage-map, loop-state, ingest, and prior continuation manifests for Outpost VFX, EC2 P5, H100, PyTorch DDP, G5 baseline, fixed hyperparameters, loss threshold, 8x improvement, 2 days, 1-2 weeks, SageMaker AI, P6-B200, FSDP, activation checkpointing, AWS Parallel Computing Service, Managed Grafana, Managed Prometheus, CloudWatch Logs, Slurm Exporter, EFA Exporter, DCGM Exporter, FSx for Lustre dashboard, Quantum-X Photonics Q3450-LD, GB300 NVL72, 800G, co-packaged optics, switch power, fiber routing, cooling, and installation procedure terms. No network fetch was used.",
+    "wiki_search": "Searched Distributed Training Infrastructure, Evaluation Observability Reliability Infrastructure, Network Storage Cluster Infrastructure, AI Infra Coverage Map, coverage-map.json, loop-state.json, ingest.md, and parent-1 through parent-5 gap proofs. Existing pages covered frameworks, checkpointing, NCCL/SGLang operations, Grafana/Prometheus alert mechanics, DCGM/Nsight, AMD/Gaudi metrics, EFA/FSx/HyperPod/MLCommons, and product-specific hardware catalog slices, but did not yet preserve the AWS Outpost case-study, SageMaker P6-B200 activation-checkpointing tuning, AWS PCS dashboard set, or Lambda CPO installation-planning signals.",
+    "domain_index_scan": "The ai_infra index already routes this work to Distributed Training Infrastructure, Evaluation Observability Reliability Infrastructure, Network Storage Cluster Infrastructure, and AI Infra Coverage Map. No new standalone page was needed."
+  },
+  "gap_reason": "The local corpus had four high-signal AWS/Lambda captures that improved training case-study, cluster observability, and fabric-planning coverage without requiring new network fetches. They fill bounded gaps for source-visible case-study measurements, P6-B200 FSDP tuning guidance, AWS PCS dashboard surfaces, and CPO operational-planning boundaries while keeping production postmortem, SLO, benchmark, product-ranking, and accelerator-catalog claims out of scope.",
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Before parent-6, training-distributed covered framework mechanics and issue-level failures but not Outpost VFX DDP-on-P5/H100 case-study results or SageMaker AI P6-B200 activation-checkpointing tuning; eval-observability covered generic SLO mechanics, tracing, and platform metrics but not AWS PCS dashboard composition; network-storage covered EFA/FSx/HyperPod/MLCommons and product DPU/SmartNIC slices but not Lambda CPO installation-planning signals."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Known sources already listed framework/checkpointing, eval observability, network storage, hardware catalog, SGLang, and parent-5 scheduling sources. No known source entry had the combined AWS/Lambda parent-6 identity or the selected raw capture set."
+    },
+    {
+      "target": "ingest.md",
+      "result": "Done entries for parent-1 through parent-5 covered Corigine, SGLang scheduled crawler, Yusur, H200, and Kubernetes/Kueue/Volcano DRA/device-plugin work. The AWS/Lambda training, PCS observability, and CPO planning slice was not previously recorded."
+    },
+    {
+      "target": "wiki/references/distributed-training-infrastructure.md",
+      "result": "Existing text covered PyTorch FSDP, Distributed Checkpoint, DeepSpeed, Megatron-LM, Ray Train, Kubeflow/KubeRay, NCCL failures, and SGLang training-integration leads. It did not yet cite Outpost VFX case-study evidence or SageMaker AI P6-B200 activation-checkpointing tuning guidance."
+    },
+    {
+      "target": "wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "Existing text covered OpenTelemetry, LangSmith/Phoenix, Ragas, lm-evaluation-harness, Prometheus/Alertmanager/Grafana alert mechanics, Grafana AI Observability, DCGM/Nsight, AMD/Gaudi metrics, and SGLang metric/profiling leads. It did not yet capture AWS PCS dashboards or exporter/data-source composition."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "Existing text covered AWS EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, HyperPod topology/resiliency, MLCommons benchmark mechanics, Spectrum-X/RoCE evidence, and product-specific DPU/SmartNIC/NVMe-oF slices. It did not yet record AWS PCS EFA/FSx dashboards or Lambda/NVIDIA Q3450-LD co-packaged optics power, cooling, fiber, and installation-planning boundaries."
+    },
+    {
+      "target": "prior continuation parent manifests",
+      "result": "Parent-1 promoted Corigine SmartNIC fields, parent-2 promoted SGLang page-level inference operations, parent-3 promoted Yusur DPU fields, parent-4 promoted H200 SXM fields, and parent-5 promoted Kubernetes/Kueue/Volcano DRA/device-plugin issue signals. Parent-6 does not modify those catalog or issue slices."
+    }
+  ],
+  "selected_source_backed_signals": [
+    {
+      "surface": "Outpost VFX DDP-on-P5 training case study",
+      "promoted_claim": "Outpost VFX collaborated with AWS to adapt a face-swap training workflow to PyTorch Distributed Data Parallel on EC2 P5 instances with NVIDIA H100 GPUs; the source compares a one-GPU G5 baseline against P5 runs using fixed model hyperparameters and time-to-loss-threshold measurement, and reports up to 8x faster learning plus v001 delivery in 2 days instead of 1-2 weeks.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md"
+    },
+    {
+      "surface": "SageMaker AI Blackwell P6-B200 training tuning",
+      "promoted_claim": "The SageMaker AI capture documents P6-B200 distributed training setup with PyTorch FSDP and activation-checkpointing guidance, including the memory/throughput tradeoff where recomputation can free memory for larger batch sizes while adding compute overhead.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md"
+    },
+    {
+      "surface": "AWS Parallel Computing Service observability dashboards",
+      "promoted_claim": "The AWS PCS monitoring capture records an Amazon Managed Grafana plus Amazon Managed Service for Prometheus observability path with CloudWatch Logs and Slurm, EFA, Node, and DCGM exporters, plus dashboards for Jobs, Nodes, GPUs, Slurm, Amazon FSx for Lustre, Logs, Partitions, and EFA.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md"
+    },
+    {
+      "surface": "Lambda/NVIDIA Quantum-X Photonics Q3450-LD CPO planning",
+      "promoted_claim": "The Lambda capture records planning boundaries for NVIDIA Quantum-X Photonics Q3450-LD co-packaged optics in 800G/GB300 NVL72-scale fabrics: switch-layer power, fewer pluggable transceiver failure points, 144 x 800G InfiniBand, 115.2 Tb/s non-blocking capacity, 48V busbar power, liquid cooling, fiber routing, rack fit, pressure checks, and installation procedure testing.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md"
+    }
+  ],
+  "rejected_or_deferred_signals": [
+    {
+      "item": "Production postmortems and SLO guarantees",
+      "reason": "The selected captures are case-study, dashboard, best-practice, and planning evidence. They do not include service impact, incident timeline, validated alert thresholds, escalation owners, remediation follow-up, or service-specific SLO guarantees."
+    },
+    {
+      "item": "Exact benchmark submissions and product rankings",
+      "reason": "Outpost and SageMaker include bounded measurements or examples, but they are not exact MLCommons artifacts, product/provider benchmark submissions, or generalized performance rankings."
+    },
+    {
+      "item": "Accelerator catalog field promotion",
+      "reason": "P5/H100, P6-B200/Blackwell, GB300 NVL72, and Q3450-LD terms are used as workload, tuning, dashboard, or fabric-planning context only; the task does not modify compute accelerator SKU, observation, resolved spec, or schema files."
+    },
+    {
+      "item": "Duplicate parent-1 through parent-5 slices",
+      "reason": "Corigine, SGLang scheduled crawler, Yusur, H200, and Kubernetes/Kueue/Volcano DRA/device-plugin evidence are reused only as duplicate boundaries."
+    },
+    {
+      "item": "External source refresh",
+      "reason": "No new network source was fetched because the local raw captures contained the required source-visible terms and claims."
+    }
+  ],
+  "schema_extensions": [],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-6-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-6-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ],
+  "non_promoted_boundaries": [
+    "No code, dependency, backend, frontend, dashboard, harness, generated, log, pid, secret, token, credential, or .codex domain file changes were made.",
+    "No live service, localhost, tmux, uvicorn, npm, Vite, or long-lived process check belongs in generator-side verification.",
+    "No claim was promoted as production incident/postmortem coverage, validated service SLO threshold, alert escalation ownership, exact MLCommons benchmark result, product/provider ranking, or complete non-AWS/non-NVIDIA fabric operations."
+  ]
+}

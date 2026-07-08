@@ -22,6 +22,8 @@ source_refs:
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz
   - ../../raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json
+  - ../../raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md
+  - ../../raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md
 updated: 2026-07-07
 related:
   - ai-infra-coverage-map.md
@@ -74,6 +76,12 @@ Other selected NCCL issues show version and configuration-sensitive failure mode
 
 The SGLang corpus remains a discovery boundary for adjacent runtime and training-integration issues rather than a primary training framework source. Its index includes FSDP, Megatron, Slurm, Gaudi, AMD/MI300, distributed, and checkpoint-related items; these titles are useful leads for future focused ingestion, but this page only uses them as evidence that downstream runtimes surface training and scheduler integration risks. [raw](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
 
+# AWS Training Case Study And Blackwell Tuning Boundaries
+
+The Outpost VFX AWS blog capture is case-study evidence for moving a VFX face-replacement fine-tuning workflow from local RTX 3090 and G5-style single-GPU baselines toward distributed training on Amazon EC2 P5 instances with NVIDIA H100 GPUs. The source-visible implementation boundary is PyTorch Distributed Data Parallel on P5, with a comparison that fixed model hyperparameters and measured time to a loss threshold. The promoted result is bounded to the source claim: up to 8x faster training and v001 delivery in 2 days instead of the prior 1-2 week fine-tuning timeline. This is not a production postmortem, an MLCommons submission, or a generalized scaling law for every VFX or DDP workload. [raw](../../raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md)
+
+The SageMaker AI Blackwell capture is best-practice tuning evidence for distributed training jobs on `ml.p6-b200.48xlarge`, not measured fleet operations. It documents a PyTorch FSDP container path and activation-checkpointing tradeoff: recomputing activations can add compute overhead, but it can free enough GPU memory to raise batch size; the source example shows a 1B-parameter LLM at 8K sequence length where activation checkpointing enables a larger batch and much higher tokens/sec within memory limits. Use it as P6-B200/FSDP/activation-checkpointing planning evidence, not as a production SLO, exact benchmark submission, or catalog-level Blackwell spec row. [raw](../../raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md)
+
 # Training Job Controllers
 
 Kubeflow Trainer supplies Kubernetes-native training job abstraction evidence. Its docs organize framework guides for PyTorch, DeepSpeed, Megatron, JAX, XGBoost, and other workloads, plus TrainJob lifecycle and scheduling integration topics. Use it as evidence that distributed training jobs often need a Kubernetes controller layer above framework launchers. [raw](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
@@ -91,11 +99,12 @@ This page also does not replace inference runtime evidence. vLLM and TensorRT-LL
 Use this page as source-backed coverage for:
 
 - `training-distributed`: PyTorch process groups, FSDP sharding, Distributed Checkpoint, `torchrun` restart/elastic semantics, DeepSpeed ZeRO and checkpoint conversion, Megatron-LM project boundaries, Ray Train checkpoint/fault tolerance, and Kubeflow/KubeRay training job controllers.
+- `training-distributed`: bounded AWS blog evidence for Outpost VFX DDP-on-P5 case-study results and SageMaker AI P6-B200 FSDP activation-checkpointing tuning tradeoffs.
 - `orchestration-scheduling`: only where Kubeflow Trainer and KubeRay explain Kubernetes-native training job execution; use [Orchestration Scheduling Infrastructure](orchestration-scheduling-infrastructure.md) for scheduler, device plugin, GPU operator, Slurm, and quota boundaries.
 - `network-storage-cluster`: only where distributed checkpoints depend on durable shared storage; this page does not replace storage/fabric architecture evidence.
 
 Remaining gaps for this layer are production incident/postmortem evidence, measured checkpoint restore benchmarks, framework upgrade failures, and non-PyTorch/DeepSpeed/Ray operational field reports.
-The local issue corpora now provide narrow failure examples for collective aborts, version/configuration-sensitive NCCL failures, Ray launch-mode hangs, and adjacent runtime integration leads; those examples do not replace production postmortems, checkpoint restore measurements, or field reports with complete environment and remediation context.
+The local issue corpora and AWS case-study captures now provide narrow failure examples, case-study measurements, and tuning guidance for collective aborts, version/configuration-sensitive NCCL failures, Ray launch-mode hangs, DDP-on-P5 migration, and FSDP activation-checkpointing. Those examples do not replace production postmortems, checkpoint restore measurements, exact benchmark submissions, or field reports with complete environment and remediation context.
 
 # Citations
 
@@ -107,3 +116,5 @@ The local issue corpora now provide narrow failure examples for collective abort
 - [NCCL closed GitHub issues with comments](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-with-comments.json.gz)
 - [NCCL issue #2024 crawler supplement](../../raw/crawler/nccl-github-closed-issues/20260703T021318514537Z-github-com-nvidia-nccl-issues-2024-4e07290315.md)
 - [SGLang closed issue and PR index](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
+- [Outpost VFX AWS distributed training case-study capture](../../raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md)
+- [SageMaker AI Blackwell training tuning capture](../../raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md)
