@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-07-08 Crawler Freshness Requirement Clarified
+
+- Clarified `loop-supervisor-01` scope: Crawler Workbench means both backend and frontend, not just a backend health check.
+- Added the requirement that crawler runtime data and running versions must stay current: after code/config/data changes, backend APIs, frontend views, source/wiki/search data, and search indexes must reflect the latest committed or ingested state without stale results.
+- Evidence:
+  - `curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health` -> crawler backend online
+  - `python3 - <<'PY' ... urllib.request.urlopen('http://127.0.0.1:8765/openapi.json') ... PY` -> crawler backend OpenAPI version `0.1.0`
+  - `curl --noproxy '*' -fsSI http://127.0.0.1:5173/` -> crawler frontend online
+
 ## 2026-07-08 Loop Supervisor Backlog
 
 - Recorded `loop-supervisor-01` as a high-priority TODO after `loop-auditor-auto-resume-runner-01`.

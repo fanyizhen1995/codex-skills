@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
   "last_updated": "2026-07-08",
-  "current_focus": "Loop Auditor auto-resume is running; next harness backlog item is a unified Loop Supervisor for service health, run ownership, recovery, and Dashboard traceability.",
+  "current_focus": "Loop Auditor auto-resume is running; next harness backlog item is a unified Loop Supervisor for service health, crawler backend/frontend data and version freshness, run ownership, recovery, and Dashboard traceability.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -284,11 +284,11 @@
     {
       "id": "loop-supervisor-01",
       "title": "Implement unified Loop Supervisor",
-      "description": "Design and implement a unified long-running Loop Supervisor that owns loop start/resume/retry/stop orchestration across demand-development and autonomous-knowledge runs, keeps Crawler Workbench, Loop Dashboard, and loop auto-resume online, guarantees every loop run is discoverable in Loop Dashboard, consolidates audit remediation recovery with broader stale-run and service-health supervision, and records operator-visible evidence for recovery decisions.",
+      "description": "Design and implement a unified long-running Loop Supervisor that owns loop start/resume/retry/stop orchestration across demand-development and autonomous-knowledge runs, keeps Crawler Workbench backend and frontend online, verifies crawler data freshness and running version freshness instead of only checking ports, keeps Loop Dashboard and loop auto-resume online, guarantees every loop run is discoverable in Loop Dashboard, consolidates audit remediation recovery with broader stale-run and service-health supervision, and records operator-visible evidence for recovery decisions.",
       "status": "todo",
       "priority": "high",
       "blocked_by": "loop-auditor-auto-resume-runner-01",
-      "verify": "Add a supervisor design spec reviewed with grill-me; implement supervisor unit tests for run discovery, service health checks, audit_blocked recovery, stale-run recovery, and dashboard traceability; run Loop Dashboard browser evaluator proving active and completed supervised runs are visible; verify crawler backend, crawler frontend, loop dashboard, and supervisor health endpoints or tmux sessions are online.",
+      "verify": "Add a supervisor design spec reviewed with grill-me; implement supervisor unit tests for run discovery, service health checks, crawler backend/frontend version freshness, crawler data freshness, audit_blocked recovery, stale-run recovery, and dashboard traceability; run Loop Dashboard browser evaluator proving active and completed supervised runs are visible; verify crawler backend, crawler frontend, loop dashboard, and supervisor health endpoints or tmux sessions are online; verify crawler wiki/search/source APIs and frontend views reflect the latest committed or ingested data without stale indexes.",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,

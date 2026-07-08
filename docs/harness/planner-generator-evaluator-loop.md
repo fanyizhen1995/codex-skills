@@ -124,8 +124,16 @@ Until `loop-supervisor-01` replaces these separate services, every real loop
 task must keep the following long-running processes online and verify them
 before reporting progress:
 
-- Crawler Workbench backend and frontend remain reachable at the configured
-  remote-accessible ports.
+- Crawler Workbench means both backend and frontend. Both must remain reachable
+  at the configured remote-accessible ports, and reachability alone is not
+  enough: the running backend/frontend versions must match the current intended
+  worktree after code or configuration changes, and crawler data views must not
+  be stale.
+- After crawler ingest, source updates, search-index changes, or wiki/raw
+  changes, verify crawler freshness through backend APIs and frontend views.
+  The backend wiki/search/source APIs must reflect the latest committed or
+  ingested data without relying on manual stale-index workarounds, and the
+  frontend must show the same current data.
 - Loop Dashboard remains reachable and points at the project root whose runs
   should be monitored.
 - `loop-auto-resume` remains running so `audit_blocked` runs are re-entered
