@@ -328,7 +328,7 @@
       "title": "Inference runtime production operations evidence",
       "source": "local wiki/raw",
       "status": "known",
-      "updated_at": "2026-07-07T07:06:03Z",
+      "updated_at": "2026-07-08T09:22:46Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r7-task-1-gap-proof.json",
         "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
@@ -348,7 +348,8 @@
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260703T021321689913Z-github-com-sgl-project-sglang-issues-29954-58751d3526.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md",
-        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md"
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md"
       ]
     },
     {
