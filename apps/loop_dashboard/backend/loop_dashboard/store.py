@@ -15,6 +15,19 @@ LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
+SKILL_SCAN_EXCLUDED_DIRS = {".git", ".worktrees", "node_modules", "generated", "__pycache__"}
+AUDITOR_CANDIDATE_SKILLS = (
+    {
+        "name": "pge-loop-agent-contract",
+        "description": "Planner/Generator/Evaluator/Auditor 通用职责边界和 live evidence 委托。",
+        "recommendation": "优先沉淀",
+    },
+    {
+        "name": "loop-closeout-audit",
+        "description": "git dirty 分类、validate、commit、push、Dashboard/API/前端可见性检查。",
+        "recommendation": "优先沉淀",
+    },
+)
 
 
 class RunSource(NamedTuple):
@@ -101,6 +114,8 @@ class LoopDashboardStore:
                 "decision_summary": decision_summary,
                 "acceptance_summary": acceptance_summary,
                 "flow_nodes": [node.to_dict() for node in self._flow_nodes(run_dir, run_data)],
+                "audit_summary": self._audit_summary(run_dir),
+                "skill_inventory": self._skill_inventory(),
                 "governance_artifacts": self._governance_artifacts(run_dir, evaluator),
             }
         )
@@ -360,6 +375,220 @@ class LoopDashboardStore:
             "blocked_diagnostics": [diagnostic],
             "artifact_paths": self._artifact_paths(run_dir),
         }
+
+    def _audit_summary(self, run_dir: Path) -> dict[str, Any]:
+        report_path, report = self._latest_audit_report(run_dir)
+        signals = self._latest_deterministic_signals(run_dir)
+        if not report:
+            return {
+                "status": "missing",
+                "verdict": "",
+                "open_must_fix": 0,
+                "direction_action": "",
+                "direction_reason": "",
+                "recommended_next_focus": "",
+                "latest_report_path": "",
+                "findings": [],
+                "signals": signals,
+                "cadence": {},
+            }
+
+        lifecycle = report.get("finding_lifecycle")
+        if not isinstance(lifecycle, dict):
+            lifecycle = {}
+        open_findings = [item for item in lifecycle.get("open_findings", []) if isinstance(item, dict)]
+        findings = [self._audit_finding_summary(item) for item in open_findings]
+        direction = report.get("direction_control")
+        if not isinstance(direction, dict):
+            direction = {}
+        report_signals = report.get("deterministic_signals")
+        if isinstance(report_signals, dict):
+            summary = report_signals.get("summary")
+            if isinstance(summary, dict):
+                signals.update(self._flat_numeric_values(summary))
+        cadence = report.get("cadence")
+        return {
+            "status": "available",
+            "verdict": self._first_text(report.get("verdict")),
+            "open_must_fix": sum(1 for item in open_findings if str(item.get("severity") or "") == "must_fix"),
+            "direction_action": self._first_text(direction.get("action")),
+            "direction_reason": self._trim(redact_text(self._first_text(direction.get("reason"))), 180),
+            "recommended_next_focus": self._trim(redact_text(self._first_text(direction.get("recommended_next_focus"))), 180),
+            "latest_report_path": self._relative_artifact(report_path) if report_path is not None else "",
+            "findings": findings,
+            "signals": signals,
+            "cadence": cadence if isinstance(cadence, dict) else {},
+        }
+
+    def _latest_audit_report(self, run_dir: Path) -> tuple[Path | None, dict[str, Any]]:
+        audit_dir = run_dir / "audit-reports"
+        safe_audit_dir = self._safe_dir_under(audit_dir, run_dir)
+        if safe_audit_dir is None:
+            return None, {}
+        candidates: list[tuple[float, Path]] = []
+        for path in safe_audit_dir.glob("*.json"):
+            safe_path = self._safe_file_under(path, safe_audit_dir)
+            if safe_path is None:
+                continue
+            try:
+                candidates.append((safe_path.stat().st_mtime, safe_path))
+            except OSError:
+                continue
+        for _mtime, path in sorted(candidates, reverse=True):
+            payload = self._read_json(path, allowed_root=safe_audit_dir)
+            if isinstance(payload, dict):
+                return path, payload
+        return (candidates[0][1], {}) if candidates else (None, {})
+
+    def _latest_deterministic_signals(self, run_dir: Path) -> dict[str, Any]:
+        candidates: list[tuple[float, Path]] = []
+        for pattern in ("deterministic-signals*.json", "audit-signals*.json"):
+            for path in run_dir.glob(pattern):
+                safe_path = self._safe_file_under(path, run_dir)
+                if safe_path is None:
+                    continue
+                try:
+                    candidates.append((safe_path.stat().st_mtime, safe_path))
+                except OSError:
+                    continue
+        for _mtime, path in sorted(candidates, reverse=True):
+            payload = self._read_json(path, allowed_root=run_dir)
+            if isinstance(payload, dict):
+                return self._flat_numeric_values(payload)
+        return {}
+
+    def _flat_numeric_values(self, payload: dict[str, Any]) -> dict[str, Any]:
+        values: dict[str, Any] = {}
+        metadata_keys = {"schema_version", "run_id", "computed_at", "artifact_path", "artifact_sha256"}
+
+        def visit(item: Any) -> None:
+            if not isinstance(item, dict):
+                return
+            for key, value in item.items():
+                if key in metadata_keys:
+                    continue
+                if isinstance(value, dict):
+                    visit(value)
+                elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                    values[str(key)] = value
+                elif isinstance(value, str) and value:
+                    values[str(key)] = self._trim(redact_text(value), 120)
+
+        visit(payload)
+        return values
+
+    def _audit_finding_summary(self, finding: dict[str, Any]) -> dict[str, str]:
+        return {
+            "finding_id": self._first_text(finding.get("finding_id"), finding.get("id")),
+            "severity": self._first_text(finding.get("severity"), "observe"),
+            "title": self._trim(redact_text(self._first_text(finding.get("title"), finding.get("category"), "audit finding")), 120),
+            "summary": self._trim(redact_text(self._first_text(finding.get("summary"), finding.get("message"), finding.get("reason"))), 180),
+        }
+
+    def _skill_inventory(self) -> dict[str, Any]:
+        project_skills = self._project_skill_items()
+        recent_skill_names = self._recent_skill_names()
+        items = [
+            {
+                **skill,
+                "used_recently": skill["name"] in recent_skill_names,
+                "recommendation": self._skill_recommendation(skill["name"], skill["description"]),
+            }
+            for skill in project_skills
+        ]
+        items.extend(
+            {
+                "name": candidate["name"],
+                "description": candidate["description"],
+                "source_path": "候选",
+                "kind": "candidate",
+                "used_recently": False,
+                "recommendation": candidate["recommendation"],
+            }
+            for candidate in AUDITOR_CANDIDATE_SKILLS
+        )
+        loop_related = [
+            skill for skill in project_skills if self._is_loop_related_skill(skill["name"], skill["description"], skill["source_path"])
+        ]
+        return {
+            "total_project_skills": len(project_skills),
+            "loop_related_skills": len(loop_related),
+            "used_recently": sum(1 for skill in project_skills if skill["name"] in recent_skill_names),
+            "candidate_skills": len(AUDITOR_CANDIDATE_SKILLS),
+            "items": sorted(items, key=lambda item: (item["kind"] == "candidate", item["name"])),
+        }
+
+    def _project_skill_items(self) -> list[dict[str, str]]:
+        items: list[dict[str, str]] = []
+        for path in sorted(self.project_root.rglob("SKILL.md")):
+            if self._skip_skill_path(path):
+                continue
+            safe_path = self._safe_file_under(path, self.project_root)
+            if safe_path is None:
+                continue
+            name, description = self._skill_frontmatter(safe_path)
+            items.append(
+                {
+                    "name": name or safe_path.parent.name,
+                    "description": self._trim(redact_text(description), 180),
+                    "source_path": self._relative_artifact(safe_path),
+                    "kind": "project",
+                }
+            )
+        return items
+
+    def _skip_skill_path(self, path: Path) -> bool:
+        try:
+            relative = path.resolve().relative_to(self.project_root)
+        except (OSError, ValueError):
+            return True
+        return any(part in SKILL_SCAN_EXCLUDED_DIRS for part in relative.parts)
+
+    def _skill_frontmatter(self, path: Path) -> tuple[str, str]:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            return "", ""
+        if not lines or lines[0].strip() != "---":
+            return "", ""
+        name = ""
+        description = ""
+        for line in lines[1:80]:
+            if line.strip() == "---":
+                break
+            if line.startswith("name:"):
+                name = line.split(":", 1)[1].strip().strip("\"'")
+            elif line.startswith("description:"):
+                description = line.split(":", 1)[1].strip().strip("\"'")
+        return name, description
+
+    def _recent_skill_names(self) -> set[str]:
+        names: set[str] = set()
+        loop_root = self.project_root / ".codex" / "loop-runs"
+        safe_loop_root = self._safe_dir_under(loop_root, self.project_root)
+        if safe_loop_root is None:
+            return names
+        for path in sorted(safe_loop_root.rglob("*.log"))[-50:]:
+            safe_path = self._safe_file_under(path, safe_loop_root)
+            if safe_path is None:
+                continue
+            try:
+                text = safe_path.read_text(encoding="utf-8", errors="replace").lower()
+            except OSError:
+                continue
+            for skill in self._project_skill_items():
+                if skill["name"].lower() in text:
+                    names.add(skill["name"])
+        return names
+
+    def _skill_recommendation(self, name: str, description: str) -> str:
+        if self._is_loop_related_skill(name, description, ""):
+            return "保留并纳入周期性审计"
+        return "保留"
+
+    def _is_loop_related_skill(self, name: str, description: str, source_path: str) -> bool:
+        text = f"{name} {description} {source_path}".lower()
+        return any(keyword in text for keyword in ("loop", "harness", "evaluator", "wiki", "crawler", "project-status"))
 
     def _invalid_decision_summary(self) -> dict[str, Any]:
         return {

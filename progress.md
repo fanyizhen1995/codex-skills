@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-07-08 Loop Dashboard Auditor And Skill View
+
+- Completed `loop-dashboard-auditor-01`: added real Loop Dashboard support for `audit_summary`, deterministic audit signals, direction control, audit findings, and current project Skill inventory.
+- Added the `审计与 Skill` dashboard tab and browser evaluator coverage proving users can see `Auditor`, `open must_fix`, deterministic signals, and project skill usage.
+- Kept this implementation loop visible in the root Loop Dashboard through worktree run `.worktrees/loop-dashboard-auditor/.codex/loop-runs/loop-dashboard-auditor-dev`.
+- Evidence:
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests` -> 57 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-dashboard-auditor-01` -> pass
+  - `python3 -m json.tool tasks.json >/dev/null`
+  - `git diff --check`
+
 ## 2026-07-06 AI Infra Meta Loop Runtime Hardened Smoke Correction
 
 - Superseded the earlier AI infra meta loop smoke evidence in this file after the hardened placeholder-only gate landed.

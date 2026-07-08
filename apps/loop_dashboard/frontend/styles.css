@@ -327,6 +327,7 @@ button {
 
 .reader-summary,
 .acceptance-summary,
+.auditor-section,
 .run-summary-card,
 .run-info-card,
 .artifact-section {
@@ -387,7 +388,8 @@ button {
 }
 
 .acceptance-scenarios,
-.acceptance-list {
+.acceptance-list,
+.audit-finding-list {
   display: grid;
   gap: 7px;
 }
@@ -409,6 +411,98 @@ button {
   margin-top: 4px;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.audit-metrics,
+.signal-grid,
+.skill-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.auditor-subsection {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.auditor-note,
+.auditor-artifact {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  overflow-wrap: anywhere;
+}
+
+.auditor-note {
+  font-weight: 600;
+}
+
+.auditor-artifact {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audit-finding {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.audit-finding-title {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.audit-finding-heading {
+  margin-top: 4px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.audit-finding-summary {
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.skill-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.skill-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.skill-table th,
+.skill-table td {
+  padding: 9px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.skill-table th {
+  color: var(--muted);
+  background: var(--panel-alt);
+  font-size: 12px;
+}
+
+.skill-table tr:last-child td {
+  border-bottom: 0;
 }
 
 .detail-heading {
@@ -1081,6 +1175,9 @@ button {
   .decision-grid,
   .run-info-grid,
   .reader-facts,
+  .audit-metrics,
+  .signal-grid,
+  .skill-metrics,
   .filters {
     grid-template-columns: 1fr;
   }

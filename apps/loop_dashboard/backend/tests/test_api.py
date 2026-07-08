@@ -181,6 +181,61 @@ def test_api_handles_non_string_run_kind(tmp_path: Path) -> None:
     assert detail.json()["run_kind"] == "single"
 
 
+def test_api_and_static_page_expose_auditor_and_skill_dashboard(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    write_json(
+        run_dir / "audit-reports" / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": "demo-run",
+            "audit_id": "audit-001",
+            "verdict": "must_fix",
+            "deterministic_signals": {
+                "summary": {
+                    "unclassified_dirty_paths": 1,
+                    "same_evaluator_finding_count": 2,
+                }
+            },
+            "direction_control": {
+                "action": "switch_task",
+                "reason": "连续空转",
+                "recommended_next_focus": "优先整改 audit finding",
+            },
+            "finding_lifecycle": {
+                "open_findings": [
+                    {
+                        "finding_id": "audit-001-stagnation-001",
+                        "severity": "must_fix",
+                        "title": "loop 空转",
+                        "summary": "coverage 无增长。",
+                    }
+                ]
+            },
+        },
+    )
+    skill_dir = tmp_path / "loop-helper"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: loop-helper\ndescription: Use when testing loop dashboard skill inventory.\n---\n",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    detail = client.get("/api/runs/demo-run")
+    index = client.get("/")
+
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert payload["audit_summary"]["verdict"] == "must_fix"
+    assert payload["audit_summary"]["open_must_fix"] == 1
+    assert payload["audit_summary"]["direction_action"] == "switch_task"
+    assert payload["skill_inventory"]["total_project_skills"] == 1
+    assert payload["skill_inventory"]["items"][0]["name"] == "loop-helper"
+    assert index.status_code == 200
+    assert "审计与 Skill" in index.text
+
+
 def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monkeypatch) -> None:
     frontend_dir = tmp_path / "frontend"
     dist_dir = frontend_dir / "dist"

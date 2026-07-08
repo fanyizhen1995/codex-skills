@@ -47,6 +47,7 @@ const AGENT_LABELS = {
   planner: "Planner",
   generator: "Generator",
   evaluator: "Evaluator",
+  auditor: "Auditor",
 };
 
 const ACTION_LABELS = {
@@ -62,6 +63,11 @@ const ACTION_LABELS = {
   run_evaluator: "运行 Evaluator",
   await_human_merge_confirmation: "等待人工合并确认",
   proceed_to_user_acceptance: "进入用户验收",
+  refocus: "重新聚焦",
+  switch_task: "切换任务",
+  stop_early: "提前停止",
+  ask_user: "请求用户决策",
+  continue: "继续",
   none: "暂无",
 };
 
@@ -92,6 +98,7 @@ const els = {
   tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
   childrenContent: document.getElementById("children-content"),
   acceptanceContent: document.getElementById("acceptance-content"),
+  auditorContent: document.getElementById("auditor-content"),
   artifactContent: document.getElementById("artifact-content"),
   flowDiagram: document.getElementById("flow-diagram"),
   agentCards: document.getElementById("agent-cards"),
@@ -145,6 +152,57 @@ function acceptanceStatusClass(status) {
   return "waiting";
 }
 
+function auditVerdictLabel(verdict) {
+  const labels = {
+    pass: "通过",
+    must_fix: "必须整改",
+    should_fix: "建议整改",
+    observe: "观察",
+    blocked: "审计不可用",
+  };
+  return labels[verdict] || text(verdict, "暂无审计");
+}
+
+function auditStatusLabel(status) {
+  const labels = {
+    available: "已生成审计",
+    missing: "暂无审计",
+    invalid_artifact: "审计产物无效",
+  };
+  return labels[status] || text(status);
+}
+
+function auditBadgeClass(verdict, openMustFix) {
+  if (Number(openMustFix) > 0 || verdict === "must_fix") {
+    return "status-blocked";
+  }
+  if (verdict === "pass") {
+    return "status-done";
+  }
+  return "status-running";
+}
+
+function signalLabel(key) {
+  const labels = {
+    passed_children_since_last_audit: "通过子任务",
+    autonomous_rounds_since_last_audit: "自治轮次",
+    commits_since_last_audit: "新增提交",
+    coverage_layers_changed: "覆盖层变化",
+    new_raw_files: "新增 raw",
+    new_or_updated_wiki_pages: "更新 wiki",
+    same_evaluator_finding_count: "重复 finding",
+    same_dirty_path_count: "重复 dirty path",
+    same_identity_key_blocked_count: "重复 blocked key",
+    same_file_modified_consecutively: "连续修改同文件",
+    unclassified_dirty_paths: "未归属 dirty paths",
+    unpushed_commits: "未推送 commit",
+    missing_required_evidence: "缺失证据",
+    dashboard_visibility_failures: "看板可见性失败",
+    same_local_issue_rounds: "同一局部问题轮次",
+  };
+  return labels[key] || key.replaceAll("_", " ");
+}
+
 function setChildren(parent, children) {
   parent.replaceChildren(...children);
 }
@@ -188,7 +246,7 @@ function setAgentFilter(agentName) {
 }
 
 function setActiveTab(tabName) {
-  const validTabs = ["overview", "children", "agents", "acceptance", "logs", "diagnostics", "artifacts"];
+  const validTabs = ["overview", "children", "agents", "acceptance", "auditor", "logs", "diagnostics", "artifacts"];
   state.activeTab = validTabs.includes(tabName) ? tabName : "overview";
   renderTabs();
 }
@@ -329,6 +387,7 @@ function renderAll() {
   renderChildrenTab();
   renderAgents();
   renderAcceptanceTab();
+  renderAuditorTab();
   renderDiagnostics();
   renderArtifacts();
   renderLogs();
@@ -659,6 +718,132 @@ function renderAcceptanceTab() {
     return;
   }
   setChildren(els.acceptanceContent, [renderAcceptanceSummary(state.detail.acceptance_summary || {})]);
+}
+
+function renderAuditorTab() {
+  if (!els.auditorContent) {
+    return;
+  }
+  if (!state.detail) {
+    setChildren(els.auditorContent, [empty("暂无审计与 Skill 数据")]);
+    return;
+  }
+  setChildren(els.auditorContent, [
+    renderAuditSummary(state.detail.audit_summary || {}),
+    renderSkillInventory(state.detail.skill_inventory || {}),
+  ]);
+}
+
+function renderAuditSummary(summary) {
+  const wrapper = el("section", "auditor-section");
+  const title = el("div", "reader-summary-title");
+  title.append(
+    el("span", "", "Auditor 审计"),
+    el("span", `badge ${auditBadgeClass(summary.verdict, summary.open_must_fix)}`, auditVerdictLabel(summary.verdict)),
+  );
+  wrapper.append(title);
+
+  const metrics = el("div", "audit-metrics");
+  [
+    ["状态", auditStatusLabel(summary.status)],
+    ["结论", auditVerdictLabel(summary.verdict)],
+    ["open must_fix", String(Number(summary.open_must_fix) || 0)],
+    ["方向控制", actionLabel(summary.direction_action)],
+  ].forEach(([label, value]) => metrics.append(summaryMetric(label, value)));
+  wrapper.append(metrics);
+
+  const reason = text(summary.direction_reason || summary.recommended_next_focus, "");
+  if (reason) {
+    wrapper.append(el("div", "auditor-note", reason));
+  }
+  const reportPath = text(summary.latest_report_path, "");
+  if (reportPath) {
+    wrapper.append(el("div", "auditor-artifact", `审计产物：${reportPath}`));
+  }
+
+  wrapper.append(renderSignalMetrics(summary.signals || {}), renderAuditFindings(summary.findings || []));
+  return wrapper;
+}
+
+function renderSignalMetrics(signals) {
+  const section = el("section", "auditor-subsection");
+  section.append(el("div", "detail-section-title", "确定性信号"));
+  const entries = Object.entries(signals || {}).slice(0, 8);
+  if (!entries.length) {
+    section.append(empty("暂无 deterministic signals。Auditor 不能在缺少确定性信号时触发 must_fix。"));
+    return section;
+  }
+  const grid = el("div", "signal-grid");
+  entries.forEach(([key, value]) => {
+    grid.append(summaryMetric(signalLabel(key), String(value)));
+  });
+  section.append(grid);
+  return section;
+}
+
+function renderAuditFindings(findings) {
+  const section = el("section", "auditor-subsection");
+  section.append(el("div", "detail-section-title", "审计发现"));
+  if (!Array.isArray(findings) || findings.length === 0) {
+    section.append(empty("暂无 open audit finding。"));
+    return section;
+  }
+  const list = el("div", "audit-finding-list");
+  findings.forEach((finding) => {
+    const card = el("article", "audit-finding");
+    card.append(
+      el("div", "audit-finding-title", `${text(finding.finding_id, "audit finding")} · ${text(finding.severity, "observe")}`),
+      el("div", "audit-finding-heading", text(finding.title)),
+      el("div", "audit-finding-summary", text(finding.summary)),
+    );
+    list.append(card);
+  });
+  section.append(list);
+  return section;
+}
+
+function renderSkillInventory(inventory) {
+  const wrapper = el("section", "auditor-section");
+  const title = el("div", "reader-summary-title");
+  title.append(el("span", "", "当前项目 Skill 使用情况"), el("span", "badge status-running", "repo hygiene cadence"));
+  wrapper.append(title);
+
+  const metrics = el("div", "skill-metrics");
+  [
+    ["项目 Skill", String(Number(inventory.total_project_skills) || 0)],
+    ["Loop 相关", String(Number(inventory.loop_related_skills) || 0)],
+    ["近期调用", String(Number(inventory.used_recently) || 0)],
+    ["候选沉淀", String(Number(inventory.candidate_skills) || 0)],
+  ].forEach(([label, value]) => metrics.append(summaryMetric(label, value)));
+  wrapper.append(metrics);
+
+  const items = Array.isArray(inventory.items) ? inventory.items : [];
+  if (!items.length) {
+    wrapper.append(empty("暂无项目 Skill。"));
+    return wrapper;
+  }
+  const table = el("div", "skill-table-wrap");
+  const tableNode = document.createElement("table");
+  tableNode.className = "skill-table";
+  const thead = document.createElement("thead");
+  const header = document.createElement("tr");
+  ["Skill", "来源", "用途", "Auditor 建议"].forEach((label) => header.append(el("th", "", label)));
+  thead.append(header);
+  const tbody = document.createElement("tbody");
+  items.slice(0, 20).forEach((item) => {
+    const row = document.createElement("tr");
+    row.append(
+      el("td", "", text(item.name)),
+      el("td", "", text(item.source_path)),
+      el("td", "", text(item.description, item.kind === "candidate" ? "候选流程规范" : "暂无描述")),
+      el("td", "", text(item.recommendation)),
+    );
+    tbody.append(row);
+  });
+  tableNode.append(thead, tbody);
+  table.append(tableNode);
+  wrapper.append(table);
+  return wrapper;
 }
 
 function renderArtifacts() {

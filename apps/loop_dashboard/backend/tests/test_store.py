@@ -698,6 +698,103 @@ def test_detail_exposes_governance_artifacts_and_formal_verification(tmp_path: P
     ]
 
 
+def test_detail_exposes_audit_summary_and_project_skill_inventory(tmp_path: Path) -> None:
+    seed_run(tmp_path, "audited-run", "audit_pending", last_result="pass", next_action="run_planner")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "audited-run"
+    write_json(
+        run_dir / "deterministic-signals.json",
+        {
+            "schema_version": 1,
+            "progress_counters": {
+                "passed_children_since_last_audit": 3,
+                "coverage_layers_changed": 0,
+            },
+            "repeat_counters": {
+                "same_evaluator_finding_count": 1,
+            },
+            "hygiene_counters": {
+                "unclassified_dirty_paths": 2,
+                "unpushed_commits": 0,
+            },
+        },
+    )
+    write_json(
+        run_dir / "audit-reports" / "audit-003.json",
+        {
+            "schema_version": 1,
+            "run_id": "audited-run",
+            "audit_id": "audit-003",
+            "created_at": "2026-07-08T00:00:00Z",
+            "verdict": "observe",
+            "deterministic_signals": {
+                "artifact_path": ".codex/loop-runs/audited-run/deterministic-signals.json",
+                "summary": {
+                    "unclassified_dirty_paths": 2,
+                    "same_evaluator_finding_count": 1,
+                },
+            },
+            "cadence": {
+                "unit": "passed_child",
+                "steps_since_last_audit": 1,
+                "current_interval": 2,
+                "next_interval_after_verdict": 4,
+            },
+            "direction_control": {
+                "action": "refocus",
+                "reason": "先落地 Phase 0 结构约束",
+                "recommended_next_focus": "transition/provenance helper",
+            },
+            "finding_lifecycle": {
+                "open_findings": [
+                    {
+                        "finding_id": "audit-003-structure-001",
+                        "severity": "must_fix",
+                        "title": "Phase 0 结构约束缺失",
+                        "summary": "hard-block 前应先落地 provenance 契约。",
+                    },
+                    {
+                        "finding_id": "audit-003-skill-001",
+                        "severity": "observe",
+                        "title": "skill inventory 需要周期性治理",
+                        "summary": "普通 cadence 不应每轮深扫 skill。",
+                    },
+                ],
+                "closed_findings": [],
+            },
+        },
+    )
+    skill_path = tmp_path / "custom-skill" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "---\n"
+        "name: custom-skill\n"
+        "description: Use when testing dashboard skill inventory.\n"
+        "---\n\n"
+        "# Custom Skill\n",
+        encoding="utf-8",
+    )
+
+    detail = LoopDashboardStore(tmp_path).get_run("audited-run")
+
+    assert detail["audit_summary"]["status"] == "available"
+    assert detail["audit_summary"]["verdict"] == "observe"
+    assert detail["audit_summary"]["open_must_fix"] == 1
+    assert detail["audit_summary"]["direction_action"] == "refocus"
+    assert detail["audit_summary"]["latest_report_path"] == ".codex/loop-runs/audited-run/audit-reports/audit-003.json"
+    assert detail["audit_summary"]["signals"]["unclassified_dirty_paths"] == 2
+    assert detail["audit_summary"]["signals"]["same_evaluator_finding_count"] == 1
+    assert detail["audit_summary"]["cadence"]["current_interval"] == 2
+    assert detail["audit_summary"]["findings"][0]["finding_id"] == "audit-003-structure-001"
+    assert detail["skill_inventory"]["total_project_skills"] == 1
+    assert detail["skill_inventory"]["loop_related_skills"] == 0
+    assert detail["skill_inventory"]["used_recently"] >= 0
+    assert detail["skill_inventory"]["candidate_skills"] == 2
+    assert detail["skill_inventory"]["items"][0]["name"] == "custom-skill"
+    assert detail["skill_inventory"]["items"][0]["source_path"] == "custom-skill/SKILL.md"
+    candidate_names = {item["name"] for item in detail["skill_inventory"]["items"] if item["kind"] == "candidate"}
+    assert {"pge-loop-agent-contract", "loop-closeout-audit"} <= candidate_names
+
+
 def test_malformed_evaluator_attempt_falls_back_to_run_attempts_and_logs(tmp_path: Path) -> None:
     seed_run(
         tmp_path,

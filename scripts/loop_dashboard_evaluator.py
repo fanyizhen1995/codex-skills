@@ -69,6 +69,7 @@ CHECKED = [
     "查看父需求 Agent 结果 tab 中按子任务聚合的 Planner、Generator、Evaluator 说明",
     "确认 evaluator 验证功能实现完整性和设计/mock 匹配，并在验收 tab 中可见",
     "查看验收 tab 中的模拟用户验收场景",
+    "查看审计与 Skill tab 中的 Auditor 结论、open must_fix、确定性信号和当前项目 Skill 使用情况",
     "查看阻塞诊断 tab 中的 evaluator finding",
     "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
     "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
@@ -673,8 +674,83 @@ def seed_fixture_project(project_root: Path) -> None:
         "历史 worktree 里的 Loop Dashboard 开发任务已经完成。",
         len(runs),
     )
+    seed_auditor_fixture(project_root)
+    seed_project_skill_fixture(project_root)
     seed_rich_evaluator_result(project_root)
     seed_demand_multi_task_dashboard_fixture(project_root)
+
+
+def seed_auditor_fixture(project_root: Path) -> None:
+    run_dir = project_root / ".codex" / "loop-runs" / "active-repair-run"
+    write_json(
+        run_dir / "deterministic-signals.json",
+        {
+            "schema_version": 1,
+            "progress_counters": {
+                "passed_children_since_last_audit": 3,
+                "coverage_layers_changed": 0,
+            },
+            "repeat_counters": {
+                "same_evaluator_finding_count": 2,
+            },
+            "hygiene_counters": {
+                "unclassified_dirty_paths": 1,
+                "unpushed_commits": 0,
+            },
+        },
+    )
+    write_json(
+        run_dir / "audit-reports" / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": "active-repair-run",
+            "audit_id": "audit-001",
+            "created_at": "2026-07-08T00:00:00Z",
+            "verdict": "must_fix",
+            "deterministic_signals": {
+                "artifact_path": ".codex/loop-runs/active-repair-run/deterministic-signals.json",
+                "summary": {
+                    "unclassified_dirty_paths": 1,
+                    "same_evaluator_finding_count": 2,
+                },
+            },
+            "cadence": {
+                "unit": "passed_child",
+                "steps_since_last_audit": 1,
+                "current_interval": 2,
+                "next_interval_after_verdict": 1,
+            },
+            "direction_control": {
+                "action": "switch_task",
+                "reason": "同类 evaluator finding 重复出现，先修复流程可见性。",
+                "recommended_next_focus": "audit remediation child",
+            },
+            "finding_lifecycle": {
+                "open_findings": [
+                    {
+                        "finding_id": "audit-001-stagnation-001",
+                        "severity": "must_fix",
+                        "title": "Loop 存在重复验收失败",
+                        "summary": "同类 evaluator finding 连续出现，需要先修复再继续普通开发。",
+                    }
+                ],
+                "closed_findings": [],
+            },
+        },
+    )
+
+
+def seed_project_skill_fixture(project_root: Path) -> None:
+    skill_path = project_root / "project-status-snapshot" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True, exist_ok=True)
+    skill_path.write_text(
+        "---\n"
+        "name: project-status-snapshot\n"
+        "description: 当用户要求检查、恢复、梳理或继续一个项目的当前状态时使用。\n"
+        "---\n\n"
+        "# Project Status Snapshot\n",
+        encoding="utf-8",
+    )
 
 
 def seed_run(
@@ -1352,7 +1428,7 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
                 raise AssertionError(f"run info should render one field per row, got {info_columns} columns")
 
             tabs = page.get_by_test_id("detail-tabs")
-            for tab_name in ["概览", "子任务", "Agent结果", "验收", "日志", "阻塞诊断", "产物"]:
+            for tab_name in ["概览", "子任务", "Agent结果", "验收", "审计与 Skill", "日志", "阻塞诊断", "产物"]:
                 expect(tabs.get_by_role("tab", name=tab_name)).to_be_visible()
 
             click_run(page, "parent-run")
@@ -1470,6 +1546,18 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(acceptance).to_contain_text("模拟用户过滤日志时发现 stderr 过滤未按预期更新")
             expect(acceptance).to_contain_text("选择日志类型 stderr")
             expect(acceptance).to_contain_text("修复日志过滤")
+
+            tabs.get_by_role("tab", name="审计与 Skill").click()
+            auditor_tab = page.get_by_test_id("tab-auditor")
+            expect(auditor_tab).to_be_visible()
+            expect(auditor_tab).to_contain_text("Auditor 审计")
+            expect(auditor_tab).to_contain_text("open must_fix")
+            expect(auditor_tab).to_contain_text("必须整改")
+            expect(auditor_tab).to_contain_text("确定性信号")
+            expect(auditor_tab).to_contain_text("重复 finding")
+            expect(auditor_tab).to_contain_text("当前项目 Skill 使用情况")
+            expect(auditor_tab).to_contain_text("project-status-snapshot")
+            expect(auditor_tab).to_contain_text("pge-loop-agent-contract")
 
             tabs.get_by_role("tab", name="阻塞诊断").click()
             diagnostics = page.get_by_test_id("blocked-diagnostics")
