@@ -434,11 +434,13 @@ def _run_audit_boundary(repo_root: Path, run: dict[str, Any], *, force: bool = F
         return blocked
     if not _audit_gate_applies(run):
         return None
-    if not force and not _audit_progress_exists(run):
+    if not _audit_cadence_due(run, force=force):
         return None
     if _audit_remediation_is_current(run):
         return None
-    write_rule_based_audit_report(repo_root, run)
+    cadence = _audit_report_cadence(run)
+    write_rule_based_audit_report(repo_root, run, cadence=cadence)
+    _record_audit_cadence_state(repo_root, run, cadence=cadence)
     return _apply_audit_gate(repo_root, load_run(repo_root, str(run["run_id"])))
 
 
@@ -447,6 +449,89 @@ def _audit_progress_count(run: Mapping[str, Any]) -> int:
         child_ids = run.get("child_run_ids")
         return len(child_ids) if isinstance(child_ids, list) else 0
     return _completed_autonomous_task_count(run)
+
+
+def _normalized_audit_cadence(run: Mapping[str, Any]) -> dict[str, int | str]:
+    raw = run.get("audit_cadence")
+    if not isinstance(raw, Mapping):
+        return {"unit": "boundary", "mode": "fixed_interval", "interval": 1}
+    unit = str(raw.get("unit") or "boundary").strip() or "boundary"
+    mode = str(raw.get("mode") or "fixed_interval").strip() or "fixed_interval"
+    interval = _safe_positive_int(raw.get("interval"), default=1)
+    if unit not in {"boundary", "parent_task"}:
+        unit = "boundary"
+    if mode != "fixed_interval":
+        mode = "fixed_interval"
+    return {"unit": unit, "mode": mode, "interval": interval}
+
+
+def _safe_positive_int(value: Any, *, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return max(1, value)
+    if isinstance(value, str):
+        try:
+            return max(1, int(value.strip()))
+        except ValueError:
+            return default
+    return default
+
+
+def _audit_last_audited_progress_count(run: Mapping[str, Any]) -> int:
+    state = run.get("_audit_cadence_state")
+    if not isinstance(state, Mapping):
+        return 0
+    return _safe_positive_or_zero_int(state.get("last_audited_progress_count"))
+
+
+def _safe_positive_or_zero_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return max(0, value)
+    if isinstance(value, str):
+        try:
+            return max(0, int(value.strip()))
+        except ValueError:
+            return 0
+    return 0
+
+
+def _audit_steps_since_last_audit(run: Mapping[str, Any]) -> int:
+    return max(0, _audit_progress_count(run) - _audit_last_audited_progress_count(run))
+
+
+def _audit_cadence_due(run: Mapping[str, Any], *, force: bool) -> bool:
+    if not _audit_progress_exists(run):
+        return False
+    cadence = _normalized_audit_cadence(run)
+    steps = _audit_steps_since_last_audit(run)
+    if steps <= 0:
+        return False
+    if force and cadence["unit"] == "boundary":
+        return True
+    return steps >= int(cadence["interval"])
+
+
+def _audit_report_cadence(run: Mapping[str, Any]) -> dict[str, int | str]:
+    cadence = _normalized_audit_cadence(run)
+    return {
+        "unit": str(cadence["unit"]),
+        "current_interval": int(cadence["interval"]),
+        "steps_since_last_audit": _audit_steps_since_last_audit(run),
+    }
+
+
+def _record_audit_cadence_state(repo_root: Path, run: Mapping[str, Any], *, cadence: Mapping[str, Any]) -> None:
+    current = load_run(repo_root, str(run["run_id"]))
+    current["_audit_cadence_state"] = {
+        "unit": str(cadence.get("unit") or "boundary"),
+        "interval": int(cadence.get("current_interval") or cadence.get("interval") or 1),
+        "last_audited_progress_count": _audit_progress_count(current),
+        "updated_at": _timestamp(),
+    }
+    save_run(repo_root, current)
 
 
 def _audit_remediation_is_current(run: Mapping[str, Any]) -> bool:
@@ -972,6 +1057,8 @@ def create_preflight_run(
         payload["required_evidence"] = list(policy_payload["required_evidence"])
         payload["limits"] = {**default_limits(), **policy_payload["limits"]}
         payload["policy_file"] = policy_file
+        if isinstance(policy_payload.get("audit_cadence"), Mapping):
+            payload["audit_cadence"] = dict(policy_payload["audit_cadence"])
     return save_run(root, payload)
 
 

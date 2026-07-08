@@ -282,6 +282,24 @@
       }
     },
     {
+      "id": "ai-infra-expansion-continuation-20260708",
+      "title": "Continue AI infra autonomous expansion loop",
+      "description": "Resume the ai_infra autonomous knowledge expansion after loop governance changes: finish prior SGLang #24456 ingest cleanup, enforce parent-task-level Auditor cadence at one audit per two completed parent tasks, create a Loop Dashboard-visible continuation run, keep Crawler Workbench backend/frontend, Loop Dashboard, and loop-auto-resume online, and continue parent task rounds until global stop conditions are reached.",
+      "status": "todo",
+      "priority": "high",
+      "blocked_by": "loop-auditor-auto-resume-runner-01",
+      "verify": "python3 -m unittest scripts.tests.test_harness_loop_contracts -v && python3 -m unittest scripts.tests.test_harness_loop_auditor -v && python3 -m unittest scripts.tests.test_harness_loop_auto_resume -v && python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v && python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra && curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health && curl --noproxy '*' -fsSI http://127.0.0.1:5173/ | sed -n '1,5p' && curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health && tmux has-session -t loop-auto-resume && python3 -m json.tool tasks.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
       "id": "loop-supervisor-01",
       "title": "Implement unified Loop Supervisor",
       "description": "Design and implement a unified long-running Loop Supervisor that owns loop start/resume/retry/stop orchestration across demand-development and autonomous-knowledge runs, keeps Crawler Workbench backend and frontend online, verifies crawler data freshness and running version freshness instead of only checking ports, keeps Loop Dashboard and loop auto-resume online, guarantees every loop run is discoverable in Loop Dashboard, consolidates audit remediation recovery with broader stale-run and service-health supervision, and records operator-visible evidence for recovery decisions.",

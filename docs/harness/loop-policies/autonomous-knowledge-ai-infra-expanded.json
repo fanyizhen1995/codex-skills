@@ -2,6 +2,11 @@
   "policy": "autonomous-knowledge",
   "auto_commit": true,
   "auto_merge_main": false,
+  "audit_cadence": {
+    "unit": "parent_task",
+    "mode": "fixed_interval",
+    "interval": 2
+  },
   "allowed_paths": [
     "personal-wiki/domains/ai_infra/**",
     "personal-wiki/docs/**",

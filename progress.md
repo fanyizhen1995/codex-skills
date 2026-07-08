@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-08 AI Infra Expansion Continuation Cadence Gate
+
+- Registered `ai-infra-expansion-continuation-20260708` and implemented the P0 precondition for the continuation plan: autonomous AI infra Auditor cadence is now policy/run-state driven and the expanded policy audits once per 2 completed parent tasks.
+- Finished the pre-loop SGLang #24456 ingest cleanup as commit `cc31558` and pushed it to `origin/main`; API search and frontend knowledge search can see `24456`.
+- Preserved the operating constraint that Crawler Workbench backend/frontend, Loop Dashboard, and `loop-auto-resume` must remain online for continuation runs.
+- Evidence:
+  - RED: `test_run_autonomous_parent_task_cadence_audits_every_two_completed_tasks` failed with 2 audit reports before the fix.
+  - GREEN focused: `python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_parent_task_cadence_audits_every_two_completed_tasks scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_create_preflight_run_copies_audit_cadence_from_policy_file -v` -> 2 passed.
+  - `python3 -m unittest scripts.tests.test_harness_loop_contracts -v` -> 60 passed.
+  - `python3 -m unittest scripts.tests.test_harness_loop_auditor -v` -> 7 passed.
+  - `python3 -m unittest scripts.tests.test_harness_loop_auto_resume -v` -> 1 passed.
+  - `python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v` -> 184 passed.
+  - `python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> No validation issues.
+
 ## 2026-07-08 Crawler Freshness Requirement Clarified
 
 - Clarified `loop-supervisor-01` scope: Crawler Workbench means both backend and frontend, not just a backend health check.

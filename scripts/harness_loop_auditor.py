@@ -112,6 +112,7 @@ def rule_based_audit_report(
     signals: Mapping[str, Any],
     signal_artifact_path: str,
     signal_artifact_sha256: str,
+    cadence: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     summary = signals.get("summary") if isinstance(signals.get("summary"), Mapping) else {}
     repeated_evaluator = _safe_int(summary.get("same_evaluator_finding_count"))
@@ -164,7 +165,7 @@ def rule_based_audit_report(
             "summary": dict(summary),
             "git_head_sha": _signal_git_head_sha(signals),
         },
-        "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
+        "cadence": _audit_report_cadence(cadence),
         "direction_control": {"action": action, "reason": reason, "recommended_next_focus": ""},
         "finding_lifecycle": {"open_findings": open_findings, "closed_findings": []},
     }
@@ -172,7 +173,7 @@ def rule_based_audit_report(
     return report
 
 
-def write_rule_based_audit_report(repo_root: Path | str, run: Mapping[str, Any]) -> Path:
+def write_rule_based_audit_report(repo_root: Path | str, run: Mapping[str, Any], *, cadence: Mapping[str, Any] | None = None) -> Path:
     root = Path(repo_root)
     run_id = str(run["run_id"])
     signal_path = write_deterministic_signals(root, run)
@@ -184,12 +185,26 @@ def write_rule_based_audit_report(repo_root: Path | str, run: Mapping[str, Any])
         signals=signal_payload,
         signal_artifact_path=signal_path.relative_to(root).as_posix(),
         signal_artifact_sha256=hashlib.sha256(signal_path.read_bytes()).hexdigest(),
+        cadence=cadence,
     )
     return write_json_file(run_dir_for(root, run_id) / "audit-reports" / f"{audit_id}.json", report)
 
 
 fake_audit_report = rule_based_audit_report
 write_fake_audit_report = write_rule_based_audit_report
+
+
+def _audit_report_cadence(cadence: Mapping[str, Any] | None) -> dict[str, int | str]:
+    if not isinstance(cadence, Mapping):
+        return {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1}
+    unit = str(cadence.get("unit") or "boundary").strip() or "boundary"
+    current_interval = _safe_int(cadence.get("current_interval", cadence.get("interval")))
+    steps_since_last_audit = _safe_int(cadence.get("steps_since_last_audit", 1))
+    return {
+        "unit": unit,
+        "current_interval": max(1, current_interval),
+        "steps_since_last_audit": max(0, steps_since_last_audit),
+    }
 
 
 def latest_audit_report(repo_root: Path | str, run_id: str) -> dict[str, Any] | None:

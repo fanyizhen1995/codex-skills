@@ -310,6 +310,8 @@ def validate_run_payload(payload: dict[str, Any]) -> None:
     for key in ("manual_confirm_paths", "required_evidence"):
         if key in payload:
             _require_string_list(payload, key)
+    if "audit_cadence" in payload:
+        _validate_audit_cadence(payload["audit_cadence"], "audit_cadence")
     if run_kind == "parent":
         _validate_parent_run_payload(payload)
     elif run_kind == "child":
@@ -547,6 +549,8 @@ def validate_loop_policy_payload(payload: dict[str, Any]) -> None:
     limits = _require_object(payload["limits"], "limits")
     for key in default_limits():
         _require_int(limits, key)
+    if "audit_cadence" in payload:
+        _validate_audit_cadence(payload["audit_cadence"], "audit_cadence")
 
 
 def validate_coverage_map_payload(payload: dict[str, Any]) -> None:
@@ -725,6 +729,20 @@ def validate_audit_report_payload(payload: dict[str, Any]) -> None:
         )
         if not has_open_must_fix:
             raise ValueError("verdict=must_fix requires at least one open must_fix finding")
+
+
+def _validate_audit_cadence(value: Any, label: str) -> None:
+    cadence = _require_object(value, label)
+    _require_keys(cadence, {"unit", "mode", "interval"}, label)
+    _require_string(cadence, "unit")
+    _require_string(cadence, "mode")
+    _require_int(cadence, "interval")
+    if cadence["unit"] not in {"boundary", "parent_task"}:
+        raise ValueError(f"{label}.unit is not allowed: {cadence['unit']}")
+    if cadence["mode"] != "fixed_interval":
+        raise ValueError(f"{label}.mode is not allowed: {cadence['mode']}")
+    if cadence["interval"] < 1:
+        raise ValueError(f"{label}.interval must be >= 1")
 
 
 def _validate_audit_findings(findings: list[Any], label: str) -> list[dict[str, Any]]:

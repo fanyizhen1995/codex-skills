@@ -24,7 +24,7 @@ from scripts.harness_loop_contracts import (
 )
 from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
 from scripts.harness_loop_auditor import fake_audit_report
-from scripts.harness_loop_autonomous import create_default_loop_state, write_loop_state
+from scripts.harness_loop_autonomous import NoActionDecision, create_default_loop_state, write_loop_state
 from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
@@ -2846,6 +2846,75 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             for item in manifest_payload["items"]:
                 self.assertNotEqual(item["summary"], item["evidence_id"])
                 self.assertNotIn("evidence for", str(item["summary"]).lower())
+
+    def test_run_autonomous_parent_task_cadence_audits_every_two_completed_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            run = load_run(repo_root, "expanded-run")
+            run["audit_cadence"] = {"unit": "parent_task", "mode": "fixed_interval", "interval": 2}
+            save_run(repo_root, run)
+
+            with patch(
+                "scripts.harness_loop_orchestrator.decide_no_action",
+                return_value=NoActionDecision(False, ["forced actionable candidate"]),
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=2,
+                )
+
+            self.assertEqual(status["phase"], "stopped_budget")
+            report_paths = sorted((run_dir_for(repo_root, "expanded-run") / "audit-reports").glob("audit-*.json"))
+            self.assertEqual(len(report_paths), 1)
+            report = read_json_file(report_paths[0])
+            self.assertEqual(report["cadence"]["unit"], "parent_task")
+            self.assertEqual(report["cadence"]["current_interval"], 2)
+            self.assertEqual(report["cadence"]["steps_since_last_audit"], 2)
+            run = load_run(repo_root, "expanded-run")
+            self.assertEqual(run.get("_audit_cadence_state", {}).get("last_audited_progress_count"), 2)
+
+    def test_create_preflight_run_copies_audit_cadence_from_policy_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            policy_path = repo_root / policy_file
+            policy = read_json_file(policy_path)
+            policy["audit_cadence"] = {"unit": "parent_task", "mode": "fixed_interval", "interval": 2}
+            write_json_file(policy_path, policy)
+
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+
+            self.assertEqual(
+                run["audit_cadence"],
+                {"unit": "parent_task", "mode": "fixed_interval", "interval": 2},
+            )
 
     def test_run_autonomous_materializes_embedded_required_evidence_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
