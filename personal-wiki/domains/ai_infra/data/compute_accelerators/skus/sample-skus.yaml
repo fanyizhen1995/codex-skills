@@ -62,6 +62,15 @@ skus:
     form_factor: PCIe NVMe-oF storage accelerator card
     release_status: released
     source_refs: [resnics-stargate-s1100-product-page]
+  - sku_id: corigine-agilio-cx-2x25gbe
+    vendor_id: corigine
+    family_id: corigine-agilio-cx
+    canonical_name: Corigine Agilio CX 2x25GbE SmartNIC
+    aliases: [Agilio CX 2x25GbE, Corigine Agilio CX SmartNIC]
+    scope: dpu
+    form_factor: 2 x 25GbE SmartNIC card
+    release_status: released
+    source_refs: [corigine-agilio-cx-product-brief]
   - sku_id: aws-trainium2-trn2-offering
     vendor_id: aws
     family_id: aws-trainium

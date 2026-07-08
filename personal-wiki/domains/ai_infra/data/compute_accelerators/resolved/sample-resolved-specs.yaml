@@ -149,6 +149,48 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-07"
+  - sku_id: corigine-agilio-cx-2x25gbe
+    resolved_fields:
+      form_factor:
+        value: 2 x 25GbE SmartNIC card
+        unit: none
+        source_observation_id: obs-corigine-agilio-cx-2x25gbe-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      network_bandwidth:
+        value: 50
+        unit: Gb/s
+        source_observation_id: obs-corigine-agilio-cx-2x25gbe-network-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_type:
+        value: DDR3
+        unit: none
+        source_observation_id: obs-corigine-agilio-cx-2x25gbe-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 2
+        unit: GB
+        source_observation_id: obs-corigine-agilio-cx-2x25gbe-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      host_interface:
+        value: PCIe Base 3.0 compatible with PCIe 1.1/2.0, x8 link
+        unit: none
+        source_observation_id: obs-corigine-agilio-cx-2x25gbe-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
   - sku_id: aws-trainium2-trn2-offering
     resolved_fields:
       cloud_accelerator_count:

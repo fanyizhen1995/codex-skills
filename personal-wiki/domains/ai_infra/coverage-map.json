@@ -321,7 +321,9 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md",
-        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md"
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-h200/20260627T153310569545Z-www-nvidia-com-en-us-data-center-h200-7d05aa2873.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
       ],
       "candidate_gaps": [
         "Continue filling unresolved hardware fields only when product-specific pages, tables, datasheets, or PDFs provide source-backed single-card values.",
@@ -329,8 +331,8 @@
         "Keep aggregate systems, cloud offerings, portfolio pages, discovery indexes, and runtime-only evidence out of single-card resolved fields unless the normalization boundary is explicit."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T14:58:12Z",
-      "notes": "The tracked July 6 compute accelerator baseline is reconciled: 43 raw files from commit bebfebd are cited or classified as duplicate/discovery-only evidence. R9 task 2 resolves a bounded single-card slice from existing local product-specific captures: Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800 now have structured SKU, observation, and resolved spec rows for visible compute, memory, host-interface, form-factor, interconnect where applicable, and power fields. R10 task 2 resolves a narrower Biren deployment-envelope slice from local product-specific captures: Biren Bili 106B, 106M, 166C, 166L, and 166M now have structured rows for only form factor and peak power. R10 task 3 resolves a Resnics DPU/SmartNIC and storage-offload slice: Stargate-N1025 now has resolved form factor, source-stated aggregate data-port bandwidth, memory capacity, host interface, and typical power; Stargate-S1100 now has resolved host interface, power, 4K/4-SSD read/write IOPS, and added-latency upper-bound fields. The layer remains partial for fields that require product-specific tables, datasheets, PDFs, or explicit per-card/per-variant normalization, including Biren compute/memory values and broader DPU/SmartNIC variants that were left as comparison or duplicate-boundary evidence."
+      "last_scanned_at": "2026-07-08T10:47:53Z",
+      "notes": "The tracked July 6 compute accelerator baseline is reconciled: 43 raw files from commit bebfebd are cited or classified as duplicate/discovery-only evidence. R9 task 2 resolves a bounded single-card slice from existing local product-specific captures: Cambricon MLU370-X4, Cambricon MLU370-X8, and Kunlunxin RG800 now have structured SKU, observation, and resolved spec rows for visible compute, memory, host-interface, form-factor, interconnect where applicable, and power fields. R10 task 2 resolves a narrower Biren deployment-envelope slice from local product-specific captures: Biren Bili 106B, 106M, 166C, 166L, and 166M now have structured rows for only form factor and peak power. R10 task 3 resolves a Resnics DPU/SmartNIC and storage-offload slice: Stargate-N1025 now has resolved form factor, source-stated aggregate data-port bandwidth, memory capacity, host interface, and typical power; Stargate-S1100 now has resolved host interface, power, 4K/4-SSD read/write IOPS, and added-latency upper-bound fields. The layer remains partial for fields that require product-specific tables, datasheets, PDFs, or explicit per-card/per-variant normalization, including Biren compute/memory values and broader DPU/SmartNIC variants that were left as comparison or duplicate-boundary evidence. Continuation parent 1 adds Corigine Agilio CX 2x25GbE SmartNIC as a structured local product-brief slice with resolved form factor, aggregate 50 Gb/s data-port bandwidth, DDR3 memory type, 2 GB memory capacity, and PCIe Base 3.0 x8 host-interface wording. Power, latency, IOPS, packet-processing throughput, benchmark, protocol, and production-operations claims remain unresolved."
     },
     "network-storage-cluster": {
       "status": "partial",
@@ -365,7 +367,9 @@
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r8-task-2-gap-proof.json",
         "personal-wiki/domains/ai_infra/raw/links/network-storage-exact-benchmark-results-20260707.md",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-3-gap-proof.json",
-        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json"
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
       ],
       "candidate_gaps": [
         "Add complete production incident and postmortem evidence for EFA, RoCE/Spectrum-X, Lustre, WEKA, Ceph, and NVMe-oF failure modes in AI clusters, with impact, timeline, environment, remediation, and follow-up ownership.",
@@ -373,8 +377,8 @@
         "Broaden non-AWS/non-NVIDIA fabric operations beyond AWS HyperPod/EFA mechanics, Trainium2 cloud-offering fields, existing Spectrum-X/RoCE evidence, and the r9 blocked MLCommons exact-result probe."
       ],
       "blocked_reason": "",
-      "last_scanned_at": "2026-07-07T14:58:12Z",
-      "notes": "Network Storage Cluster Infrastructure now adds official source notes for AWS EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, checkpoint-aware resume, and MLCommons Storage benchmark mechanics, while reusing existing NCCL technical-blog fabric evidence and local DPU/SmartNIC/NVMe-oF product captures. R9 task 3 records blocked-source evidence for exact MLCommons Storage measured-result artifacts: local search found no captured per-submission result file, and bounded GitHub API/raw probes failed with local DNS resolution errors. R10 task 3 promotes Resnics Stargate-N1025 and Stargate-S1100 product-specific fields into the structured accelerator catalog while keeping S1100 IOPS/latency as card-level storage-offload values, not general NVMe-oF benchmark evidence. The layer remains partial because public incident/postmortem sources, exact measured product/provider benchmark submissions, and broader non-AWS/non-NVIDIA fabric operations evidence are still thin."
+      "last_scanned_at": "2026-07-08T10:47:53Z",
+      "notes": "Network Storage Cluster Infrastructure now adds official source notes for AWS EFA, FSx for Lustre, WEKA, Ceph, SPDK NVMe-oF, AWS HyperPod topology-aware scheduling, EFA health checks, node replacement, checkpoint-aware resume, and MLCommons Storage benchmark mechanics, while reusing existing NCCL technical-blog fabric evidence and local DPU/SmartNIC/NVMe-oF product captures. R9 task 3 records blocked-source evidence for exact MLCommons Storage measured-result artifacts: local search found no captured per-submission result file, and bounded GitHub API/raw probes failed with local DNS resolution errors. R10 task 3 promotes Resnics Stargate-N1025 and Stargate-S1100 product-specific fields into the structured accelerator catalog while keeping S1100 IOPS/latency as card-level storage-offload values, not general NVMe-oF benchmark evidence. The layer remains partial because public incident/postmortem sources, exact measured product/provider benchmark submissions, and broader non-AWS/non-NVIDIA fabric operations evidence are still thin. Continuation parent 1 keeps Corigine Agilio CX as product-specific SmartNIC catalog evidence for port, memory, and PCIe fields only; it is not used as general NVMe-oF, storage benchmark, fabric operations, or incident evidence."
     }
   }
 }

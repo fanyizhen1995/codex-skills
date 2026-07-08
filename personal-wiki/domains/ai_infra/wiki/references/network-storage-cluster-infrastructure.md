@@ -34,10 +34,12 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
+  - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
   - ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
   - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
-updated: 2026-07-07
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
+updated: 2026-07-08
 related:
   - ai-infra-coverage-map.md
   - nccl-technical-blog-network-observability.md
@@ -83,7 +85,7 @@ Ceph evidence covers distributed storage primitives rather than AI-specific beha
 
 SPDK NVMe-oF documentation supplies protocol-level storage-fabric evidence. The source note records that SPDK exposes NVMe subsystems and namespaces through an NVMe over Fabrics target, which is broader than any one storage accelerator SKU. Use it to explain the storage path and target/subsystem/namespace boundary; do not use it for AI workload performance claims without a benchmark or deployment source. [source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
 
-Local DPU and storage-accelerator captures remain useful product signals. R10 task 3 moves a bounded Resnics subset into the structured catalog: Stargate-N1025 for DPU SmartNIC form factor, data-port bandwidth, memory, host interface, and power; and Stargate-S1100 for NVMe-oF host interface, power, 4K/4-SSD read/write IOPS, and added-latency upper bounds. JaguarMicro Yunxiao DPU and Yusur K2-Pro remain local DPU/NVMe-oF engine evidence in this page, not resolved protocol or benchmark claims. Keep product claims tied to catalog rows, and use SPDK or another storage-fabric source for protocol-level behavior. [wiki](compute-accelerator-parameter-comparison.md) [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) [raw](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md)
+Local DPU and storage-accelerator captures remain useful product signals. R10 task 3 moves a bounded Resnics subset into the structured catalog: Stargate-N1025 for DPU SmartNIC form factor, data-port bandwidth, memory, host interface, and power; and Stargate-S1100 for NVMe-oF host interface, power, 4K/4-SSD read/write IOPS, and added-latency upper bounds. The 2026-07-08 continuation adds Corigine Agilio CX 2x25GbE as a structured SmartNIC product row for port bandwidth, onboard memory, and PCIe host interface from its official product brief. JaguarMicro Yunxiao DPU and Yusur K2-Pro remain local DPU/NVMe-oF engine evidence in this page, not resolved protocol or benchmark claims. Keep product claims tied to catalog rows, and use SPDK or another storage-fabric source for protocol-level behavior. [wiki](compute-accelerator-parameter-comparison.md) [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) [raw](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) [raw](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md)
 
 # Training Topology And Checkpoint Data Paths
 
@@ -138,5 +140,6 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [Compute Accelerator Parameter Comparison](compute-accelerator-parameter-comparison.md)
 - [AWS Trainium2 raw capture](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)
 - [Resnics Stargate-S1100 raw capture](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md)
+- [Corigine Agilio CX raw capture](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md)
 - [JaguarMicro Yunxiao DPU raw capture](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md)
 - [Yusur K2-Pro raw capture](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md)

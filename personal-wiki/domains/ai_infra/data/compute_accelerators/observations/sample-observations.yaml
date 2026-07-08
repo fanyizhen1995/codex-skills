@@ -220,6 +220,71 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page lists write added latency below 20us; field stores the stated upper-bound value.
+  - observation_id: obs-corigine-agilio-cx-2x25gbe-form-factor
+    sku_id: corigine-agilio-cx-2x25gbe
+    field: form_factor
+    value: 2 x 25GbE SmartNIC card
+    unit: none
+    source_id: corigine-agilio-cx-product-brief
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Corigine Agilio CX product brief PDF; product title and interface specifications"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product brief identifies the product as an Agilio CX 2x25GbE SmartNIC.
+  - observation_id: obs-corigine-agilio-cx-2x25gbe-network-bandwidth
+    sku_id: corigine-agilio-cx-2x25gbe
+    field: network_bandwidth
+    value: 50
+    unit: Gb/s
+    source_id: corigine-agilio-cx-product-brief
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Corigine Agilio CX product brief PDF; specifications interface section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product brief lists 2 x 25GbE ports; value records aggregate data-port bandwidth.
+  - observation_id: obs-corigine-agilio-cx-2x25gbe-memory-type
+    sku_id: corigine-agilio-cx-2x25gbe
+    field: memory_type
+    value: DDR3
+    unit: none
+    source_id: corigine-agilio-cx-product-brief
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Corigine Agilio CX product brief PDF; specifications memory section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product brief lists DDR3 onboard memory.
+  - observation_id: obs-corigine-agilio-cx-2x25gbe-memory-capacity
+    sku_id: corigine-agilio-cx-2x25gbe
+    field: memory_capacity
+    value: 2
+    unit: GB
+    source_id: corigine-agilio-cx-product-brief
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Corigine Agilio CX product brief PDF; specifications memory section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product brief lists 2 GB DDR3 onboard memory.
+  - observation_id: obs-corigine-agilio-cx-2x25gbe-host-interface
+    sku_id: corigine-agilio-cx-2x25gbe
+    field: host_interface
+    value: PCIe Base 3.0 compatible with PCIe 1.1/2.0, x8 link
+    unit: none
+    source_id: corigine-agilio-cx-product-brief
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Corigine Agilio CX product brief PDF; specifications PCIe section"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product brief lists PCIe Base 3.0 compatibility with PCIe 1.1/2.0 and 2.5/5.0/8.0 GT/s x8 link rates.
   - observation_id: obs-aws-trn2-accelerator-count
     sku_id: aws-trainium2-trn2-offering
     field: cloud_accelerator_count

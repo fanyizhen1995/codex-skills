@@ -1,0 +1,183 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-1",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-08T10:47:53Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ],
+  "promoted_fields": {
+    "corigine-agilio-cx-2x25gbe": [
+      "form_factor",
+      "network_bandwidth",
+      "memory_type",
+      "memory_capacity",
+      "host_interface"
+    ]
+  },
+  "source_evidence": {
+    "selected_raw_source": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+    "source_boundary": "Official Corigine Agilio CX 2x25GbE SmartNIC product brief PDF. The promoted fields are limited to form factor, source-stated 2 x 25GbE aggregate data-port bandwidth, 2 GB DDR3 onboard memory, and PCIe Base 3.0 x8 host-interface wording.",
+    "unresolved_fields": [
+      "power",
+      "latency",
+      "IOPS",
+      "packet-processing throughput",
+      "benchmark results",
+      "protocol behavior",
+      "production operations"
+    ]
+  },
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-1'); raise SystemExit('\\\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "coverage-map and loop-state contract validation via scripts.harness_loop_contracts",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map contract ok; loop-state contract ok"
+    },
+    {
+      "command": "source visibility check for DPU, SmartNIC, IPU, storage offload, NVMe-oF, product-specific, single-card, line rate, port count, PCIe, memory, IOPS, latency, power, offload engine, schema field, duplicate boundary, aggregate system, multi-variant, and unresolved-field terms",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "source visibility check passed for 20 term groups"
+    },
+    {
+      "command": "autonomous scope check for declared changed paths",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "all declared changed paths are inside planner allowed paths and outside denylist patterns; run-directory JSON is returned in the final payload because the run directory is read-only"
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no dependency, backend, frontend, loop dashboard, harness, or test files changed; no code tests or supply-chain review are applicable generator-side"
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment or non-path high-entropy credential patterns found in added diff lines; a prior naive entropy scan false positive on long raw paths/source slugs was investigated and excluded"
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "bounded link probe or blocked/auth evidence for any new product-specific primary-source capture",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "skipped external probes because existing local raw captures were sufficient and no new external source was captured"
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services or run localhost probes"
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and loop dashboard service availability"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for the new Corigine catalog and wiki terms"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for the new Corigine catalog and wiki terms"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "loop dashboard visibility for current run, child task, actions, evaluator scenarios, and completed history"
+    }
+  ],
+  "run_directory_write": {
+    "status": "read_only",
+    "attempted_paths": [
+      ".codex/loop-runs/ai-infra-expansion-continuation-20260708/artifacts",
+      ".codex/loop-runs/ai-infra-expansion-continuation-20260708/gap-proofs"
+    ],
+    "error": "Read-only file system",
+    "fallback": "Return generator-result JSON as final message with embedded required_evidence_manifest."
+  },
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external capture was added; promoted fields reuse existing local raw crawler captures.",
+    "No git commit was run; commit is intentionally empty for the orchestrator."
+  ]
+}

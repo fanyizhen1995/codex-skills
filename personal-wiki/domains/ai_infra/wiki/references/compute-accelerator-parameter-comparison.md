@@ -83,6 +83,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
 ---
 
 # Summary
@@ -117,7 +118,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | AMD Instinct and Alveo refreshes | Track as portfolio/source-monitoring evidence. The local July text advertises MI350/MI300/MI200 and Alveo families, but the task does not promote per-SKU numeric fields from the portfolio pages. [AMD Instinct discovery](../../raw/crawler/compute-accelerator-discovery-amd-instinct/20260706T203709866943Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md), [MI350P source profile](../../raw/crawler/compute-accelerators-amd-mi350p/20260706T204115675975Z-www-amd-com-en-products-accelerators-instinct-html-d416b602fe.md) |
 | Biren 106B, 106M, 166L, and 166M | Refresh existing form-factor and peak-power rows; no new compute or memory fields are added because the visible local text still does not expose those values. [106B](../../raw/crawler/compute-accelerators-biren-106b/20260706T204117808018Z-www-birentech-com-product-hardware-106b-b7fa1c7a80.md), [106M](../../raw/crawler/compute-accelerators-biren-106m/20260706T204118104735Z-www-birentech-com-product-hardware-106m-65554c3ddd.md), [166L](../../raw/crawler/compute-accelerators-biren-166l/20260706T204118518475Z-www-birentech-com-product-hardware-166l-f208dc4baf.md), [166M](../../raw/crawler/compute-accelerators-biren-166m/20260706T204118823905Z-www-birentech-com-product-hardware-166m-01b6a2d386.md) |
 | Cambricon MLU370-S4/S8 and MLU370-X8 | Exact content-hash refreshes for already-curated product tables. Existing compute, memory, interface, and power rows remain source-backed and require no duplicate row. [S4/S8](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260706T204119753429Z-www-cambricon-com-index-php-dd51e6b9e9.md), [X8](../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260706T204120148067Z-www-cambricon-com-index-php-da315093d5.md) |
-| Corigine Agilio CX PDF and Asterfusion DPU captures | Exact content-hash refreshes for existing SmartNIC/DPU rows; cite as tracked July evidence without adding new normalized fields. [Corigine](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md), [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
+| Corigine Agilio CX PDF and Asterfusion DPU captures | Corigine is now promoted as a bounded structured SmartNIC slice from the official product brief; Asterfusion remains raw comparison evidence because Helium has model variants and CX102S is a gateway/appliance boundary. [Corigine](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md), [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
 | Enflame S60 July capture | Intentionally not used to replace the older S60-specific citation because the July capture resolves to the Enflame homepage and does not expose the old PCIe 5.0 field in local text. [July homepage capture](../../raw/crawler/compute-accelerators-enflame-s60/20260706T204121967738Z-www-enflame-tech-com-7d7fdd552a.md) |
 
 # Quick Read
@@ -161,7 +162,10 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 - DPU/SmartNIC records are not FLOPS peers. NVIDIA BlueField-3, Asterfusion
   Helium, Resnics Stargate, Yusur K2-Pro, and Corigine Agilio are better
   compared by line rate, packet/storage offload, PCIe generation, memory, IOPS,
-  and latency. [BlueField-3](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md),
+  and latency. The structured catalog now resolves Corigine Agilio CX
+  2x25GbE SmartNIC for form factor, aggregate 50 Gb/s data-port bandwidth,
+  2 GB DDR3 onboard memory, and PCIe Base 3.0 x8 host-interface wording.
+  [BlueField-3](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md),
   [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md),
   [Resnics Stargate-S1100](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md),
   [Yusur K2-Pro](../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md),
@@ -189,6 +193,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Biren Bili 166C | AI ASIC / PCIe card | full-height full-length 290 mm double-wide PCIe inference card; 300 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md) |
 | Biren Bili 166L | AI ASIC / OAM module | cold-plate liquid-cooled OAM module; 600 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166l/20260628T060441699966Z-www-birentech-com-product-hardware-166l-93cbb57e8a.md) |
 | Biren Bili 166M | AI ASIC / OAM module | 4U OAM V1.1 air-cooled module; 550 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md) |
+| Corigine Agilio CX 2x25GbE SmartNIC | DPU / SmartNIC card | 2 x 25GbE SmartNIC card; aggregate 50 Gb/s data-port bandwidth; 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with PCIe 1.1/2.0, x8 link | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
 
 # Unresolved Runtime Evidence
 
@@ -282,8 +287,11 @@ R10 task 3 promotes a bounded Resnics slice into structured facts:
 Stargate-N1025 resolves form factor, source-stated aggregate data-port
 bandwidth, memory, host interface, and typical power, while Stargate-S1100
 resolves host interface, power, 4K/4-SSD read and write IOPS, and added-latency
-upper bounds. The remaining DPU/SmartNIC rows stay in the raw comparison table
-until a future task promotes their exact product or variant boundaries.
+upper bounds. The 2026-07-08 continuation adds Corigine Agilio CX 2x25GbE as a
+structured SmartNIC row for official product-brief form factor, 50 Gb/s
+aggregate port bandwidth, 2 GB DDR3 memory, and PCIe x8 host-interface wording.
+The remaining DPU/SmartNIC rows stay in the raw comparison table until a future
+task promotes their exact product or variant boundaries.
 
 # Citations
 
@@ -308,3 +316,4 @@ until a future task promotes their exact product or variant boundaries.
 - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json

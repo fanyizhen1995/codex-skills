@@ -26,9 +26,11 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-biren-166m/20260628T060441979925Z-www-birentech-com-product-hardware-166m-005ec7f5ac.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
+  - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
 ---
 
 # Summary
@@ -65,9 +67,16 @@ product pages. Stargate-N1025 now has resolved form factor, aggregate
 source-stated data-port bandwidth, memory capacity, host interface, and typical
 power fields. Stargate-S1100 now has resolved host interface, power, 4K/4-SSD
 read and write IOPS, and source-stated added-latency upper-bound fields. Broader
-Resnics N2025, Yusur, Asterfusion, Corigine, and Nebula rows remain comparison
-or duplicate-boundary evidence unless their exact product or variant boundary is
+Resnics N2025, Yusur, Asterfusion, Dayu, and Nebula rows remain comparison or
+duplicate-boundary evidence unless their exact product or variant boundary is
 promoted in a future scoped slice.
+
+The 2026-07-08 continuation parent task promotes one additional local
+product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
+form factor, aggregate data-port bandwidth, memory type, memory capacity, and
+host interface fields. The slice uses only the official PDF product brief and
+does not promote power, latency, IOPS, packet-processing, benchmark, or
+production-operations claims.
 
 # Data Flow
 
@@ -102,3 +111,5 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
 - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
+- ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json

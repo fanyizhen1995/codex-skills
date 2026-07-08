@@ -1,0 +1,97 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-1",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Corigine Agilio CX 2x25GbE SmartNIC structured product fields",
+    "source_type": "hardware",
+    "identity_key": "hardware:corigine:agilio-cx-2x25gbe:smartnic-card",
+    "source_paths": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260706T204120429357Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md"
+    ]
+  },
+  "local_checks": {
+    "repo_state": "Planner evidence recorded unrelated untracked .codex/generated/docs artifacts; generator reused only local ai_infra raw/wiki/data evidence and did not fetch external sources.",
+    "raw_manifest_scan": "Searched local compute accelerator raw captures, source registry, structured catalog YAML, Compute Accelerator Crawl Inventory, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, coverage-map.json, loop-state.json, and r9/r10 hardware manifests for DPU, SmartNIC, IPU, storage offload, NVMe-oF, product-specific, line rate, port count, PCIe, memory, IOPS, latency, power, offload engine, schema field, duplicate boundary, aggregate, multi-variant, and unresolved-field terms.",
+    "wiki_search": "Existing curated pages already listed Corigine Agilio CX as raw DPU/SmartNIC comparison evidence, but the structured catalog had no Corigine SKU, observation, or resolved rows before this task; Resnics N1025/S1100, Biren, Cambricon, Kunlunxin, BlueField-3, and Intel E2100 resolved rows were treated as duplicate boundaries.",
+    "domain_index_scan": "The ai_infra index points to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Field Glossary, Spec Sources, AI Infra Coverage Map, and Network Storage Cluster Infrastructure; no new page was needed.",
+    "schema_scan": "spec-fields.yaml already supports form_factor, network_bandwidth for dpu/ipu, memory_type, memory_capacity, and host_interface, so no schema extension was needed for the Corigine slice.",
+    "completed_r9_r10_boundaries": "r9 resolved Cambricon MLU370-X4/X8 and Kunlunxin RG800; r10 resolved Biren deployment-envelope fields and Resnics Stargate-N1025/S1100 DPU/storage-offload fields. This task avoided those products except as duplicate boundaries."
+  },
+  "gap_reason": "The hardware layer still had a local-evidence-first SmartNIC gap: the official Corigine Agilio CX 2x25GbE product brief exposes product-specific port, memory, and PCIe host-interface values with explicit units, while the structured catalog had only raw comparison text for Corigine. Promoting this bounded slice improves DPU/SmartNIC product coverage without claiming benchmark, protocol, aggregate-system, packet-processing throughput, power, latency, or production-operations behavior.",
+  "duplicate_checks": [
+    {
+      "artifact": "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+      "finding": "No existing corigine-agilio-cx-2x25gbe SKU row was present before this task; BlueField-3, Intel E2100, Resnics N1025/S1100, Biren, Cambricon, and Kunlunxin rows were already represented and not duplicated."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "finding": "No existing resolved fields pointed to corigine-agilio-cx-product-brief before this task."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+      "finding": "Corigine Agilio CX was already visible as a raw comparison row with 2 x 25GbE ports, 2 GB DDR3 memory, and PCIe Base 3.0 x8 wording, so this task promoted only those same source-backed fields."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "finding": "The network/storage page separates product-specific DPU/SmartNIC catalog fields from SPDK protocol behavior, MLCommons benchmark claims, and incident/postmortem evidence; this task did not broaden Corigine fields into architecture or benchmark claims."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json",
+      "finding": "Prior Resnics task explicitly left Corigine as useful PDF comparison evidence; the continuation task uses that remaining exact product-brief boundary rather than repeating the Resnics slice."
+    }
+  ],
+  "selected_source_backed_fields": [
+    {
+      "sku_id": "corigine-agilio-cx-2x25gbe",
+      "fields": [
+        "form_factor",
+        "network_bandwidth",
+        "memory_type",
+        "memory_capacity",
+        "host_interface"
+      ],
+      "source_boundary": "Official Corigine Agilio CX 2x25GbE SmartNIC PDF product brief. network_bandwidth records aggregate data-port bandwidth from the source-stated 2 x 25GbE ports; host_interface preserves PCIe Base 3.0 compatible with PCIe 1.1/2.0 and x8 link wording."
+    }
+  ],
+  "rejected_or_deferred_fields": [
+    {
+      "record": "Corigine Agilio CX packet/offload features",
+      "reason": "The source lists offload features and flow-table/tunnel capacities, but the current catalog schema does not model those fields and the task goal was a narrow port, memory, and host-interface slice."
+    },
+    {
+      "record": "Corigine Agilio CX power, latency, and IOPS",
+      "reason": "The product brief text reviewed locally does not expose card power, storage IOPS, or latency fields with explicit product units, so no values were promoted."
+    },
+    {
+      "record": "Asterfusion Helium DPU",
+      "reason": "Helium exposes useful model rows such as EC2004Y and EC2002P, but the page mixes model variants, product-line claims, and NFV comparison rows; it remains raw comparison evidence until a future task promotes explicit per-model boundaries."
+    },
+    {
+      "record": "Asterfusion CX102S-DPU, Dayu Paratus, Nebula DPU/RNIC/SNIC, Yusur K2-Pro/SWIFT-2200N, and Resnics N2025",
+      "reason": "These rows remain duplicate-boundary or raw comparison evidence because they are aggregate gateways, broad product pages, JS-heavy/incomplete captures, mixed chip/product-series sources, or were intentionally outside this bounded Corigine slice."
+    },
+    {
+      "record": "Protocol, benchmark, architecture, cloud, and runtime sources",
+      "reason": "SPDK, MLCommons Storage, NCCL fabric blogs, HyperPod docs, cloud offering pages, and runtime issue logs were not used as product-specific Corigine field evidence."
+    }
+  ],
+  "schema_extensions": [],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-verification.json"
+  ]
+}
