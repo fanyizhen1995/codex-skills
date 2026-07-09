@@ -77,6 +77,8 @@ const SUPERVISOR_ACTION_LABELS = {
   restart_service: "重启服务",
   create_continuation: "创建续跑",
   request_user_decision: "请求用户决策",
+  continue: "继续",
+  refocus: "重新聚焦",
   stop: "停止",
 };
 
@@ -87,6 +89,10 @@ const SUPERVISOR_CLASSIFICATION_LABELS = {
   stopped: "已停止",
   human_gate: "等待人工",
   unsupported: "不支持",
+  needs_user_decision: "需要用户决策",
+  actionable_resume: "可恢复",
+  awaiting_human_merge: "等待人工合并",
+  terminal: "终止",
 };
 
 const ACTION_LABELS = {
@@ -201,6 +207,9 @@ function auditVerdictLabel(verdict) {
     should_fix: "建议整改",
     observe: "观察",
     blocked: "审计不可用",
+    stop: "停止",
+    continue: "继续",
+    refocus: "重新聚焦",
   };
   return labels[verdict] || text(verdict, "暂无审计");
 }
@@ -343,13 +352,13 @@ function unavailableSupervisorPayload(key, path, error) {
         last_heartbeat_at: "",
         last_tick_at: "",
         generated_at: "",
-        watch_interval_seconds: 0,
+        watch_interval_seconds: null,
       },
       artifact_path: ".codex/supervisor/supervisor-state.json",
     };
   }
   if (key === "services") {
-    return { ...base, checked_at: "", services: [], service_count: 0 };
+    return { ...base, checked_at: "", services: [], service_count: null };
   }
   if (key === "decisions") {
     return { ...base, decisions: [], continuation_plans: [], counts: {} };
@@ -358,10 +367,10 @@ function unavailableSupervisorPayload(key, path, error) {
     return { ...base, attempts: [], counts: {} };
   }
   if (key === "required") {
-    return { ...base, open_count: 0, decisions: [], total_count: 0 };
+    return { ...base, open_count: null, decisions: [], total_count: null };
   }
   if (key === "auditor") {
-    return { ...base, audits: [], total_count: 0, returned_count: 0 };
+    return { ...base, audits: [], total_count: null, returned_count: null };
   }
   return base;
 }
@@ -564,7 +573,7 @@ function renderSupervisorHero(bundle) {
   const actions = el("div", "supervisor-actions");
   actions.append(
     supervisorChip(`健康状态：${supervisorStatusLabel(summary.status || snapshot.status)}`, summary.status || snapshot.status),
-    supervisorChip(`人工决策：${openCount === null ? "不可用" : `${openCount} open`}`, openCount && openCount > 0 ? "blocked" : required.status),
+    supervisorChip(`人工决策：${openCountLabel(openCount)}`, openCount && openCount > 0 ? "blocked" : required.status),
     supervisorChip("独立于任务列表", "available"),
   );
   wrapper.append(textBlock, actions);
@@ -587,7 +596,7 @@ function renderSupervisorMetrics(bundle) {
   grid.append(
     supervisorMetric(
       "在线服务",
-      totalServices === null || totalServices === 0 ? "不可用" : `${healthyServices || 0} / ${totalServices}`,
+      totalServices === null || totalServices === 0 || healthyServices === null ? "不可用" : `${healthyServices} / ${totalServices}`,
       totalServices === null || totalServices === 0 ? "暂无服务汇总" : "只表示可达；版本新鲜度单独判断",
     ),
     supervisorMetric(
@@ -617,7 +626,7 @@ function renderSupervisorControlFlow(bundle) {
   const attempts = supervisorAttempts(bundle);
   const audits = supervisorAudits(bundle);
   const required = bundle.required || {};
-  const lastDecision = nonEmptyObject(snapshot.last_decision) || decisions[0] || null;
+  const lastDecision = currentSupervisorDecision(bundle);
   const runSummary = objectValue(snapshot.run_summary);
   const openCount = numberOrNull(required.open_count);
   const steps = [
@@ -637,9 +646,9 @@ function renderSupervisorControlFlow(bundle) {
     },
     {
       title: "执行控制动作",
-      detail: lastDecision ? text(lastDecision.summary || lastDecision.reason || lastDecision.decision_id) : "暂无最近决策",
-      status: lastDecision ? lastDecision.action || "available" : "unavailable",
-      badge: lastDecision ? supervisorActionLabel(lastDecision.action) : "暂无数据",
+      detail: lastDecision ? supervisorDecisionDetail(lastDecision) : "暂无最近决策",
+      status: lastDecision ? supervisorDecisionStatus(lastDecision) : "unavailable",
+      badge: lastDecision ? supervisorDecisionBadge(lastDecision) : "暂无数据",
     },
     {
       title: "消费 Auditor",
@@ -824,7 +833,7 @@ function renderSupervisorUserDecisions(bundle) {
   const required = bundle.required || {};
   const decisions = arrayValue(required.decisions);
   const openCount = numberOrNull(required.open_count);
-  const heading = openCount === null ? "open 决策：不可用" : `open 决策：${openCount}`;
+  const heading = `待处理决策：${openCountLabel(openCount)}`;
   if (!decisions.length) {
     return supervisorSection("人工决策队列", [
       supervisorListItem("open 决策", heading, openCount && openCount > 0 ? "blocked" : required.status, [
@@ -852,7 +861,7 @@ function renderSupervisorConfig(bundle) {
   const decisions = bundle.decisions || {};
   const rows = [
     ["模式", snapshot.mode ? text(snapshot.mode) : "未启用"],
-    ["Watch 间隔", numberOrNull(snapshot.watch_interval_seconds) === null ? "不可用" : `${snapshot.watch_interval_seconds}s`],
+    ["Watch 间隔", watchIntervalLabel(snapshot.watch_interval_seconds)],
     ["最近心跳", snapshot.last_heartbeat_at ? formatTime(snapshot.last_heartbeat_at) : "暂无数据"],
     ["最近 tick", snapshot.last_tick_at ? formatTime(snapshot.last_tick_at) : "暂无数据"],
     ["服务检查", services.checked_at ? formatTime(services.checked_at) : "暂无数据"],
@@ -942,16 +951,17 @@ function objectValue(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
-function nonEmptyObject(value) {
-  const normalized = objectValue(value);
-  return Object.keys(normalized).length ? normalized : null;
-}
-
 function arrayValue(value) {
   return Array.isArray(value) ? value : [];
 }
 
 function numberOrNull(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string" && !value.trim()) {
+    return null;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -959,6 +969,56 @@ function numberOrNull(value) {
 function numberText(value) {
   const number = numberOrNull(value);
   return number === null ? "暂无数据" : String(number);
+}
+
+function openCountLabel(value) {
+  const number = numberOrNull(value);
+  if (number === null) {
+    return "不可用";
+  }
+  return number > 0 ? `${number} 条待处理` : "暂无待处理";
+}
+
+function watchIntervalLabel(value) {
+  const number = numberOrNull(value);
+  return number === null || number <= 0 ? "不可用" : `${number}s`;
+}
+
+function supervisorDecisionAvailable(decision) {
+  const normalized = objectValue(decision);
+  return Boolean(
+    text(normalized.action, "") ||
+    text(normalized.classification, "") ||
+    text(normalized.summary, ""),
+  );
+}
+
+function currentSupervisorDecision(bundle) {
+  const decisions = supervisorDecisions(bundle).filter(supervisorDecisionAvailable);
+  if (decisions.length) {
+    return decisions[0];
+  }
+  const snapshotDecision = objectValue(supervisorSnapshot(bundle).last_decision);
+  return supervisorDecisionAvailable(snapshotDecision) ? snapshotDecision : null;
+}
+
+function supervisorDecisionStatus(decision) {
+  return text(decision.action || decision.classification, "waiting");
+}
+
+function supervisorDecisionBadge(decision) {
+  if (decision.action) {
+    return supervisorActionLabel(decision.action);
+  }
+  if (decision.classification) {
+    return supervisorClassificationLabel(decision.classification);
+  }
+  return "等待";
+}
+
+function supervisorDecisionDetail(decision) {
+  const classification = decision.classification ? supervisorClassificationLabel(decision.classification) : "";
+  return text(decision.summary || decision.reason || classification || decision.decision_id, "暂无最近决策");
 }
 
 function supervisorStatusLabel(status) {
@@ -981,10 +1041,10 @@ function supervisorStatusClass(status) {
   if (["healthy", "available", "pass", "passed"].includes(normalized)) {
     return "status-done";
   }
-  if (["degraded", "planned", "created", "observe", "continue", "running", "pending", "resume", "restart_service", "create_continuation"].includes(normalized)) {
+  if (["degraded", "planned", "created", "observe", "continue", "refocus", "running", "pending", "active", "actionable_resume", "continuation_candidate", "resume", "restart_service", "create_continuation"].includes(normalized)) {
     return "status-running";
   }
-  if (["blocked", "stopped", "stop", "fail", "failed", "invalid_artifact", "must_fix", "request_user_decision", "open"].includes(normalized)) {
+  if (["blocked", "stopped", "stop", "fail", "failed", "invalid_artifact", "must_fix", "request_user_decision", "needs_user_decision", "unsupported", "open"].includes(normalized)) {
     return "status-blocked";
   }
   return "status-waiting";
