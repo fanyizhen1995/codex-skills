@@ -1189,10 +1189,15 @@ def _previous_commit(record: RunRecord) -> str:
         value = run.get(key)
         if isinstance(value, str) and value:
             return value
-    try:
-        return _git_head(record.repo_root)
-    except RuntimeError as exc:
-        return f"unknown-{_safe_slug(str(exc))}"
+    identity = {
+        "run_id": record.run_id,
+        "task_id": str(run.get("task_id") or ""),
+        "phase": str(run.get("phase") or ""),
+        "domain": str(run.get("domain") or ""),
+        "policy_file": str(run.get("policy_file") or ""),
+    }
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True).encode("utf-8")).hexdigest()[:12]
+    return f"run-identity-{digest}"
 
 
 def _parent_counter(run: Mapping[str, Any]) -> int:

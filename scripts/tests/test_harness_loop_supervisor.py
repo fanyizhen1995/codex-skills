@@ -316,6 +316,37 @@ def test_stopped_budget_autonomous_plan_is_idempotent(tmp_path, monkeypatch):
     assert second["run_summary"]["continuation_candidates"] == 1
 
 
+def test_stopped_budget_without_commit_uses_stable_idempotency_when_repo_head_changes(tmp_path, monkeypatch):
+    seed_run(
+        tmp_path,
+        "missing-commit",
+        policy="autonomous_knowledge",
+        phase="stopped_budget",
+        next_action="none",
+        last_result="pass",
+        task_id="missing-commit-parent-14",
+        domain="ai_infra",
+        policy_file=AI_INFRA_POLICY_FILE,
+    )
+    run_path = tmp_path / ".codex" / "loop-runs" / "missing-commit" / "run.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run.pop("commit", None)
+    run_path.write_text(json.dumps(run, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    patch_service_checks(monkeypatch)
+    heads = iter(["head-one", "head-two"])
+    monkeypatch.setattr("scripts.harness_loop_supervisor._git_head", lambda cwd: next(heads))
+    config = SupervisorConfig(project_root=tmp_path, dry_run=True)
+
+    run_supervisor_once(config)
+    second = run_supervisor_once(config)
+
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    assert len(plans) == 1
+    assert plans[0]["previous_commit"].startswith("run-identity-")
+    assert plans[0]["status"] == "planned"
+    assert second["run_summary"]["continuation_candidates"] == 1
+
+
 def test_existing_planned_continuation_is_reused_when_global_stop_opens(tmp_path, monkeypatch):
     seed_stopped_budget_autonomous_run(tmp_path, "planned-before-stop", parent_counter=14)
     patch_service_checks(monkeypatch)
