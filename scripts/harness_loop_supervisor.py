@@ -1043,7 +1043,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-seconds", type=int, default=30)
     parser.add_argument("--max-ticks", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--no-include-worktrees", action="store_true")
+    parser.add_argument("--include-worktrees", dest="include_worktrees", action="store_true", default=True)
+    parser.add_argument("--no-include-worktrees", dest="include_worktrees", action="store_false")
     parser.add_argument("--restart-services", action="store_true")
     parser.add_argument("--no-create-continuations", action="store_true")
     args = parser.parse_args(argv)
@@ -1052,7 +1053,7 @@ def main(argv: list[str] | None = None) -> int:
         project_root=Path(args.project_root),
         mode="watch" if args.watch else "once",
         watch_interval_seconds=args.interval_seconds,
-        include_worktrees=not args.no_include_worktrees,
+        include_worktrees=args.include_worktrees,
         dry_run=args.dry_run,
         restart_services=args.restart_services,
         create_continuations=not args.no_create_continuations,

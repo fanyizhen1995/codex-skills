@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,7 @@ from scripts.harness_loop_supervisor_state import append_jsonl, make_failure_key
 
 
 AI_INFRA_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def seed_service_runtime(
@@ -148,6 +151,52 @@ def patch_service_checks(monkeypatch: pytest.MonkeyPatch, *, git_head: str = "ab
     monkeypatch.setattr("scripts.harness_loop_supervisor._tmux_has_session", lambda session: (True, "exists"))
     monkeypatch.setattr("scripts.harness_loop_supervisor._pid_exists", lambda pid: True)
     monkeypatch.setattr("scripts.harness_loop_supervisor._git_head", lambda cwd: git_head)
+
+
+def test_once_cli_writes_state_and_exits_zero(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/harness_loop_supervisor.py",
+            "--project-root",
+            str(tmp_path),
+            "--once",
+            "--dry-run",
+            "--include-worktrees",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / ".codex" / "supervisor" / "supervisor-state.json").exists()
+
+
+def test_watch_mode_can_stop_after_max_ticks(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/harness_loop_supervisor.py",
+            "--project-root",
+            str(tmp_path),
+            "--watch",
+            "--max-ticks",
+            "1",
+            "--interval-seconds",
+            "1",
+            "--dry-run",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    state = json.loads((tmp_path / ".codex" / "supervisor" / "supervisor-state.json").read_text(encoding="utf-8"))
+    assert state["mode"] == "watch"
+    assert state["last_heartbeat_at"]
+    assert state["last_tick_at"]
 
 
 def test_run_supervisor_once_writes_required_artifacts(tmp_path, monkeypatch):

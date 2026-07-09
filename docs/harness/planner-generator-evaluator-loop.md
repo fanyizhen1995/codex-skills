@@ -96,11 +96,37 @@ The `codex-exec` parent planner must write a planner payload that satisfies
 does not wait for human merge by itself; the child returns `phase=passed` and
 the parent records accepted changed paths before planning the next child.
 
-### Auto Resume
+### Supervisor And Auto Resume
 
-`audit_blocked` is actionable only when an orchestrator process runs again.
-For long-running local operation, start the auto-resume watcher separately from
-the read-only Loop Dashboard backend:
+`loop-supervisor-01` is the project-level control plane for keeping the crawler
+services, Loop Dashboard, auto-resume, and eligible loop runs moving. Run it as
+its own long-running process:
+
+```bash
+python3 scripts/harness_loop_supervisor.py \
+  --project-root /home/fyz/codex-skills \
+  --watch \
+  --interval-seconds 30
+```
+
+For one-shot diagnostics, run:
+
+```bash
+python3 scripts/harness_loop_supervisor.py \
+  --project-root /home/fyz/codex-skills \
+  --once \
+  --dry-run
+```
+
+Supervisor writes runtime state under `.codex/supervisor/`, reads service
+metadata from `.codex/service-runtime/<service>.json`, and exposes its state
+through Loop Dashboard's global Supervisor panel. Service reachability is not
+enough: `running_version.freshness`, `runtime_metadata_path`, and `evidence`
+must show whether the running backend/frontend/dashboard processes match the
+intended repo version.
+
+`loop-auto-resume` remains the lower-level recovery executor. Keep it running so
+Supervisor can delegate actionable loop phases to the existing resume path:
 
 ```bash
 python3 scripts/harness_loop_auto_resume.py \
@@ -127,9 +153,8 @@ required-evidence stops can be rechecked without a manual CLI call. The watcher
 requires explicit driver choices; smoke fixtures should use fake drivers, while
 real development runs should use `codex-exec`.
 
-Until `loop-supervisor-01` replaces these separate services, every real loop
-task must keep the following long-running processes online and verify them
-before reporting progress:
+Every real loop task must keep the following long-running processes online and
+verify them before reporting progress:
 
 - Crawler Workbench means both backend and frontend. Both must remain reachable
   at the configured remote-accessible ports, and reachability alone is not
@@ -143,6 +168,9 @@ before reporting progress:
   frontend must show the same current data.
 - Loop Dashboard remains reachable and points at the project root whose runs
   should be monitored.
+- `loop-supervisor` remains running so service health, version freshness,
+  user-decision escalation, Auditor control inputs, and continuation planning
+  remain visible in one global panel.
 - `loop-auto-resume` remains running so `audit_blocked`, autonomous active
   phases, safe autonomous dirty-path stops, and safe required-evidence stops
   are re-entered without a manual CLI call.
