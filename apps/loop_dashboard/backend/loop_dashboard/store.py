@@ -2204,12 +2204,12 @@ class LoopDashboardStore:
         return value
 
     def _is_supervisor_sensitive_key(self, key: str) -> bool:
-        normalized_key = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
-        if not normalized_key:
+        segments = self._supervisor_key_segments(key)
+        if not segments:
             return False
+        normalized_key = "_".join(segments)
         if normalized_key in SUPERVISOR_SENSITIVE_KEYS:
             return True
-        segments = [segment for segment in normalized_key.split("_") if segment]
         if any(segment in {"apikey", "authorization", "password", "secret", "token"} for segment in segments):
             return True
         sensitive_sequences = (("api", "key"), ("access", "token"), ("client", "secret"))
@@ -2218,6 +2218,12 @@ class LoopDashboardStore:
             if any(tuple(segments[index : index + size]) == sequence for index in range(0, len(segments) - size + 1)):
                 return True
         return False
+
+    def _supervisor_key_segments(self, key: str) -> list[str]:
+        return [
+            segment.lower()
+            for segment in re.findall(r"[A-Z]+(?=[A-Z][a-z]|\d|[^A-Za-z0-9]|$)|[A-Z]?[a-z]+|\d+", key.strip())
+        ]
 
     def _supervisor_diagnostic(self, path: Path, message: str) -> dict[str, str]:
         return {

@@ -324,11 +324,20 @@ def test_supervisor_store_recursively_redacts_compound_secret_field_names(tmp_pa
             "service_health": {
                 "model-service": {
                     "openai_api_key": "sk-openai-secret",
+                    "openaiApiKey": "sk-openai-camel-secret",
+                    "openai-api-key": "sk-openai-kebab-secret",
                     "github_token": "github-secret-value",
+                    "githubToken": "github-camel-secret-value",
                     "access_token_value": "access-secret-value",
+                    "accessToken": "access-camel-secret-value",
+                    "AccessToken": "access-pascal-secret-value",
                     "client_secret_text": "client-secret-value",
+                    "clientSecret": "client-camel-secret-value",
+                    "ClientSecret": "client-pascal-secret-value",
                     "nested": [{"openai_api_key": "nested-openai-secret"}],
                     "idempotency_key": "keep-idempotency-key-visible",
+                    "statusLabel": "Healthy service",
+                    "lastHeartbeatAt": "2026-07-09T10:00:00Z",
                 }
             },
         },
@@ -337,17 +346,40 @@ def test_supervisor_store_recursively_redacts_compound_secret_field_names(tmp_pa
     summary = LoopDashboardStore(tmp_path).supervisor_summary()
 
     serialized = json.dumps(summary, ensure_ascii=False)
-    assert summary["state"]["service_health"]["model-service"]["openai_api_key"] == "[REDACTED]"
-    assert summary["state"]["service_health"]["model-service"]["github_token"] == "[REDACTED]"
-    assert summary["state"]["service_health"]["model-service"]["access_token_value"] == "[REDACTED]"
-    assert summary["state"]["service_health"]["model-service"]["client_secret_text"] == "[REDACTED]"
-    assert summary["state"]["service_health"]["model-service"]["nested"][0]["openai_api_key"] == "[REDACTED]"
-    assert summary["state"]["service_health"]["model-service"]["idempotency_key"] == "keep-idempotency-key-visible"
-    assert "sk-openai-secret" not in serialized
-    assert "github-secret-value" not in serialized
-    assert "access-secret-value" not in serialized
-    assert "client-secret-value" not in serialized
-    assert "nested-openai-secret" not in serialized
+    service_health = summary["state"]["service_health"]["model-service"]
+    for key in (
+        "openai_api_key",
+        "openaiApiKey",
+        "openai-api-key",
+        "github_token",
+        "githubToken",
+        "access_token_value",
+        "accessToken",
+        "AccessToken",
+        "client_secret_text",
+        "clientSecret",
+        "ClientSecret",
+    ):
+        assert service_health[key] == "[REDACTED]"
+    assert service_health["nested"][0]["openai_api_key"] == "[REDACTED]"
+    assert service_health["idempotency_key"] == "keep-idempotency-key-visible"
+    assert service_health["statusLabel"] == "Healthy service"
+    assert service_health["lastHeartbeatAt"] == "2026-07-09T10:00:00Z"
+    for leaked_value in (
+        "sk-openai-secret",
+        "sk-openai-camel-secret",
+        "sk-openai-kebab-secret",
+        "github-secret-value",
+        "github-camel-secret-value",
+        "access-secret-value",
+        "access-camel-secret-value",
+        "access-pascal-secret-value",
+        "client-secret-value",
+        "client-camel-secret-value",
+        "client-pascal-secret-value",
+        "nested-openai-secret",
+    ):
+        assert leaked_value not in serialized
 
 
 def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path) -> None:
