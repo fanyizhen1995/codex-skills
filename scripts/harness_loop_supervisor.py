@@ -68,6 +68,7 @@ ALLOWED_RESTART_SESSIONS = {
     ),
     "personal-wiki-crawler-frontend": (
         "cd {project_root}/personal-wiki/apps/crawler_workbench/frontend && "
+        "if ! command -v npm >/dev/null 2>&1 && [ -s \"$HOME/.nvm/nvm.sh\" ]; then . \"$HOME/.nvm/nvm.sh\"; fi && "
         "npm run dev -- --host 0.0.0.0 --port 5173"
     ),
     "loop-dashboard": (

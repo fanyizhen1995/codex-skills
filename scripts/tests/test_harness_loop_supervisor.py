@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from scripts.harness_loop_supervisor import (
+    ALLOWED_RESTART_SESSIONS,
     ServiceConfig,
     SupervisorConfig,
     check_service_health,
@@ -380,6 +381,13 @@ def test_existing_planned_continuation_is_reused_when_global_stop_opens(tmp_path
 def test_restart_allowlist_rejects_unknown_session(tmp_path):
     with pytest.raises(ValueError):
         restart_service(SupervisorConfig(project_root=tmp_path), "rm-random-session")
+
+
+def test_frontend_restart_allowlist_loads_nvm_before_npm():
+    command = ALLOWED_RESTART_SESSIONS["personal-wiki-crawler-frontend"]
+
+    assert "nvm.sh" in command
+    assert "npm run dev -- --host 0.0.0.0 --port 5173" in command
 
 
 def test_missing_service_runtime_reports_unavailable_version(tmp_path, monkeypatch):
