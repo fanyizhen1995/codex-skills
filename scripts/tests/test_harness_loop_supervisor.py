@@ -313,7 +313,37 @@ def test_stopped_budget_autonomous_plan_is_idempotent(tmp_path, monkeypatch):
     assert len(plans) == 1
     assert len({plan["idempotency_key"] for plan in plans}) == 1
     assert plans[0]["parent_task_counter"] == 14
-    assert second["run_summary"]["continuation_candidates"] == 1
+    assert second["run_summary"]["continuation_candidates"] == 0
+
+
+def test_existing_planned_continuation_is_reused_when_global_stop_opens(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "planned-before-stop", parent_counter=14)
+    patch_service_checks(monkeypatch)
+    config = SupervisorConfig(project_root=tmp_path, dry_run=True)
+
+    run_supervisor_once(config)
+    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "needs-human")
+    open_user_decision(
+        tmp_path,
+        reason="unsupported_state",
+        failure_key=failure_key,
+        summary="Operator decision opened after the continuation plan was already planned.",
+        required_user_decision="Resolve the existing decision before continuing.",
+        affected_runs=["existing-run"],
+        attempts=[],
+    )
+    second = run_supervisor_once(config)
+
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    idempotency_keys = [plan["idempotency_key"] for plan in plans]
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    assert len(plans) == 1
+    assert idempotency_keys == ["autonomous_knowledge:ai_infra:planned-before-stop:parent-14:abc123"]
+    assert plans[0]["status"] == "planned"
+    assert second["run_summary"]["continuation_candidates"] == 0
+    assert decisions[-1]["run_id"] == "planned-before-stop"
+    assert decisions[-1]["action"] == "observe"
+    assert decisions[-1]["reason"] == "continuation_already_planned"
 
 
 def test_restart_allowlist_rejects_unknown_session(tmp_path):
@@ -338,6 +368,79 @@ def test_missing_service_runtime_reports_unavailable_version(tmp_path, monkeypat
     assert health["running_version"]["matches_expected"] is False
     assert health["running_version"]["runtime_metadata_path"] == ".codex/service-runtime/loop-dashboard.json"
     assert "runtime metadata missing" in health["running_version"]["evidence"]
+
+
+def test_service_health_attaches_target_specific_freshness_from_artifact(tmp_path, monkeypatch):
+    patch_service_checks(monkeypatch)
+    append_jsonl(
+        tmp_path / ".codex" / "supervisor" / "freshness-targets.jsonl",
+        {
+            "target_id": "ai-infra-parent-14-atlas-300i-a2",
+            "source_run_id": "ai-infra-expansion-continuation-20260708",
+            "target_commit": "abc123",
+            "domain": "ai_infra",
+            "wiki_paths": ["personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md"],
+            "search_terms": ["Atlas 300I A2", "64 GB"],
+            "expected_frontend_text": ["Atlas 300I A2", "compute-accelerator-spec-catalog"],
+            "api_checks": [
+                {"kind": "crawler", "url": "http://127.0.0.1:8765/api/health", "status": "pass"},
+                {"kind": "wiki-page", "url": "http://127.0.0.1:8765/api/wiki/page", "status": "pass"},
+                {"kind": "search", "url": "http://127.0.0.1:8765/api/search", "status": "pass"},
+            ],
+            "frontend_checks": [{"page": "knowledge-workbench", "status": "pass"}],
+            "status": "pass",
+            "verified_at": "2026-07-09T00:00:00Z",
+        },
+    )
+
+    backend = check_service_health(
+        SupervisorConfig(project_root=tmp_path),
+        ServiceConfig(
+            service="crawler-backend",
+            kind="http_and_tmux",
+            expected_endpoint="http://127.0.0.1:8765/api/health",
+            tmux_session="personal-wiki-crawler-backend",
+            port=8765,
+        ),
+    )
+    frontend = check_service_health(
+        SupervisorConfig(project_root=tmp_path),
+        ServiceConfig(
+            service="crawler-frontend",
+            kind="http_and_tmux",
+            expected_endpoint="http://127.0.0.1:5173/",
+            tmux_session="personal-wiki-crawler-frontend",
+            port=5173,
+        ),
+    )
+
+    assert backend["data_freshness"]["status"] == "pass"
+    assert backend["data_freshness"]["target_id"] == "ai-infra-parent-14-atlas-300i-a2"
+    assert backend["data_freshness"]["checks"] == ["crawler", "wiki-page", "search"]
+    assert frontend["data_freshness"]["status"] == "pass"
+    assert frontend["data_freshness"]["checks"] == ["frontend-visible"]
+
+
+def test_malformed_freshness_target_is_reported_as_failed_not_green(tmp_path, monkeypatch):
+    patch_service_checks(monkeypatch)
+    targets_path = tmp_path / ".codex" / "supervisor" / "freshness-targets.jsonl"
+    targets_path.parent.mkdir(parents=True, exist_ok=True)
+    targets_path.write_text("{not json}\n", encoding="utf-8")
+
+    health = check_service_health(
+        SupervisorConfig(project_root=tmp_path),
+        ServiceConfig(
+            service="crawler-backend",
+            kind="http_and_tmux",
+            expected_endpoint="http://127.0.0.1:8765/api/health",
+            tmux_session="personal-wiki-crawler-backend",
+            port=8765,
+        ),
+    )
+
+    assert health["status"] == "degraded"
+    assert health["data_freshness"]["status"] == "fail"
+    assert "malformed" in health["data_freshness"]["evidence"]
 
 
 def test_git_command_failure_is_explicit_service_error(tmp_path, monkeypatch):
@@ -420,6 +523,51 @@ def test_service_restart_failures_open_user_decision_after_retry_ceiling(tmp_pat
     assert decision["reason"] == "retry_ceiling_exceeded"
     assert decision["failure_key"] == "service_down:project:loop-dashboard:restart-failed"
     assert "service_unrecoverable" in decision["attempts"][-1]["summary"]
+
+
+def test_started_restart_records_failure_when_followup_health_stays_degraded(tmp_path, monkeypatch):
+    degraded_service = {
+        "service": "loop-dashboard",
+        "kind": "http_and_tmux",
+        "expected_endpoint": "http://127.0.0.1:8766/api/health",
+        "tmux_session": "loop-dashboard",
+        "status": "degraded",
+        "reachable": False,
+        "tmux_session_exists": False,
+        "running_version": {
+            "git_head": "",
+            "origin_main": "",
+            "matches_expected": False,
+            "freshness": "unavailable",
+            "runtime_metadata_path": ".codex/service-runtime/loop-dashboard.json",
+            "evidence": "endpoint unreachable",
+        },
+        "data_freshness": {"status": "not_applicable", "target_id": "", "checks": []},
+        "last_checked_at": "2026-07-09T00:00:00Z",
+        "last_restart_at": "",
+        "last_error": "endpoint unreachable",
+    }
+    monkeypatch.setattr("scripts.harness_loop_supervisor._check_all_services", lambda config: [degraded_service])
+    monkeypatch.setattr(
+        "scripts.harness_loop_supervisor.restart_service",
+        lambda config, tmux_session: {
+            "session": tmux_session,
+            "status": "started",
+            "summary": "tmux session started from allowlist",
+        },
+    )
+    monkeypatch.setattr("scripts.harness_loop_supervisor.check_service_health", lambda config, service: degraded_service)
+    config = SupervisorConfig(project_root=tmp_path, restart_services=True)
+
+    first = run_supervisor_once(config)
+    second = run_supervisor_once(config)
+
+    attempts = read_jsonl(tmp_path / ".codex" / "supervisor" / "recovery-attempts.jsonl")
+    assert first["restart_results"][0]["status"] == "started"
+    assert first["restart_results"][0]["verification_status"] == "degraded"
+    assert first["restart_results"][0]["recovery_attempt"]["consecutive_failure_count"] == 1
+    assert second["restart_results"][0]["recovery_attempt"]["consecutive_failure_count"] == 2
+    assert len(attempts) == 2
 
 
 def test_dry_run_passes_dry_run_to_auto_resume(tmp_path, monkeypatch):

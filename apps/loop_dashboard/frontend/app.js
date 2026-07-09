@@ -998,7 +998,7 @@ function supervisorDecisionAvailable(decision) {
 function currentSupervisorDecision(bundle) {
   const decisions = supervisorDecisions(bundle).filter(supervisorDecisionAvailable);
   if (decisions.length) {
-    return decisions[0];
+    return decisions[decisions.length - 1];
   }
   const snapshotDecision = objectValue(supervisorSnapshot(bundle).last_decision);
   return supervisorDecisionAvailable(snapshotDecision) ? snapshotDecision : null;

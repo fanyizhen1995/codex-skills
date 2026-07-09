@@ -85,6 +85,7 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             self.assertTrue((repo_root / ".codex" / "supervisor" / "supervisor-state.json").exists())
             self.assertTrue((repo_root / ".codex" / "supervisor" / "service-health.json").exists())
             self.assertTrue((repo_root / ".codex" / "supervisor" / "continuation-plans.jsonl").exists())
+            self.assertTrue((repo_root / ".codex" / "supervisor" / "freshness-targets.jsonl").exists())
             self.assertTrue((repo_root / ".codex" / "supervisor" / "needs-user-decisions" / "retry-ceiling.json").exists())
             self.assertTrue((repo_root / ".codex" / "loop-runs" / "supervisor-autonomous-budget-run" / "run.json").exists())
             self.assertFalse((repo_root / ".codex" / "loop-runs" / "loop-supervisor").exists())
@@ -93,6 +94,9 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
                 (repo_root / ".codex" / "supervisor" / "service-health.json").read_text(encoding="utf-8")
             )
             backend = next(item for item in service_health["services"] if item["service"] == "crawler-backend")
+            self.assertEqual(backend["data_freshness"]["target_id"], "ai-infra-parent-14-atlas-300i-a2")
+            self.assertIn("search", backend["data_freshness"]["checks"])
+            self.assertIn("wiki-page", backend["data_freshness"]["checks"])
             self.assertEqual(backend["running_version"]["freshness"], "unavailable")
             self.assertFalse(backend["running_version"]["matches_expected"])
             self.assertEqual(
@@ -101,6 +105,8 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             )
             self.assertIn("runtime metadata missing", backend["running_version"]["evidence"])
             frontend = next(item for item in service_health["services"] if item["service"] == "crawler-frontend")
+            self.assertEqual(frontend["data_freshness"]["target_id"], "ai-infra-parent-14-atlas-300i-a2")
+            self.assertEqual(frontend["data_freshness"]["checks"], ["frontend-visible"])
             self.assertEqual(frontend["running_version"]["freshness"], "stale")
             self.assertIn("stale", frontend["running_version"]["evidence"])
             self.assertEqual(

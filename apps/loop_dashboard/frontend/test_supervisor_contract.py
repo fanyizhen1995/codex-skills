@@ -113,6 +113,13 @@ def test_control_flow_requires_rich_supervisor_decision_before_available_state()
     assert "nonEmptyObject(snapshot.last_decision) || decisions[0] || null" not in APP_JS
 
 
+def test_current_supervisor_decision_prefers_latest_chronological_decision():
+    current_decision = function_block("currentSupervisorDecision")
+
+    assert "decisions[decisions.length - 1]" in current_decision
+    assert "return decisions[0]" not in current_decision
+
+
 def test_decision_log_visible_text_uses_translated_classification_fallback():
     decision_log = function_block("renderSupervisorDecisionLog")
     decision_detail = function_block("supervisorDecisionDetail")

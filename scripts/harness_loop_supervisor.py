@@ -342,6 +342,9 @@ def check_service_health(config: SupervisorConfig, service: ServiceConfig) -> di
     running_version = _check_running_version(root, service, runtime_path, reachable=reachable, tmux_ok=tmux_ok)
     if not running_version["matches_expected"]:
         errors.append(str(running_version["evidence"]))
+    data_freshness = _service_data_freshness(root, service)
+    if data_freshness.get("status") == "fail":
+        errors.append(str(data_freshness.get("evidence") or "data freshness failed"))
 
     status = "healthy" if not errors else "degraded"
     return {
@@ -353,7 +356,7 @@ def check_service_health(config: SupervisorConfig, service: ServiceConfig) -> di
         "reachable": reachable,
         "tmux_session_exists": tmux_ok,
         "running_version": running_version,
-        "data_freshness": {"status": "not_applicable", "target_id": "", "checks": []},
+        "data_freshness": data_freshness,
         "last_checked_at": now,
         "last_restart_at": "",
         "last_error": "; ".join(_unique_strings(errors)),
@@ -383,8 +386,10 @@ def plan_continuation(
     )
     existing_plans = read_jsonl(plans_path)
     for existing in existing_plans:
-        if existing.get("idempotency_key") == idempotency_key and existing.get("status") == "created":
-            return existing
+        if existing.get("idempotency_key") == idempotency_key and existing.get("status") in {"planned", "created"}:
+            existing_plan = dict(existing)
+            existing_plan["_existing_plan"] = True
+            return existing_plan
 
     global_stop_result = _global_stop_result(root)
     if global_stop_result["status"] != "continue":
@@ -508,6 +513,9 @@ def _classification_with_continuation_plan(
     if status == "created":
         updated["action"] = "observe"
         updated["reason"] = "continuation_already_created"
+    elif status == "planned" and plan.get("_existing_plan"):
+        updated["action"] = "observe"
+        updated["reason"] = "continuation_already_planned"
     elif status == "blocked":
         global_stop_result = plan.get("global_stop_result") if isinstance(plan.get("global_stop_result"), Mapping) else {}
         updated["classification"] = "needs_user_decision"
@@ -700,6 +708,96 @@ def _check_all_services(config: SupervisorConfig) -> list[dict[str, Any]]:
     return [check_service_health(config, service) for service in services]
 
 
+def _service_data_freshness(project_root: Path, service: ServiceConfig) -> dict[str, Any]:
+    targets_path = supervisor_dir(project_root) / "freshness-targets.jsonl"
+    if not targets_path.exists():
+        return {
+            "status": "not_applicable",
+            "target_id": "",
+            "checks": [],
+            "evidence": "freshness target missing",
+        }
+
+    try:
+        targets = _read_freshness_targets(targets_path)
+    except ValueError as exc:
+        return {
+            "status": "fail",
+            "target_id": "",
+            "checks": [],
+            "evidence": f"freshness target artifact malformed: {exc}",
+        }
+
+    matching: list[dict[str, Any]] = []
+    for target in targets:
+        checks = _freshness_checks_for_service(target, service)
+        if not checks:
+            continue
+        status = str(target.get("status") or "not_applicable")
+        if status not in {"pass", "fail", "not_applicable"}:
+            status = "fail"
+        matching.append(
+            {
+                "status": status,
+                "target_id": str(target.get("target_id") or ""),
+                "source_run_id": str(target.get("source_run_id") or ""),
+                "target_commit": str(target.get("target_commit") or ""),
+                "domain": str(target.get("domain") or ""),
+                "checks": checks,
+                "verified_at": str(target.get("verified_at") or ""),
+                "evidence": "freshness target read from .codex/supervisor/freshness-targets.jsonl",
+            }
+        )
+
+    if not matching:
+        return {
+            "status": "not_applicable",
+            "target_id": "",
+            "checks": [],
+            "evidence": "no freshness target applies to this service",
+        }
+    return matching[-1]
+
+
+def _read_freshness_targets(path: Path) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{path}:{line_number}: {exc.msg}") from exc
+            if not isinstance(payload, dict):
+                raise ValueError(f"{path}:{line_number}: target must be a JSON object")
+            targets.append(payload)
+    return targets
+
+
+def _freshness_checks_for_service(target: Mapping[str, Any], service: ServiceConfig) -> list[str]:
+    checks: list[str] = []
+    if service.service == "crawler-backend":
+        api_checks = target.get("api_checks")
+        if isinstance(api_checks, list):
+            for item in api_checks:
+                if isinstance(item, Mapping):
+                    kind = str(item.get("kind") or "").strip()
+                    if kind:
+                        checks.append(kind)
+        if not checks and target.get("wiki_paths"):
+            checks.append("wiki-page")
+        if not checks and target.get("search_terms"):
+            checks.append("search")
+    elif service.service == "crawler-frontend":
+        frontend_checks = target.get("frontend_checks")
+        if isinstance(frontend_checks, list) and frontend_checks:
+            checks.append("frontend-visible")
+        elif target.get("expected_frontend_text"):
+            checks.append("frontend-visible")
+    return _unique_strings(checks)
+
+
 def _check_running_version(
     project_root: Path,
     service: ServiceConfig,
@@ -840,7 +938,42 @@ def _maybe_restart_services(config: SupervisorConfig, service_health: list[dict[
         if not session:
             continue
         try:
-            results.append(restart_service(config, session))
+            restart_result = restart_service(config, session)
+            if restart_result.get("status") == "started":
+                verification = check_service_health(config, _service_config_from_health(service))
+                restart_result = {
+                    **restart_result,
+                    "service": str(service.get("service") or session),
+                    "verification_status": verification.get("status", "degraded"),
+                    "verification": verification,
+                }
+                recovery_status = "pass" if verification.get("status") == "healthy" else "fail"
+                failure_key = make_failure_key(
+                    "service_down",
+                    "project",
+                    str(service.get("service") or session),
+                    "restart_failed",
+                )
+                recovery_attempt = record_recovery_attempt(
+                    config.project_root,
+                    RecoveryAttemptInput(
+                        failure_key=failure_key,
+                        run_id="",
+                        action="restart_service",
+                        status=recovery_status,
+                        summary=(
+                            f"service_recovered: Automatic restart restored service {service.get('service') or session}."
+                            if recovery_status == "pass"
+                            else (
+                                "service_unrecoverable: Automatic restart started tmux but follow-up health "
+                                f"remained {verification.get('status', 'degraded')}: {verification.get('last_error', '')}"
+                            )
+                        ),
+                        evidence_paths=[str(verification.get("running_version", {}).get("runtime_metadata_path") or "")],
+                    ),
+                )
+                restart_result["recovery_attempt"] = recovery_attempt
+            results.append(restart_result)
         except Exception as exc:
             service_name = str(service.get("service") or session)
             failure_key = make_failure_key("service_down", "project", service_name, "restart_failed")
@@ -865,6 +998,21 @@ def _maybe_restart_services(config: SupervisorConfig, service_health: list[dict[
             result["recovery_attempt"] = recovery_attempt
             results.append(result)
     return results
+
+
+def _service_config_from_health(service: Mapping[str, Any]) -> ServiceConfig:
+    port_value = service.get("port")
+    if port_value is None:
+        endpoint = str(service.get("expected_endpoint") or "")
+        match = re.search(r":(\d+)(?:/|$)", endpoint)
+        port_value = int(match.group(1)) if match else None
+    return ServiceConfig(
+        service=str(service.get("service") or ""),
+        kind=str(service.get("kind") or "http_and_tmux"),
+        expected_endpoint=str(service.get("expected_endpoint") or ""),
+        tmux_session=str(service.get("tmux_session") or ""),
+        port=port_value if isinstance(port_value, int) else None,
+    )
 
 
 def _run_json_paths(project_root: Path, *, include_worktrees: bool) -> list[Path]:

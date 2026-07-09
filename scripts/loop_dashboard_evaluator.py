@@ -772,6 +772,30 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
     supervisor_dir = project_root / ".codex" / "supervisor"
     run_root = project_root / ".codex" / "loop-runs"
     supervisor_dir.mkdir(parents=True, exist_ok=True)
+    write_jsonl(
+        supervisor_dir / "freshness-targets.jsonl",
+        [
+            {
+                "target_id": "ai-infra-parent-14-atlas-300i-a2",
+                "source_run_id": "ai-infra-expansion-continuation-20260708",
+                "target_commit": "abc1234",
+                "domain": "ai_infra",
+                "wiki_paths": [
+                    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md"
+                ],
+                "search_terms": ["Atlas 300I A2", "64 GB"],
+                "expected_frontend_text": ["Atlas 300I A2", "compute-accelerator-spec-catalog"],
+                "api_checks": [
+                    {"kind": "crawler", "url": "http://127.0.0.1:8765/api/health", "status": "pass"},
+                    {"kind": "wiki-page", "url": "http://127.0.0.1:8765/api/wiki/page", "status": "pass"},
+                    {"kind": "search", "url": "http://127.0.0.1:8765/api/search", "status": "pass"},
+                ],
+                "frontend_checks": [{"page": "knowledge-workbench", "status": "pass"}],
+                "status": "pass",
+                "verified_at": "2026-07-09T08:00:20Z",
+            }
+        ],
+    )
     write_json(
         supervisor_dir / "supervisor-state.json",
         {
@@ -817,9 +841,9 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                         "evidence": "runtime metadata matches origin/main",
                     },
                     "data_freshness": {
-                        "status": "healthy",
-                        "target_id": "dashboard-api",
-                        "checks": ["health", "project-root"],
+                        "status": "not_applicable",
+                        "target_id": "",
+                        "checks": [],
                         "verified_at": "2026-07-09T08:00:20Z",
                     },
                     "last_checked_at": "2026-07-09T08:00:30Z",
@@ -840,10 +864,10 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                         "evidence": "runtime metadata missing; version freshness unavailable",
                     },
                     "data_freshness": {
-                        "status": "stale",
-                        "target_id": "crawler-health",
-                        "checks": ["health"],
-                        "verified_at": "2026-07-09T07:40:00Z",
+                        "status": "pass",
+                        "target_id": "ai-infra-parent-14-atlas-300i-a2",
+                        "checks": ["crawler", "wiki-page", "search"],
+                        "verified_at": "2026-07-09T08:00:20Z",
                     },
                     "last_error": "runtime metadata missing for this service",
                     "last_checked_at": "2026-07-09T08:00:30Z",
@@ -864,10 +888,10 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                         "evidence": "stale runtime metadata: git_head old1111 does not match origin/main new2222",
                     },
                     "data_freshness": {
-                        "status": "stale",
-                        "target_id": "frontend-proxy",
-                        "checks": ["vite", "proxy"],
-                        "verified_at": "2026-07-09T07:30:00Z",
+                        "status": "pass",
+                        "target_id": "ai-infra-parent-14-atlas-300i-a2",
+                        "checks": ["frontend-visible"],
+                        "verified_at": "2026-07-09T08:00:20Z",
                     },
                     "last_checked_at": "2026-07-09T08:00:30Z",
                 },
