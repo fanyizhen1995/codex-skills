@@ -21,6 +21,7 @@ try:
     from scripts.harness_loop_supervisor_state import (
         RecoveryAttemptInput,
         append_jsonl,
+        archived_user_decision,
         build_supervisor_state,
         make_failure_key,
         open_user_decision,
@@ -34,6 +35,7 @@ except ImportError:  # pragma: no cover - direct script execution from scripts/
     from harness_loop_supervisor_state import (  # type: ignore[no-redef]
         RecoveryAttemptInput,
         append_jsonl,
+        archived_user_decision,
         build_supervisor_state,
         make_failure_key,
         open_user_decision,
@@ -183,6 +185,7 @@ def run_supervisor_once(config: SupervisorConfig) -> dict[str, Any]:
         if classification["classification"] == "continuation_candidate" and config.create_continuations:
             plan = plan_continuation(config, record, classification=classification)
             classification = _classification_with_continuation_plan(classification, plan)
+        classification = _classification_with_archived_user_decision(config, record, classification)
 
         decision = _record_run_decision(config, record, classification)
         decisions.append(decision)
@@ -724,6 +727,42 @@ def _open_classification_user_decision(
     record: RunRecord,
     classification: Mapping[str, Any],
 ) -> dict[str, Any]:
+    payload = _classification_user_decision_payload(record, classification)
+    return open_user_decision(
+        config.project_root,
+        reason=payload["reason"],
+        failure_key=payload["failure_key"],
+        summary=payload["summary"],
+        required_user_decision=payload["required_user_decision"],
+        affected_runs=[record.run_id],
+        attempts=[],
+    )
+
+
+def _classification_with_archived_user_decision(
+    config: SupervisorConfig,
+    record: RunRecord,
+    classification: Mapping[str, Any],
+) -> dict[str, Any]:
+    if classification.get("classification") != "needs_user_decision":
+        return dict(classification)
+    if classification.get("reason") == "global_stop_open_user_decision":
+        return dict(classification)
+    payload = _classification_user_decision_payload(record, classification)
+    archived = archived_user_decision(config.project_root, payload["failure_key"])
+    if archived is None:
+        return dict(classification)
+    return {
+        **dict(classification),
+        "classification": "terminal",
+        "action": "observe",
+        "reason": "archived_user_decision",
+        "archived_failure_key": payload["failure_key"],
+        "archived_decision_id": archived.get("decision_id", ""),
+    }
+
+
+def _classification_user_decision_payload(record: RunRecord, classification: Mapping[str, Any]) -> dict[str, str]:
     reason = str(classification.get("reason") or "unsupported_state")
     if reason == "auditor_stop":
         failure_key = make_failure_key("auditor_stop", record.run_id, "latest-audit", "stop")
@@ -741,15 +780,12 @@ def _open_classification_user_decision(
         failure_key = make_failure_key("unsupported_state", record.run_id, "run-state", reason)
         summary = f"Run {record.run_id} is in an unsupported supervisor state."
         required = "Inspect the run state and choose the next operational action."
-    return open_user_decision(
-        config.project_root,
-        reason=reason,
-        failure_key=failure_key,
-        summary=summary,
-        required_user_decision=required,
-        affected_runs=[record.run_id],
-        attempts=[],
-    )
+    return {
+        "reason": reason,
+        "failure_key": failure_key,
+        "summary": summary,
+        "required_user_decision": required,
+    }
 
 
 def _invalid_run_classification(record: RunRecord) -> dict[str, Any]:

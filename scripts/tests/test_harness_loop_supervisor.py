@@ -745,6 +745,32 @@ def test_unsupported_phase_opens_user_decision(tmp_path, monkeypatch):
     assert decision["affected_runs"] == ["unknown-phase"]
 
 
+def test_archived_user_decision_is_not_reopened_or_counted(tmp_path, monkeypatch):
+    seed_run(tmp_path, "archived-unsupported", phase="mystery", next_action="none")
+    patch_service_checks(monkeypatch)
+    config = SupervisorConfig(project_root=tmp_path, dry_run=True)
+
+    first = run_supervisor_once(config)
+    decision_files = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
+    decision = json.loads(decision_files[0].read_text(encoding="utf-8"))
+    decision["status"] = "archived"
+    decision["archived_at"] = "2026-07-09T00:00:00Z"
+    decision["archived_reason"] = "operator archived historical unsupported run"
+    decision_files[0].write_text(json.dumps(decision, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    second = run_supervisor_once(config)
+
+    persisted = json.loads(decision_files[0].read_text(encoding="utf-8"))
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    assert first["run_summary"]["needs_user_decision"] == 1
+    assert second["run_summary"]["needs_user_decision"] == 0
+    assert persisted["status"] == "archived"
+    assert decisions[-1]["run_id"] == "archived-unsupported"
+    assert decisions[-1]["classification"] == "terminal"
+    assert decisions[-1]["action"] == "observe"
+    assert decisions[-1]["reason"] == "archived_user_decision"
+
+
 def test_classify_run_marks_auditor_stop_as_user_decision(tmp_path):
     run_json = seed_stopped_budget_autonomous_run(tmp_path, "audit-stop")
     record = discover_run_records(tmp_path, include_worktrees=False)[0]

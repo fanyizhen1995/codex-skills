@@ -161,11 +161,11 @@ def open_user_decision(
     _validate_failure_key(failure_key)
     root = supervisor_dir(project_root)
     decisions_dir = root / "needs-user-decisions"
-    decision_path = decisions_dir / f"{_safe_file_stem(failure_key)}.json"
+    decision_path = user_decision_path(project_root, failure_key)
     if decision_path.exists():
         with decision_path.open("r", encoding="utf-8") as handle:
             existing = json.load(handle)
-        if isinstance(existing, dict) and existing.get("status") == "open":
+        if isinstance(existing, dict) and existing.get("status") in {"open", "archived"}:
             return existing
 
     opened_at = utc_now_iso()
@@ -188,6 +188,22 @@ def open_user_decision(
         handle.write("\n")
     append_jsonl(root / "user-decisions.jsonl", decision)
     return decision
+
+
+def user_decision_path(project_root: Path, failure_key: str) -> Path:
+    _validate_failure_key(failure_key)
+    return supervisor_dir(project_root) / "needs-user-decisions" / f"{_safe_file_stem(failure_key)}.json"
+
+
+def archived_user_decision(project_root: Path, failure_key: str) -> dict[str, Any] | None:
+    decision_path = user_decision_path(project_root, failure_key)
+    if not decision_path.exists():
+        return None
+    with decision_path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if isinstance(payload, dict) and payload.get("status") == "archived":
+        return payload
+    return None
 
 
 def build_supervisor_state(
