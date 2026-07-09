@@ -1,6 +1,6 @@
 {
   "project": "codex-skills",
-  "last_updated": "2026-07-08",
+  "last_updated": "2026-07-09",
   "current_focus": "Loop Auditor auto-resume is running; next harness backlog items are a global Loop Auditor redesign for whole-loop process review and a unified Loop Supervisor for service health, crawler backend/frontend data and version freshness, run ownership, recovery, and Dashboard traceability.",
   "eval_defaults": {
     "task_level_required": true,
@@ -302,11 +302,11 @@
     {
       "id": "loop-supervisor-01",
       "title": "Implement unified Loop Supervisor",
-      "description": "Design and implement a unified long-running Loop Supervisor that owns loop start/resume/retry/stop orchestration across demand-development and autonomous-knowledge runs, keeps Crawler Workbench backend and frontend online, verifies crawler data freshness and running version freshness instead of only checking ports, keeps Loop Dashboard and loop auto-resume online, guarantees every loop run is discoverable in Loop Dashboard, consolidates audit remediation recovery with broader stale-run and service-health supervision, and records operator-visible evidence for recovery decisions.",
-      "status": "todo",
+      "description": "Implemented a unified long-running Loop Supervisor that writes project-level supervisor artifacts, keeps crawler backend/frontend, Loop Dashboard, and loop-auto-resume observable, classifies loop runs, plans idempotent autonomous continuations, escalates repeated failures to user decisions, consumes Auditor control inputs, exposes global Dashboard APIs/UI, and verifies the feature with a dedicated browser evaluator scenario.",
+      "status": "done",
       "priority": "high",
       "blocked_by": "loop-auditor-auto-resume-runner-01",
-      "verify": "Add a supervisor design spec reviewed with grill-me; implement supervisor unit tests for run discovery, service health checks, crawler backend/frontend version freshness, crawler data freshness, audit_blocked recovery, stale-run recovery, and dashboard traceability; run Loop Dashboard browser evaluator proving active and completed supervised runs are visible; verify crawler backend, crawler frontend, loop dashboard, and supervisor health endpoints or tmux sessions are online; verify crawler wiki/search/source APIs and frontend views reflect the latest committed or ingested data without stale indexes.",
+      "verify": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_state.py scripts/tests/test_harness_loop_supervisor.py scripts/tests/test_harness_loop_auto_resume.py scripts/tests/test_harness_loop_contracts.py && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests/test_api.py apps/loop_dashboard/backend/tests/test_store.py apps/loop_dashboard/backend/tests/test_redaction.py && node --check apps/loop_dashboard/frontend/app.js && python3 -m pytest -q apps/loop_dashboard/frontend/test_supervisor_contract.py scripts/tests/test_loop_dashboard_evaluator.py && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-01 --scenario loop-supervisor-01 && python3 scripts/harness_loop_supervisor.py --project-root . --once --dry-run && curl --noproxy '*' http://127.0.0.1:8765/api/health && curl --noproxy '*' -I http://127.0.0.1:5173/ && curl --noproxy '*' http://127.0.0.1:8766/api/health && tmux has-session -t loop-auto-resume && tmux has-session -t loop-supervisor && git diff --check",
       "requires_eval": true,
       "eval_policy": {
         "task_level_required": true,

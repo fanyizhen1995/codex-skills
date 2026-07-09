@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-07-09 Loop Supervisor 01
+
+- Completed `loop-supervisor-01`: added a real project-level Loop Supervisor runtime, global Dashboard APIs/UI, browser evaluator scenario, CLI watch mode, and service runtime metadata refresh support.
+- Supervisor now writes `.codex/supervisor/*`, reads `.codex/service-runtime/<service>.json`, classifies loop runs, keeps autonomous continuation planning idempotent, escalates repeated failures to user decisions, and consumes Auditor control inputs without pretending to judge task quality itself.
+- Loop Dashboard now shows a global `Loop Supervisor` panel outside the task run list, with service keepalive, version freshness, data freshness, continuation plans, recovery attempts, user decisions, Auditor control input, and honest missing-artifact states.
+- Evidence:
+  - `python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_state.py scripts/tests/test_harness_loop_supervisor.py` -> 34 passed
+  - `PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests/test_api.py apps/loop_dashboard/backend/tests/test_store.py apps/loop_dashboard/backend/tests/test_redaction.py` -> 74 passed
+  - `node --check apps/loop_dashboard/frontend/app.js` -> pass
+  - `python3 -m pytest -q apps/loop_dashboard/frontend/test_supervisor_contract.py scripts/tests/test_loop_dashboard_evaluator.py` -> 19 passed
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-01 --scenario loop-supervisor-01` -> pass
+  - Task reviews clean through SDD ledger `.superpowers/sdd/progress.md`
+
 ## 2026-07-08 Loop Auditor Global Review Backlog
 
 - Recorded `loop-auditor-global-review-01` as a high-priority harness task.
