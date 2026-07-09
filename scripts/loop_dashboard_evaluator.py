@@ -809,10 +809,12 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                     "tmux_session": "loop-dashboard",
                     "tmux_session_exists": True,
                     "running_version": {
-                        "runtime_metadata_path": ".codex/supervisor/runtime/loop-dashboard.json",
+                        "runtime_metadata_path": ".codex/service-runtime/loop-dashboard.json",
                         "git_head": "abc1234",
                         "origin_main": "abc1234",
                         "matches_expected": True,
+                        "freshness": "fresh",
+                        "evidence": "runtime metadata matches origin/main",
                     },
                     "data_freshness": {
                         "status": "healthy",
@@ -847,10 +849,12 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                     "tmux_session": "personal-wiki-crawler-frontend",
                     "tmux_session_exists": True,
                     "running_version": {
-                        "runtime_metadata_path": ".codex/supervisor/runtime/crawler-frontend.json",
+                        "runtime_metadata_path": ".codex/service-runtime/crawler-frontend.json",
                         "git_head": "old1111",
                         "origin_main": "new2222",
                         "matches_expected": False,
+                        "freshness": "stale",
+                        "evidence": "stale runtime metadata: git_head old1111 does not match origin/main new2222",
                     },
                     "data_freshness": {
                         "status": "stale",
@@ -2013,7 +2017,8 @@ def run_loop_supervisor_browser_checks(dashboard_url: str, output_dir: Path, fix
             expect(supervisor_panel).to_contain_text("版本不可用")
             expect(supervisor_panel).to_contain_text("runtime metadata missing for this service")
             expect(supervisor_panel).to_contain_text("Crawler Frontend")
-            expect(supervisor_panel).to_contain_text("版本不匹配")
+            expect(supervisor_panel).to_contain_text("版本过期")
+            expect(supervisor_panel).to_contain_text("stale runtime metadata")
 
             panel_text = supervisor_panel.inner_text()
             if visible_text_count(panel_text, "分类=续跑候选") != 1:

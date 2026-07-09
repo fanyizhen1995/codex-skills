@@ -1148,6 +1148,9 @@ function serviceVersionLabel(service) {
   if (!Object.keys(version).length) {
     return { label: "版本不可用", status: "unavailable" };
   }
+  if (version.freshness === "stale") {
+    return { label: "版本过期", status: "degraded" };
+  }
   if (version.matches_expected === true) {
     return { label: "版本匹配", status: "healthy" };
   }
@@ -1189,6 +1192,7 @@ function serviceEvidence(service) {
     serviceTmuxEvidence(service),
     version.runtime_metadata_path ? `runtime：${version.runtime_metadata_path}` : "runtime：不可用",
     version.git_head || version.origin_main ? `版本：git_head=${text(version.git_head, "不可用")} · origin=${text(version.origin_main, "不可用")}` : "",
+    version.evidence ? `版本证据：${version.evidence}` : "",
     freshnessStatusLabel(freshness.status) !== "暂无 freshness target" ? `新鲜度：${freshnessStatusLabel(freshness.status)}` : "新鲜度：暂无 freshness target",
     freshness.target_id ? `target_id：${freshness.target_id}` : "",
     service.last_checked_at ? `检查：${formatTime(service.last_checked_at)}` : "",

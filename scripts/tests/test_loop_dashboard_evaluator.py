@@ -89,6 +89,16 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             self.assertTrue((repo_root / ".codex" / "loop-runs" / "supervisor-autonomous-budget-run" / "run.json").exists())
             self.assertFalse((repo_root / ".codex" / "loop-runs" / "loop-supervisor").exists())
             self.assertFalse((repo_root / ".codex" / "loop-runs" / "supervisor").exists())
+            service_health = json.loads(
+                (repo_root / ".codex" / "supervisor" / "service-health.json").read_text(encoding="utf-8")
+            )
+            frontend = next(item for item in service_health["services"] if item["service"] == "crawler-frontend")
+            self.assertEqual(frontend["running_version"]["freshness"], "stale")
+            self.assertIn("stale", frontend["running_version"]["evidence"])
+            self.assertEqual(
+                frontend["running_version"]["runtime_metadata_path"],
+                ".codex/service-runtime/crawler-frontend.json",
+            )
 
     def test_loop_supervisor_scenario_contract_uses_scenario_entrypoint(self) -> None:
         scenario_path = (

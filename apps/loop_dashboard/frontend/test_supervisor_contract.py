@@ -184,3 +184,10 @@ def test_supervisor_action_and_classification_fallbacks_stay_chinese():
     assert 'text(normalized, "暂无数据")' not in classification_label
     assert '"未识别动作"' in action_label
     assert '"未识别分类"' in classification_label
+
+
+def test_supervisor_service_version_renders_stale_runtime_metadata():
+    version_label = function_block("serviceVersionLabel")
+
+    assert 'version.freshness === "stale"' in version_label
+    assert '"版本过期"' in version_label
