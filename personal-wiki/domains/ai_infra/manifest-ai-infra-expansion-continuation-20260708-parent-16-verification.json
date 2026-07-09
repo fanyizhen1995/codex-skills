@@ -1,0 +1,250 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-16",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-task-2",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-09T17:33:52Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/backlinks.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633780396Z-github-com-sgl-project-sglang-issues-30242-fc9c1496c4.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633788163Z-github-com-sgl-project-sglang-pull-30450-c2f3b609e2.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633795916Z-github-com-sgl-project-sglang-pull-24159-3cd576c09f.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md"
+    ],
+    "promoted_boundary": "Promoted only page-level SGLang July 8 scheduled crawler supplement facts for inference-runtime, PD disaggregation, cache/storage, and benchmark-context surfaces. Closed-unmerged PRs are not represented as merged fixes; benchmark tables are not represented as local results or SLOs."
+  },
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/backlinks.json",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-2-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/wiki/backlinks.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-16'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "parent-16 gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-2-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-002-task-2'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "run-local task-2 gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-002/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"30242|30450|24159|30254|29834|29716|30255|DeepSeek-V4 NVFP4|FlashInfer A2A|PD router|Mooncake RDMA|HiCacheFile|metadata cache|Triton recompilation\" ... | wc -l",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "139",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that selected July 8 SGLang pages were not already curated by parent-2 or existing SGLang reference pages before this task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "parent-16 gap proof and wiki search record that #30242/#30450, #24159, #30254, #29834, #29716, and #30255 were not previously promoted as durable rows; parent-2 remains a July 6-7 duplicate boundary",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that closed-unmerged PRs are not represented as merged fixes and page-level snapshots are not represented as full API/comment corpus refreshes",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "closed-unmerged boundary check passed for #24159 and #30254; curated pages state page-level supplement caveats and no full API/comment/review-comment refresh",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that source benchmark context is not promoted as a local benchmark result, SLO, MLCommons submission, ranking, or production guarantee",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "benchmark/SLO boundary check passed for #29716 and #30255",
+      "stderr": ""
+    },
+    {
+      "command": "curated source_refs/citation visibility check for selected July 8 SGLang raw pages",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "curated source_refs/citation visibility check passed for selected July 8 SGLang raw pages",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in 12 changed ai_infra paths",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "autonomous scope check passed for 12 ai_infra changed paths; run-directory JSON artifacts are read-only and embedded in final payload",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, package, lock, or dependency files changed; code tests not applicable",
+      "stderr": ""
+    },
+    {
+      "command": "external-link and Domain Channels applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no new external fetch, link probe, crawler source subscription, or Domain Channels change was performed; existing local July 8 SGLang raw snapshots were reused",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, loop-auto-resume freshness, and loop-supervisor freshness; do not start long-lived services, run localhost probes, or restart services from this wiki-only task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "audit-cadence check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "task-1 committed as 87aea34 and task-2 will make the second completed parent increment before another normal parent task; ordinary Auditor should run next unless explicitly deferred",
+      "stderr": ""
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check is run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses existing local July 8 SGLang raw snapshots.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Run directory is read-only; required evidence manifest and generator result will be embedded in the final JSON payload instead of written under .codex/loop-runs."
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "stable_evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-16 SGLang July 8 wiki/state updates"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "stable_evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-16 SGLang July 8 knowledge updates for #30242/#30450, #24159, #30254, #29834, #29716, and #30255"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "stable_evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-16 SGLang July 8 terms: DeepSeek-V4 NVFP4, FlashInfer A2A, PD router, Mooncake RDMA, HiCacheFile metadata cache, Triton recompilation, and parent-16 gap proof"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "stable_evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-16 SGLang July 8 wiki pages and search terms including FlashInfer A2A, Mooncake RDMA, HiCacheFile, and Triton recompilation"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "stable_evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run task-2/parent-16, child task state, agent actions, evaluator scenarios, completed history, errors/blocked fields, and user decision fields"
+    }
+  ]
+}

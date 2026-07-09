@@ -1,0 +1,142 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-task-2",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002",
+  "policy": "autonomous_knowledge",
+  "domain": "ai_infra",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "SGLang July 8 page-level inference operations supplement",
+    "source_type": "github_issue_page_supplement",
+    "identity_key": "github:sgl-project/sglang:scheduled-crawler:20260708:inference-pd-cache-observability",
+    "source_paths": [
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633780396Z-github-com-sgl-project-sglang-issues-30242-fc9c1496c4.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633788163Z-github-com-sgl-project-sglang-pull-30450-c2f3b609e2.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633795916Z-github-com-sgl-project-sglang-pull-24159-3cd576c09f.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md"
+    ]
+  },
+  "identity_keys": [
+    {
+      "title": "SGLang July 8 page-level inference operations supplement",
+      "source_type": "github_issue_page_supplement",
+      "identity_key": "github:sgl-project/sglang:scheduled-crawler:20260708:inference-pd-cache-observability"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Found 97 local 20260708 SGLang scheduled crawler page snapshots under raw/crawler/sglang-github-closed-issues-prs: 14 issue pages and 83 pull request pages, including 55 page-visible merged PRs and 28 closed-unmerged PRs. Selected only seven source-visible operations pages: #30242/#30450, #24159, #30254, #29834, #29716, and #30255. No external fetch was run.",
+    "wiki_search": "Searched SGLang GitHub Closed Issues And PRs, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, Network Storage Cluster Infrastructure, AI Infra Coverage Map, coverage-map.json, loop-state.json, ingest.md, and prior parent-2/parent-15 manifests for 30242, 30450, 24159, 30254, 29834, 29716, 30255, DeepSeek-V4 NVFP4, FlashInfer A2A, PD router, Mooncake RDMA, HiCacheFile, metadata cache, and Triton recompilation. The selected July 8 IDs were not already promoted as durable rows before this task.",
+    "domain_index_scan": "ai_infra wiki/index.md already routes this work to existing SGLang, inference-runtime, eval-observability, network-storage, and coverage-map reference pages. No new wiki page or structured accelerator catalog row was needed.",
+    "prior_manifest_scan": "Parent-2 already curated July 6-7 SGLang signals and parent-15 already curated JaguarMicro Yunxiao DPU. Parent-16 is a distinct July 8 SGLang page-level boundary and does not repeat parent-2 issue/PR IDs or the hardware parent sequence."
+  },
+  "gap_reason": "The local corpus had an uncurated July 8 SGLang scheduled-crawler slice with concrete inference-runtime, PD disaggregation, cache/storage, and observability signals after the API corpus cutoff. The selected pages expose durable source-visible behavior: FlashInfer A2A decode CUDA-graph bucket divergence and DP-synchronized fix context, prefill-error router hang and prefill-unreachable decode abort cleanup boundaries, Mooncake RDMA KV-transfer ordering risk, HiCacheFile metadata-cache behavior, and DSV4 sparse prefill Triton recompilation context. The safe boundary is page-level supplement evidence only.",
+  "duplicate_checks": [
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+      "finding": "Existing rows covered the API corpus through 2026-06-24, July 1-4 supplement leads, parent-2 July 6-7 leads, and #24456. No existing row covered #30242/#30450, #24159, #30254, #29834, #29716, or #30255 before this task."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "finding": "Existing runtime coverage already included router abort observability, PD/Mooncake issue leads, NIXL/UCX, HiCache bootstrap-abort cleanup, EAGLE DP attention, routed-output hot-path stalls, and Blackwell confidential inference. Parent-16 adds only the July 8 FlashInfer A2A, PD router, decode abort, HiCacheFile, and DSV4 recompilation signals."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "finding": "Existing observability coverage included SGLang #23937 metric semantics and #28975 profiling. Parent-16 adds #29716 and #30255 as benchmark-context evidence only, not local benchmark baselines or SLOs."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "finding": "Existing network/storage coverage covered EFA, FSx, WEKA, Ceph, SPDK, Spectrum-X/RoCE, DPU product signals, and MLCommons method evidence. Parent-16 adds only SGLang Mooncake RDMA KV ordering and HiCacheFile filesystem metadata-cache boundaries."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/coverage-map.json",
+      "finding": "Inference-runtime, eval-observability, and network-storage layers now cite the parent-16 gap proof and selected July 8 raw pages while preserving KServe, production postmortem, full API refresh, SLO, local benchmark, and exact measured-result gaps."
+    },
+    {
+      "artifact": "personal-wiki/domains/ai_infra/loop-state.json",
+      "finding": "Added one known source id for the July 8 SGLang page-level operations evidence without mutating unrelated blocked_items or hardware catalog state."
+    }
+  ],
+  "selected_source_backed_signals": [
+    {
+      "item": "SGLang issue #30242 and PR #30450",
+      "surface": "DeepSeek-V4 NVFP4 FlashInfer A2A disaggregated decode",
+      "promoted_claim": "Issue #30242 records a GB300 DeepSeek-V4-Pro NVFP4 disaggregated decode illegal-memory-access with TP/DP/EP=16 and FlashInfer A2A; merged PR #30450 attributes it to DP/EP ranks replaying different decode CUDA-graph buckets and fixes the path by using DP-synchronized bucket selection based on the cross-rank max.",
+      "source_paths": [
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633780396Z-github-com-sgl-project-sglang-issues-30242-fc9c1496c4.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633788163Z-github-com-sgl-project-sglang-pull-30450-c2f3b609e2.md"
+      ]
+    },
+    {
+      "item": "SGLang PR #24159",
+      "surface": "PD router prefill-error hang",
+      "promoted_claim": "The closed-unmerged page records that a prefill non-2xx response can leave decode waiting for KV cache while the router waits for both futures, and proposes racing prefill/decode futures so prefill failure cancels decode early.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633795916Z-github-com-sgl-project-sglang-pull-24159-3cd576c09f.md"
+    },
+    {
+      "item": "SGLang PR #30254",
+      "surface": "Mooncake RDMA KV-transfer ordering",
+      "promoted_claim": "The closed-unmerged page records a data-race boundary where an RDMA NIC can read GPU KV memory before CUDA compute-stream writes finish, and proposes enqueue-time CUDA events with transfer-worker synchronization before RDMA writes.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md"
+    },
+    {
+      "item": "SGLang PR #29834",
+      "surface": "Prefill-unreachable decode abort cleanup",
+      "promoted_claim": "The merged page records a scheduler crash when abort cleanup clears a DecodeRequest kv_receiver while a pending_reqs reference remains, and fixes the path by removing failed requests from pending_reqs and guarding abort against a None receiver.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md"
+    },
+    {
+      "item": "SGLang PR #29716",
+      "surface": "HiCacheFile metadata cache",
+      "promoted_claim": "The merged page records optional client-side positive metadata caching for HiCacheFile storage with TTL, startup scan, write backfill, cache-hit bypass, and eviction invalidation, plus a Lustre benchmark context bounded to the source setup.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md"
+    },
+    {
+      "item": "SGLang PR #30255",
+      "surface": "DSV4 sparse prefill Triton recompilation",
+      "promoted_claim": "The merged page records that C128 metadata capacity and sparse combiner top_k moved from Triton compile-time constants to runtime scalars to avoid context-length-specific synchronous recompilation stalls, with source benchmark and accuracy context.",
+      "source_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md"
+    }
+  ],
+  "rejected_or_deferred_signals": [
+    {
+      "item": "Remaining 90 local July 8 SGLang snapshots",
+      "reason": "Left as raw backlog or duplicate-boundary evidence because they were CI/doc/label churn, shallow implementation pages, unmerged experiments, or model-feature work without a clearer infrastructure operations boundary than the selected subset."
+    },
+    {
+      "item": "Closed-unmerged PRs #24159 and #30254",
+      "reason": "Recorded only as page-level operational evidence and proposed mitigation boundaries; not represented as merged fixes."
+    },
+    {
+      "item": "Benchmark tables in #29716 and #30255",
+      "reason": "Kept as source benchmark context only; not promoted as local benchmark results, SLOs, MLCommons submissions, product rankings, or production guarantees."
+    },
+    {
+      "item": "Full SGLang API refresh",
+      "reason": "Not performed in this parent task; the July 8 scheduled crawler supplement remains page-level evidence without joined comments or PR review comments."
+    }
+  ],
+  "schema_extensions": [],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-16-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/wiki/index.md",
+    "personal-wiki/domains/ai_infra/wiki/backlinks.json"
+  ],
+  "non_promoted_boundaries": [
+    "No full GitHub API refresh, joined comment corpus, PR review-comment corpus, or release-note corpus was created from the July 8 page snapshots.",
+    "No production postmortem, service SLO, alert threshold, local benchmark baseline, MLCommons submission, product ranking, or generalized performance guarantee was promoted.",
+    "No compute accelerator structured catalog rows or dependency/code files were modified for this SGLang wiki-only task.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

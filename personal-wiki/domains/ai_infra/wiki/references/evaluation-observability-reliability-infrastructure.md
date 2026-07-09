@@ -31,7 +31,9 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md
   - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
   - ../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md
-updated: 2026-07-09
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md
+updated: 2026-07-10
 related:
   - ai-infra-coverage-map.md
   - data-rag-pipeline-infrastructure.md
@@ -81,6 +83,8 @@ For infrastructure use, the important boundary is run metadata. A benchmark resu
 
 The NVIDIA confidential-computing capture contributes benchmark context, not an accepted local benchmark baseline. It records a CC Off versus CC On comparison for HGX B300 with Blackwell Ultra, Qwen 3.5 397B-A17B at FP8 precision, VM GPU passthrough, Intel TDX, SGLang server, CUDA 13.2, SGLang `docker.io/lmsysorg/sglang:v0.5.12-cu130`, NCCL v2.28.9-1, Docker plus NVIDIA Container Toolkit, input/output lengths of 1024/1024 and 8192/1024, and 4 through 256 concurrent requests. The metrics listed are output throughput per GPU, median TTFT, and median TPOT, while the table reports throughput and TPOT deltas versus CC Off. Use this as source-visible benchmark context for confidential inference only; do not convert it into a local result, a general SLO, a validated alert threshold, a production incident/postmortem, an MLCommons submission, or a product ranking. [raw](../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md)
 
+The July 8 SGLang page supplement adds two more source-owned benchmark contexts. PR #29716 evaluates optional HiCacheFile metadata caching on a shared Lustre filesystem with 157,195 cache files and reports TTFT tail-latency changes while documenting startup scanning, cache-hit path, and eviction invalidation tests. PR #30255 evaluates a DSV4 sparse prefill Triton recompilation mitigation with AgentX, direct kernel, alternating metadata sweep, and GSM8K accuracy context after moving C128 metadata capacity and sparse combiner `top_k` from compile-time constants to runtime scalars. These sources are useful for benchmark-environment and profiling-context patterns, but they are still page-level PR evidence, not local benchmark results, MLCommons submissions, service SLOs, alert thresholds, product rankings, or production guarantees. [HiCacheFile raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md) [DSV4 raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md)
+
 # Platform Profiling And Health
 
 DCGM and Nsight Systems cover the platform side that LLM trace stores cannot see by themselves. DCGM provides GPU health, telemetry, diagnostics, field values, and profiling signals for data-center GPU systems. Nsight Systems provides timeline-oriented CPU/GPU profiling for CUDA workloads, host execution, synchronization, memory operations, kernels, and process/thread behavior. [raw](../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md) [raw](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
@@ -116,11 +120,12 @@ Use this page as source-backed coverage for:
 - `eval-observability-reliability`: GenAI telemetry schemas, LLM application trace stores, datasets, evaluator outputs, benchmark task/run metadata, SLO/alerting mechanics, GPU health telemetry, CPU/GPU profiling, and non-NVIDIA accelerator metrics.
 - `eval-observability-reliability`: AWS PCS dashboard evidence for Managed Grafana, Managed Prometheus, CloudWatch Logs, Slurm/EFA/Node/DCGM exporters, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views.
 - `eval-observability-reliability`: bounded NVIDIA confidential-inference benchmark context where the source records environment, software stack, workload parameters, and throughput/TPOT deltas, without treating those numbers as local benchmark acceptance criteria.
+- `eval-observability-reliability`: bounded SGLang HiCacheFile and DSV4 sparse prefill benchmark/profiling contexts where the sources record workload, filesystem or runtime setup, tests, and caveats, without treating those numbers as local benchmark acceptance criteria.
 - `data-rag-vector`: only where Ragas, Phoenix, or LangSmith traces explain RAG evaluation and retrieval-quality signals; keep data ingestion and embedding refresh in [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md).
 - `inference-runtime`: only where evaluation traces or platform profiles inspect runtime behavior; keep runtime scheduler, batching, KV-cache, and model-loading mechanics in [Inference Runtime Infrastructure](inference-runtime-infrastructure.md).
 - `hardware-accelerator`: only for DCGM and Nsight platform telemetry/profiling signals; accelerator SKU and parameter evidence stays in the compute accelerator pages.
 
-Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window, MI350X profiling, and NVIDIA confidential-inference pages add useful page-level semantics or benchmark context but do not close the production SLO or local benchmark-baseline gaps.
+Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window, MI350X profiling, HiCacheFile metadata-cache, DSV4 sparse-prefill, and NVIDIA confidential-inference pages add useful page-level semantics or benchmark context but do not close the production SLO or local benchmark-baseline gaps.
 
 # Citations
 
@@ -140,3 +145,5 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [SGLang PR #28975 AMD MI350X sparse-MLA prefill profiling](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md)
 - [AWS Parallel Computing Service monitoring capture](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
 - [NVIDIA Blackwell confidential-inference raw capture](../../raw/crawler/nccl-nvidia-blog-wide/20260705T041056436811Z-developer-nvidia-com-blog-hardware-rooted-ai-security-that-wont-slow-you-down-87ae507096.md)
+- [SGLang PR #29716 HiCacheFile metadata cache](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md)
+- [SGLang PR #30255 DSV4 sparse prefill Triton recompilation](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md)

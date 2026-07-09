@@ -39,7 +39,14 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md
-updated: 2026-07-08
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633780396Z-github-com-sgl-project-sglang-issues-30242-fc9c1496c4.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633788163Z-github-com-sgl-project-sglang-pull-30450-c2f3b609e2.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633795916Z-github-com-sgl-project-sglang-pull-24159-3cd576c09f.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md
+updated: 2026-07-10
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -75,6 +82,8 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | Scheduled crawler supplement composition | 41 issues, 277 pull requests, including 198 merged pull requests |
 | Scheduled crawler refresh capture | 192 Markdown page snapshots captured 2026-07-05 through 2026-07-07 |
 | Scheduled crawler refresh composition | 19 issues, 173 pull requests, including 122 merged pull requests |
+| Scheduled crawler July 8 capture | 97 Markdown page snapshots captured 2026-07-08 |
+| Scheduled crawler July 8 composition | 14 issues, 83 pull requests, including 55 merged pull requests and 28 closed-unmerged pull requests |
 
 Raw files:
 
@@ -102,6 +111,8 @@ The crawler supplement under `raw/crawler/sglang-github-closed-issues-prs/` is s
 The scheduled crawler supplement manifest for 2026-07-01 through 2026-07-04 records 318 additional Markdown page snapshots: 41 issues and 277 pull requests, including 198 merged pull requests. This supplement is useful for near-term operational discovery after the API corpus cutoff, but it remains page-level evidence without joined comments or PR review comments. Its highest-count labels are `run-ci`, `documentation`, `run-ci-extra`, `deepseek`, `diffusion`, `amd`, `jit-kernel`, `inactive`, `bypass-fastfail`, `npu`, `quant`, `dependencies`, `high priority`, `sgl-kernel`, `intel`, `release-highlight`, `blackwell`, and `xpu`.
 
 The 2026-07-05 through 2026-07-07 scheduled crawler refresh records 192 additional page snapshots: 19 issues and 173 pull requests, including 122 merged pull requests. It is still page-level evidence only. Use it to find recent SGLang operational leads, but do not merge it into the API corpus counts or treat it as joined comment/review-comment evidence. Its highest-count labels are `run-ci`, `deepseek`, `documentation`, `diffusion`, `jit-kernel`, `run-ci-extra`, `npu`, `quant`, `bypass-fastfail`, `inactive`, `blackwell`, `amd`, and `hicache`. [raw](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
+
+The 2026-07-08 scheduled crawler supplement adds 97 page snapshots under the same page-level boundary: 14 issues and 83 pull requests, including 55 page-visible merged PRs and 28 closed-unmerged PRs. Use this batch as a bounded discovery supplement for inference-runtime, PD disaggregation, cache/storage, and observability signals after the API corpus cutoff. Do not merge these pages into API corpus counts, infer joined comments or review comments, or treat closed-unmerged PRs as shipped fixes.
 
 # Operational Signals
 
@@ -132,6 +143,17 @@ Selected 2026-07 page-level leads now promoted into [Inference Runtime Infrastru
 | #24456 | Routed-experts return hot path | Diagnoses apparent long DeepEP dispatch/combine collectives under Kimi K2 TP=DP=EP=32 as late-entering DP ranks: a finishing rank gathers routed-experts output and serializes it on the scheduler main thread while peers wait at the next collective. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md) | Closed issue snapshot with issue-author diagnosis; not a merged fix, joined-comment record, or benchmark guarantee. |
 | #27704, #29211, #25377 | Benchmark, profiling, and KV-event operations | Add offline throughput profiling, fix pure-DP KV-event publisher port collisions, and add HiCache UMBP DRAM/SSD L3 validation with cache-hit and TTFT measurements. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260704T021349137340Z-github-com-sgl-project-sglang-pull-27704-01338a2479.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227256930Z-github-com-sgl-project-sglang-pull-29211-98750e7397.md) [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260702T021227258637Z-github-com-sgl-project-sglang-pull-25377-0207a52512.md) | Useful for local operational coverage; not a production SLO or alerting source. |
 | #28975 | AMD MI350X sparse-MLA prefill profiling | Merged PR snapshot adds an opt-in Triton FP8 sparse-MLA prefill path for GLM-5.1-MXFP4 on MI350X/gfx950, with profiler rationale, accuracy check, and `bench_serving` concurrency sweep showing TTFT improvement while ITL stays essentially unchanged. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md) | Benchmark/profiling evidence is bounded to the stated model, GPU, TP4, fp8 KV, opt-in flag, and page snapshot. |
+
+Selected 2026-07-08 page-level leads now promoted into [Inference Runtime Infrastructure](inference-runtime-infrastructure.md), [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md), or [Network Storage Cluster Infrastructure](network-storage-cluster-infrastructure.md):
+
+| Item | Surface | Operational signal | Caveat |
+| --- | --- | --- | --- |
+| #30242 and #30450 | DeepSeek-V4 NVFP4 FlashInfer A2A decode | Issue #30242 reports a GB300 DeepSeek-V4-Pro NVFP4 disaggregated decode illegal-memory-access with TP/DP/EP=16 and `moe-a2a-backend=flashinfer`; merged PR #30450 attributes the fault to DP/EP ranks replaying different decode CUDA-graph buckets and passing mismatched `runtime_max_tokens_per_rank` into fixed-geometry MoE All-to-All buffers. The fix makes the FlashInfer A2A path reuse DP-synchronized bucket selection based on the cross-rank max. [issue](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633780396Z-github-com-sgl-project-sglang-issues-30242-fc9c1496c4.md) [pr](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633788163Z-github-com-sgl-project-sglang-pull-30450-c2f3b609e2.md) | Page-level issue and merged PR evidence; target hardware validation was requested in the PR and is not local benchmark proof. |
+| #24159 | PD router prefill error handling | Closed PR snapshot describes a PD router hang when prefill returns a non-2xx error, because decode waits for KV cache that never arrives while `tokio::join!` waits for both futures. The proposed change races prefill/decode with `tokio::select!` so prefill failure can cancel decode early. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633795916Z-github-com-sgl-project-sglang-pull-24159-3cd576c09f.md) | Closed-unmerged page; record as operational failure and proposed boundary only, not a merged fix. |
+| #30254 | Mooncake RDMA KV data race | Closed PR snapshot describes a PD-disaggregation data race where the RDMA NIC can read GPU memory before CUDA compute-stream writes finish because the NIC is not ordered by CUDA streams. The proposed mitigation records a CUDA event when a KV chunk is enqueued and has the transfer worker synchronize before issuing RDMA writes. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md) | Closed-unmerged page; useful for storage/fabric race boundaries, not a shipped fix or benchmark. |
+| #29834 | Prefill-unreachable decode abort crash | Merged PR snapshot fixes a scheduler crash when the prefill bootstrap server is unreachable: the abort path set `kv_receiver` to `None` while the same `DecodeRequest` still had a `pending_reqs` reference, so the next `_resolve_pending_reqs` could dereference `.abort` on `None`. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md) | Page-level merged PR with unit-test claims; not a full production postmortem. |
+| #29716 | HiCacheFile metadata cache | Merged PR snapshot adds optional client-side positive metadata caching for HiCacheFile storage to avoid repeated directory traversal and metadata-server bottlenecks under large cache-file counts; the source records TTL, startup scan, write backfill, eviction invalidation, unit tests, and a Lustre benchmark context with 157,195 cache files. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md) | Benchmark table is source context only, not a local result, SLO, ranking, or general storage benchmark. |
+| #30255 | DSV4 sparse prefill Triton recompilation | Merged PR snapshot changes DeepSeek-V4 sparse prefill metadata capacity and sparse combiner `top_k` from Triton compile-time constants to runtime scalars to avoid synchronous recompilation stalls when context lengths change. The source includes AgentX and kernel benchmark tables plus GSM8K accuracy context. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md) | Source benchmark context is bounded to the stated setup; do not promote it as a local baseline, MLCommons result, product ranking, SLO, or production guarantee. |
 
 # Retrieval Notes
 
@@ -186,3 +208,10 @@ High-discussion examples in the captured corpus include:
 - [SGLang issue #21210 EAGLE DP attention padded-state crash](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530899934Z-github-com-sgl-project-sglang-issues-21210-698d8324f1.md)
 - [SGLang PR #28975 AMD MI350X sparse-MLA prefill profiling](../../raw/crawler/sglang-github-closed-issues-prs/20260707T233530906544Z-github-com-sgl-project-sglang-pull-28975-550e700977.md)
 - [SGLang issue #24456 routed-experts return hot-path stall](../../raw/crawler/sglang-github-closed-issues-prs/20260705T021410227684Z-github-com-sgl-project-sglang-issues-24456-05c913cb7d.md)
+- [SGLang issue #30242 DeepSeek-V4 NVFP4 disaggregated decode IMA](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633780396Z-github-com-sgl-project-sglang-issues-30242-fc9c1496c4.md)
+- [SGLang PR #30450 FlashInfer A2A DP-synchronized decode graph bucket](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633788163Z-github-com-sgl-project-sglang-pull-30450-c2f3b609e2.md)
+- [SGLang PR #24159 PD router prefill-error hang](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633795916Z-github-com-sgl-project-sglang-pull-24159-3cd576c09f.md)
+- [SGLang PR #30254 Mooncake RDMA KV data race](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md)
+- [SGLang PR #29834 prefill-unreachable decode abort crash](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md)
+- [SGLang PR #29716 HiCacheFile metadata cache](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md)
+- [SGLang PR #30255 DSV4 sparse prefill Triton recompilation](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md)

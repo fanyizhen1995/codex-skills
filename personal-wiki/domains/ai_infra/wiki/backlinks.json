@@ -37,7 +37,8 @@
     "domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure"
   ],
   "domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure": [
-    "domains/ai_infra/wiki/references/ai-infra-coverage-map"
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs"
   ],
   "domains/ai_infra/wiki/references/inference-runtime-infrastructure": [
     "domains/ai_infra/wiki/references/ai-infra-coverage-map",
@@ -76,7 +77,8 @@
     "domains/ai_infra/wiki/references/network-storage-cluster-infrastructure"
   ],
   "domains/ai_infra/wiki/references/network-storage-cluster-infrastructure": [
-    "domains/ai_infra/wiki/references/ai-infra-coverage-map"
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map",
+    "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs"
   ],
   "domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure": [
     "domains/ai_infra/wiki/references/ai-infra-coverage-map",

@@ -49,7 +49,9 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
   - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
   - ../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md
-updated: 2026-07-08
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md
+updated: 2026-07-10
 related:
   - ai-infra-coverage-map.md
   - nccl-technical-blog-network-observability.md
@@ -96,6 +98,8 @@ Ceph evidence covers distributed storage primitives rather than AI-specific beha
 # Storage Fabrics And Offload
 
 SPDK NVMe-oF documentation supplies protocol-level storage-fabric evidence. The source note records that SPDK exposes NVMe subsystems and namespaces through an NVMe over Fabrics target, which is broader than any one storage accelerator SKU. Use it to explain the storage path and target/subsystem/namespace boundary; do not use it for AI workload performance claims without a benchmark or deployment source. [source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
+
+The July 8 SGLang page supplement adds two runtime-adjacent storage signals. PR #30254 is closed without a merged timestamp and describes a PD-disaggregation Mooncake RDMA KV data-race boundary: CUDA compute-stream writes to a KV chunk are not ordered with an RDMA NIC reading GPU memory through PCIe DMA, so the NIC can transmit stale or partially written data if the transfer is issued before kernels complete. The proposed mitigation records a CUDA event on enqueue and synchronizes in the transfer worker before `batch_transfer_sync_write`, but this page should be treated as closed-unmerged evidence rather than a shipped fix. PR #29716 is a merged HiCacheFile storage signal: optional client-side metadata caching avoids repeated filesystem metadata scans when many cache files sit on a shared filesystem, with TTL, startup scan, write backfill, cache-hit bypass, and eviction invalidation boundaries. Its Lustre benchmark table is source context only, not a general storage benchmark, SLO, product ranking, or local result. [Mooncake RDMA raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md) [HiCacheFile raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md)
 
 Local DPU and storage-accelerator captures remain useful product signals. R10
 task 3 moves a bounded Resnics subset into the structured catalog:
@@ -186,6 +190,7 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - AWS PCS dashboard coverage for Slurm/EFA/Node/DCGM exporter metrics, CloudWatch Logs, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views;
 - Lambda/NVIDIA CPO planning evidence for Quantum-X Photonics Q3450-LD, 800G/GB300 NVL72 fabric power, reliability, cooling, fiber routing, and installation-procedure boundaries;
 - MLCommons Storage benchmark mechanics and result-framework fields for AI storage benchmarking;
+- SGLang page-level Mooncake RDMA KV-transfer ordering evidence and HiCacheFile filesystem metadata-cache behavior, while preserving closed-unmerged and benchmark-context caveats;
 - blocked-source evidence showing exact MLCommons measured-result artifacts were not available from local corpus or bounded shell probes in r9 task 3;
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
 - local DPU/SmartNIC/NVMe-oF product captures only for product-specific storage or offload signals.
@@ -219,3 +224,5 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [Continuation parent-9 Asterfusion gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json)
 - [AWS Parallel Computing Service monitoring capture](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
 - [Lambda/NVIDIA co-packaged optics capture](../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md)
+- [SGLang PR #30254 Mooncake RDMA KV data race](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md)
+- [SGLang PR #29716 HiCacheFile metadata cache](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md)
