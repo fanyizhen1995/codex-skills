@@ -149,6 +149,15 @@ supernode fields, virtualization guarantees, or ecosystem completion as
 schema-supported single-product facts, so those claims remain boundary
 evidence rather than resolved catalog fields. [C500 raw](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md) [C500X raw](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md) [C550 raw](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md) [C588 raw](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md)
 
+Continuation parent 13 promotes the remaining bounded MetaX C600 slice from
+the existing local official product-page capture. C600 now has structured rows
+for source-visible OAM 2.0 module form factor, MetaXLink and MetaXLink-E
+interconnect interface wording, and 1000 W maximum power. The page says only
+large high-bandwidth memory, not an exact capacity, memory type, or bandwidth;
+it also uses qualitative compute, GPU-ecosystem, application, server, and
+128-card supernode wording. Those claims remain boundary evidence rather than
+resolved catalog fields. [C600 raw](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md)
+
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
 form factor, aggregate data-port bandwidth, memory type, memory capacity, and

@@ -1767,3 +1767,42 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page lists 850 W maximum power.
+  - observation_id: obs-metax-c600-form-factor
+    sku_id: metax-c600
+    field: form_factor
+    value: OAM 2.0 snap-in module
+    unit: none
+    source_id: metax-c600-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C600 product page; introduction and product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes an OAM module and product features state that it is an OAM 2.0 compliant snap-in module.
+  - observation_id: obs-metax-c600-interconnect
+    sku_id: metax-c600
+    field: interconnect
+    value: MetaXLink and MetaXLink-E interconnect interfaces
+    unit: none
+    source_id: metax-c600-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C600 product page; introduction and product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states MetaXLink interconnect technology and flexible multi-card topology, plus low-latency MetaXLink and expandable MetaXLink-E interfaces. The 128-card supernode wording is not promoted as a resolved topology-scale or supernode field.
+  - observation_id: obs-metax-c600-tdp
+    sku_id: metax-c600
+    field: tdp
+    value: 1000
+    unit: W
+    source_id: metax-c600-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C600 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 1000 W maximum power.

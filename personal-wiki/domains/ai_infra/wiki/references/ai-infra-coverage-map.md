@@ -197,6 +197,8 @@ Parent 11 promotes a bounded Iluvatar Tiangai catalog slice from existing local 
 
 Parent 12 promotes a bounded MetaX C-series catalog slice from existing local product-page captures. C500, C500X, C550, and C588 now resolve only source-visible form factor, memory capacity, MetaXLink interconnect wording, and maximum power. Compute peaks, memory bandwidth, memory generation, host-interface lane count, virtualization guarantees, benchmark claims, DeepSeek/model operation, ecosystem compatibility, production-operation, server products, and supernode claims remain outside resolved catalog fields.
 
+Parent 13 promotes the remaining bounded MetaX C600 catalog slice from the existing local product-page capture. C600 now resolves only source-visible OAM 2.0 module form factor, MetaXLink/MetaXLink-E interconnect wording, and 1000 W maximum power. Qualitative memory, compute, GPU-ecosystem, application, production-operation, server, topology-scale, and 128-card supernode wording remains outside resolved catalog fields.
+
 # Layer Status
 
 | Layer | Current local coverage | Next gap |
@@ -243,6 +245,8 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [MetaX C550 product capture](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md)
 - [MetaX C588 product capture](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md)
 - [Continuation parent-12 MetaX C-series gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json)
+- [MetaX C600 product capture](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md)
+- [Continuation parent-13 MetaX C600 gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-13-gap-proof.json)
 - [Corigine Agilio CX product brief capture](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md)
 - [Continuation parent-1 Corigine gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json)
 - [Resnics Stargate-N2025 product capture](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md)

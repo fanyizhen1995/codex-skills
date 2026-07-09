@@ -1,0 +1,109 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-13",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "MetaX C600 accelerator catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:metax:c600:oam2"
+  },
+  "identity_keys": [
+    {
+      "title": "MetaX C600",
+      "source_type": "hardware",
+      "identity_key": "hardware:metax:c600:oam2"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local C600 captures found and reused: raw/crawler/compute-accelerators-metax-c600/20260627T153520667760Z-www-metax-tech-com-prod-html-259649e029.md and raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison text mentioned MetaX C600 as raw comparison evidence, but no metax-c600 SKU, observation, or resolved-spec row existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map; no dedicated MetaX C600 page was needed.",
+    "prior_manifest_scan": "Prior continuation parent-12 promoted C500, C500X, C550, and C588 only. C600 was explicitly left out and remains a distinct product-page identity key."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Hardware layer previously listed MetaX C-series sources through parent-12 but did not record a resolved C600 slice. Parent-13 adds C600 raw evidence and unresolved-boundary notes."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added one known_source entry for parent-13 MetaX C600 fields without mutating blocked_items or unrelated coverage gaps."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing metax-c600 SKU row; added one C600 SKU tied to the existing metax-c600-product-page source."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing MetaX C600 observations; added observations only for form_factor, interconnect, and tdp."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing MetaX C600 resolved fields; added resolved fields pointing to the new C600 observations only."
+    },
+    {
+      "target": "source-registry.yaml",
+      "result": "Existing metax-c600-product-page source registry entry was reused; the source registry was not modified."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing C600 raw comparison row now includes resolved-spec citation and explicit caveats for unsupported memory, compute, ecosystem, benchmark, production-operation, server, topology-scale, and supernode claims."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog coverage text now treats C600 as a bounded structured product row while keeping qualitative memory, compute, application, ecosystem, server, and 128-card supernode wording outside resolved fields."
+    }
+  ],
+  "gap_reason": "The local corpus already contained official product-specific MetaX C600 captures with source-visible, schema-supported form factor, interconnect wording, and maximum power fields that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "metax-c600",
+      "fields": {
+        "form_factor": "OAM 2.0 snap-in module",
+        "interconnect": "MetaXLink and MetaXLink-E interconnect interfaces",
+        "tdp": "1000 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "The C600 page says the product has large high-bandwidth memory and full-link ECC protection, but it does not expose exact memory capacity, memory type, or memory bandwidth.",
+      "boundary": "No memory_capacity, memory_type, or memory_bandwidth row is promoted."
+    },
+    {
+      "source_value": "The C600 page says the product has excellent mixed-precision compute, but exposes no exact FP64, FP32, BF16, FP16, FP8, or INT8 value.",
+      "boundary": "No compute peak field is promoted."
+    },
+    {
+      "source_value": "The C600 page describes MetaXLink interconnect technology, low-latency MetaXLink, expandable MetaXLink-E, and 128-card supernode wording.",
+      "boundary": "Only interconnect wording is promoted. No topology-scale, supernode, server, or per-link bandwidth field is inferred."
+    },
+    {
+      "source_value": "The page says MXMACA is compatible with the mainstream GPU ecosystem and lists model training/inference, data processing, general computing, and generative AI application scenarios.",
+      "boundary": "No ecosystem-completion, application-coverage, benchmark, production-operation, service-SLO, training-throughput, or inference-throughput claim is promoted."
+    },
+    {
+      "source_value": "MetaX servers, workstations, supernodes, N-series, G-series, X-series, and unrelated accelerators appear in page navigation.",
+      "boundary": "No non-C600 SKU, observation, or resolved row is created or modified by parent-13."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No MetaX C500, C500X, C550, C588, N-series, G-series, X-series, server, workstation, supernode, AMD, Intel, Huawei, Enflame, Moore Threads, Iluvatar, Biren, Kunlunxin, Resnics, Corigine, Yusur, Asterfusion, or unrelated accelerator row was promoted or modified by this task.",
+    "No exact compute peak, memory capacity, memory generation/type, memory bandwidth, host-interface generation or lane count, benchmark ranking, DeepSeek/model operation, ecosystem compatibility, production incident/postmortem, service SLO, training throughput, inference throughput, local benchmark baseline, MLCommons submission, legal-compliance completion, server product, topology scale, supernode, or aggregate-system claim was promoted from the C600 page.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed.",
+    "Existing H200, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, Asterfusion, Iluvatar, and prior MetaX C500/C500X/C550/C588 resolved fields were not intentionally changed."
+  ]
+}

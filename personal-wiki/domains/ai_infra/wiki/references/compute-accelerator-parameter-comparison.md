@@ -149,7 +149,9 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   Tiangai 150 resolved fields for 64 GB HBM memory and 350 W board power only.
   Continuation parent 12 adds MetaX C500, C500X, C550, and C588 resolved rows
   for source-visible form factor, memory capacity, MetaXLink interconnect
-  wording, and maximum power only. R10 task 2 adds Biren Bili 106B, 106M, 166C,
+  wording, and maximum power only; continuation parent 13 adds MetaX C600
+  resolved rows for OAM 2.0 form factor, MetaXLink/MetaXLink-E interconnect
+  wording, and 1000 W maximum power only. R10 task 2 adds Biren Bili 106B, 106M, 166C,
   166L, and 166M form-factor and peak power fields only; compute and memory
   remain unresolved for those Biren rows.
   [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
@@ -173,13 +175,15 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   Cambricon MLU370, Kunlunxin R200/R200-8F/RG800, Iluvatar Tiangai 100, and the
   MetaX C500/C500X/C550/C588 pages expose enough local raw parameters to compare
   some deployment-envelope, memory-capacity, interconnect-wording, and power
-  fields as individual products; the Kunlunxin and Cambricon rows also expose
-  source-visible compute values. Tiangai 150 contributes only memory and
+  fields as individual products, while C600 exposes only deployment envelope,
+  interconnect wording, and maximum power as resolved fields; the Kunlunxin and
+  Cambricon rows also expose source-visible compute values. Tiangai 150 contributes only memory and
   board-power resolved fields from the local page, so do not compare its
   compute, memory bandwidth, form factor, or host interface without a stronger
   source. The MetaX rows do not resolve compute, memory generation, memory
   bandwidth, host-interface lane count, virtualization, server, supernode,
-  benchmark, production-operation, or ecosystem-completion claims. R200/R200-8F
+  benchmark, production-operation, or ecosystem-completion claims; C600 also
+  does not resolve memory capacity or memory type from qualitative memory text. R200/R200-8F
   and RG800 now have structured resolved rows for schema-supported fields; INT16
   remains comparison-only.
   [Atlas 300I A2](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md),
@@ -193,7 +197,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [MetaX C500](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md),
   [MetaX C500X](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md),
   [MetaX C550](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md),
-  [MetaX C588](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md)
+  [MetaX C588](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md),
+  [MetaX C600](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md)
 - Aggregate records must be normalized before card-to-card comparison: AWS
   Trn2/UltraServer, Huawei Atlas 800T A3, and Kunlunxin R480-X8 report
   multi-chip or system-level totals. Use them for capacity planning, not as
@@ -287,7 +292,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | MetaX C500X | custom-height PCIe card | not captured | 64 GB high-bandwidth memory; memory generation and bandwidth not captured | optical MetaXLink scale-up from 16 to 64 cards; 350 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; virtualization, server/supernode, compute, memory type, benchmark, ecosystem, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md) |
 | MetaX C550 | OAM 1.5 / OAM 2.0 snap-in module | not captured | 64 GB high-bandwidth memory; memory generation and bandwidth not captured | MetaXLink 8-card all-to-all up to 896GB/s; 450 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; compute, host-interface, benchmark, server/supernode, ecosystem, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md) |
 | MetaX C588 | OAM 2.0 snap-in module | not captured | 128 GB high-bandwidth memory; memory generation and bandwidth not captured | MetaXLink 8-card all-to-all up to 896GB/s; 850 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; DeepSeek, compute, host-interface, benchmark, server/supernode, ecosystem, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md) |
-| MetaX C600 | OAM 2.0 module | not captured | large high-bandwidth memory; capacity not captured | MetaXLink and MetaXLink-E; up to 128-card supernode; 1,000 W | [raw](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md) |
+| MetaX C600 | OAM 2.0 snap-in module | not captured | large high-bandwidth memory; capacity/type/bandwidth not captured | MetaXLink and MetaXLink-E interconnect interfaces; 1000 W maximum power. Form factor, interconnect wording, and power are resolved; memory capacity/type/bandwidth, compute, ecosystem, application, server, production-operation, benchmark, topology-scale, and 128-card supernode claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md) |
 | NVIDIA GB300 product-family page | product overview / system family page | no single-accelerator metric captured | not captured | not captured | [raw](../../raw/crawler/compute-accelerators-nvidia-gb300/20260628T143110957451Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md) |
 | Moore Threads MTT S3000 | server GPU page | no parameter captured by local text extraction | no parameter captured | no parameter captured | [raw](../../raw/crawler/compute-accelerators-mthreads-s3000/20260628T060654703690Z-www-mthreads-com-product-s3000-28c8f7773e.md) |
 | Moore Threads MTT S4000 | AI accelerator card page | no parameter captured by local text extraction | no parameter captured | no parameter captured | [raw](../../raw/crawler/compute-accelerators-mthreads-s4000/20260628T060655050600Z-www-mthreads-com-product-s4000-e4c4564f49.md) |
@@ -340,9 +345,11 @@ Several domestic GPU/AI accelerator vendors expose form factor and power more
 clearly than compute peaks in the captured HTML. Biren pages remain useful for
 deployment envelope comparison only. MetaX C500, C500X, C550, and C588 now have
 structured deployment-envelope rows for form factor, memory capacity,
-MetaXLink interconnect wording, and maximum power, while the structured catalog
-should add compute, memory generation, memory bandwidth, host-interface, and
-benchmark observations only if future official tables expose those fields.
+MetaXLink interconnect wording, and maximum power; MetaX C600 adds only OAM 2.0
+form factor, MetaXLink/MetaXLink-E interconnect wording, and 1000 W maximum
+power. The structured catalog should add compute, memory capacity for C600,
+memory generation, memory bandwidth, host-interface, and benchmark observations
+only if future official tables expose those fields.
 
 DPU and SmartNIC records have a separate comparison axis. NVIDIA BlueField-3,
 Yusur K2-Pro, Yusur SWIFT-2200N Pro, Asterfusion Helium, Resnics Stargate, and

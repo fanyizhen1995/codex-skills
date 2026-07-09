@@ -1,0 +1,218 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-13",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-09T02:57:39Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported MetaX C600 fields: OAM 2.0 form factor, MetaXLink/MetaXLink-E interconnect wording, and 1000 W maximum power. Qualitative memory capacity/type/bandwidth, compute, ecosystem, application, benchmark, production-operation, server, topology-scale, and 128-card supernode claims were not promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "metax-c600",
+      "fields": {
+        "form_factor": "OAM 2.0 snap-in module",
+        "interconnect": "MetaXLink and MetaXLink-E interconnect interfaces",
+        "tdp": "1000 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/tmp/coverage-map-parent13.json.out",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/tmp/loop-state-parent13.json.out",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-gap-proof.json >/tmp/gap-proof-parent13.json.out",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-verification.json >/tmp/verification-parent13.json.out",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-13-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-13'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"MetaX|C600|曦云C600|OAM|OAM2.0|MetaXLink|MetaXLink-E|1000W|1000 W|超大容量高带宽显存|超节点\" personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c600 personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/data/compute_accelerators personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md > /tmp/metax-c600-parent13-rg.out && wc -l /tmp/metax-c600-parent13-rg.out",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "128 /tmp/metax-c600-parent13-rg.out",
+      "stderr": ""
+    },
+    {
+      "command": "structured catalog consistency check for MetaX C600 sku_id, observation_id, source_observation_id, source_id, and source_ref linkage",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "C600 SKU, observation, resolved-field, source_id, and source_ref linkage is unique and internally consistent",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no MetaX C600 qualitative memory, compute, ecosystem, benchmark, production-operation, server, supernode, application, topology-scale, or unsupported host-interface claims were promoted as resolved catalog fields",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "C600 resolved fields are limited to form_factor, interconnect, and tdp; memory, compute, host-interface, topology-scale, ecosystem, benchmark, production-operation, server, and supernode claims remain unpromoted",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no non-C600 accelerator rows or previously resolved H200, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, Asterfusion, Iluvatar, or MetaX C500/C500X/C550/C588 fields changed except for surrounding wiki comparison/context text required by this task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "non-C600 SKU, observation, and resolved rows match HEAD after excluding new C600 rows",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in final declared ai_infra files",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "11 declared domain changed paths are inside planner allowed_paths and avoid denylist-sensitive filenames",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, and loop-auto-resume freshness; do not start long-lived services, run localhost probes, or restart services from this wiki-only task unless code changes require it",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "parent-task-level auditor cadence check after parent-13 completion",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "audit-006 passed after parent-12 with last_audited_progress_count=12; accepting parent-13 brings progress to 13, so ordinary Auditor should next be due after parent-14 acceptance unless a hard safety gate fires earlier",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "stable_evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, Loop Dashboard service availability, and loop-auto-resume host freshness delegation after parent-13 MetaX C600 wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "stable_evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-13 MetaX C600 catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "stable_evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-13 MetaX C600, OAM 2.0, MetaXLink, MetaXLink-E, 1000 W, and unresolved memory/compute/ecosystem/server/supernode boundary text"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "stable_evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-13 MetaX C600 catalog row and unresolved memory, compute, ecosystem, server, topology-scale, and supernode caveats"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "stable_evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run, parent-13 task state, agent actions, evaluator scenarios, completed history, errors/blocked fields, user decision fields, and auditor-cadence status"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses existing local MetaX C600 product-page raw captures.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Source registry already contained metax-c600-product-page and was not modified."
+  ]
+}

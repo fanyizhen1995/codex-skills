@@ -260,6 +260,15 @@ skus:
     form_factor: OAM 2.0 snap-in module
     release_status: released
     source_refs: [metax-c588-product-page]
+  - sku_id: metax-c600
+    vendor_id: metax
+    family_id: metax-xiyun-c
+    canonical_name: MetaX C600
+    aliases: [C600, Xiyun C600, XiYun C600]
+    scope: gpu
+    form_factor: OAM 2.0 snap-in module
+    release_status: released
+    source_refs: [metax-c600-product-page]
   - sku_id: biren-bili-106b
     vendor_id: biren
     family_id: biren-bili-106

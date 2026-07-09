@@ -1143,3 +1143,29 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-08"
+  - sku_id: metax-c600
+    resolved_fields:
+      form_factor:
+        value: OAM 2.0 snap-in module
+        unit: none
+        source_observation_id: obs-metax-c600-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      interconnect:
+        value: MetaXLink and MetaXLink-E interconnect interfaces
+        unit: none
+        source_observation_id: obs-metax-c600-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      tdp:
+        value: 1000
+        unit: W
+        source_observation_id: obs-metax-c600-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
