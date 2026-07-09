@@ -1,0 +1,236 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-14",
+  "run_id": "ai-infra-expansion-continuation-20260708",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-09T03:35:56Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported Huawei Atlas 300I A2 fields as explicit 32 GB and 64 GB variants: dual-slot full-height full-length PCIe form factor, 560 TOPS INT8, 280 TFLOPS FP16, per-variant memory capacity and bandwidth, PCIe 5.0 host interface, and 350 W maximum power. CPU, passive air cooling, fan modules, dimensions, operating temperature, server drawer, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, pricing, ranking, and deployment claims were not promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "huawei-atlas-300i-a2-32gb",
+      "fields": {
+        "form_factor": "dual-slot full-height full-length PCIe card",
+        "int8_tops": "560 TOPS",
+        "fp16_tflops": "280 TFLOPS",
+        "memory_capacity": "32 GB",
+        "memory_bandwidth": "0.8 TB/s",
+        "host_interface": "PCIe 5.0",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md"
+    },
+    {
+      "sku_id": "huawei-atlas-300i-a2-64gb",
+      "fields": {
+        "form_factor": "dual-slot full-height full-length PCIe card",
+        "int8_tops": "560 TOPS",
+        "fp16_tflops": "280 TFLOPS",
+        "memory_capacity": "64 GB",
+        "memory_bandwidth": "1.6 TB/s",
+        "host_interface": "PCIe 5.0",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-14'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"Atlas 300I A2|300I A2|560 TOPS|280 TFLOPS|32 GB|64 GB|0.8 TB/s|1.6 TB/s|PCIe 5.0|350W|350 W|dual-slot|full-height|full-length|Atlas\" personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2 personal-wiki/domains/ai_infra/data/compute_accelerators personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md | wc -l",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "170",
+      "stderr": ""
+    },
+    {
+      "command": "structured catalog consistency check for Huawei Atlas 300I A2 sku_id, observation_id, source_observation_id, source_id, source_ref, and variant-boundary linkage",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Huawei Atlas 300I A2 structured catalog consistency passed: 2 SKUs, 14 observations, 2 resolved specs, 7 whitelisted fields per variant, non-Huawei data unchanged",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no Atlas 800T A3, Huawei aggregate system, CPU, fan, cooling, dimension, operating-temperature, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, ranking, or unsupported host-interface claim was promoted as a resolved catalog field",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Atlas 300I A2 resolved fields are limited to form_factor, int8_tops, fp16_tflops, memory_capacity, memory_bandwidth, host_interface, and tdp for each explicit memory variant; CPU, cooling, fan, dimensions, operating temperature, server drawer, benchmark, production-operation, service-SLO, throughput, ranking, deployment, and aggregate-system claims remain unpromoted boundary evidence",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no previously resolved H200, AMD MI325X, Intel Gaudi 3, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, Asterfusion, Iluvatar, or MetaX fields changed except surrounding wiki comparison/context text required by this task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "non-Huawei SKU, observation, and resolved data rows match HEAD; only Atlas 300I A2 rows were added in structured data, with expected wiki/state/context updates",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in declared ai_infra files",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "autonomous scope check passed for 11 ai_infra changed paths including verification manifest; run-directory JSON artifacts are required by the generator prompt and excluded from planner domain allow/deny matching",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed by this generator task; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, and loop-auto-resume freshness; do not start long-lived services, run localhost probes, or restart services from this wiki-only task unless code changes require it",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "parent-task-level auditor cadence check: audit-006 passed after parent-12 with last_audited_progress_count=12, parent-13 is accepted, and ordinary Auditor is due after parent-14 acceptance before planning parent-15 unless a hard safety gate fires earlier",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "audit-006 passed after parent-12 with last_audited_progress_count=12; parent-13 is accepted; accepting parent-14 brings progress to 14, so ordinary Auditor is due before parent-15 planning unless a hard safety gate fires earlier",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "stable_evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, Loop Dashboard service availability, and loop-auto-resume host freshness delegation after parent-14 Huawei Atlas 300I A2 wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "stable_evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-14 Huawei Atlas 300I A2 32 GB and 64 GB catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "stable_evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-14 Huawei Atlas 300I A2, 32 GB, 64 GB, 560 TOPS INT8, 280 TFLOPS FP16, 0.8 TB/s, 1.6 TB/s, PCIe 5.0, 350 W, and CPU/cooling/fan/dimension/operating-temperature boundary text"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "stable_evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-14 Huawei Atlas 300I A2 32 GB and 64 GB catalog rows and non-promoted CPU, cooling, fan, dimension, operating-temperature, benchmark, production-operation, throughput, ranking, and aggregate boundaries"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "stable_evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run, parent-14 task state, agent actions, evaluator scenarios, completed history, errors/blocked fields, user decision fields, and due auditor-cadence status before parent-15"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses the existing local Huawei Atlas 300I A2 product-page raw capture.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Source registry already contained huawei-atlas-300i-a2-product-page and was not modified.",
+    "Initial accelerator validation reproduced a transient YAML nesting mismatch from an in-progress edit; the final resolved-specs file restores MetaX C600 fields under metax-c600 and passes validation."
+  ]
+}

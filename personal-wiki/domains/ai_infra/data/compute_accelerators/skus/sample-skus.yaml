@@ -161,6 +161,24 @@ skus:
     form_factor: cloud-integrated accelerator
     release_status: announced
     source_refs: [microsoft-maia-200-announcement]
+  - sku_id: huawei-atlas-300i-a2-32gb
+    vendor_id: huawei
+    family_id: huawei-ascend-atlas
+    canonical_name: Huawei Atlas 300I A2 32 GB
+    aliases: [Atlas 300I A2 32 GB, Atlas 300I A2 32GB]
+    scope: npu
+    form_factor: dual-slot full-height full-length PCIe card
+    release_status: released
+    source_refs: [huawei-atlas-300i-a2-product-page]
+  - sku_id: huawei-atlas-300i-a2-64gb
+    vendor_id: huawei
+    family_id: huawei-ascend-atlas
+    canonical_name: Huawei Atlas 300I A2 64 GB
+    aliases: [Atlas 300I A2 64 GB, Atlas 300I A2 64GB]
+    scope: npu
+    form_factor: dual-slot full-height full-length PCIe card
+    release_status: released
+    source_refs: [huawei-atlas-300i-a2-product-page]
   - sku_id: cambricon-mlu370-x4
     vendor_id: cambricon
     family_id: cambricon-mlu370

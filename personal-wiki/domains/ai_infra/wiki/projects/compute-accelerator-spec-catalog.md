@@ -17,6 +17,7 @@ source_refs:
   - ../../data/compute_accelerators/observations/sample-observations.yaml
   - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
+  - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
   - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md
@@ -51,6 +52,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
 ---
 
 # Summary
@@ -158,6 +160,16 @@ it also uses qualitative compute, GPU-ecosystem, application, server, and
 128-card supernode wording. Those claims remain boundary evidence rather than
 resolved catalog fields. [C600 raw](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md)
 
+Continuation parent 14 promotes Huawei Atlas 300I A2 as two explicit memory
+variants from the existing local official product-page capture. The 32 GB row
+resolves dual-slot full-height full-length PCIe card form factor, 560 TOPS
+INT8, 280 TFLOPS FP16, 32 GB on-card memory, 0.8 TB/s memory bandwidth,
+`PCIe 5.0`, and 350 W maximum power. The 64 GB row resolves the same form
+factor, compute, interface, and power fields with 64 GB on-card memory and
+1.6 TB/s memory bandwidth. The source-visible CPU, passive air cooling, fan
+module, operating-temperature, and dimension text remains boundary evidence and
+is not promoted into catalog fields. [Atlas 300I A2 raw](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md)
+
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
 form factor, aggregate data-port bandwidth, memory type, memory capacity, and
@@ -209,6 +221,8 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
 - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
+- ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md

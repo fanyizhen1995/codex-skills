@@ -1806,3 +1806,185 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page lists 1000 W maximum power.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-form-factor
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: form_factor
+    value: dual-slot full-height full-length PCIe card
+    unit: none
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists the card form as a dual-slot full-height full-length PCIe card.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-int8-tops
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: int8_tops
+    value: 560
+    unit: TOPS
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists AI compute as 560 TOPS INT8 for Atlas 300I A2.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-fp16-tflops
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: fp16_tflops
+    value: 280
+    unit: TFLOPS
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists AI compute as 280 TFLOPS FP16 for Atlas 300I A2.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-memory-capacity
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: memory_capacity
+    value: 32
+    unit: GB
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists one on-card memory configuration as 32 GB with ECC support.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-memory-bandwidth
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: memory_bandwidth
+    value: 0.8
+    unit: TB/s
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table ties the 32 GB on-card memory configuration to 0.8 TB/s bandwidth and ECC support.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-host-interface
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: host_interface
+    value: PCIe 5.0
+    unit: none
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists PCIe 5.0 as the PCIe interface.
+  - observation_id: obs-huawei-atlas-300i-a2-32gb-tdp
+    sku_id: huawei-atlas-300i-a2-32gb
+    field: tdp
+    value: 350
+    unit: W
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists maximum power as 350 W.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-form-factor
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: form_factor
+    value: dual-slot full-height full-length PCIe card
+    unit: none
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists the card form as a dual-slot full-height full-length PCIe card.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-int8-tops
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: int8_tops
+    value: 560
+    unit: TOPS
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists AI compute as 560 TOPS INT8 for Atlas 300I A2.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-fp16-tflops
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: fp16_tflops
+    value: 280
+    unit: TFLOPS
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists AI compute as 280 TFLOPS FP16 for Atlas 300I A2.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-memory-capacity
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: memory_capacity
+    value: 64
+    unit: GB
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists one on-card memory configuration as 64 GB with ECC support.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-memory-bandwidth
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: memory_bandwidth
+    value: 1.6
+    unit: TB/s
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table ties the 64 GB on-card memory configuration to 1.6 TB/s bandwidth and ECC support.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-host-interface
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: host_interface
+    value: PCIe 5.0
+    unit: none
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists PCIe 5.0 as the PCIe interface.
+  - observation_id: obs-huawei-atlas-300i-a2-64gb-tdp
+    sku_id: huawei-atlas-300i-a2-64gb
+    field: tdp
+    value: 350
+    unit: W
+    source_id: huawei-atlas-300i-a2-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 300I A2 product page; technical specifications table"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists maximum power as 350 W.

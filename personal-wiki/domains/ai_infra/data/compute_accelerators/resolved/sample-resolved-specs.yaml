@@ -1169,3 +1169,119 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-09"
+  - sku_id: huawei-atlas-300i-a2-32gb
+    resolved_fields:
+      form_factor:
+        value: dual-slot full-height full-length PCIe card
+        unit: none
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      int8_tops:
+        value: 560
+        unit: TOPS
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      fp16_tflops:
+        value: 280
+        unit: TFLOPS
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      memory_capacity:
+        value: 32
+        unit: GB
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      memory_bandwidth:
+        value: 0.8
+        unit: TB/s
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      host_interface:
+        value: PCIe 5.0
+        unit: none
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      tdp:
+        value: 350
+        unit: W
+        source_observation_id: obs-huawei-atlas-300i-a2-32gb-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+  - sku_id: huawei-atlas-300i-a2-64gb
+    resolved_fields:
+      form_factor:
+        value: dual-slot full-height full-length PCIe card
+        unit: none
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      int8_tops:
+        value: 560
+        unit: TOPS
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-int8-tops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      fp16_tflops:
+        value: 280
+        unit: TFLOPS
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-fp16-tflops
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      memory_capacity:
+        value: 64
+        unit: GB
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      memory_bandwidth:
+        value: 1.6
+        unit: TB/s
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-memory-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      host_interface:
+        value: PCIe 5.0
+        unit: none
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
+      tdp:
+        value: 350
+        unit: W
+        source_observation_id: obs-huawei-atlas-300i-a2-64gb-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"

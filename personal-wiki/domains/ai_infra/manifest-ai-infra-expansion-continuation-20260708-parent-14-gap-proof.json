@@ -1,0 +1,127 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-14",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Huawei Atlas 300I A2 inference card variant catalog promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:huawei:atlas-300i-a2:32gb-64gb"
+  },
+  "identity_keys": [
+    {
+      "title": "Huawei Atlas 300I A2 32 GB",
+      "source_type": "hardware",
+      "identity_key": "hardware:huawei:atlas-300i-a2:32gb"
+    },
+    {
+      "title": "Huawei Atlas 300I A2 64 GB",
+      "source_type": "hardware",
+      "identity_key": "hardware:huawei:atlas-300i-a2:64gb"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local Huawei Atlas 300I A2 captures found and reused: raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260627T153516699664Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md and raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison text listed Huawei Atlas 300I A2 as raw comparison evidence and coverage-map.json explicitly kept it unresolved until the source or catalog separated per-variant values. No huawei-atlas-300i-a2 SKU, observation, or resolved-spec row existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map; no dedicated Huawei Atlas page was needed.",
+    "prior_manifest_scan": "Prior continuation parent tasks promoted Corigine, Yusur, H200, Resnics N2025, Asterfusion, Kunlunxin R200/R200-8F, Iluvatar Tiangai, MetaX C-series, and MetaX C600 slices only. Atlas 300I A2 remained a distinct unresolved product-page identity key."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Hardware layer already cited the Atlas 300I A2 raw product-page capture but listed it as an unresolved multi-variant row. Parent-14 adds a resolved per-memory-variant slice and removes Atlas 300I A2 from that unresolved multi-variant gap."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added one known_source entry for parent-14 Huawei Atlas 300I A2 variant fields without mutating unrelated blocked_items or non-hardware coverage gaps."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing Huawei Atlas 300I A2 SKU row; added huawei-atlas-300i-a2-32gb and huawei-atlas-300i-a2-64gb tied to the existing huawei-atlas-300i-a2-product-page source."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing Atlas 300I A2 observations; added observations only for form_factor, int8_tops, fp16_tflops, memory_capacity, memory_bandwidth, host_interface, and tdp for each memory variant."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing Atlas 300I A2 resolved fields; added two resolved specs whose fields point to matching per-variant observations."
+    },
+    {
+      "target": "source-registry.yaml",
+      "result": "Existing huawei-atlas-300i-a2-product-page source registry entry was reused; the source registry was not modified."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing Atlas 300I A2 raw comparison row now links to resolved specs and explicitly separates 32 GB and 64 GB memory variants while keeping CPU, cooling, fan, dimension, operating-temperature, benchmark, production-operation, and aggregate claims outside resolved fields."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog coverage text now treats Atlas 300I A2 as two bounded structured product rows and records non-promoted source-visible boundaries."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official product-specific Huawei Atlas 300I A2 capture with source-visible, schema-supported form factor, INT8, FP16, memory-capacity, memory-bandwidth, host-interface, and maximum-power fields. The source exposes memory as two distinct on-card configurations, so the safe catalog boundary is two explicit variant rows rather than one blended row.",
+  "promoted_fields": [
+    {
+      "sku_id": "huawei-atlas-300i-a2-32gb",
+      "fields": {
+        "form_factor": "dual-slot full-height full-length PCIe card",
+        "int8_tops": "560 TOPS",
+        "fp16_tflops": "280 TFLOPS",
+        "memory_capacity": "32 GB",
+        "memory_bandwidth": "0.8 TB/s",
+        "host_interface": "PCIe 5.0",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md"
+    },
+    {
+      "sku_id": "huawei-atlas-300i-a2-64gb",
+      "fields": {
+        "form_factor": "dual-slot full-height full-length PCIe card",
+        "int8_tops": "560 TOPS",
+        "fp16_tflops": "280 TFLOPS",
+        "memory_capacity": "64 GB",
+        "memory_bandwidth": "1.6 TB/s",
+        "host_interface": "PCIe 5.0",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "The source lists Atlas 300I A2 on-card memory as 32 GB with 0.8 TB/s bandwidth and 64 GB with 1.6 TB/s bandwidth.",
+      "boundary": "Two explicit SKU rows are promoted so memory_capacity and memory_bandwidth are not blended into one ambiguous row."
+    },
+    {
+      "source_value": "The source lists 560 TOPS INT8 and 280 TFLOPS FP16 for Atlas 300I A2 without tying different compute peaks to the two memory configurations.",
+      "boundary": "The shared compute values are repeated on both explicit memory variants because both rows remain within the same product-page boundary."
+    },
+    {
+      "source_value": "The source lists CPU, passive air cooling, fan modules, operating temperature, and dimensions.",
+      "boundary": "No CPU, cooling, fan, dimension, or operating-temperature field is promoted because those fields are outside the task scope or absent from the current catalog schema."
+    },
+    {
+      "source_value": "The source does not expose memory type/generation, benchmark result, production-operation proof, service SLO, training throughput, inference throughput, ranking, or aggregate-system value for Atlas 300I A2.",
+      "boundary": "No memory_type, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, ranking, or aggregate-system claim is promoted."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Huawei Atlas 800T A3, Huawei aggregate system, server drawer, CPU, fan, cooling, dimension, operating-temperature, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, pricing, ranking, or deployment claim was promoted as a resolved catalog field.",
+    "No Atlas 300I A2 memory_capacity or memory_bandwidth value was collapsed across 32 GB and 64 GB configurations.",
+    "No H200, AMD MI325X, Intel Gaudi 3, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, Asterfusion, Iluvatar, MetaX, AWS Trn2, Huawei Atlas 800T A3, Kunlunxin R480-X8, GB200/GB300, or other unrelated row was intentionally modified by this task.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}
