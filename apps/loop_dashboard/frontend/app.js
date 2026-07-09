@@ -93,6 +93,7 @@ const SUPERVISOR_CLASSIFICATION_LABELS = {
   unsupported: "不支持",
   needs_user_decision: "需要用户决策",
   actionable_resume: "可恢复",
+  auditor_control: "Auditor 控制输入",
   awaiting_human_merge: "等待人工合并",
   terminal: "终止",
 };
@@ -1229,7 +1230,7 @@ function supervisorFreshnessTargets(services) {
       checks,
       verified_at: freshness.verified_at,
     };
-  }).filter((target) => target.status || target.target_id || target.checks.length);
+  }).filter((target) => target.target_id || target.checks.length || (target.status && target.status !== "not_applicable"));
 }
 
 function supervisorFreshnessSummary(services) {
@@ -1253,7 +1254,7 @@ function freshnessStatusLabel(status) {
   const labels = {
     pass: "通过",
     fail: "失败",
-    not_applicable: "不适用",
+    not_applicable: "暂无 freshness target",
   };
   return labels[status] || "暂无 freshness target";
 }

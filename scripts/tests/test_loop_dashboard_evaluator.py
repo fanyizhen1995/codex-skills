@@ -90,9 +90,17 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             self.assertTrue((repo_root / ".codex" / "loop-runs" / "supervisor-autonomous-budget-run" / "run.json").exists())
             self.assertFalse((repo_root / ".codex" / "loop-runs" / "loop-supervisor").exists())
             self.assertFalse((repo_root / ".codex" / "loop-runs" / "supervisor").exists())
+            budget_run = json.loads(
+                (repo_root / ".codex" / "loop-runs" / "supervisor-autonomous-budget-run" / "run.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(budget_run["policy"], "autonomous_knowledge")
             service_health = json.loads(
                 (repo_root / ".codex" / "supervisor" / "service-health.json").read_text(encoding="utf-8")
             )
+            dashboard = next(item for item in service_health["services"] if item["service"] == "loop-dashboard")
+            self.assertEqual(dashboard["data_freshness"]["status_label"], "暂无 freshness target")
             backend = next(item for item in service_health["services"] if item["service"] == "crawler-backend")
             self.assertEqual(backend["data_freshness"]["target_id"], "ai-infra-parent-14-atlas-300i-a2")
             self.assertIn("search", backend["data_freshness"]["checks"])

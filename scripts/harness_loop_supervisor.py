@@ -109,6 +109,7 @@ DEFAULT_SERVICES = (
         "port": None,
     },
 )
+MISSING_FRESHNESS_TARGET_LABEL = "暂无 freshness target"
 
 
 @dataclass(frozen=True)
@@ -184,14 +185,15 @@ def run_supervisor_once(config: SupervisorConfig) -> dict[str, Any]:
 
         decision = _record_run_decision(config, record, classification)
         decisions.append(decision)
-        if classification["classification"] == "continuation_candidate" and classification.get("action") == "create_continuation":
+        if classification.get("action") == "resume":
+            resume_needed = True
+
+        if _counts_as_continuation_candidate(classification):
             continuation_candidates += 1
-        elif classification["classification"] == "active":
+        elif _counts_as_active(classification):
             active += 1
         elif classification["classification"] in {"actionable_resume", "blocked"}:
             blocked += 1
-            if classification["action"] == "resume":
-                resume_needed = True
         elif classification["classification"] == "needs_user_decision":
             needs_user_decision += 1
             if classification.get("reason") != "global_stop_open_user_decision":
@@ -304,6 +306,9 @@ def classify_run(run_record: RunRecord, auditor_summary: dict[str, Any] | None =
             "action": "request_user_decision",
             "reason": "auditor_stop",
         }
+    auditor_control = _classify_auditor_control(base, auditor_verdict, phase)
+    if auditor_control is not None:
+        return auditor_control
     if _has_unsafe_secret_signal(run):
         return {
             **base,
@@ -542,6 +547,22 @@ def _classification_with_continuation_plan(
     return updated
 
 
+def _counts_as_continuation_candidate(classification: Mapping[str, Any]) -> bool:
+    if classification.get("classification") != "continuation_candidate":
+        return False
+    plan_status = str(classification.get("continuation_plan_status") or "")
+    return not plan_status or plan_status in {"planned", "created"}
+
+
+def _counts_as_active(classification: Mapping[str, Any]) -> bool:
+    if classification.get("classification") == "active":
+        return True
+    return (
+        classification.get("classification") == "actionable_resume"
+        and classification.get("reason") == "active_autonomous_phase"
+    )
+
+
 def _continuation_plan_payload(
     config: SupervisorConfig,
     run_record: RunRecord,
@@ -616,6 +637,28 @@ def _classify_autonomous_run(base: dict[str, Any], phase: str, next_action: str)
     }
 
 
+def _classify_auditor_control(base: dict[str, Any], auditor_verdict: str, phase: str) -> dict[str, Any] | None:
+    if auditor_verdict == "must_fix":
+        if phase == "audit_blocked":
+            return {**base, "classification": "actionable_resume", "action": "resume", "reason": "auditor_must_fix"}
+        return {
+            **base,
+            "classification": "needs_user_decision",
+            "action": "request_user_decision",
+            "reason": "auditor_must_fix",
+        }
+    if auditor_verdict == "refocus":
+        return {
+            **base,
+            "classification": "needs_user_decision",
+            "action": "request_user_decision",
+            "reason": "auditor_refocus",
+        }
+    if auditor_verdict == "should_fix":
+        return {**base, "classification": "auditor_control", "action": "observe", "reason": "auditor_should_fix"}
+    return None
+
+
 def _classify_demand_run(base: dict[str, Any], phase: str, next_action: str) -> dict[str, Any]:
     if phase in DEMAND_ACTIVE_PHASES:
         return {**base, "classification": "active", "action": "observe", "reason": "active_demand_phase"}
@@ -685,6 +728,10 @@ def _open_classification_user_decision(
         failure_key = make_failure_key("auditor_stop", record.run_id, "latest-audit", "stop")
         summary = f"Auditor requested stop for run {record.run_id}."
         required = "Review the auditor stop conclusion and choose whether to stop or continue manually."
+    elif reason in {"auditor_must_fix", "auditor_refocus"}:
+        failure_key = make_failure_key("audit_blocked", record.run_id, "latest-audit", reason)
+        summary = f"Auditor control input requires operator review for run {record.run_id}: {reason}."
+        required = "Review the Auditor control input and choose the next operational action."
     elif reason == "unsafe_secret":
         failure_key = make_failure_key("unsafe_secret", record.run_id, "run-artifacts", "secret-signal")
         summary = f"Unsafe secret signal found for run {record.run_id}."
@@ -728,9 +775,10 @@ def _service_data_freshness(project_root: Path, service: ServiceConfig) -> dict[
     if not targets_path.exists():
         return {
             "status": "not_applicable",
+            "status_label": MISSING_FRESHNESS_TARGET_LABEL,
             "target_id": "",
             "checks": [],
-            "evidence": "freshness target missing",
+            "evidence": f"{MISSING_FRESHNESS_TARGET_LABEL}: freshness target missing",
         }
 
     try:
@@ -738,6 +786,7 @@ def _service_data_freshness(project_root: Path, service: ServiceConfig) -> dict[
     except ValueError as exc:
         return {
             "status": "fail",
+            "status_label": _freshness_status_label("fail"),
             "target_id": "",
             "checks": [],
             "evidence": f"freshness target artifact malformed: {exc}",
@@ -754,6 +803,7 @@ def _service_data_freshness(project_root: Path, service: ServiceConfig) -> dict[
         matching.append(
             {
                 "status": status,
+                "status_label": _freshness_status_label(status),
                 "target_id": str(target.get("target_id") or ""),
                 "source_run_id": str(target.get("source_run_id") or ""),
                 "target_commit": str(target.get("target_commit") or ""),
@@ -767,11 +817,20 @@ def _service_data_freshness(project_root: Path, service: ServiceConfig) -> dict[
     if not matching:
         return {
             "status": "not_applicable",
+            "status_label": MISSING_FRESHNESS_TARGET_LABEL,
             "target_id": "",
             "checks": [],
-            "evidence": "no freshness target applies to this service",
+            "evidence": f"{MISSING_FRESHNESS_TARGET_LABEL}: no freshness target applies to this service",
         }
     return matching[-1]
+
+
+def _freshness_status_label(status: str) -> str:
+    if status == "pass":
+        return "通过"
+    if status == "fail":
+        return "失败"
+    return MISSING_FRESHNESS_TARGET_LABEL
 
 
 def _read_freshness_targets(path: Path) -> list[dict[str, Any]]:

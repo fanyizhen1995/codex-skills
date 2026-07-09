@@ -842,6 +842,7 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                     },
                     "data_freshness": {
                         "status": "not_applicable",
+                        "status_label": "暂无 freshness target",
                         "target_id": "",
                         "checks": [],
                         "verified_at": "2026-07-09T08:00:20Z",
@@ -1009,7 +1010,7 @@ def seed_loop_supervisor_run(run_root: Path, run_id: str, phase: str, requiremen
         run_root / run_id / "run.json",
         {
             "run_id": run_id,
-            "policy": "autonomous" if phase == "stopped_budget" else "demand_development",
+            "policy": "autonomous_knowledge" if phase == "stopped_budget" else "demand_development",
             "phase": phase,
             "task_id": run_id,
             "domain": "ai_infra",
@@ -2044,6 +2045,7 @@ def run_loop_supervisor_browser_checks(dashboard_url: str, output_dir: Path, fix
 
             expect(supervisor_panel).to_contain_text("Loop Dashboard")
             expect(supervisor_panel).to_contain_text("端点可达 · 版本匹配")
+            expect(supervisor_panel).to_contain_text("新鲜度：暂无 freshness target")
             expect(supervisor_panel).to_contain_text("Crawler Backend")
             expect(supervisor_panel).to_contain_text("版本不可用")
             expect(supervisor_panel).to_contain_text("runtime metadata missing for this service")

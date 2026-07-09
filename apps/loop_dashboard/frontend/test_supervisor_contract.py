@@ -200,3 +200,14 @@ def test_supervisor_service_version_renders_stale_runtime_metadata():
     assert '"版本过期"' in version_label
     assert 'version.freshness === "unavailable"' in version_label
     assert version_label.index('version.freshness === "unavailable"') < version_label.index("version.matches_expected === false")
+
+
+def test_missing_freshness_target_copy_is_explicit_not_generic_not_applicable():
+    status_label = function_block("freshnessStatusLabel")
+    targets = function_block("supervisorFreshnessTargets")
+    summary = function_block("supervisorFreshnessSummary")
+
+    assert 'not_applicable: "暂无 freshness target"' in status_label
+    assert '"不适用"' not in status_label
+    assert 'target.status !== "not_applicable"' in targets
+    assert '"暂无 freshness target"' in summary

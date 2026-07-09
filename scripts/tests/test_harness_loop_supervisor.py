@@ -313,7 +313,7 @@ def test_stopped_budget_autonomous_plan_is_idempotent(tmp_path, monkeypatch):
     assert len(plans) == 1
     assert len({plan["idempotency_key"] for plan in plans}) == 1
     assert plans[0]["parent_task_counter"] == 14
-    assert second["run_summary"]["continuation_candidates"] == 0
+    assert second["run_summary"]["continuation_candidates"] == 1
 
 
 def test_existing_planned_continuation_is_reused_when_global_stop_opens(tmp_path, monkeypatch):
@@ -340,7 +340,7 @@ def test_existing_planned_continuation_is_reused_when_global_stop_opens(tmp_path
     assert len(plans) == 1
     assert idempotency_keys == ["autonomous_knowledge:ai_infra:planned-before-stop:parent-14:abc123"]
     assert plans[0]["status"] == "planned"
-    assert second["run_summary"]["continuation_candidates"] == 0
+    assert second["run_summary"]["continuation_candidates"] == 1
     assert decisions[-1]["run_id"] == "planned-before-stop"
     assert decisions[-1]["action"] == "observe"
     assert decisions[-1]["reason"] == "continuation_already_planned"
@@ -368,6 +368,25 @@ def test_missing_service_runtime_reports_unavailable_version(tmp_path, monkeypat
     assert health["running_version"]["matches_expected"] is False
     assert health["running_version"]["runtime_metadata_path"] == ".codex/service-runtime/loop-dashboard.json"
     assert "runtime metadata missing" in health["running_version"]["evidence"]
+
+
+def test_missing_freshness_target_reports_explicit_missing_target(tmp_path, monkeypatch):
+    patch_service_checks(monkeypatch)
+
+    health = check_service_health(
+        SupervisorConfig(project_root=tmp_path),
+        ServiceConfig(
+            service="crawler-backend",
+            kind="http_and_tmux",
+            expected_endpoint="http://127.0.0.1:8765/api/health",
+            tmux_session="personal-wiki-crawler-backend",
+            port=8765,
+        ),
+    )
+
+    assert health["data_freshness"]["status"] == "not_applicable"
+    assert health["data_freshness"]["status_label"] == "暂无 freshness target"
+    assert "暂无 freshness target" in health["data_freshness"]["evidence"]
 
 
 def test_service_health_attaches_target_specific_freshness_from_artifact(tmp_path, monkeypatch):
@@ -603,6 +622,40 @@ def test_dry_run_passes_dry_run_to_auto_resume(tmp_path, monkeypatch):
     assert result["auto_resume"]["dry_run_count"] == 1
 
 
+def test_active_autonomous_run_counts_active_not_blocked_while_resumable(tmp_path, monkeypatch):
+    seed_run(
+        tmp_path,
+        "planning-run",
+        policy="autonomous_knowledge",
+        phase="planning",
+        next_action="run_autonomous_planner",
+        last_result="none",
+    )
+    monkeypatch.setattr("scripts.harness_loop_supervisor._check_all_services", lambda config: [])
+    calls = []
+
+    def fake_resume_once(**kwargs):
+        calls.append(kwargs)
+        return {
+            "project_root": str(kwargs["project_root"]),
+            "candidate_count": 1,
+            "resumed_count": 0,
+            "dry_run_count": 1,
+            "error_count": 0,
+            "resumed": [{"run_id": "planning-run", "status": "dry_run"}],
+            "errors": [],
+        }
+
+    monkeypatch.setattr("scripts.harness_loop_supervisor.auto_resume.resume_once", fake_resume_once)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    assert calls
+    assert result["run_summary"]["active"] == 1
+    assert result["run_summary"]["blocked"] == 0
+    assert result["status"] == "healthy"
+
+
 def test_demand_development_human_merge_is_not_continued(tmp_path, monkeypatch):
     seed_run(
         tmp_path,
@@ -686,6 +739,68 @@ def test_run_supervisor_once_loads_latest_auditor_stop_and_blocks_continuation(t
     assert str(latest_report.relative_to(tmp_path)) in decisions[-1]["evidence_paths"]
     assert len(user_decisions) == 1
     assert json.loads(user_decisions[0].read_text(encoding="utf-8"))["reason"] == "auditor_stop"
+
+
+def test_stopped_budget_auditor_must_fix_requests_user_decision_without_continuation(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "audit-must-fix")
+    seed_audit_report(tmp_path, "audit-must-fix", "audit-001", "must_fix")
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    user_decisions = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
+    assert result["run_summary"]["continuation_candidates"] == 0
+    assert result["run_summary"]["needs_user_decision"] == 1
+    assert plans == []
+    assert decisions[-1]["run_id"] == "audit-must-fix"
+    assert decisions[-1]["auditor_verdict"] == "must_fix"
+    assert decisions[-1]["classification"] == "needs_user_decision"
+    assert decisions[-1]["action"] == "request_user_decision"
+    assert decisions[-1]["reason"] == "auditor_must_fix"
+    assert len(user_decisions) == 1
+    assert json.loads(user_decisions[0].read_text(encoding="utf-8"))["reason"] == "auditor_must_fix"
+
+
+def test_stopped_budget_auditor_refocus_requests_user_decision_without_continuation(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "audit-refocus")
+    seed_audit_report(tmp_path, "audit-refocus", "audit-001", "refocus")
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    assert result["run_summary"]["continuation_candidates"] == 0
+    assert result["run_summary"]["needs_user_decision"] == 1
+    assert plans == []
+    assert decisions[-1]["run_id"] == "audit-refocus"
+    assert decisions[-1]["auditor_verdict"] == "refocus"
+    assert decisions[-1]["classification"] == "needs_user_decision"
+    assert decisions[-1]["action"] == "request_user_decision"
+    assert decisions[-1]["reason"] == "auditor_refocus"
+
+
+def test_stopped_budget_auditor_should_fix_records_control_input_without_continuation(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "audit-should-fix")
+    seed_audit_report(tmp_path, "audit-should-fix", "audit-001", "should_fix")
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    user_decisions_dir = tmp_path / ".codex" / "supervisor" / "needs-user-decisions"
+    assert result["run_summary"]["continuation_candidates"] == 0
+    assert result["run_summary"]["needs_user_decision"] == 0
+    assert plans == []
+    assert decisions[-1]["run_id"] == "audit-should-fix"
+    assert decisions[-1]["auditor_verdict"] == "should_fix"
+    assert decisions[-1]["classification"] == "auditor_control"
+    assert decisions[-1]["action"] == "observe"
+    assert decisions[-1]["reason"] == "auditor_should_fix"
+    assert not user_decisions_dir.exists()
 
 
 def test_stopped_budget_blocks_continuation_when_open_user_decision_exists(tmp_path, monkeypatch):
@@ -785,7 +900,7 @@ def test_existing_created_continuation_plan_records_observe_decision(tmp_path, m
 
     plans = read_jsonl(plans_path)
     decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
-    assert result["run_summary"]["continuation_candidates"] == 0
+    assert result["run_summary"]["continuation_candidates"] == 1
     assert len(plans) == 1
     assert decisions[-1]["run_id"] == "already-created"
     assert decisions[-1]["classification"] == "continuation_candidate"
