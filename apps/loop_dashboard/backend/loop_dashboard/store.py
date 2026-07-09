@@ -693,11 +693,11 @@ class LoopDashboardStore:
                 candidates.append((self._audit_report_number(safe_path), safe_path.stat().st_mtime, safe_path))
             except OSError:
                 continue
-        for _number, _mtime, path in sorted(candidates, reverse=True):
-            payload = self._read_json(path, allowed_root=safe_audit_dir)
-            if isinstance(payload, dict):
-                return path, payload
-        return (candidates[0][2], {}) if candidates else (None, {})
+        if not candidates:
+            return None, {}
+        _number, _mtime, path = sorted(candidates, reverse=True)[0]
+        payload = self._read_json(path, allowed_root=safe_audit_dir)
+        return (path, payload) if isinstance(payload, dict) else (path, {})
 
     def _audit_report_number(self, path: Path) -> int:
         match = re.match(r"^audit-(\d+)\.json$", path.name)
@@ -2178,6 +2178,11 @@ class LoopDashboardStore:
             return None, self._supervisor_diagnostic(path, "artifact is not a safe file under the supervisor directory")
         try:
             payload = json.loads(safe_path.read_text(encoding="utf-8"))
+        except UnicodeDecodeError as exc:
+            return None, self._supervisor_diagnostic(
+                safe_path,
+                f"artifact is not valid UTF-8: {exc.reason} at byte {exc.start}",
+            )
         except json.JSONDecodeError as exc:
             return None, self._supervisor_diagnostic(
                 safe_path,
@@ -2188,8 +2193,7 @@ class LoopDashboardStore:
         return self._redact_artifact_value(payload), None
 
     def _redact_artifact_value(self, value: Any, key: str = "") -> Any:
-        normalized_key = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
-        if normalized_key in SUPERVISOR_SENSITIVE_KEYS:
+        if self._is_supervisor_sensitive_key(key):
             return "[REDACTED]"
         if isinstance(value, str):
             return self._trim(redact_text(value), 1000)
@@ -2198,6 +2202,22 @@ class LoopDashboardStore:
         if isinstance(value, dict):
             return {str(child_key): self._redact_artifact_value(child_value, str(child_key)) for child_key, child_value in value.items()}
         return value
+
+    def _is_supervisor_sensitive_key(self, key: str) -> bool:
+        normalized_key = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
+        if not normalized_key:
+            return False
+        if normalized_key in SUPERVISOR_SENSITIVE_KEYS:
+            return True
+        segments = [segment for segment in normalized_key.split("_") if segment]
+        if any(segment in {"apikey", "authorization", "password", "secret", "token"} for segment in segments):
+            return True
+        sensitive_sequences = (("api", "key"), ("access", "token"), ("client", "secret"))
+        for sequence in sensitive_sequences:
+            size = len(sequence)
+            if any(tuple(segments[index : index + size]) == sequence for index in range(0, len(segments) - size + 1)):
+                return True
+        return False
 
     def _supervisor_diagnostic(self, path: Path, message: str) -> dict[str, str]:
         return {
@@ -2274,7 +2294,7 @@ class LoopDashboardStore:
             return None
         try:
             return json.loads(safe_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return None
 
     def _health(self, phase: str) -> str:

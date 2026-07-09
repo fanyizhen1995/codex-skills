@@ -311,6 +311,45 @@ def test_supervisor_store_reports_invalid_malformed_json_and_jsonl_without_leaki
     assert "jsonl-secret" not in serialized
 
 
+def test_supervisor_store_recursively_redacts_compound_secret_field_names(tmp_path: Path) -> None:
+    supervisor_dir = tmp_path / ".codex" / "supervisor"
+    write_json(
+        supervisor_dir / "supervisor-state.json",
+        {
+            "schema_version": 1,
+            "status": "healthy",
+            "service_summary": {},
+            "run_summary": {},
+            "failure_summary": {},
+            "service_health": {
+                "model-service": {
+                    "openai_api_key": "sk-openai-secret",
+                    "github_token": "github-secret-value",
+                    "access_token_value": "access-secret-value",
+                    "client_secret_text": "client-secret-value",
+                    "nested": [{"openai_api_key": "nested-openai-secret"}],
+                    "idempotency_key": "keep-idempotency-key-visible",
+                }
+            },
+        },
+    )
+
+    summary = LoopDashboardStore(tmp_path).supervisor_summary()
+
+    serialized = json.dumps(summary, ensure_ascii=False)
+    assert summary["state"]["service_health"]["model-service"]["openai_api_key"] == "[REDACTED]"
+    assert summary["state"]["service_health"]["model-service"]["github_token"] == "[REDACTED]"
+    assert summary["state"]["service_health"]["model-service"]["access_token_value"] == "[REDACTED]"
+    assert summary["state"]["service_health"]["model-service"]["client_secret_text"] == "[REDACTED]"
+    assert summary["state"]["service_health"]["model-service"]["nested"][0]["openai_api_key"] == "[REDACTED]"
+    assert summary["state"]["service_health"]["model-service"]["idempotency_key"] == "keep-idempotency-key-visible"
+    assert "sk-openai-secret" not in serialized
+    assert "github-secret-value" not in serialized
+    assert "access-secret-value" not in serialized
+    assert "client-secret-value" not in serialized
+    assert "nested-openai-secret" not in serialized
+
+
 def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path) -> None:
     seed_run(tmp_path, "active-run", "repair_needed", last_result="fail", next_action="run_generator_repair")
     seed_run(

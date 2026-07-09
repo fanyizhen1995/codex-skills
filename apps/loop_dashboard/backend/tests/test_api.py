@@ -194,6 +194,25 @@ def test_supervisor_api_returns_honest_missing_state(tmp_path: Path) -> None:
     assert payload["state"]["status_label"] == "暂无数据"
 
 
+def test_supervisor_api_reports_non_utf8_state_as_invalid_artifact(tmp_path: Path) -> None:
+    supervisor_dir = tmp_path / ".codex" / "supervisor"
+    supervisor_dir.mkdir(parents=True)
+    (supervisor_dir / "supervisor-state.json").write_bytes(
+        b'{"status": "healthy", "last_error": "token=state-secret", "broken": "\xff"}'
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    response = client.get("/api/supervisor")
+
+    assert response.status_code == 200
+    payload = response.json()
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert payload["status"] == "invalid_artifact"
+    assert payload["diagnostics"][0]["status"] == "invalid_artifact"
+    assert "supervisor-state.json" in payload["diagnostics"][0]["source"]
+    assert "state-secret" not in serialized
+
+
 def test_supervisor_api_reads_services_decisions_recovery_and_user_decisions(tmp_path: Path) -> None:
     seed_supervisor_artifacts(tmp_path)
     client = TestClient(create_app(project_root=tmp_path))
@@ -204,6 +223,37 @@ def test_supervisor_api_reads_services_decisions_recovery_and_user_decisions(tmp
     assert client.get("/api/supervisor/recovery").json()["attempts"][0]["consecutive_failure_count"] == 1
     assert client.get("/api/supervisor/decision-required").json()["open_count"] == 1
     assert client.get("/api/supervisor/auditor").json()["audits"][0]["verdict"] == "stop"
+
+
+def test_supervisor_auditor_reports_newest_malformed_audit_instead_of_older_valid_report(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    audit_dir = tmp_path / ".codex" / "loop-runs" / "demo-run" / "audit-reports"
+    write_json(
+        audit_dir / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": "demo-run",
+            "audit_id": "audit-001",
+            "created_at": "2026-07-09T00:01:05Z",
+            "verdict": "pass",
+        },
+    )
+    (audit_dir / "audit-002.json").write_text(
+        '{"run_id": "demo-run", "verdict": "stop", "reason": "token=newest-audit-secret"',
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    response = client.get("/api/supervisor/auditor")
+
+    assert response.status_code == 200
+    payload = response.json()
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert payload["status"] == "invalid_artifact"
+    assert payload["audits"] == []
+    assert "audit-002.json" in payload["diagnostics"][0]["source"]
+    assert "audit-001" not in serialized
+    assert "newest-audit-secret" not in serialized
 
 
 def test_supervisor_api_redacts_artifacts_and_reports_malformed_jsonl(tmp_path: Path) -> None:
