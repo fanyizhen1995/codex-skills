@@ -526,8 +526,8 @@
             </p>
           </div>
           <div class="top-actions">
-            <span class="pill good">健康状态：正常</span>
-            <span class="pill good">无需用户决策</span>
+            <span class="pill warn">健康状态：降级</span>
+            <span class="pill good">人工决策：0 open</span>
             <span class="pill">独立于任务列表</span>
           </div>
         </div>
@@ -535,22 +535,22 @@
           <div class="metric">
             <span class="metric-label">在线服务</span>
             <span class="metric-value">4 / 4</span>
-            <span class="metric-note">crawler 后端、前端、dashboard、auto-resume</span>
+            <span class="metric-note">只表示可达；版本新鲜度单独判断</span>
           </div>
           <div class="metric">
             <span class="metric-label">可续跑任务</span>
             <span class="metric-value">1</span>
-            <span class="metric-note">1 个 stopped_budget 候选，0 个硬阻塞</span>
+            <span class="metric-note">1 个 stopped_budget 候选，idempotency 已检查</span>
           </div>
           <div class="metric">
-            <span class="metric-label">恢复失败</span>
-            <span class="metric-value">0 / 3</span>
-            <span class="metric-note">同一 failure_key 超过 3 次会请求用户决策</span>
+            <span class="metric-label">版本新鲜度</span>
+            <span class="metric-value">3 / 4</span>
+            <span class="metric-note">1 个服务缺少 runtime metadata，显示不可用</span>
           </div>
           <div class="metric">
             <span class="metric-label">数据新鲜度</span>
-            <span class="metric-value">通过</span>
-            <span class="metric-note">API、搜索、前端和 git 均为最新</span>
+            <span class="metric-value">目标通过</span>
+            <span class="metric-note">绑定 target_id、commit、wiki path 和搜索词</span>
           </div>
         </div>
         <div class="tabs" role="tablist" aria-label="Supervisor 全局视图">
@@ -597,31 +597,31 @@
             <div class="section">
               <h2 class="section-title">服务保活</h2>
               <ul class="list">
-                <li class="list-item">
-                  <div class="row">
-                    <span class="row-title">Crawler Backend</span>
-                    <span class="pill good">在线 · 最新</span>
-                  </div>
-                  <span class="row-detail">http://127.0.0.1:8765/api/health · HEAD=79b0608 · search 自动刷新通过</span>
-                </li>
-                <li class="list-item">
-                  <div class="row">
-                    <span class="row-title">Crawler Frontend</span>
-                    <span class="pill good">在线 · 最新</span>
-                  </div>
-                  <span class="row-detail">http://127.0.0.1:5173/ · Wiki 浏览和知识搜索可见</span>
-                </li>
-                <li class="list-item">
-                  <div class="row">
-                    <span class="row-title">Loop Dashboard</span>
-                    <span class="pill good">在线 · 可见</span>
-                  </div>
-                  <span class="row-detail">http://127.0.0.1:8766/api/health · Supervisor 与任务 run 分区展示</span>
-                </li>
-                <li class="list-item">
-                  <div class="row">
-                    <span class="row-title">loop-auto-resume</span>
-                    <span class="pill good">在线</span>
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">Crawler Backend</span>
+                      <span class="pill good">在线 · 最新</span>
+                    </div>
+                    <span class="row-detail">runtime: `.codex/service-runtime/crawler-backend.json` · pid=12345 · cwd/backend · git_head=79b0608 · port=8765</span>
+                  </li>
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">Crawler Frontend</span>
+                      <span class="pill warn">在线 · 版本不可用</span>
+                    </div>
+                    <span class="row-detail">http://127.0.0.1:5173/ 可达，但 runtime metadata 缺失；不能显示“最新”。</span>
+                  </li>
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">Loop Dashboard</span>
+                      <span class="pill good">在线 · 可见</span>
+                    </div>
+                    <span class="row-detail">runtime git_head=79b0608；Supervisor 全局面板与任务 run 分区展示。</span>
+                  </li>
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">loop-auto-resume</span>
+                      <span class="pill good">在线</span>
                   </div>
                   <span class="row-detail">tmux session 存活；作为 Supervisor 的低层恢复执行器复用</span>
                 </li>
@@ -648,6 +648,110 @@
                   <span class="decision-text">Dashboard 可见性通过：Supervisor 全局面板、任务运行列表、日志和验收状态均可读取。</span>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section class="triple">
+            <div class="section">
+              <h2 class="section-title">Freshness Target</h2>
+              <div class="box">
+                <h3>ai-infra-parent-14-atlas-300i-a2</h3>
+                <p class="muted">
+                  commit=`79b0608` · wiki=`compute-accelerator-spec-catalog.md` ·
+                  search terms=`Atlas 300I A2`, `64 GB` · frontend text=`Atlas 300I A2`
+                </p>
+              </div>
+              <ul class="list">
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">wiki-api / search-api / frontend-visible</span>
+                    <span class="pill good">pass</span>
+                  </div>
+                  <span class="row-detail">缺少 target 时必须显示“暂无 freshness target”，不能显示绿色通过。</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">续跑幂等</h2>
+              <div class="box">
+                <h3>continuation plan</h3>
+                <p class="muted">
+                  previous=`ai-infra-expansion-continuation-20260708` ·
+                  next=`ai-infra-expansion-continuation-20260709-001`
+                </p>
+              </div>
+              <ul class="list">
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">idempotency_key</span>
+                    <span class="pill good">已存在则 observe</span>
+                  </div>
+                  <span class="row-detail">`autonomous_knowledge:ai_infra:...:parent-14:79b0608`；禁止重复创建 continuation。</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">失败升级</h2>
+              <ul class="list">
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">dashboard_visibility:...:timeout</span>
+                    <span class="pill good">0 / 3</span>
+                  </div>
+                  <span class="row-detail">最近一次已恢复，通过该 failure_key 单独清零。</span>
+                </li>
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">stale_version:project:crawler-frontend:missing_runtime_metadata</span>
+                    <span class="pill warn">1 / 3</span>
+                  </div>
+                  <span class="row-detail">达到 3 / 3 后写入 `needs-user-decisions/<decision_id>.json`。</span>
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="split">
+            <div class="section">
+              <h2 class="section-title">Auditor 控制输入</h2>
+              <ul class="list">
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">latest verdict</span>
+                    <span class="pill good">continue</span>
+                  </div>
+                  <span class="row-detail">Supervisor 只消费 `continue/must_fix/refocus/stop`，不自行判断任务质量。</span>
+                </li>
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">next audit cadence</span>
+                    <span class="pill">2 个父任务后</span>
+                  </div>
+                  <span class="row-detail">由 policy/run state 提供，Supervisor 展示并执行 cadence。</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">人工决策队列</h2>
+              <ul class="list">
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">open decisions</span>
+                    <span class="pill good">0</span>
+                  </div>
+                  <span class="row-detail">多条决策会分别写入 `needs-user-decisions/<decision_id>.json`，不会互相覆盖。</span>
+                </li>
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">触发条件</span>
+                    <span class="pill">retry_ceiling / auditor_stop / unsafe_secret</span>
+                  </div>
+                  <span class="row-detail">一旦出现 open decision，Supervisor 停止对应自动重试并在顶部显示需要用户决策。</span>
+                </li>
+              </ul>
             </div>
           </section>
         </div>
