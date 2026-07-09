@@ -4875,11 +4875,19 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
     findings: list[str] = []
     artifact_path = ""
 
-    def _append_gap_proof_findings(path: Path, *, artifact_label: str) -> None:
+    def _gap_proof_findings_for_path(
+        path: Path,
+        *,
+        artifact_label: str,
+        expected_task_id: str | None,
+    ) -> list[str]:
         try:
-            findings.extend(validate_gap_proof_file(path, expected_task_id=task_id))
+            return validate_gap_proof_file(path, expected_task_id=expected_task_id)
         except (OSError, ValueError) as exc:
-            findings.append(f"malformed or unreadable gap proof artifact {artifact_label}: {exc}")
+            return [f"malformed or unreadable gap proof artifact {artifact_label}: {exc}"]
+
+    def _append_gap_proof_findings(path: Path, *, artifact_label: str) -> None:
+        findings.extend(_gap_proof_findings_for_path(path, artifact_label=artifact_label, expected_task_id=task_id))
 
     if gap_proof_path.exists():
         artifact_path = gap_proof_path.relative_to(repo_root).as_posix()
@@ -4911,19 +4919,53 @@ def _validate_gap_proof_evidence(repo_root: Path, run: Mapping[str, Any]) -> dic
                 )
             findings.append(f"missing gap proof manifest entry for current task {task_id}")
         else:
-            artifact_path = str(matching_entry.get("artifacts", [""])[0]).strip() if matching_entry.get("artifacts") else ""
             status = str(matching_entry.get("status", "")).strip().lower()
             if status != "pass":
                 findings.append(f"gap proof manifest entry must be pass for task {task_id}")
-            if artifact_path:
-                resolved_artifact = resolve_manifest_artifact_path(artifact_path, repo_root, run_dir)
-                if resolved_artifact is None:
-                    findings.append(f"gap proof artifact escapes repo or run dir: {artifact_path}")
-                elif not resolved_artifact.exists():
-                    findings.append(f"missing gap proof artifact file: {artifact_path}")
+            artifacts_payload = matching_entry.get("artifacts")
+            artifact_candidates = (
+                [str(item).strip() for item in artifacts_payload if str(item).strip()]
+                if isinstance(artifacts_payload, list)
+                else []
+            )
+            if artifact_candidates:
+                artifact_path = artifact_candidates[0]
+                current_task_artifact_path = ""
+                current_task_findings: list[str] = []
+                for candidate_artifact_path in artifact_candidates:
+                    resolved_artifact = resolve_manifest_artifact_path(candidate_artifact_path, repo_root, run_dir)
+                    if resolved_artifact is None:
+                        findings.append(f"gap proof artifact escapes repo or run dir: {candidate_artifact_path}")
+                        continue
+                    if not resolved_artifact.exists():
+                        findings.append(f"missing gap proof artifact file: {candidate_artifact_path}")
+                        continue
+                    candidate_findings = _gap_proof_findings_for_path(
+                        resolved_artifact,
+                        artifact_label=candidate_artifact_path,
+                        expected_task_id=task_id,
+                    )
+                    if not candidate_findings:
+                        if not current_task_artifact_path:
+                            current_task_artifact_path = candidate_artifact_path
+                        continue
+                    supplemental_findings = _gap_proof_findings_for_path(
+                        resolved_artifact,
+                        artifact_label=candidate_artifact_path,
+                        expected_task_id=None,
+                    )
+                    if supplemental_findings:
+                        findings.extend(supplemental_findings)
+                    else:
+                        current_task_findings.extend(candidate_findings)
+                if current_task_artifact_path:
+                    artifact_path = current_task_artifact_path
                 else:
-                    _append_gap_proof_findings(resolved_artifact, artifact_label=artifact_path)
+                    findings.extend(current_task_findings)
+                    if not current_task_findings and not findings:
+                        findings.append(f"missing gap proof artifact for current task {task_id}")
             else:
+                artifact_path = ""
                 findings.append(f"gap proof manifest entry missing artifact path for task {task_id}")
 
     return {

@@ -2626,6 +2626,92 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(gap_proof_result["artifact_path"], "docs/harness/gap-proofs/current-task-gap-proof.json")
             self.assertEqual(gap_proof_result["findings"], [])
 
+    def test_run_autonomous_accepts_current_gap_proof_when_parent_gap_proof_is_listed_first(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+
+            original_generator = harness_loop_orchestrator._write_fake_autonomous_generator_result
+
+            def inject_manifest_with_parent_and_current_gap_proofs(
+                repo_root_arg: Path,
+                run: dict[str, object],
+                *,
+                driver: str,
+                task_number: int,
+            ) -> dict[str, object]:
+                payload = original_generator(repo_root_arg, run, driver=driver, task_number=task_number)
+                task_id = str(run["task_id"])
+                parent_artifact_relative = "docs/harness/gap-proofs/parent-16-gap-proof.json"
+                current_artifact_relative = "docs/harness/gap-proofs/current-task-gap-proof.json"
+                self._write_required_evidence_manifest(
+                    repo_root_arg,
+                    run,
+                    gap_proof_artifact_relative=current_artifact_relative,
+                )
+                write_json_file(
+                    repo_root_arg / parent_artifact_relative,
+                    self._valid_gap_proof_payload("expanded-run-parent-16"),
+                )
+                manifest_path = run_dir_for(repo_root_arg, str(run["run_id"])) / "required-evidence-manifest.json"
+                manifest = read_json_file(manifest_path)
+                for item in manifest["items"]:
+                    if "gap proof" in str(item.get("summary", "")).lower():
+                        item["evidence_id"] = "gap-proof"
+                        item["task_id"] = task_id
+                        item["artifacts"] = [parent_artifact_relative, current_artifact_relative]
+                write_json_file(manifest_path, manifest)
+                payload["changed_paths"] = [
+                    *list(payload["changed_paths"]),
+                    parent_artifact_relative,
+                    current_artifact_relative,
+                ]
+                payload["artifacts"] = [
+                    *list(payload["artifacts"]),
+                    parent_artifact_relative,
+                    current_artifact_relative,
+                ]
+                write_json_file(run_dir_for(repo_root_arg, str(run["run_id"])) / "generator-result.json", payload)
+                return payload
+
+            with patch(
+                "scripts.harness_loop_orchestrator._write_fake_autonomous_generator_result",
+                side_effect=inject_manifest_with_parent_and_current_gap_proofs,
+            ), patch(
+                "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
+                side_effect=self._trusted_live_state_from_manifest,
+            ):
+                status = run_autonomous(
+                    repo_root,
+                    "expanded-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            gap_proof_result = read_json_file(run_dir_for(repo_root, "expanded-run") / "gap-proof-result.json")
+            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertEqual(gap_proof_result["status"], "pass")
+            self.assertEqual(gap_proof_result["task_id"], "expanded-run-task-1")
+            self.assertEqual(gap_proof_result["artifact_path"], "docs/harness/gap-proofs/current-task-gap-proof.json")
+            self.assertEqual(gap_proof_result["findings"], [])
+
     def test_run_autonomous_accepts_run_dir_relative_gap_proof_manifest_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
