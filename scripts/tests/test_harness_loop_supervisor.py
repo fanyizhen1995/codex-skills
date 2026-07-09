@@ -269,6 +269,8 @@ def test_write_service_runtime_cli_writes_metadata(tmp_path):
             "8766",
             "--service-tmux-session",
             "loop-dashboard",
+            "--service-pid",
+            str(os.getpid()),
         ],
         cwd=REPO_ROOT,
         text=True,

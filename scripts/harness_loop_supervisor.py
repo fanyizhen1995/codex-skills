@@ -466,11 +466,12 @@ def write_service_runtime_metadata(
     service_cwd = Path(cwd) if cwd is not None else root
     runtime_path = root / ".codex" / "service-runtime" / f"{_safe_slug(service_name)}.json"
     git_head = _git_head(service_cwd)
+    runtime_pid = int(pid if pid is not None else os.getpid())
     metadata = {
         "schema_version": 1,
         "service": service_name,
         "tmux_session": tmux_session,
-        "pid": int(pid if pid is not None else os.getpid()),
+        "pid": runtime_pid,
         "cwd": str(service_cwd),
         "command": command,
         "host": host,
@@ -1117,12 +1118,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--service-port", type=int, default=None)
     parser.add_argument("--service-tmux-session", default="")
     parser.add_argument("--service-cwd", default="")
+    parser.add_argument("--service-pid", type=int, default=None)
     args = parser.parse_args(argv)
 
     project_root = Path(args.project_root)
     if args.write_service_runtime:
         if not args.service_command:
             parser.error("--write-service-runtime requires --service-command")
+        if args.service_pid is None or args.service_pid <= 0:
+            parser.error("--write-service-runtime requires --service-pid for the long-running service process")
         metadata = write_service_runtime_metadata(
             project_root,
             service_name=args.write_service_runtime,
@@ -1131,6 +1135,7 @@ def main(argv: list[str] | None = None) -> int:
             port=args.service_port,
             tmux_session=args.service_tmux_session or args.write_service_runtime,
             cwd=Path(args.service_cwd) if args.service_cwd else project_root,
+            pid=args.service_pid,
         )
         _print_json(metadata)
         return 0

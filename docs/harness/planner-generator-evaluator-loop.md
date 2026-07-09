@@ -126,8 +126,9 @@ must show whether the running backend/frontend/dashboard processes match the
 intended repo version.
 
 Refresh service runtime metadata from the service startup context whenever a
-long-running process is started or restarted. The command writes the current
-PID, cwd, command, tmux session, port, and Git head for the named service:
+long-running process is started or restarted. The command must receive the
+long-running service PID; it writes that PID, cwd, command, tmux session, port,
+and Git head for the named service:
 
 ```bash
 python3 scripts/harness_loop_supervisor.py \
@@ -136,7 +137,8 @@ python3 scripts/harness_loop_supervisor.py \
   --service-command "python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766" \
   --service-host 0.0.0.0 \
   --service-port 8766 \
-  --service-tmux-session loop-dashboard
+  --service-tmux-session loop-dashboard \
+  --service-pid "$SERVICE_PID"
 ```
 
 Use the same pattern for `crawler-backend`, `crawler-frontend`, and
