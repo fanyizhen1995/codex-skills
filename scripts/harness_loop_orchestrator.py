@@ -4562,11 +4562,15 @@ def _capture_live_evidence_payload(
         run_id = str(run.get("run_id", "")).strip()
         root = _repo_root_for_live_evidence(run, repo_root=repo_root)
         expected_root = str(root)
-        dashboard_timeout_seconds = 10.0
+        dashboard_timeout_seconds = 30.0
         current_run = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}", timeout_seconds=dashboard_timeout_seconds)
-        child_tasks = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}", timeout_seconds=dashboard_timeout_seconds)
+        child_tasks = current_run
         agent_actions = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/events", timeout_seconds=dashboard_timeout_seconds)
-        evaluator_scenarios = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/logs", timeout_seconds=dashboard_timeout_seconds)
+        evaluator_scenarios = _http_probe(
+            f"http://127.0.0.1:8766/api/runs/{run_id}/logs",
+            timeout_seconds=dashboard_timeout_seconds,
+            max_body_bytes=64 * 1024,
+        )
         completed_history = _http_probe("http://127.0.0.1:8766/api/runs", timeout_seconds=dashboard_timeout_seconds)
         project = _http_probe("http://127.0.0.1:8766/api/projects/current")
 

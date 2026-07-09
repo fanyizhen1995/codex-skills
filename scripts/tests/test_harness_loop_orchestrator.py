@@ -4520,11 +4520,13 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "domain": "ai_infra",
                 "worktree": str(repo_root),
             }
+            detail_call_count = 0
 
             def fake_probe(url: str, timeout_seconds: float = 2.0, max_body_bytes: int = 16 * 1024 * 1024) -> dict[str, object]:
-                del max_body_bytes
+                nonlocal detail_call_count
                 if url.endswith("/api/runs/expanded-run"):
-                    if timeout_seconds <= 2.0:
+                    detail_call_count += 1
+                    if timeout_seconds <= 10.0:
                         return {"url": url, "status": "fail", "http_status": None, "error": "timed out"}
                     return {
                         "url": url,
@@ -4541,7 +4543,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 if url.endswith("/api/runs/expanded-run/events"):
                     return {"url": url, "status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "events": []}}
                 if url.endswith("/api/runs/expanded-run/logs"):
-                    if timeout_seconds <= 2.0:
+                    if timeout_seconds <= 10.0 or max_body_bytes > 64 * 1024:
                         return {"url": url, "status": "fail", "http_status": None, "error": "timed out"}
                     return {"url": url, "status": "pass", "http_status": 200, "json": {"run_id": "expanded-run", "logs": []}}
                 if url.endswith("/api/projects/current"):
@@ -4561,6 +4563,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["current_run"]["status"], "pass")
             self.assertEqual(payload["details"]["child_tasks"]["status"], "pass")
             self.assertEqual(payload["details"]["evaluator_scenarios"]["status"], "pass")
+            self.assertEqual(detail_call_count, 1)
 
     def test_http_probe_parses_large_json_response(self) -> None:
         body = json.dumps(
