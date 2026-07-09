@@ -5,6 +5,10 @@ import re
 FRONTEND_ROOT = Path(__file__).resolve().parent
 APP_JS = (FRONTEND_ROOT / "app.js").read_text(encoding="utf-8")
 INDEX_HTML = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+SUPERVISOR_MOCK = (
+    FRONTEND_ROOT.parent.parent.parent
+    / "docs/superpowers/mockups/2026-07-09-loop-supervisor-dashboard-mock.html"
+).read_text(encoding="utf-8")
 
 
 def function_block(name: str) -> str:
@@ -93,3 +97,20 @@ def test_control_flow_requires_rich_supervisor_decision_before_available_state()
     assert "currentSupervisorDecision(bundle)" in function_block("renderSupervisorControlFlow")
     assert 'lastDecision ? lastDecision.action || "available" : "unavailable"' not in APP_JS
     assert "nonEmptyObject(snapshot.last_decision) || decisions[0] || null" not in APP_JS
+
+
+def test_decision_log_visible_text_uses_translated_classification_fallback():
+    decision_log = function_block("renderSupervisorDecisionLog")
+    decision_detail = function_block("supervisorDecisionDetail")
+
+    assert '"supervisor-decision-text"' in decision_log
+    assert "supervisorDecisionDetail(decision)" in decision_log
+    assert "decision.summary || decision.reason || decision.classification" not in decision_log
+
+    assert "supervisorClassificationLabel(decision.classification)" in decision_detail
+    assert "decision.summary || decision.reason || classification || decision.decision_id" in decision_detail
+
+
+def test_supervisor_dashboard_mock_uses_chinese_visible_verdict_labels():
+    assert ">continue<" not in SUPERVISOR_MOCK
+    assert '<span class="pill good">继续</span>' in SUPERVISOR_MOCK

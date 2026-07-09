@@ -716,7 +716,7 @@ function renderSupervisorDecisionLog(bundle) {
       el(
         "span",
         "supervisor-decision-text",
-        `${supervisorActionLabel(decision.action)}：${text(decision.summary || decision.reason || decision.classification || decision.decision_id)}`,
+        `${supervisorActionLabel(decision.action)}：${supervisorDecisionDetail(decision)}`,
       ),
     );
     const meta = [
