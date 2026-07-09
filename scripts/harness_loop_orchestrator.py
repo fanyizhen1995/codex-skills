@@ -4562,11 +4562,12 @@ def _capture_live_evidence_payload(
         run_id = str(run.get("run_id", "")).strip()
         root = _repo_root_for_live_evidence(run, repo_root=repo_root)
         expected_root = str(root)
-        current_run = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}")
-        child_tasks = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}")
-        agent_actions = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/events", timeout_seconds=10.0)
-        evaluator_scenarios = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/logs")
-        completed_history = _http_probe("http://127.0.0.1:8766/api/runs")
+        dashboard_timeout_seconds = 10.0
+        current_run = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}", timeout_seconds=dashboard_timeout_seconds)
+        child_tasks = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}", timeout_seconds=dashboard_timeout_seconds)
+        agent_actions = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/events", timeout_seconds=dashboard_timeout_seconds)
+        evaluator_scenarios = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/logs", timeout_seconds=dashboard_timeout_seconds)
+        completed_history = _http_probe("http://127.0.0.1:8766/api/runs", timeout_seconds=dashboard_timeout_seconds)
         project = _http_probe("http://127.0.0.1:8766/api/projects/current")
 
         def run_probe_status(probe: Mapping[str, Any]) -> str:
