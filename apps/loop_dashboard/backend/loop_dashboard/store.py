@@ -2132,7 +2132,21 @@ class LoopDashboardStore:
         items: list[dict[str, Any]] = []
         diagnostics: list[dict[str, str]] = []
         try:
-            lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            lines = safe_path.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError as exc:
+            return {
+                "status": "invalid_artifact",
+                "items": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "invalid_count": 1,
+                "diagnostics": [
+                    self._supervisor_diagnostic(
+                        safe_path,
+                        f"JSONL artifact is not valid UTF-8: {exc.reason} at byte {exc.start}",
+                    )
+                ],
+            }
         except OSError as exc:
             return {
                 "status": "invalid_artifact",

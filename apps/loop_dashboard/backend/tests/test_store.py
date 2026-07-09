@@ -311,6 +311,24 @@ def test_supervisor_store_reports_invalid_malformed_json_and_jsonl_without_leaki
     assert "jsonl-secret" not in serialized
 
 
+def test_supervisor_store_rejects_non_utf8_jsonl_without_leaking_content(tmp_path: Path) -> None:
+    supervisor_dir = tmp_path / ".codex" / "supervisor"
+    supervisor_dir.mkdir(parents=True)
+    (supervisor_dir / "recovery-attempts.jsonl").write_bytes(b'{"summary": "bad token=jsonl-secret \xff"}\n')
+    store = LoopDashboardStore(tmp_path)
+
+    recovery = store.supervisor_recovery()
+    serialized = json.dumps(recovery, ensure_ascii=False)
+
+    assert recovery["status"] == "invalid_artifact"
+    assert recovery["counts"]["invalid_lines"] > 0
+    assert recovery["diagnostics"]
+    assert "recovery-attempts.jsonl" in recovery["diagnostics"][0]["source"]
+    assert "jsonl-secret" not in serialized
+    assert "\ufffd" not in serialized
+    assert "bad token" not in serialized
+
+
 def test_supervisor_store_recursively_redacts_compound_secret_field_names(tmp_path: Path) -> None:
     supervisor_dir = tmp_path / ".codex" / "supervisor"
     write_json(
