@@ -92,6 +92,14 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             service_health = json.loads(
                 (repo_root / ".codex" / "supervisor" / "service-health.json").read_text(encoding="utf-8")
             )
+            backend = next(item for item in service_health["services"] if item["service"] == "crawler-backend")
+            self.assertEqual(backend["running_version"]["freshness"], "unavailable")
+            self.assertFalse(backend["running_version"]["matches_expected"])
+            self.assertEqual(
+                backend["running_version"]["runtime_metadata_path"],
+                ".codex/service-runtime/crawler-backend.json",
+            )
+            self.assertIn("runtime metadata missing", backend["running_version"]["evidence"])
             frontend = next(item for item in service_health["services"] if item["service"] == "crawler-frontend")
             self.assertEqual(frontend["running_version"]["freshness"], "stale")
             self.assertIn("stale", frontend["running_version"]["evidence"])

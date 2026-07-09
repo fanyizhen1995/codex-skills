@@ -191,3 +191,5 @@ def test_supervisor_service_version_renders_stale_runtime_metadata():
 
     assert 'version.freshness === "stale"' in version_label
     assert '"版本过期"' in version_label
+    assert 'version.freshness === "unavailable"' in version_label
+    assert version_label.index('version.freshness === "unavailable"') < version_label.index("version.matches_expected === false")

@@ -1148,6 +1148,9 @@ function serviceVersionLabel(service) {
   if (!Object.keys(version).length) {
     return { label: "版本不可用", status: "unavailable" };
   }
+  if (version.freshness === "unavailable") {
+    return { label: "版本不可用", status: "unavailable" };
+  }
   if (version.freshness === "stale") {
     return { label: "版本过期", status: "degraded" };
   }

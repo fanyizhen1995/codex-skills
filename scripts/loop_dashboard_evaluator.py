@@ -831,7 +831,14 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
                     "expected_endpoint": "http://127.0.0.1:8765/api/health",
                     "tmux_session": "personal-wiki-crawler-backend",
                     "tmux_session_exists": True,
-                    "running_version": {},
+                    "running_version": {
+                        "runtime_metadata_path": ".codex/service-runtime/crawler-backend.json",
+                        "git_head": "",
+                        "origin_main": "",
+                        "matches_expected": False,
+                        "freshness": "unavailable",
+                        "evidence": "runtime metadata missing; version freshness unavailable",
+                    },
                     "data_freshness": {
                         "status": "stale",
                         "target_id": "crawler-health",
