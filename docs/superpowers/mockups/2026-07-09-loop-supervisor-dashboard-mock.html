@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Loop Supervisor Dashboard Mock</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --surface: #ffffff;
+        --surface-soft: #f9fafb;
+        --text: #18212f;
+        --muted: #617083;
+        --line: #d9e0e8;
+        --line-strong: #b8c3d1;
+        --blue: #245c9e;
+        --blue-soft: #e6f0fb;
+        --green: #19734c;
+        --green-soft: #e4f5ed;
+        --amber: #9a5b00;
+        --amber-soft: #fff2d6;
+        --red: #b3261e;
+        --red-soft: #fde8e6;
+        --gray-soft: #edf1f5;
+        --shadow: 0 1px 2px rgba(24, 33, 47, 0.08);
+        font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 360px;
+        background: var(--bg);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background: var(--bg);
+        font-size: 14px;
+        line-height: 1.5;
+        letter-spacing: 0;
+      }
+
+      .topbar {
+        min-height: 72px;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+
+      .topbar h1 {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        min-height: 28px;
+        padding: 4px 9px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        background: var(--surface-soft);
+        white-space: nowrap;
+        font-size: 12px;
+      }
+
+      .pill.good {
+        color: var(--green);
+        border-color: #b8dfcd;
+        background: var(--green-soft);
+      }
+
+      .pill.warn {
+        color: var(--amber);
+        border-color: #e8cb86;
+        background: var(--amber-soft);
+      }
+
+      .pill.bad {
+        color: var(--red);
+        border-color: #efb8b5;
+        background: var(--red-soft);
+      }
+
+      .project-strip {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 12px 16px 0;
+      }
+
+      .project-card {
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+        gap: 10px 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .meta-row {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr);
+        gap: 8px;
+      }
+
+      .meta-label {
+        color: var(--muted);
+      }
+
+      .meta-value {
+        min-width: 0;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 300px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      .panel {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .panel-header {
+        min-height: 48px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-header h2,
+      .section-title {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.3;
+      }
+
+      .sidebar {
+        display: grid;
+        gap: 12px;
+      }
+
+      .run-list {
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .run-item {
+        min-height: 104px;
+        padding: 10px;
+        display: grid;
+        gap: 7px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-soft);
+      }
+
+      .run-item.active {
+        border-color: var(--blue);
+        background: #f3f8ff;
+      }
+
+      .run-title {
+        margin: 0;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .run-desc {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .run-footer {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .main {
+        min-width: 0;
+        display: grid;
+        gap: 14px;
+      }
+
+      .hero {
+        padding: 16px;
+      }
+
+      .hero-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .hero h2 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.25;
+      }
+
+      .hero-summary {
+        margin: 8px 0 0;
+        max-width: 760px;
+        color: var(--muted);
+      }
+
+      .hero-grid {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        min-width: 0;
+        min-height: 86px;
+        padding: 10px;
+        display: grid;
+        align-content: start;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-soft);
+      }
+
+      .metric-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .metric-value {
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .metric-note {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 0 14px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        min-height: 32px;
+        padding: 5px 11px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface-soft);
+        color: var(--muted);
+      }
+
+      .tab.active {
+        color: #174d84;
+        border-color: #b9d2ef;
+        background: var(--blue-soft);
+        font-weight: 700;
+      }
+
+      .tab-body {
+        padding: 14px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .section {
+        min-width: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .triple {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .box {
+        min-width: 0;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-soft);
+      }
+
+      .box h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        line-height: 1.3;
+      }
+
+      .box p {
+        margin: 0;
+      }
+
+      .list {
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+        list-style: none;
+      }
+
+      .list-item {
+        min-width: 0;
+        padding: 9px 10px;
+        display: grid;
+        gap: 5px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .row {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .row-title {
+        min-width: 0;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .row-detail {
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+
+      .control-flow {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .flow-step {
+        min-height: 112px;
+        padding: 10px;
+        display: grid;
+        align-content: start;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .flow-step.active {
+        border-color: #b9d2ef;
+        background: #f3f8ff;
+      }
+
+      .flow-step.blocked {
+        border-color: #efb8b5;
+        background: var(--red-soft);
+      }
+
+      .flow-step h3 {
+        margin: 0;
+        font-size: 14px;
+      }
+
+      .flow-step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .decision-log {
+        display: grid;
+        gap: 8px;
+      }
+
+      .decision {
+        min-width: 0;
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 136px minmax(0, 1fr);
+        gap: 10px;
+        border-left: 3px solid var(--blue);
+        background: var(--surface-soft);
+      }
+
+      .decision-time {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .decision-text {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      code {
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: #eef2f6;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+
+      @media (max-width: 960px) {
+        .project-card,
+        .shell,
+        .split,
+        .triple,
+        .control-flow,
+        .hero-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .topbar,
+        .hero-top {
+          align-items: stretch;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Loop Dashboard</h1>
+        <p class="subtitle">本地只读运行监控 · Supervisor 设计 mock</p>
+      </div>
+      <div class="top-actions">
+        <span class="pill good">Supervisor 在线</span>
+        <span class="pill good">最近同步 13:42:18</span>
+        <span class="pill warn">设计预览</span>
+      </div>
+    </header>
+
+    <section class="project-strip" aria-label="项目状态">
+      <div class="project-card">
+        <div class="meta-row">
+          <span class="meta-label">项目</span>
+          <span class="meta-value">/home/fyz/codex-skills</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">运行目录</span>
+          <span class="meta-value">.codex/loop-runs</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Git</span>
+          <span class="meta-value">main · HEAD=79b0608 · origin/main=79b0608</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">监督策略</span>
+          <span class="meta-value">autonomous 自动续跑；demand 等待人工合入</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="project-strip" aria-label="全局 Agent">
+      <section class="panel hero">
+        <div class="hero-top">
+          <div>
+            <h2>全局 Agent：Loop Supervisor</h2>
+            <p class="hero-summary">
+              Supervisor 是项目级运行控制面，不属于任何一个任务运行列表。它负责服务保活、运行续跑、失败升级、
+              Dashboard 可见性和数据新鲜度；Auditor 负责判断流程质量，Supervisor 负责执行控制动作。
+            </p>
+          </div>
+          <div class="top-actions">
+            <span class="pill good">健康状态：正常</span>
+            <span class="pill good">无需用户决策</span>
+            <span class="pill">独立于任务列表</span>
+          </div>
+        </div>
+        <div class="hero-grid">
+          <div class="metric">
+            <span class="metric-label">在线服务</span>
+            <span class="metric-value">4 / 4</span>
+            <span class="metric-note">crawler 后端、前端、dashboard、auto-resume</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">可续跑任务</span>
+            <span class="metric-value">1</span>
+            <span class="metric-note">1 个 stopped_budget 候选，0 个硬阻塞</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">恢复失败</span>
+            <span class="metric-value">0 / 3</span>
+            <span class="metric-note">同一 failure_key 超过 3 次会请求用户决策</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">数据新鲜度</span>
+            <span class="metric-value">通过</span>
+            <span class="metric-note">API、搜索、前端和 git 均为最新</span>
+          </div>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Supervisor 全局视图">
+          <button class="tab active" type="button">控制面概览</button>
+          <button class="tab" type="button">服务保活</button>
+          <button class="tab" type="button">续跑决策</button>
+          <button class="tab" type="button">恢复历史</button>
+          <button class="tab" type="button">人工决策</button>
+          <button class="tab" type="button">配置</button>
+        </div>
+        <div class="tab-body">
+          <section class="section">
+            <h2 class="section-title">Supervisor 控制流</h2>
+            <div class="control-flow">
+              <article class="flow-step active">
+                <h3>发现任务 run</h3>
+                <p>扫描根目录和 worktree 的 `.codex/loop-runs`，识别 active、blocked、stopped_budget。</p>
+                <span class="pill good">完成</span>
+              </article>
+              <article class="flow-step active">
+                <h3>检查服务</h3>
+                <p>验证端口、运行版本、Git HEAD、crawler API、前端页面和 Dashboard 指向。</p>
+                <span class="pill good">完成</span>
+              </article>
+              <article class="flow-step active">
+                <h3>执行控制动作</h3>
+                <p>调用 auto-resume、重启 tmux、创建 autonomous continuation 或停止自动重试。</p>
+                <span class="pill good">待触发</span>
+              </article>
+              <article class="flow-step">
+                <h3>消费 Auditor</h3>
+                <p>读取 `must_fix/refocus/stop/continue`，把审计结论转成控制动作。</p>
+                <span class="pill">按 cadence</span>
+              </article>
+              <article class="flow-step">
+                <h3>升级决策</h3>
+                <p>同一 failure_key 连续 3 次失败后停止自动重试并请求用户决策。</p>
+                <span class="pill">未触发</span>
+              </article>
+            </div>
+          </section>
+
+          <section class="split">
+            <div class="section">
+              <h2 class="section-title">服务保活</h2>
+              <ul class="list">
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">Crawler Backend</span>
+                    <span class="pill good">在线 · 最新</span>
+                  </div>
+                  <span class="row-detail">http://127.0.0.1:8765/api/health · HEAD=79b0608 · search 自动刷新通过</span>
+                </li>
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">Crawler Frontend</span>
+                    <span class="pill good">在线 · 最新</span>
+                  </div>
+                  <span class="row-detail">http://127.0.0.1:5173/ · Wiki 浏览和知识搜索可见</span>
+                </li>
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">Loop Dashboard</span>
+                    <span class="pill good">在线 · 可见</span>
+                  </div>
+                  <span class="row-detail">http://127.0.0.1:8766/api/health · Supervisor 与任务 run 分区展示</span>
+                </li>
+                <li class="list-item">
+                  <div class="row">
+                    <span class="row-title">loop-auto-resume</span>
+                    <span class="pill good">在线</span>
+                  </div>
+                  <span class="row-detail">tmux session 存活；作为 Supervisor 的低层恢复执行器复用</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="section">
+              <h2 class="section-title">最近全局决策</h2>
+              <div class="decision-log">
+                <div class="decision">
+                  <span class="decision-time">13:42:18</span>
+                  <span class="decision-text">服务健康检查通过：backend、frontend、dashboard、auto-resume 均在线，版本与 `origin/main` 一致。</span>
+                </div>
+                <div class="decision">
+                  <span class="decision-time">13:41:04</span>
+                  <span class="decision-text">发现 AI infra run 为 `stopped_budget`，归类为 continuation 候选，而不是阻塞。</span>
+                </div>
+                <div class="decision">
+                  <span class="decision-time">13:40:33</span>
+                  <span class="decision-text">读取 Auditor 结论：无 open must_fix；下一轮允许继续 autonomous knowledge loop。</span>
+                </div>
+                <div class="decision">
+                  <span class="decision-time">13:39:58</span>
+                  <span class="decision-text">Dashboard 可见性通过：Supervisor 全局面板、任务运行列表、日志和验收状态均可读取。</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <main class="shell">
+      <aside class="sidebar" aria-label="任务运行列表">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>任务运行列表</h2>
+            <span class="pill good">3 项</span>
+          </div>
+          <div class="run-list">
+            <article class="run-item active">
+              <div class="row">
+                <p class="run-title">ai-infra-expansion-continuation-20260708</p>
+                <span class="pill warn">预算停止</span>
+              </div>
+              <p class="run-desc">AI infra 资料拓展，已完成 parent-14，等待 supervisor 判断是否创建下一轮 continuation。</p>
+              <div class="run-footer">
+                <span class="pill good">证据通过</span>
+                <span class="pill">候选续跑</span>
+              </div>
+            </article>
+            <article class="run-item">
+              <div class="row">
+                <p class="run-title">loop-auditor-global-review-01</p>
+                <span class="pill">待启动</span>
+              </div>
+              <p class="run-desc">全局流程审计，负责判断是否空转、偏航、反复犯错或 skill 膨胀。</p>
+              <div class="run-footer">
+                <span class="pill">等待计划</span>
+              </div>
+            </article>
+            <article class="run-item">
+              <div class="row">
+                <p class="run-title">daily-crawler</p>
+                <span class="pill good">在线</span>
+              </div>
+              <p class="run-desc">Crawler Workbench 定时抓取和入库任务，需保持前后端数据一致。</p>
+              <div class="run-footer">
+                <span class="pill good">backend</span>
+                <span class="pill good">frontend</span>
+              </div>
+            </article>
+          </div>
+        </section>
+      </aside>
+
+      <section class="main" aria-label="任务运行详情">
+        <section class="panel hero">
+          <div class="hero-top">
+            <div>
+              <h2>AI Infra 资料拓展运行</h2>
+              <p class="hero-summary">
+                这是一个具体任务 run。它的 Planner、Generator、Evaluator、Auditor 结果仍在任务详情里展示；
+                是否创建下一轮 continuation 由上方全局 Supervisor 面板判断和执行。
+              </p>
+            </div>
+            <div class="top-actions">
+              <span class="pill warn">阶段：stopped_budget</span>
+              <span class="pill good">证据通过</span>
+            </div>
+          </div>
+          <div class="hero-grid">
+            <div class="metric">
+              <span class="metric-label">当前父任务</span>
+              <span class="metric-value">14</span>
+              <span class="metric-note">Huawei Atlas 300I A2 参数入库</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Evaluator</span>
+              <span class="metric-value">通过</span>
+              <span class="metric-note">资料、引用、可见性和日志验收通过</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">提交</span>
+              <span class="metric-value">79b0608</span>
+              <span class="metric-note">已同步到 origin/main</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">下一步</span>
+              <span class="metric-value">待监督</span>
+              <span class="metric-note">Supervisor 判断是否自动续跑</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>任务详情</h2>
+            <span class="pill">.codex/loop-runs/ai-infra-expansion-continuation-20260708</span>
+          </div>
+          <div class="tabs" role="tablist" aria-label="任务详情视图">
+            <button class="tab active" type="button">概览</button>
+            <button class="tab" type="button">Agent结果</button>
+            <button class="tab" type="button">验收</button>
+            <button class="tab" type="button">审计</button>
+            <button class="tab" type="button">日志</button>
+            <button class="tab" type="button">产物</button>
+          </div>
+          <div class="tab-body">
+            <section class="section">
+              <h2 class="section-title">任务流程</h2>
+              <div class="control-flow">
+                <article class="flow-step active">
+                  <h3>Planner</h3>
+                  <p>选择 Huawei Atlas 300I A2 本地官方证据作为 parent-14 目标。</p>
+                  <span class="pill good">完成</span>
+                </article>
+                <article class="flow-step active">
+                  <h3>Generator</h3>
+                  <p>整理 32GB / 64GB 变体字段，更新 catalog、wiki、coverage-map。</p>
+                  <span class="pill good">完成</span>
+                </article>
+                <article class="flow-step active">
+                  <h3>Evaluator</h3>
+                  <p>检查来源引用、字段边界、wiki validate、Dashboard freshness。</p>
+                  <span class="pill good">通过</span>
+                </article>
+                <article class="flow-step">
+                  <h3>Cleanup</h3>
+                  <p>提交资料入库 commit 并推送到 origin/main。</p>
+                  <span class="pill good">完成</span>
+                </article>
+                <article class="flow-step">
+                  <h3>预算停止</h3>
+                  <p>本 run 达到预算边界，不在任务列表内自行续跑。</p>
+                  <span class="pill warn">交给 Supervisor</span>
+                </article>
+              </div>
+            </section>
+
+            <section class="split">
+              <div class="section">
+                <h2 class="section-title">验收摘要</h2>
+                <ul class="list">
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">required evidence</span>
+                      <span class="pill good">通过</span>
+                    </div>
+                    <span class="row-detail">Loop Dashboard freshness、crawler freshness、service availability 均通过。</span>
+                  </li>
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">wiki validate</span>
+                      <span class="pill good">通过</span>
+                    </div>
+                    <span class="row-detail">`personal-wiki validate --domain ai_infra` 无校验错误。</span>
+                  </li>
+                  <li class="list-item">
+                    <div class="row">
+                      <span class="row-title">commit/push</span>
+                      <span class="pill good">完成</span>
+                    </div>
+                    <span class="row-detail">资料入库 commit `79b0608` 已在 `origin/main`。</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="section">
+                <h2 class="section-title">和 Supervisor 的关系</h2>
+                <div class="box">
+                  <h3>任务 run 只陈述自身状态</h3>
+                  <p class="muted">
+                    这个区域不负责判断是否继续长期运行。它只显示 Planner、Generator、Evaluator、Auditor、日志和产物。
+                  </p>
+                </div>
+                <div class="box">
+                  <h3>续跑属于全局控制面</h3>
+                  <p class="muted">
+                    上方 Loop Supervisor 根据全局停止条件、Auditor 结论和失败计数决定是否创建下一轮 continuation。
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
