@@ -4564,7 +4564,7 @@ def _capture_live_evidence_payload(
         expected_root = str(root)
         current_run = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}")
         child_tasks = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}")
-        agent_actions = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/events")
+        agent_actions = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/events", timeout_seconds=10.0)
         evaluator_scenarios = _http_probe(f"http://127.0.0.1:8766/api/runs/{run_id}/logs")
         completed_history = _http_probe("http://127.0.0.1:8766/api/runs")
         project = _http_probe("http://127.0.0.1:8766/api/projects/current")
