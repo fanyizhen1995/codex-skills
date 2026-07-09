@@ -116,6 +116,15 @@ skus:
     form_factor: DPU module inside 1U open intelligent gateway
     release_status: released
     source_refs: [asterfusion-cx102s-dpu-product-page]
+  - sku_id: jaguarmicro-yunxiao-dpu
+    vendor_id: jaguarmicro
+    family_id: jaguarmicro-yunxiao
+    canonical_name: JaguarMicro Yunxiao DPU
+    aliases: [Yunxiao DPU, JaguarMicro Yunxiao]
+    scope: dpu
+    form_factor: DPU product
+    release_status: released
+    source_refs: [jaguarmicro-yunxiao-dpu-announcement]
   - sku_id: aws-trainium2-trn2-offering
     vendor_id: aws
     family_id: aws-trainium

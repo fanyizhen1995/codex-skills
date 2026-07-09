@@ -1,0 +1,235 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-15",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-task-1",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-09T03:45:00Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md"
+    ],
+    "promoted_boundary": "Promoted only local source-visible, schema-supported JaguarMicro Yunxiao DPU aggregate Ethernet bandwidth: source-stated 2 x 25G as 50 Gb/s network_bandwidth. Protocol, virtio, elastic network/storage, security, QoS, hot migration, hot upgrade, cloud-disk boot, memory, host-interface, power, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, ranking, and aggregate-system claims were not promoted."
+  },
+  "promoted_fields": [
+    {
+      "sku_id": "jaguarmicro-yunxiao-dpu",
+      "fields": {
+        "network_bandwidth": "50 Gb/s"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md"
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-1-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-15'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "parent-15 gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-1-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-002-task-1'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "run-local gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-002/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "structured catalog consistency check for JaguarMicro sku_id, observation_id, source_observation_id, source_id, source_ref, and network-bandwidth linkage",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "JaguarMicro structured catalog consistency passed: 1 SKU, 1 observation, 1 resolved network_bandwidth field at 50 Gb/s",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no unsupported JaguarMicro fields were promoted",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "JaguarMicro resolved fields are limited to network_bandwidth; protocol, virtio, storage, security, QoS, migration, memory, host-interface, power, benchmark, operations, and SLO text remains unpromoted",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that no unrelated structured accelerator fields changed",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "non-JaguarMicro structured data rows match HEAD; only expected JaguarMicro SKU, observation, and resolved spec were added",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"JaguarMicro Yunxiao|jaguarmicro-yunxiao-dpu|50 Gb/s|2 x 25G|2x25G\" personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md personal-wiki/domains/ai_infra/coverage-map.json personal-wiki/domains/ai_infra/loop-state.json | wc -l",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "63",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in declared ai_infra files",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "autonomous scope check passed for 14 declared ai_infra paths; run-directory JSON artifacts are read-only and will be embedded in final payload",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, test, dependency, package, or lock files changed; code tests and supply-chain review are not applicable generator-side",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness; do not start long-lived services, run localhost probes, or restart services from this wiki-only task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "external-link and Domain Channels applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no new external fetch, link probe, crawler source subscription, or Domain Channels change was performed; existing local raw capture was reused",
+      "stderr": ""
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "stable_evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-15 JaguarMicro wiki/state changes"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "stable_evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-15 JaguarMicro Yunxiao DPU catalog updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "stable_evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for parent-15 JaguarMicro Yunxiao DPU, 50 Gb/s, 2 x 25G, RoCE/iWARP/NVMe-oF boundary text, and unpromoted memory/host-interface/power/benchmark/operations/SLO boundaries"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "stable_evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-15 JaguarMicro Yunxiao DPU catalog row and boundary text"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "stable_evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run, parent-15 task state, agent actions, evaluator scenarios, completed history, errors/blocked fields, and user decision fields"
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check was run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses the existing local JaguarMicro Yunxiao DPU announcement raw capture.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Source registry already contained jaguarmicro-yunxiao-dpu-announcement and was not modified.",
+    "Run directory is read-only; required evidence manifest and generator result are embedded in the final payload instead of written under .codex/loop-runs."
+  ]
+}

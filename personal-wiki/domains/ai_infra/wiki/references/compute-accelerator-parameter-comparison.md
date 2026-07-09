@@ -94,6 +94,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
 ---
 
 # Summary
@@ -261,6 +262,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Yusur SWIFT-2200N Pro | DPU / low-latency network card | low-latency network DPU card form factor; latency and jitter values remain comparison-only schema-boundary evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md) |
 | Asterfusion Helium DPU SmartNIC | DPU / PCIe SmartNIC | PCIe DPU SmartNIC; 100 Gb/s source-stated mixed-service processing capability; expandable 64 GB memory; PCIe x8 Gen3.0/4.0 host interface; 60 W source comparison power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
 | Asterfusion CX102S-DPU Module | DPU module inside 1U gateway | DPU module inside a 1U open intelligent gateway; 8 GB DDR4 module memory; 72 Gb/s switching capacity and 16 x 1GE plus 2 x 10GE gateway ports remain gateway-level comparison evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
+| JaguarMicro Yunxiao DPU | DPU product | aggregate 50 Gb/s Ethernet bandwidth from source-visible 2 x 25G text; protocol, virtualization, security, QoS, elastic storage/network, hot migration, hot upgrade, memory, host-interface, power, benchmark, and production-operation text remains boundary evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) |
 
 # Unresolved Runtime Evidence
 
@@ -318,7 +320,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Asterfusion CX102S-DPU | 1U open intelligent gateway with 1 or 2 DPU modules | 16 x 1GE RJ45 and 2 x 10GE SFP+; 72 Gb/s switching capacity; internal 2 x 10G links between DPU and switch chip are gateway-level evidence, not resolved DPU network_bandwidth | DPU modules use quad-core ARMv8 Cortex-A72 CPU and 8 GB DDR4 memory; only the module form factor and 8 GB DDR4 memory are resolved | [raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
 | Asterfusion Helium DPU | PCIe DPU SmartNIC | 4 x 25GE SFP28 or 2 x 100GE QSFP28 variants; up to 100 Gb/s mixed-service processing is resolved as source-stated network processing capability; NFV comparison lists 60G processing as boundary evidence | PCIe x8 Gen3.0/4.0; 24-core ARM processor; memory expandable to 64 GB; NFV comparison row lists 60 W card power | [raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
 | Corigine Agilio CX 2x25GbE SmartNIC | SmartNIC | 2 x 25GbE ports; SFP+ 10GbE / SFP28 25GbE | 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with 1.1/2.0 | [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
-| JaguarMicro Yunxiao DPU | DPU product | 2 x 25G Ethernet; supports RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, and L2VPN | detailed memory/power not captured | [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) |
+| JaguarMicro Yunxiao DPU | DPU product | 2 x 25G Ethernet is resolved as aggregate 50 Gb/s network bandwidth; RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, L2VPN, virtio-net/virtio-blk, elastic network/storage, security isolation, QoS, hot-plug, live migration, and hot-upgrade text remains boundary evidence | detailed memory, host interface, and power not captured | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md) |
 | Resnics Stargate-N1025 | half-height half-length single-wide PCIe DPU SmartNIC | 2 x SFP28 25G Ethernet and 1000BASE-T management port; P4 programmable vSwitch acceleration | quad-core Cortex-A53; 8 GB DDR4 SDRAM x72; PCIe Gen3 x8; 25 W typical | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md) |
 | Resnics Stargate-N2025 | full-height double-wide 3/4-length PCIe DPU | 2 x SFP28 25G Ethernet; SR-IOV 32 PF and 2K VF, RDMA queue pair 256, P4 flow-table/session/protocol/storage-offload, line-rate, low-latency, benchmark, and production-operation values are comparison-only boundary evidence | 6-core Intel Icelake-D eCPU; 8 GB DDR4 FPGA memory and 16 GB DDR4 SoC memory; PCIe Gen4 x8; 150 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md) |
 | Resnics Stargate-S1100 | NVMe-oF storage accelerator | 2 x QSFP28 100G Ethernet; 4K block, 4 SSD: read 2.7M IOPS and write 2M IOPS; added latency read <10 us, write <20 us | PCIe Gen3 x16; 16 GB DDR4 FPGA memory and 16 GB DDR4 ARM CPU memory; 35 W | [raw](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md) |
@@ -389,7 +391,13 @@ comparison power, plus a CX102S-DPU module row for 8 GB DDR4 memory inside a 1U
 gateway. CX102S 72 Gb/s switching capacity, gateway port layout, one- or
 two-DPU system variants, Helium physical port variant aggregation, NFV latency,
 session-count, offload, storage-acceleration, and cost-reduction claims remain
-raw comparison or boundary evidence.
+raw comparison or boundary evidence. Continuation parent 15 adds JaguarMicro
+Yunxiao DPU as a structured product row for aggregate 50 Gb/s Ethernet
+bandwidth from the local 2 x 25G announcement text. Its RoCE/iWARP/NVMe-oF and
+tunnel protocol list, virtio acceleration, elastic storage/network, security,
+QoS, hot-migration, hot-upgrade, memory, host-interface, power, benchmark, and
+production-operation text remains boundary evidence rather than resolved
+catalog, protocol-level storage-fabric, benchmark, operations, or SLO proof.
 Remaining DPU/SmartNIC rows likewise stay raw-only until a future task promotes
 their exact product or variant boundaries.
 
@@ -436,3 +444,5 @@ their exact product or variant boundaries.
 - ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md
 - ../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
+- ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json

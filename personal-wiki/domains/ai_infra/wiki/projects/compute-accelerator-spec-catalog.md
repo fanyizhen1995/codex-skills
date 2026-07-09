@@ -41,6 +41,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
   - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
+  - ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
@@ -53,6 +54,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
 ---
 
 # Summary
@@ -170,6 +172,15 @@ factor, compute, interface, and power fields with 64 GB on-card memory and
 module, operating-temperature, and dimension text remains boundary evidence and
 is not promoted into catalog fields. [Atlas 300I A2 raw](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md)
 
+Continuation parent 15 promotes a bounded JaguarMicro Yunxiao DPU slice from the
+existing local official announcement. The structured row resolves only aggregate
+50 Gb/s Ethernet bandwidth from the source-visible `2x25G` statement. RoCE
+v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, L2VPN, virtio acceleration,
+bare-metal/VM/container management, security isolation, QoS, elastic
+network/storage, hot-plug, live migration, hot upgrade, cloud-disk boot, memory,
+host interface, power, benchmark, production-operation, and service-SLO claims
+remain boundary evidence outside resolved catalog fields. [Yunxiao raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md)
+
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
 form factor, aggregate data-port bandwidth, memory type, memory capacity, and
@@ -223,6 +234,8 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
 - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
+- ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md

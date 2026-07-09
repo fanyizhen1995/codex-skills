@@ -519,6 +519,19 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official page describes SWIFT-2200N Pro as a low-latency network DPU card; latency and jitter values remain comparison-only because no general network-latency schema field exists.
+  - observation_id: obs-jaguarmicro-yunxiao-dpu-network-bandwidth
+    sku_id: jaguarmicro-yunxiao-dpu
+    field: network_bandwidth
+    value: 50
+    unit: Gb/s
+    source_id: jaguarmicro-yunxiao-dpu-announcement
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "JaguarMicro Yunxiao DPU announcement; 2x25G Ethernet capability"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official announcement states high-performance 2x25G Ethernet; value records aggregate source-stated Ethernet port bandwidth only.
   - observation_id: obs-aws-trn2-accelerator-count
     sku_id: aws-trainium2-trn2-offering
     field: cloud_accelerator_count

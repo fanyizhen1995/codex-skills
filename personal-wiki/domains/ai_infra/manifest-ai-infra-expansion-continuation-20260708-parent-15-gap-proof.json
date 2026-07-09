@@ -1,0 +1,105 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-15",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "JaguarMicro Yunxiao DPU network-bandwidth catalog promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:jaguarmicro:yunxiao-dpu:"
+  },
+  "identity_keys": [
+    {
+      "title": "JaguarMicro Yunxiao DPU",
+      "source_type": "hardware",
+      "identity_key": "hardware:jaguarmicro:yunxiao-dpu:"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local JaguarMicro Yunxiao DPU captures found and reused, including raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison and network/storage pages listed JaguarMicro Yunxiao DPU as raw DPU comparison evidence only. No jaguarmicro-yunxiao-dpu SKU, observation, or resolved-spec row existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, and AI Infra Coverage Map; no dedicated JaguarMicro page was needed.",
+    "prior_manifest_scan": "Prior continuation parent tasks promoted Corigine, SGLang, Yusur, H200, Kubernetes/Kueue/Volcano, AWS/Lambda, Resnics N2025, NVIDIA confidential inference, Asterfusion, Kunlunxin R200/R200-8F, Iluvatar Tiangai, MetaX C-series, MetaX C600, and Huawei Atlas 300I A2 slices only. JaguarMicro Yunxiao DPU remained a distinct unresolved product-announcement identity key."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Hardware and network/storage layers now cite the JaguarMicro raw capture and parent-15 gap proof while keeping protocol, virtualization, security, QoS, hot-migration, hot-upgrade, storage, benchmark, operations, and SLO wording as boundary evidence."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added one known_source entry for parent-15 JaguarMicro Yunxiao DPU network bandwidth without mutating unrelated blocked_items or non-hardware coverage gaps."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing JaguarMicro Yunxiao DPU SKU row; added jaguarmicro-yunxiao-dpu tied to the existing jaguarmicro-yunxiao-dpu-announcement source."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing JaguarMicro Yunxiao DPU observations; added only obs-jaguarmicro-yunxiao-dpu-network-bandwidth from the source-visible 2x25G Ethernet statement."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing JaguarMicro Yunxiao DPU resolved fields; added one resolved network_bandwidth field pointing to the matching observation."
+    },
+    {
+      "target": "source-registry.yaml",
+      "result": "Existing jaguarmicro-yunxiao-dpu-announcement source registry entry was reused; the source registry was not modified."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing JaguarMicro raw comparison row now links to resolved specs and explicitly separates the aggregate 50 Gb/s Ethernet field from non-promoted protocol, virtualization, security, QoS, storage, migration, memory, host-interface, power, benchmark, and operations text."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "Network/storage text treats JaguarMicro as product-specific catalog evidence only, not as protocol-level storage-fabric, benchmark, operations, or SLO proof."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog coverage text now treats JaguarMicro Yunxiao DPU as a bounded structured product row and records non-promoted source-visible boundaries."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official JaguarMicro Yunxiao DPU announcement with one source-visible, schema-supported field: high-performance 2x25G Ethernet. The safe catalog boundary is a single DPU product row resolving aggregate 50 Gb/s network bandwidth, while the announcement's protocol, virtio, elastic network/storage, security, QoS, migration, upgrade, and cloud-disk boot text remains boundary evidence outside current resolved fields.",
+  "promoted_fields": [
+    {
+      "sku_id": "jaguarmicro-yunxiao-dpu",
+      "fields": {
+        "network_bandwidth": "50 Gb/s"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "The source states high-performance 2x25G Ethernet for the Yunxiao DPU product.",
+      "boundary": "The catalog resolves only aggregate 50 Gb/s network_bandwidth for this product row."
+    },
+    {
+      "source_value": "The source lists RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, L2VPN, virtio-net/virtio-blk, elastic network/storage, security isolation, QoS, hot-plug, live migration, hot upgrade, and cloud-disk boot capabilities.",
+      "boundary": "These capabilities remain product-page boundary evidence because the current catalog row does not promote protocol support, virtualization feature, QoS/security, hot-migration, hot-upgrade, or cloud-disk boot booleans as resolved fields."
+    },
+    {
+      "source_value": "The source does not expose exact memory capacity, memory type, host interface, power, benchmark, production-operation proof, service SLO, training throughput, inference throughput, ranking, or aggregate-system value.",
+      "boundary": "No memory, host-interface, power, benchmark, production-operation, service-SLO, throughput, ranking, or aggregate-system claim is promoted."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No JaguarMicro RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, L2VPN, virtio, elastic network/storage, security isolation, QoS, hot-plug, live migration, hot upgrade, cloud-disk boot, memory, host-interface, power, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, ranking, or aggregate-system claim was promoted as a resolved catalog field.",
+    "No protocol-level storage-fabric, benchmark, operations, or SLO claim was generalized from the JaguarMicro announcement.",
+    "No Corigine, Resnics, Yusur, Asterfusion, Kunlunxin, Iluvatar, MetaX, Huawei, NVIDIA, AMD, Intel, Cambricon, Biren, cloud offering, aggregate system, or unrelated row was intentionally modified by this task.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

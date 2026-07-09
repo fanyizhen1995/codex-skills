@@ -1,0 +1,66 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-task-1",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "JaguarMicro Yunxiao DPU network-bandwidth catalog promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:jaguarmicro:yunxiao-dpu:"
+  },
+  "identity_keys": [
+    {
+      "title": "JaguarMicro Yunxiao DPU",
+      "source_type": "hardware",
+      "identity_key": "hardware:jaguarmicro:yunxiao-dpu:"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local JaguarMicro Yunxiao DPU captures found and reused, including raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison and network/storage pages listed JaguarMicro Yunxiao DPU as raw DPU comparison evidence only. No jaguarmicro-yunxiao-dpu SKU, observation, or resolved-spec row existed before this run-local task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, and AI Infra Coverage Map; no dedicated JaguarMicro page was needed.",
+    "prior_manifest_scan": "Prior continuation parent tasks promoted Corigine, SGLang, Yusur, H200, Kubernetes/Kueue/Volcano, AWS/Lambda, Resnics N2025, NVIDIA confidential inference, Asterfusion, Kunlunxin R200/R200-8F, Iluvatar Tiangai, MetaX C-series, MetaX C600, and Huawei Atlas 300I A2 slices only. JaguarMicro Yunxiao DPU remained a distinct unresolved product-announcement identity key."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "semantic_parent",
+      "result": "This run-local proof mirrors continuation parent-15 for the current task id so expanded-policy gap-proof validation can bind evidence to ai-infra-expansion-continuation-20260708-continuation-002-task-1."
+    },
+    {
+      "target": "data/compute_accelerators",
+      "result": "Only jaguarmicro-yunxiao-dpu SKU, one network_bandwidth observation, and one resolved network_bandwidth field were added."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "JaguarMicro protocol and storage-offload text remains boundary evidence rather than generalized storage-fabric, benchmark, operations, or SLO proof."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official JaguarMicro Yunxiao DPU announcement with one source-visible, schema-supported field: high-performance 2x25G Ethernet. The safe catalog boundary is a single DPU product row resolving aggregate 50 Gb/s network bandwidth, while the announcement's protocol, virtio, elastic network/storage, security, QoS, migration, upgrade, and cloud-disk boot text remains boundary evidence outside current resolved fields.",
+  "promoted_fields": [
+    {
+      "sku_id": "jaguarmicro-yunxiao-dpu",
+      "fields": {
+        "network_bandwidth": "50 Gb/s"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md"
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No JaguarMicro RoCE v1/v2, iWARP, NVMe-oF, VLAN, VXLAN, GRE, Geneve, L2VPN, virtio, elastic network/storage, security isolation, QoS, hot-plug, live migration, hot upgrade, cloud-disk boot, memory, host-interface, power, benchmark, production-operation, service-SLO, training-throughput, inference-throughput, ranking, or aggregate-system claim was promoted as a resolved catalog field.",
+    "No protocol-level storage-fabric, benchmark, operations, or SLO claim was generalized from the JaguarMicro announcement.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

@@ -341,6 +341,16 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-08"
+  - sku_id: jaguarmicro-yunxiao-dpu
+    resolved_fields:
+      network_bandwidth:
+        value: 50
+        unit: Gb/s
+        source_observation_id: obs-jaguarmicro-yunxiao-dpu-network-bandwidth
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
   - sku_id: aws-trainium2-trn2-offering
     resolved_fields:
       cloud_accelerator_count:

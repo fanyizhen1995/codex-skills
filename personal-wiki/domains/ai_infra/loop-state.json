@@ -733,6 +733,26 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-14-verification.json"
       ]
+    },
+    {
+      "id": "compute-accelerator-continuation-jaguarmicro-yunxiao-dpu-fields",
+      "title": "Resolved JaguarMicro Yunxiao DPU network-bandwidth field",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-09T03:45:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-15-verification.json"
+      ]
     }
   ],
   "coverage_gaps": [
