@@ -4032,6 +4032,8 @@ def _visibility_target_for_changed_path(repo_root: Path, domain: str, changed_pa
     wiki_api_path = ""
     if normalized_path in {f"{domain_prefix}ingest.md", f"{domain_prefix}DOMAIN.md"}:
         return None
+    if normalized_path.endswith(".ingest-plan.md"):
+        return None
     if normalized_path.endswith(".md") and "/raw/" not in normalized_path and "/sources/" not in normalized_path:
         kind = "wiki_page"
         title = _read_markdown_title(repo_root / normalized_path)

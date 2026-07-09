@@ -3447,8 +3447,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
-                del timeout_seconds
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
                 return {
                     "url": url,
                     "status": "pass",
@@ -3503,8 +3507,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
-                del timeout_seconds
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
                 return {
                     "url": url,
                     "status": "pass",
@@ -3534,6 +3542,68 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["matched_targets"][0]["path"], relative_path)
             self.assertEqual(payload["missing_targets"], [])
 
+    def test_capture_live_search_visibility_ignores_raw_ingest_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "expanded-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True, exist_ok=True)
+            relative_path = self._seed_visibility_target(
+                repo_root,
+                run_id=run_id,
+                relative_path="personal-wiki/domains/ai_infra/wiki/references/expanded-runtime-smoke.md",
+            )
+            ingest_plan_path = (
+                "personal-wiki/domains/ai_infra/raw/crawler/source-a/"
+                "capture.ingest-plan.md"
+            )
+            (repo_root / ingest_plan_path).parent.mkdir(parents=True, exist_ok=True)
+            (repo_root / ingest_plan_path).write_text("# Ingest Plan\n\n- promoted source\n", encoding="utf-8")
+            generator_result = read_json_file(run_dir_for(repo_root, run_id) / "generator-result.json")
+            generator_result["changed_paths"] = [ingest_plan_path, relative_path]
+            write_json_file(run_dir_for(repo_root, run_id) / "generator-result.json", generator_result)
+            run = {
+                "run_id": run_id,
+                "task_id": "expanded-run-task-1",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
+                return {
+                    "url": url,
+                    "status": "pass",
+                    "http_status": 200,
+                    "json": {
+                        "results": [
+                            {
+                                "title": "Expanded Runtime Smoke",
+                                "path": relative_path,
+                                "snippet": "Tensorlake schedulerproof rdmawatch evidence",
+                            }
+                        ]
+                    },
+                }
+
+            context = harness_loop_orchestrator._visibility_context(repo_root, run)
+            self.assertNotIn(ingest_plan_path, [target["path"] for target in context["expected_targets"]])
+
+            with patch.object(harness_loop_orchestrator, "_http_probe", side_effect=fake_probe):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "search-api-visibility",
+                    run=run,
+                    captured_at="2026-07-07T00:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["matched_targets"][0]["path"], relative_path)
+            self.assertEqual(payload["missing_targets"], [])
+
     def test_capture_live_search_visibility_blocks_stale_generic_ai_infra_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -3548,8 +3618,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
-                del timeout_seconds
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
                 return {
                     "url": url,
                     "status": "pass",
@@ -3590,8 +3664,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
-                del timeout_seconds
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
                 return {
                     "url": url,
                     "status": "pass",
@@ -3654,8 +3732,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "baseline_dirty_paths": [],
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
-                del timeout_seconds
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
                 return {
                     "url": url,
                     "status": "pass",
@@ -3732,7 +3814,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "baseline_dirty_paths": [],
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 if url == "http://127.0.0.1:5173/":
                     return {
@@ -3814,7 +3896,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 return {
                     "url": url,
@@ -3862,7 +3944,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 return {
                     "url": url,
@@ -4070,7 +4152,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 return {
                     "url": url,
@@ -4117,7 +4199,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 return {
                     "url": url,
@@ -4164,7 +4246,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 return {
                     "url": url,
@@ -4206,7 +4288,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 if url == "http://127.0.0.1:5173/":
                     return {
@@ -4258,7 +4340,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 payload = {
                     "url": url,
@@ -4309,7 +4391,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 if url.endswith("/api/runs/expanded-run"):
                     return {
@@ -4640,7 +4722,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 if url.endswith("/api/runs/expanded-run"):
                     return {
@@ -4705,7 +4787,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "worktree": str(repo_root),
             }
 
-            def fake_probe(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+            def fake_probe(url: str, timeout_seconds: float = 2.0, **_kwargs: object) -> dict[str, object]:
                 del timeout_seconds
                 if url.endswith("/api/runs/expanded-run"):
                     return {
