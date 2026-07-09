@@ -582,7 +582,7 @@
               </article>
               <article class="flow-step">
                 <h3>消费 Auditor</h3>
-                <p>读取 `must_fix/refocus/stop/continue`，把审计结论转成控制动作。</p>
+                <p>读取“必须整改 / 重新聚焦 / 停止 / 继续”等审计结论，把它们转成控制动作。</p>
                 <span class="pill">按 cadence</span>
               </article>
               <article class="flow-step">
@@ -641,7 +641,7 @@
                 </div>
                 <div class="decision">
                   <span class="decision-time">13:40:33</span>
-                  <span class="decision-text">读取 Auditor 结论：无 open must_fix；下一轮允许继续 autonomous knowledge loop。</span>
+                  <span class="decision-text">读取 Auditor 结论：没有待处理的必须整改项；下一轮允许继续 autonomous knowledge loop。</span>
                 </div>
                 <div class="decision">
                   <span class="decision-time">13:39:58</span>
@@ -665,7 +665,7 @@
                 <li class="list-item">
                   <div class="row">
                     <span class="row-title">wiki-api / search-api / frontend-visible</span>
-                    <span class="pill good">pass</span>
+                    <span class="pill good">通过</span>
                   </div>
                   <span class="row-detail">缺少 target 时必须显示“暂无 freshness target”，不能显示绿色通过。</span>
                 </li>
@@ -722,7 +722,7 @@
                     <span class="row-title">latest verdict</span>
                     <span class="pill good">继续</span>
                   </div>
-                  <span class="row-detail">Supervisor 只消费 `continue/must_fix/refocus/stop`，不自行判断任务质量。</span>
+                  <span class="row-detail">Supervisor 只消费“继续 / 必须整改 / 重新聚焦 / 停止”等 Auditor 控制输入，不自行判断任务质量。</span>
                 </li>
                 <li class="list-item">
                   <div class="row">

@@ -112,5 +112,13 @@ def test_decision_log_visible_text_uses_translated_classification_fallback():
 
 
 def test_supervisor_dashboard_mock_uses_chinese_visible_verdict_labels():
+    raw_verdict_tokens = {"continue", "refocus", "stop", "must_fix", "should_fix"}
+    raw_visible_tokens = [
+        token
+        for code_span in re.findall(r"`([^`]+)`", SUPERVISOR_MOCK)
+        for token in re.split(r"[/,\s]+", code_span)
+        if token in raw_verdict_tokens
+    ]
+    assert raw_visible_tokens == []
     assert ">continue<" not in SUPERVISOR_MOCK
     assert '<span class="pill good">继续</span>' in SUPERVISOR_MOCK
