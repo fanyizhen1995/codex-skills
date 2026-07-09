@@ -72,6 +72,20 @@ def test_real_supervisor_and_auditor_values_have_chinese_labels():
     }.items():
         assert_mapping(classification_labels, key, label)
 
+    action_labels = object_block("SUPERVISOR_ACTION_LABELS")
+    for key, label in {
+        "observe": "观察",
+        "resume": "恢复运行",
+        "restart_service": "重启服务",
+        "create_continuation": "创建续跑",
+        "request_user_decision": "请求用户决策",
+        "await_human_merge": "等待人工合并",
+        "continue": "继续",
+        "refocus": "重新聚焦",
+        "stop": "停止",
+    }.items():
+        assert_mapping(action_labels, key, label)
+
 
 def test_unavailable_supervisor_payloads_do_not_synthesize_numeric_zeroes():
     unavailable_payload = function_block("unavailableSupervisorPayload")
@@ -122,3 +136,51 @@ def test_supervisor_dashboard_mock_uses_chinese_visible_verdict_labels():
     assert raw_visible_tokens == []
     assert ">continue<" not in SUPERVISOR_MOCK
     assert '<span class="pill good">继续</span>' in SUPERVISOR_MOCK
+
+
+def test_supervisor_dashboard_mock_does_not_expose_internal_operational_labels():
+    forbidden_visible_fragments = [
+        "0 open",
+        "stopped_budget",
+        "Freshness Target",
+        ">idempotency_key<",
+        "idempotency_key",
+        "open decisions",
+        "needs-user-decisions",
+        "retry_ceiling",
+        "auditor_stop",
+        "unsafe_secret",
+        "open decision",
+    ]
+    for fragment in forbidden_visible_fragments:
+        assert fragment not in SUPERVISOR_MOCK
+
+
+def test_supervisor_frontend_user_decision_copy_does_not_show_internal_labels():
+    combined = (
+        function_block("renderSupervisorUserDecisions")
+        + function_block("renderSupervisorContinuation")
+        + function_block("renderSupervisorRecovery")
+    )
+
+    for fragment in [
+        "open 决策",
+        "暂无 needs-user-decisions 数据",
+        "暂无 open 决策",
+        "user decision",
+        "failure_key：",
+        "idempotency_key：",
+        "已有 idempotency_key",
+        "continuation",
+    ]:
+        assert fragment not in combined
+
+
+def test_supervisor_action_and_classification_fallbacks_stay_chinese():
+    action_label = function_block("supervisorActionLabel")
+    classification_label = function_block("supervisorClassificationLabel")
+
+    assert 'text(normalized, "暂无数据")' not in action_label
+    assert 'text(normalized, "暂无数据")' not in classification_label
+    assert '"未识别动作"' in action_label
+    assert '"未识别分类"' in classification_label

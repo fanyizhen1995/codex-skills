@@ -67,6 +67,7 @@ const SUPERVISOR_STATUS_LABELS = {
   degraded: "服务异常",
   blocked: "需要处理",
   stopped: "已停止",
+  open: "待处理",
   unavailable: "暂无数据",
   invalid_artifact: "产物无效",
 };
@@ -77,6 +78,7 @@ const SUPERVISOR_ACTION_LABELS = {
   restart_service: "重启服务",
   create_continuation: "创建续跑",
   request_user_decision: "请求用户决策",
+  await_human_merge: "等待人工合并",
   continue: "继续",
   refocus: "重新聚焦",
   stop: "停止",
@@ -659,7 +661,7 @@ function renderSupervisorControlFlow(bundle) {
     {
       title: "升级决策",
       detail: openCount && openCount > 0
-        ? `${openCount} 条 open 人工决策`
+        ? `${openCount} 条待处理人工决策`
         : attempts.length ? `${attempts.length} 条恢复尝试记录` : "暂无失败升级记录",
       status: openCount && openCount > 0 ? "blocked" : attempts.length ? "available" : "unavailable",
       badge: openCount && openCount > 0 ? "需要用户决策" : attempts.length ? "已记录" : "未启用",
@@ -745,13 +747,13 @@ function renderSupervisorOperationalGrid(bundle) {
 function renderSupervisorFreshness(bundle) {
   const targets = supervisorFreshnessTargets(supervisorServices(bundle));
   if (!targets.length) {
-    return supervisorSection("数据新鲜度目标", [empty("暂无 freshness target")]);
+    return supervisorSection("数据新鲜度目标", [empty("暂无数据新鲜度目标")]);
   }
   const list = el("div", "supervisor-list");
   targets.forEach((target) => {
     const details = [
       target.service ? `服务：${serviceNameLabel(target.service)}` : "",
-      target.target_id ? `target_id：${target.target_id}` : "",
+      target.target_id ? `目标：${target.target_id}` : "",
       target.checks.length ? `检查：${target.checks.join("、")}` : "",
       target.verified_at ? `验证：${formatTime(target.verified_at)}` : "",
     ].filter(Boolean);
@@ -771,8 +773,8 @@ function renderSupervisorContinuation(bundle) {
       plan.previous_run_id ? `上一个 run：${plan.previous_run_id}` : "",
       plan.next_run_id ? `下一个 run：${plan.next_run_id}` : "",
       plan.created_at ? `创建：${formatTime(plan.created_at)}` : "",
-      plan.idempotency_key ? `idempotency_key：${plan.idempotency_key}` : "",
-      plan.idempotency_key ? "幂等：已有 idempotency_key 时不会重复创建 continuation。" : "",
+      plan.idempotency_key ? `幂等键：${plan.idempotency_key}` : "",
+      plan.idempotency_key ? "幂等：已有相同幂等键时不会重复创建续跑计划。" : "",
     ].filter(Boolean);
     list.append(supervisorListItem(plan.plan_id || plan.next_run_id || "续跑计划", text(plan.status, "暂无数据"), plan.status, details));
   });
@@ -791,13 +793,13 @@ function renderSupervisorRecovery(bundle) {
     const max = numberOrNull(attempt.max_consecutive_failures) || maxFailures;
     const ratio = count === null || max === null ? "暂无数据" : `${count} / ${max}`;
     const details = [
-      attempt.failure_key ? `failure_key：${attempt.failure_key}` : "",
+      attempt.failure_key ? `失败键：${attempt.failure_key}` : "",
       attempt.run_id ? `run：${attempt.run_id}` : "范围：project",
       attempt.action ? `动作：${supervisorActionLabel(attempt.action)}` : "",
       attempt.summary ? `摘要：${attempt.summary}` : "",
       attempt.recorded_at || attempt.finished_at || attempt.started_at ? `时间：${formatTime(attempt.recorded_at || attempt.finished_at || attempt.started_at)}` : "",
     ].filter(Boolean);
-    list.append(supervisorListItem(attempt.failure_key || attempt.attempt_id || "recovery attempt", ratio, attempt.status, details));
+    list.append(supervisorListItem(attempt.failure_key || attempt.attempt_id || "恢复尝试", ratio, attempt.status, details));
   });
   return supervisorSection("失败升级", [list]);
 }
@@ -820,7 +822,7 @@ function renderSupervisorAuditor(bundle) {
       audit.direction_action ? `控制动作：${supervisorActionLabel(audit.direction_action)}` : "",
       audit.direction_reason ? `原因：${audit.direction_reason}` : "",
       audit.recommended_next_focus ? `下一焦点：${audit.recommended_next_focus}` : "",
-      audit.cadence ? `cadence：${listText(audit.cadence)}` : "",
+      audit.cadence ? `审计节奏：${auditCadenceLabel(audit.cadence)}` : "",
       audit.latest_report_path ? `产物：${audit.latest_report_path}` : "",
       "边界：Supervisor 只消费 Auditor 结论，不自行判断任务质量。",
     ].filter(Boolean);
@@ -836,21 +838,21 @@ function renderSupervisorUserDecisions(bundle) {
   const heading = `待处理决策：${openCountLabel(openCount)}`;
   if (!decisions.length) {
     return supervisorSection("人工决策队列", [
-      supervisorListItem("open 决策", heading, openCount && openCount > 0 ? "blocked" : required.status, [
-        required.status === "unavailable" ? "暂无 needs-user-decisions 数据" : "暂无 open 决策",
+      supervisorListItem("待处理决策", heading, openCount && openCount > 0 ? "blocked" : required.status, [
+        required.status === "unavailable" ? "暂无人工决策数据" : "暂无待处理决策",
       ]),
     ]);
   }
   const list = el("div", "supervisor-list");
   decisions.slice(0, 6).forEach((decision) => {
     const details = [
-      decision.reason ? `原因：${decision.reason}` : "",
-      decision.failure_key ? `failure_key：${decision.failure_key}` : "",
-      decision.required_user_decision ? `需要用户决定：${decision.required_user_decision}` : "",
+      decision.reason ? `原因：${supervisorReasonLabel(decision.reason)}` : "",
+      decision.failure_key ? `失败键：${decision.failure_key}` : "",
+      decision.required_user_decision ? `需要用户决定：${userDecisionInstructionLabel(decision.required_user_decision)}` : "",
       decision.summary ? `摘要：${decision.summary}` : "",
       decision.opened_at ? `打开：${formatTime(decision.opened_at)}` : "",
     ].filter(Boolean);
-    list.append(supervisorListItem(decision.decision_id || decision.failure_key || "user decision", text(decision.status, "open"), decision.status || "blocked", details));
+    list.append(supervisorListItem(decision.decision_id || decision.failure_key || "人工决策", supervisorStatusLabel(decision.status || "open"), decision.status || "blocked", details));
   });
   return supervisorSection("人工决策队列", [list]);
 }
@@ -866,7 +868,7 @@ function renderSupervisorConfig(bundle) {
     ["最近 tick", snapshot.last_tick_at ? formatTime(snapshot.last_tick_at) : "暂无数据"],
     ["服务检查", services.checked_at ? formatTime(services.checked_at) : "暂无数据"],
     ["状态产物", text((bundle.summary || {}).artifact_path, "不可用")],
-    ["决策计数", decisions.counts ? `decisions=${numberText(decisions.counts.decisions_total)}，plans=${numberText(decisions.counts.continuation_plans_total)}` : "暂无数据"],
+    ["决策计数", decisions.counts ? `决策=${numberText(decisions.counts.decisions_total)}，续跑计划=${numberText(decisions.counts.continuation_plans_total)}` : "暂无数据"],
   ];
   const grid = el("div", "supervisor-config-grid");
   rows.forEach(([label, value]) => grid.append(infoRow(label, value)));
@@ -1028,12 +1030,53 @@ function supervisorStatusLabel(status) {
 
 function supervisorActionLabel(action) {
   const normalized = text(action, "");
-  return SUPERVISOR_ACTION_LABELS[normalized] || ACTION_LABELS[normalized] || text(normalized, "暂无数据");
+  return SUPERVISOR_ACTION_LABELS[normalized] || ACTION_LABELS[normalized] || "未识别动作";
 }
 
 function supervisorClassificationLabel(classification) {
   const normalized = text(classification, "");
-  return SUPERVISOR_CLASSIFICATION_LABELS[normalized] || text(normalized, "暂无数据");
+  return SUPERVISOR_CLASSIFICATION_LABELS[normalized] || "未识别分类";
+}
+
+function supervisorReasonLabel(reason) {
+  const normalized = text(reason, "");
+  const labels = {
+    retry_ceiling_exceeded: "同一问题连续恢复失败达到上限",
+    auditor_stop: "Auditor 要求停止",
+    unsafe_secret: "发现疑似敏感信息",
+    unsupported_state: "运行状态暂不支持自动处理",
+    human_merge_required: "需要人工合并确认",
+    global_stop_open_user_decision: "存在待处理人工决策",
+    active_demand_phase: "需求开发任务正在运行",
+    audit_blocked: "审计阻塞等待整改",
+    supported_stopped_blocked: "阻塞状态可恢复",
+    terminal_no_action: "终态无需动作",
+    autonomous_budget_stop: "自动资料拓展达到本轮预算",
+  };
+  return labels[normalized] || "需要人工判断";
+}
+
+function userDecisionInstructionLabel(instruction) {
+  const normalized = text(instruction, "");
+  const labels = {
+    "Inspect the repeated recovery failure and choose the next action.": "检查连续恢复失败原因，并选择下一步处理方式。",
+    "Review the auditor stop conclusion and choose whether to stop or continue manually.": "复核 Auditor 停止结论，并决定停止还是人工继续。",
+    "Inspect artifacts for secrets before any automatic continuation.": "先检查产物中的敏感信息，再决定是否允许自动继续。",
+    "Inspect the run state and choose the next operational action.": "检查运行状态，并选择下一步控制动作。",
+  };
+  return labels[normalized] || "请查看详情并选择下一步处理方式。";
+}
+
+function auditCadenceLabel(cadence) {
+  if (!cadence || typeof cadence !== "object" || Array.isArray(cadence)) {
+    return text(cadence, "暂无数据");
+  }
+  const parts = [
+    cadence.current_interval !== undefined ? `当前间隔 ${cadence.current_interval}` : "",
+    cadence.steps_since_last_audit !== undefined ? `已过 ${cadence.steps_since_last_audit}` : "",
+    cadence.next_interval_after_verdict !== undefined ? `下次间隔 ${cadence.next_interval_after_verdict}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join("；") : "暂无数据";
 }
 
 function supervisorStatusClass(status) {
