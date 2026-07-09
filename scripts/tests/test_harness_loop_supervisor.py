@@ -720,6 +720,40 @@ def test_stopped_budget_blocks_continuation_when_open_user_decision_exists(tmp_p
     assert decisions[-1]["reason"] == "global_stop_open_user_decision"
 
 
+def test_existing_blocked_continuation_plan_becomes_planned_without_duplicate_after_global_stop_resolves(
+    tmp_path, monkeypatch
+):
+    seed_stopped_budget_autonomous_run(tmp_path, "blocked-then-clear", parent_counter=14)
+    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "needs-human")
+    decision = open_user_decision(
+        tmp_path,
+        reason="unsupported_state",
+        failure_key=failure_key,
+        summary="Existing open decision blocks autonomous continuation.",
+        required_user_decision="Resolve the existing decision before continuing.",
+        affected_runs=["existing-run"],
+        attempts=[],
+    )
+    patch_service_checks(monkeypatch)
+    config = SupervisorConfig(project_root=tmp_path, dry_run=True)
+
+    first = run_supervisor_once(config)
+    decision_path = tmp_path / ".codex" / "supervisor" / "needs-user-decisions" / f"{decision['decision_id']}.json"
+    persisted_decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    persisted_decision["status"] = "closed"
+    decision_path.write_text(json.dumps(persisted_decision, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    second = run_supervisor_once(config)
+
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    idempotency_keys = [plan["idempotency_key"] for plan in plans]
+    assert first["run_summary"]["needs_user_decision"] == 1
+    assert second["run_summary"]["continuation_candidates"] == 1
+    assert len(plans) == 1
+    assert idempotency_keys == ["autonomous_knowledge:ai_infra:blocked-then-clear:parent-14:abc123"]
+    assert plans[0]["status"] == "planned"
+    assert plans[0]["global_stop_result"]["status"] == "continue"
+
+
 def test_existing_created_continuation_plan_records_observe_decision(tmp_path, monkeypatch):
     seed_stopped_budget_autonomous_run(tmp_path, "already-created", parent_counter=14)
     plans_path = tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl"

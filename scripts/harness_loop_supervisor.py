@@ -392,10 +392,25 @@ def plan_continuation(
             return existing_plan
 
     global_stop_result = _global_stop_result(root)
+    existing_blocked_index = next(
+        (
+            index
+            for index, existing in enumerate(existing_plans)
+            if existing.get("idempotency_key") == idempotency_key and existing.get("status") == "blocked"
+        ),
+        None,
+    )
+    if existing_blocked_index is not None and global_stop_result["status"] == "continue":
+        updated_plan = dict(existing_plans[existing_blocked_index])
+        updated_plan["status"] = "planned" if config.create_continuations else "skipped"
+        updated_plan["global_stop_result"] = dict(global_stop_result)
+        existing_plans[existing_blocked_index] = updated_plan
+        _write_jsonl_records(plans_path, existing_plans)
+        return updated_plan
+
     if global_stop_result["status"] != "continue":
-        for existing in existing_plans:
-            if existing.get("idempotency_key") == idempotency_key and existing.get("status") == "blocked":
-                return existing
+        if existing_blocked_index is not None:
+            return existing_plans[existing_blocked_index]
         plan = _continuation_plan_payload(
             config,
             run_record,
@@ -773,6 +788,15 @@ def _read_freshness_targets(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"{path}:{line_number}: target must be a JSON object")
             targets.append(payload)
     return targets
+
+
+def _write_jsonl_records(path: Path, records: list[Mapping[str, Any]]) -> None:
+    json_path = Path(path)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    with json_path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            json.dump(dict(record), handle, sort_keys=True)
+            handle.write("\n")
 
 
 def _freshness_checks_for_service(target: Mapping[str, Any], service: ServiceConfig) -> list[str]:
