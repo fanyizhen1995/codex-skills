@@ -1007,3 +1007,139 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-08"
+  - sku_id: metax-c500
+    resolved_fields:
+      form_factor:
+        value: full-height full-length dual-slot PCIe card
+        unit: none
+        source_observation_id: obs-metax-c500-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 64
+        unit: GB
+        source_observation_id: obs-metax-c500-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      interconnect:
+        value: MetaXLink 2-card or 4-card high-speed card-to-card interconnect
+        unit: none
+        source_observation_id: obs-metax-c500-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 350
+        unit: W
+        source_observation_id: obs-metax-c500-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: metax-c500x
+    resolved_fields:
+      form_factor:
+        value: custom-height PCIe card
+        unit: none
+        source_observation_id: obs-metax-c500x-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 64
+        unit: GB
+        source_observation_id: obs-metax-c500x-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      interconnect:
+        value: MetaXLink optical interconnect supports 16-card to 64-card Scale-up topology
+        unit: none
+        source_observation_id: obs-metax-c500x-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 350
+        unit: W
+        source_observation_id: obs-metax-c500x-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: metax-c550
+    resolved_fields:
+      form_factor:
+        value: OAM 1.5 / OAM 2.0 snap-in module
+        unit: none
+        source_observation_id: obs-metax-c550-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 64
+        unit: GB
+        source_observation_id: obs-metax-c550-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      interconnect:
+        value: MetaXLink 8-card all-to-all interconnect up to 896GB/s
+        unit: none
+        source_observation_id: obs-metax-c550-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 450
+        unit: W
+        source_observation_id: obs-metax-c550-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+  - sku_id: metax-c588
+    resolved_fields:
+      form_factor:
+        value: OAM 2.0 snap-in module
+        unit: none
+        source_observation_id: obs-metax-c588-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      memory_capacity:
+        value: 128
+        unit: GB
+        source_observation_id: obs-metax-c588-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      interconnect:
+        value: MetaXLink 8-card all-to-all interconnect up to 896GB/s
+        unit: none
+        source_observation_id: obs-metax-c588-interconnect
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"
+      tdp:
+        value: 850
+        unit: W
+        source_observation_id: obs-metax-c588-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-08"

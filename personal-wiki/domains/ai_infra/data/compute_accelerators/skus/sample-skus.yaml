@@ -224,6 +224,42 @@ skus:
     form_factor: training accelerator
     release_status: released
     source_refs: [iluvatar-tg150-product-page]
+  - sku_id: metax-c500
+    vendor_id: metax
+    family_id: metax-xiyun-c
+    canonical_name: MetaX C500
+    aliases: [C500, Xiyun C500, XiYun C500]
+    scope: gpu
+    form_factor: full-height full-length dual-slot PCIe card
+    release_status: released
+    source_refs: [metax-c500-product-page]
+  - sku_id: metax-c500x
+    vendor_id: metax
+    family_id: metax-xiyun-c
+    canonical_name: MetaX C500X
+    aliases: [C500X, Xiyun C500X, XiYun C500X]
+    scope: gpu
+    form_factor: custom-height PCIe card
+    release_status: released
+    source_refs: [metax-c500x-product-page]
+  - sku_id: metax-c550
+    vendor_id: metax
+    family_id: metax-xiyun-c
+    canonical_name: MetaX C550
+    aliases: [C550, Xiyun C550, XiYun C550]
+    scope: gpu
+    form_factor: OAM 1.5 / OAM 2.0 snap-in module
+    release_status: released
+    source_refs: [metax-c550-product-page]
+  - sku_id: metax-c588
+    vendor_id: metax
+    family_id: metax-xiyun-c
+    canonical_name: MetaX C588
+    aliases: [C588, Xiyun C588, XiYun C588]
+    scope: gpu
+    form_factor: OAM 2.0 snap-in module
+    release_status: released
+    source_refs: [metax-c588-product-page]
   - sku_id: biren-bili-106b
     vendor_id: biren
     family_id: biren-bili-106

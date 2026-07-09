@@ -1,0 +1,159 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-12",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "MetaX C500, C500X, C550, and C588 accelerator catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:metax:c-series:c500-c500x-c550-c588"
+  },
+  "identity_keys": [
+    {
+      "title": "MetaX C500",
+      "source_type": "hardware",
+      "identity_key": "hardware:metax:c500:64gb"
+    },
+    {
+      "title": "MetaX C500X",
+      "source_type": "hardware",
+      "identity_key": "hardware:metax:c500x:64gb"
+    },
+    {
+      "title": "MetaX C550",
+      "source_type": "hardware",
+      "identity_key": "hardware:metax:c550:64gb"
+    },
+    {
+      "title": "MetaX C588",
+      "source_type": "hardware",
+      "identity_key": "hardware:metax:c588:128gb"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local captures found and reused: raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md, raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md, raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md, and raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison text mentioned MetaX C500, C500X, C550, and C588 as raw comparison evidence, but no metax-c500, metax-c500x, metax-c550, or metax-c588 SKU, observation, or resolved-spec rows existed before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map; no dedicated MetaX C-series page was needed.",
+    "prior_manifest_scan": "Prior continuation parent-1 through parent-11 manifests cover Corigine, SGLang, Yusur, NVIDIA H200, Kubernetes/Kueue/Volcano, AWS/Lambda, Resnics N2025, NVIDIA confidential inference, Asterfusion, Kunlunxin R200, and Iluvatar Tiangai. This task does not repeat those rows and promotes only the MetaX C-series source-visible product-spec slice."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "coverage-map.json",
+      "result": "Hardware layer previously listed the MetaX product pages as raw crawler evidence only. Parent-12 records the narrower boundary where C500, C500X, C550, and C588 expose form factor, memory capacity, MetaXLink wording, and maximum power."
+    },
+    {
+      "target": "loop-state.json",
+      "result": "Added one known_source entry for parent-12 MetaX C-series fields without mutating blocked_items or unrelated coverage gaps."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing metax-c500, metax-c500x, metax-c550, or metax-c588 SKU rows; added one SKU per product page."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing MetaX C-series observations; added four observations per product for form_factor, memory_capacity, interconnect, and tdp."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing MetaX C-series resolved fields; added resolved fields pointing to the new MetaX observations only."
+    },
+    {
+      "target": "source-registry.yaml",
+      "result": "Existing metax-c500-product-page, metax-c500x-product-page, metax-c550-product-page, and metax-c588-product-page source registry entries were reused; the source registry was not modified because it already contained the needed source IDs."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Existing raw comparison rows now include resolved-spec citations and explicit caveats for unsupported compute, memory generation, memory-bandwidth, host-interface, virtualization, ecosystem, production-operation, server, and supernode claims."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "Catalog coverage text now treats C500, C500X, C550, and C588 as bounded structured product rows and keeps unsupported qualitative, benchmark, throughput, virtualization, ecosystem, server, and supernode claims outside resolved fields."
+    }
+  ],
+  "gap_reason": "The local corpus already contained official product-specific MetaX C500, C500X, C550, and C588 captures with source-visible, schema-supported fields that had not yet been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "metax-c500",
+      "fields": {
+        "form_factor": "full-height full-length dual-slot PCIe card",
+        "memory_capacity": "64 GB",
+        "interconnect": "MetaXLink 2-card or 4-card high-speed card-to-card interconnect",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md"
+    },
+    {
+      "sku_id": "metax-c500x",
+      "fields": {
+        "form_factor": "custom-height PCIe card",
+        "memory_capacity": "64 GB",
+        "interconnect": "MetaXLink optical interconnect supports 16-card to 64-card Scale-up topology",
+        "tdp": "350 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md"
+    },
+    {
+      "sku_id": "metax-c550",
+      "fields": {
+        "form_factor": "OAM 1.5 / OAM 2.0 snap-in module",
+        "memory_capacity": "64 GB",
+        "interconnect": "MetaXLink 8-card all-to-all interconnect up to 896GB/s",
+        "tdp": "450 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md"
+    },
+    {
+      "sku_id": "metax-c588",
+      "fields": {
+        "form_factor": "OAM 2.0 snap-in module",
+        "memory_capacity": "128 GB",
+        "interconnect": "MetaXLink 8-card all-to-all interconnect up to 896GB/s",
+        "tdp": "850 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "C500, C500X, C550, and C588 pages state high-bandwidth memory capacity but do not identify the memory generation or exact memory bandwidth.",
+      "boundary": "Promoted memory_capacity only. memory_type and memory_bandwidth remain unresolved."
+    },
+    {
+      "source_value": "C500 and C500X pages describe PCIe card form factors but do not expose a PCIe generation or lane count.",
+      "boundary": "Promoted form_factor only. host_interface remains unresolved."
+    },
+    {
+      "source_value": "C500X page states MetaXLink optical Scale-up from 16 to 64 cards, while C550 and C588 pages state MetaXLink 8-card all-to-all up to 896GB/s.",
+      "boundary": "Recorded only as bounded interconnect strings because spec-fields.yaml supports interconnect; no per-link bandwidth, server, supernode, or topology performance field is inferred."
+    },
+    {
+      "source_value": "C500 and C550 pages include 1% granularity virtualization wording.",
+      "boundary": "Not promoted because the catalog has no virtualization field and the source text is a qualitative feature, not a resolved accelerator specification."
+    },
+    {
+      "source_value": "C588 page states one eight-card machine can run DeepSeek full version and other pages include mainstream GPU ecosystem compatibility and application text.",
+      "boundary": "Not promoted as benchmark, ecosystem-completion, production-operation, service-SLO, training-throughput, inference-throughput, or model-operation evidence."
+    },
+    {
+      "source_value": "MetaX C600, servers, workstations, supernodes, N-series, G-series, X-series, and unrelated accelerators appear in navigation or adjacent comparison evidence.",
+      "boundary": "No non-C500/C500X/C550/C588 SKU, observation, or resolved row is created or modified by parent-12."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-12-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No MetaX C600, N-series, G-series, X-series, server, workstation, supernode, AMD, Intel, Huawei, Enflame, Iluvatar, Biren, Kunlunxin, Resnics, Corigine, Yusur, Asterfusion, or unrelated accelerator row was promoted by this task.",
+    "No exact compute peak, memory generation, memory bandwidth, host-interface generation or lane count, benchmark ranking, DeepSeek/model operation, ecosystem compatibility, virtualization guarantee, production incident/postmortem, service SLO, training throughput, inference throughput, local benchmark baseline, MLCommons submission, legal-compliance completion, server product, supernode, or aggregate-system claim was promoted from the MetaX pages.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed.",
+    "Existing H200, Cambricon, Kunlunxin, Biren, Corigine, Resnics, Yusur, Asterfusion, and Iluvatar resolved fields were not intentionally changed."
+  ]
+}

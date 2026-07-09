@@ -92,6 +92,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
 ---
 
 # Summary
@@ -146,9 +147,11 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   resolved fields for form factor, 32 GB HBM2, `PCIe Gen4.0 x16 lane`,
   source-stated 64 GB/s inter-chip bandwidth, and 250 W board power, plus
   Tiangai 150 resolved fields for 64 GB HBM memory and 350 W board power only.
-  R10 task 2 adds Biren Bili 106B, 106M, 166C, 166L, and 166M form-factor and
-  peak power fields only; compute and memory remain unresolved for those Biren
-  rows.
+  Continuation parent 12 adds MetaX C500, C500X, C550, and C588 resolved rows
+  for source-visible form factor, memory capacity, MetaXLink interconnect
+  wording, and maximum power only. R10 task 2 adds Biren Bili 106B, 106M, 166C,
+  166L, and 166M form-factor and peak power fields only; compute and memory
+  remain unresolved for those Biren rows.
   [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml)
 - Clearest high-end single-GPU raw record: NVIDIA H200 SXM/H200 NVL. The
   structured catalog resolves only the H200 SXM column for schema-supported
@@ -166,14 +169,18 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [NCCL 2.19.3](../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-19-3-html.md),
   [NCCL issue page](../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz),
   [SGLang comment page](../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz)
-- Strong domestic card-level comparison set: Huawei Atlas 300I A2, Cambricon
-  MLU370, Kunlunxin R200/R200-8F/RG800, and Iluvatar Tiangai 100 expose enough
-  local raw parameters to compare memory, host interface, and power as
-  individual cards; the Kunlunxin and Cambricon rows also expose source-visible
-  compute values. Tiangai 150 contributes only memory and board-power resolved
-  fields from the local page, so do not compare its compute, memory bandwidth,
-  form factor, or host interface without a stronger source. R200/R200-8F and
-  RG800 now have structured resolved rows for schema-supported fields; INT16
+- Strong domestic card/module-level comparison set: Huawei Atlas 300I A2,
+  Cambricon MLU370, Kunlunxin R200/R200-8F/RG800, Iluvatar Tiangai 100, and the
+  MetaX C500/C500X/C550/C588 pages expose enough local raw parameters to compare
+  some deployment-envelope, memory-capacity, interconnect-wording, and power
+  fields as individual products; the Kunlunxin and Cambricon rows also expose
+  source-visible compute values. Tiangai 150 contributes only memory and
+  board-power resolved fields from the local page, so do not compare its
+  compute, memory bandwidth, form factor, or host interface without a stronger
+  source. The MetaX rows do not resolve compute, memory generation, memory
+  bandwidth, host-interface lane count, virtualization, server, supernode,
+  benchmark, production-operation, or ecosystem-completion claims. R200/R200-8F
+  and RG800 now have structured resolved rows for schema-supported fields; INT16
   remains comparison-only.
   [Atlas 300I A2](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md),
   [MLU370-S4/S8](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260628T060442871520Z-www-cambricon-com-index-php-dd51e6b9e9.md),
@@ -182,7 +189,11 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [R200](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md),
   [RG800](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md),
   [Tiangai 100](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md),
-  [Tiangai 150](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md)
+  [Tiangai 150](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md),
+  [MetaX C500](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md),
+  [MetaX C500X](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md),
+  [MetaX C550](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md),
+  [MetaX C588](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md)
 - Aggregate records must be normalized before card-to-card comparison: AWS
   Trn2/UltraServer, Huawei Atlas 800T A3, and Kunlunxin R480-X8 report
   multi-chip or system-level totals. Use them for capacity planning, not as
@@ -272,10 +283,10 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Kunlunxin R200 / R200-8F | full-height full-length dual-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32. INT8, FP16, and FP32 are resolved; INT16 is comparison-only because the catalog has no INT16 field. | R200: 16 GB GDDR6; R200-8F: 32 GB GDDR6; 512 GB/s | PCIe Gen4 x16 compatible with Gen3/2/1; R200 150 W; R200-8F 160 W | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md) |
 | Kunlunxin R480-X8 | 8 OAM modules on UBB | 256 TOPS INT8 x8; 128 TOPS INT16 x8; 128 TFLOPS FP16 x8; 32 TFLOPS FP32 x8 | 32 GB x8 GDDR6; 512 GB/s x8 | 200 GB/s chip-to-chip interconnect | [raw](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md) |
 | Kunlunxin RG800 | full-height full-length single-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32 | 32 GB GDDR6; 512 GB/s | PCIe 4.0 x16; 130 W | [raw](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md) |
-| MetaX C500 | full-height full-length dual-slot PCIe card | not captured | 64 GB high-bandwidth memory | MetaXLink 2-card or 4-card interconnect; 350 W | [raw](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md) |
-| MetaX C500X | custom-height PCIe card | not captured | 64 GB high-bandwidth memory | optical MetaXLink scale-up from 16 to 64 cards; 350 W | [raw](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md) |
-| MetaX C550 | OAM 1.5 / OAM 2.0 module | not captured | 64 GB high-bandwidth memory | MetaXLink 8-card all-to-all up to 896 GB/s; 450 W | [raw](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md) |
-| MetaX C588 | OAM 2.0 module | not captured | 128 GB high-bandwidth memory | MetaXLink 8-card all-to-all up to 896 GB/s; 850 W | [raw](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md) |
+| MetaX C500 | full-height full-length dual-slot PCIe card | not captured | 64 GB high-bandwidth memory; memory generation and bandwidth not captured | MetaXLink 2-card or 4-card interconnect; 350 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; compute, memory type, host-interface lane count, virtualization, ecosystem, benchmark, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md) |
+| MetaX C500X | custom-height PCIe card | not captured | 64 GB high-bandwidth memory; memory generation and bandwidth not captured | optical MetaXLink scale-up from 16 to 64 cards; 350 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; virtualization, server/supernode, compute, memory type, benchmark, ecosystem, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md) |
+| MetaX C550 | OAM 1.5 / OAM 2.0 snap-in module | not captured | 64 GB high-bandwidth memory; memory generation and bandwidth not captured | MetaXLink 8-card all-to-all up to 896GB/s; 450 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; compute, host-interface, benchmark, server/supernode, ecosystem, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md) |
+| MetaX C588 | OAM 2.0 snap-in module | not captured | 128 GB high-bandwidth memory; memory generation and bandwidth not captured | MetaXLink 8-card all-to-all up to 896GB/s; 850 W maximum power. Form factor, memory capacity, interconnect wording, and power are resolved; DeepSeek, compute, host-interface, benchmark, server/supernode, ecosystem, and production-operation claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md) |
 | MetaX C600 | OAM 2.0 module | not captured | large high-bandwidth memory; capacity not captured | MetaXLink and MetaXLink-E; up to 128-card supernode; 1,000 W | [raw](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md) |
 | NVIDIA GB300 product-family page | product overview / system family page | no single-accelerator metric captured | not captured | not captured | [raw](../../raw/crawler/compute-accelerators-nvidia-gb300/20260628T143110957451Z-www-nvidia-com-en-us-data-center-products-200b75abd8.md) |
 | Moore Threads MTT S3000 | server GPU page | no parameter captured by local text extraction | no parameter captured | no parameter captured | [raw](../../raw/crawler/compute-accelerators-mthreads-s3000/20260628T060654703690Z-www-mthreads-com-product-s3000-28c8f7773e.md) |
@@ -326,10 +337,12 @@ Kunlunxin R480-X8 reports an 8-module aggregate. These are useful capacity
 planning records, but must be normalized before card-to-card comparison.
 
 Several domestic GPU/AI accelerator vendors expose form factor and power more
-clearly than compute peaks in the captured HTML. Biren and MetaX pages are
-especially useful for deployment envelope comparison, while the structured
-catalog should add observations later if official compute and memory tables are
-captured.
+clearly than compute peaks in the captured HTML. Biren pages remain useful for
+deployment envelope comparison only. MetaX C500, C500X, C550, and C588 now have
+structured deployment-envelope rows for form factor, memory capacity,
+MetaXLink interconnect wording, and maximum power, while the structured catalog
+should add compute, memory generation, memory bandwidth, host-interface, and
+benchmark observations only if future official tables expose those fields.
 
 DPU and SmartNIC records have a separate comparison axis. NVIDIA BlueField-3,
 Yusur K2-Pro, Yusur SWIFT-2200N Pro, Asterfusion Helium, Resnics Stargate, and
@@ -397,3 +410,13 @@ their exact product or variant boundaries.
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
+- ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
+- ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
+- ../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md
+- ../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md
+- ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md
+- ../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json

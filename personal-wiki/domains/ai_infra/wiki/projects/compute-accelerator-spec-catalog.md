@@ -23,6 +23,10 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
   - ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
   - ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
+  - ../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md
+  - ../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md
+  - ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md
+  - ../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md
   - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
   - ../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md
   - ../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md
@@ -46,6 +50,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
 ---
 
 # Summary
@@ -134,6 +139,16 @@ compatibility, production-operation, service-SLO, training-throughput, or
 inference-throughput proof, so those claims remain boundary evidence outside
 resolved catalog fields. [TG100 raw](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md) [TG150 raw](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md)
 
+Continuation parent 12 promotes a bounded MetaX C-series slice from existing
+local official product-page captures. C500, C500X, C550, and C588 now have
+structured rows for only source-visible form factor, memory capacity,
+MetaXLink interconnect wording, and maximum power. The pages do not expose
+exact compute peaks, memory bandwidth, memory generation, host-interface lane
+count, benchmark results, production-operation proof, server-product fields,
+supernode fields, virtualization guarantees, or ecosystem completion as
+schema-supported single-product facts, so those claims remain boundary
+evidence rather than resolved catalog fields. [C500 raw](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md) [C500X raw](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md) [C550 raw](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md) [C588 raw](../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md)
+
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved
 form factor, aggregate data-port bandwidth, memory type, memory capacity, and
@@ -213,3 +228,8 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
 - ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
+- ../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md
+- ../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md
+- ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md
+- ../../raw/crawler/compute-accelerators-metax-c588/20260628T060653452377Z-www-metax-tech-com-prod-html-9d84457b12.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json

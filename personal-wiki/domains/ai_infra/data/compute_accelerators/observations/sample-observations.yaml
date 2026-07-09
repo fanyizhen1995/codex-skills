@@ -1559,3 +1559,211 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page states board power is 350 W.
+  - observation_id: obs-metax-c500-form-factor
+    sku_id: metax-c500
+    field: form_factor
+    value: full-height full-length dual-slot PCIe card
+    unit: none
+    source_id: metax-c500-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a full-height full-length dual-slot PCIe card.
+  - observation_id: obs-metax-c500-memory-capacity
+    sku_id: metax-c500
+    field: memory_capacity
+    value: 64
+    unit: GB
+    source_id: metax-c500-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page says one card is equipped with 64 GB high-bandwidth memory; the source does not expose the memory generation.
+  - observation_id: obs-metax-c500-interconnect
+    sku_id: metax-c500
+    field: interconnect
+    value: MetaXLink 2-card or 4-card high-speed card-to-card interconnect
+    unit: none
+    source_id: metax-c500-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states MetaXLink supports two-card or four-card high-speed card-to-card interconnect. No topology bandwidth is inferred.
+  - observation_id: obs-metax-c500-tdp
+    sku_id: metax-c500
+    field: tdp
+    value: 350
+    unit: W
+    source_id: metax-c500-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 350 W maximum power.
+  - observation_id: obs-metax-c500x-form-factor
+    sku_id: metax-c500x
+    field: form_factor
+    value: custom-height PCIe card
+    unit: none
+    source_id: metax-c500x-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500X product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes a custom-height PCIe card.
+  - observation_id: obs-metax-c500x-memory-capacity
+    sku_id: metax-c500x
+    field: memory_capacity
+    value: 64
+    unit: GB
+    source_id: metax-c500x-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500X product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page says one card is equipped with 64 GB high-bandwidth memory; the source does not expose the memory generation.
+  - observation_id: obs-metax-c500x-interconnect
+    sku_id: metax-c500x
+    field: interconnect
+    value: MetaXLink optical interconnect supports 16-card to 64-card Scale-up topology
+    unit: none
+    source_id: metax-c500x-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500X product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states the MetaXLink optical interconnect supports Scale-up topology from 16 cards to 64 cards. No supernode product claim is promoted.
+  - observation_id: obs-metax-c500x-tdp
+    sku_id: metax-c500x
+    field: tdp
+    value: 350
+    unit: W
+    source_id: metax-c500x-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C500X product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 350 W maximum power.
+  - observation_id: obs-metax-c550-form-factor
+    sku_id: metax-c550
+    field: form_factor
+    value: OAM 1.5 / OAM 2.0 snap-in module
+    unit: none
+    source_id: metax-c550-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C550 product page; introduction and product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes an OAM module product supporting OAM 1.5 and OAM 2.0 specifications.
+  - observation_id: obs-metax-c550-memory-capacity
+    sku_id: metax-c550
+    field: memory_capacity
+    value: 64
+    unit: GB
+    source_id: metax-c550-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C550 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page says one module is equipped with 64 GB high-bandwidth memory; the source does not expose the memory generation.
+  - observation_id: obs-metax-c550-interconnect
+    sku_id: metax-c550
+    field: interconnect
+    value: MetaXLink 8-card all-to-all interconnect up to 896GB/s
+    unit: none
+    source_id: metax-c550-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C550 product page; introduction and product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states MetaXLink supports eight-card all-to-all interconnect with bandwidth up to 896GB/s. The value is kept as an interconnect string, not a normalized per-link bandwidth field.
+  - observation_id: obs-metax-c550-tdp
+    sku_id: metax-c550
+    field: tdp
+    value: 450
+    unit: W
+    source_id: metax-c550-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C550 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 450 W maximum power.
+  - observation_id: obs-metax-c588-form-factor
+    sku_id: metax-c588
+    field: form_factor
+    value: OAM 2.0 snap-in module
+    unit: none
+    source_id: metax-c588-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C588 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page describes an OAM 2.0 snap-in module.
+  - observation_id: obs-metax-c588-memory-capacity
+    sku_id: metax-c588
+    field: memory_capacity
+    value: 128
+    unit: GB
+    source_id: metax-c588-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C588 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page says one module is equipped with 128 GB high-bandwidth memory; the source does not expose the memory generation.
+  - observation_id: obs-metax-c588-interconnect
+    sku_id: metax-c588
+    field: interconnect
+    value: MetaXLink 8-card all-to-all interconnect up to 896GB/s
+    unit: none
+    source_id: metax-c588-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C588 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page states MetaXLink supports eight-card all-to-all interconnect with bandwidth up to 896GB/s. The value is kept as an interconnect string, not a normalized per-link bandwidth field.
+  - observation_id: obs-metax-c588-tdp
+    sku_id: metax-c588
+    field: tdp
+    value: 850
+    unit: W
+    source_id: metax-c588-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "MetaX C588 product page; product features text"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product page lists 850 W maximum power.
