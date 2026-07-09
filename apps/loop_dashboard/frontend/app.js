@@ -52,6 +52,43 @@ const AGENT_LABELS = {
   auditor: "Auditor",
 };
 
+const SUPERVISOR_ENDPOINTS = {
+  summary: "/api/supervisor",
+  services: "/api/supervisor/services",
+  decisions: "/api/supervisor/decisions",
+  recovery: "/api/supervisor/recovery",
+  required: "/api/supervisor/decision-required",
+  auditor: "/api/supervisor/auditor",
+};
+
+const SUPERVISOR_STATUS_LABELS = {
+  available: "可用",
+  healthy: "运行正常",
+  degraded: "服务异常",
+  blocked: "需要处理",
+  stopped: "已停止",
+  unavailable: "暂无数据",
+  invalid_artifact: "产物无效",
+};
+
+const SUPERVISOR_ACTION_LABELS = {
+  observe: "观察",
+  resume: "恢复运行",
+  restart_service: "重启服务",
+  create_continuation: "创建续跑",
+  request_user_decision: "请求用户决策",
+  stop: "停止",
+};
+
+const SUPERVISOR_CLASSIFICATION_LABELS = {
+  continuation_candidate: "续跑候选",
+  active: "运行中",
+  blocked: "阻塞",
+  stopped: "已停止",
+  human_gate: "等待人工",
+  unsupported: "不支持",
+};
+
 const ACTION_LABELS = {
   run_parent_planner: "运行父 Planner",
   run_child_planner: "运行子任务 Planner",
@@ -76,6 +113,7 @@ const ACTION_LABELS = {
 
 const state = {
   project: null,
+  supervisor: emptySupervisorBundle(),
   runs: [],
   selectedRunId: "",
   detail: null,
@@ -93,6 +131,7 @@ const state = {
 const els = {
   pollState: document.getElementById("poll-state"),
   projectStatus: document.getElementById("project-status-content"),
+  supervisorContent: document.getElementById("supervisor-content"),
   runList: document.getElementById("run-list"),
   completedRuns: document.getElementById("completed-runs"),
   runDetailHeading: document.getElementById("run-detail-heading"),
@@ -271,14 +310,88 @@ async function fetchJson(path) {
   return response.json();
 }
 
+function emptySupervisorBundle() {
+  return {
+    summary: unavailableSupervisorPayload("summary", SUPERVISOR_ENDPOINTS.summary),
+    services: unavailableSupervisorPayload("services", SUPERVISOR_ENDPOINTS.services),
+    decisions: unavailableSupervisorPayload("decisions", SUPERVISOR_ENDPOINTS.decisions),
+    recovery: unavailableSupervisorPayload("recovery", SUPERVISOR_ENDPOINTS.recovery),
+    required: unavailableSupervisorPayload("required", SUPERVISOR_ENDPOINTS.required),
+    auditor: unavailableSupervisorPayload("auditor", SUPERVISOR_ENDPOINTS.auditor),
+  };
+}
+
+function unavailableSupervisorPayload(key, path, error) {
+  const message = error ? `读取失败：${error.message}` : "暂无数据";
+  const base = {
+    status: "unavailable",
+    status_label: "不可用",
+    diagnostics: error ? [{ source: path, status: "unavailable", message }] : [],
+  };
+  if (key === "summary") {
+    return {
+      ...base,
+      state: {
+        status: "unavailable",
+        status_label: "暂无数据",
+        service_summary: {},
+        run_summary: {},
+        failure_summary: {},
+        service_health: {},
+        last_decision: null,
+        mode: "",
+        last_heartbeat_at: "",
+        last_tick_at: "",
+        generated_at: "",
+        watch_interval_seconds: 0,
+      },
+      artifact_path: ".codex/supervisor/supervisor-state.json",
+    };
+  }
+  if (key === "services") {
+    return { ...base, checked_at: "", services: [], service_count: 0 };
+  }
+  if (key === "decisions") {
+    return { ...base, decisions: [], continuation_plans: [], counts: {} };
+  }
+  if (key === "recovery") {
+    return { ...base, attempts: [], counts: {} };
+  }
+  if (key === "required") {
+    return { ...base, open_count: 0, decisions: [], total_count: 0 };
+  }
+  if (key === "auditor") {
+    return { ...base, audits: [], total_count: 0, returned_count: 0 };
+  }
+  return base;
+}
+
+async function fetchSupervisorBundle() {
+  const results = await Promise.all(
+    Object.entries(SUPERVISOR_ENDPOINTS).map(async ([key, path]) => {
+      try {
+        return [key, await fetchJson(path)];
+      } catch (error) {
+        return [key, unavailableSupervisorPayload(key, path, error)];
+      }
+    }),
+  );
+  return Object.fromEntries(results);
+}
+
 async function refresh() {
   if (state.refreshInFlight) {
     return;
   }
   state.refreshInFlight = true;
   try {
-    const [project, runs] = await Promise.all([fetchJson("/api/projects/current"), fetchJson("/api/runs")]);
+    const [project, runs, supervisor] = await Promise.all([
+      fetchJson("/api/projects/current"),
+      fetchJson("/api/runs"),
+      fetchSupervisorBundle(),
+    ]);
     state.project = project;
+    state.supervisor = supervisor;
     state.runs = Array.isArray(runs) ? runs : [];
     state.lastError = "";
     let recoverableNotice = "";
@@ -383,6 +496,7 @@ async function selectRun(runId, options = {}) {
 
 function renderAll() {
   renderProject();
+  renderSupervisor();
   renderRunLists();
   renderDetail();
   renderTabs();
@@ -410,6 +524,628 @@ function renderProject() {
     return item;
   });
   setChildren(els.projectStatus, rows);
+}
+
+function renderSupervisor() {
+  if (!els.supervisorContent) {
+    return;
+  }
+  const bundle = state.supervisor || emptySupervisorBundle();
+  const nodes = [
+    renderSupervisorHero(bundle),
+    renderSupervisorMetrics(bundle),
+    renderSupervisorTabs(),
+    renderSupervisorControlFlow(bundle),
+    renderSupervisorServiceDecisionGrid(bundle),
+    renderSupervisorOperationalGrid(bundle),
+    renderSupervisorAuditorDecisionGrid(bundle),
+    renderSupervisorConfig(bundle),
+    renderSupervisorDiagnostics(bundle),
+  ].filter(Boolean);
+  setChildren(els.supervisorContent, nodes);
+}
+
+function renderSupervisorHero(bundle) {
+  const summary = bundle.summary || {};
+  const snapshot = supervisorSnapshot(bundle);
+  const required = bundle.required || {};
+  const openCount = numberOrNull(required.open_count);
+  const wrapper = el("div", "supervisor-hero");
+  const textBlock = el("div", "");
+  textBlock.append(
+    el("h2", "", "全局 Agent：Loop Supervisor"),
+    el(
+      "p",
+      "supervisor-summary",
+      "Supervisor 是项目级运行控制面，不属于任何一个任务运行列表。它负责服务保活、运行续跑、失败升级、Dashboard 可见性和数据新鲜度；Auditor 负责判断流程质量，Supervisor 负责执行控制动作。",
+    ),
+  );
+
+  const actions = el("div", "supervisor-actions");
+  actions.append(
+    supervisorChip(`健康状态：${supervisorStatusLabel(summary.status || snapshot.status)}`, summary.status || snapshot.status),
+    supervisorChip(`人工决策：${openCount === null ? "不可用" : `${openCount} open`}`, openCount && openCount > 0 ? "blocked" : required.status),
+    supervisorChip("独立于任务列表", "available"),
+  );
+  wrapper.append(textBlock, actions);
+  return wrapper;
+}
+
+function renderSupervisorMetrics(bundle) {
+  const snapshot = supervisorSnapshot(bundle);
+  const services = supervisorServices(bundle);
+  const plans = supervisorPlans(bundle);
+  const serviceSummary = objectValue(snapshot.service_summary);
+  const runSummary = objectValue(snapshot.run_summary);
+  const version = supervisorVersionSummary(services);
+  const freshness = supervisorFreshnessSummary(services);
+  const totalServices = numberOrNull(serviceSummary.total);
+  const healthyServices = numberOrNull(serviceSummary.healthy);
+  const continuationCandidates = numberOrNull(runSummary.continuation_candidates);
+
+  const grid = el("div", "supervisor-metrics");
+  grid.append(
+    supervisorMetric(
+      "在线服务",
+      totalServices === null || totalServices === 0 ? "不可用" : `${healthyServices || 0} / ${totalServices}`,
+      totalServices === null || totalServices === 0 ? "暂无服务汇总" : "只表示可达；版本新鲜度单独判断",
+    ),
+    supervisorMetric(
+      "可续跑任务",
+      continuationCandidates === null ? "暂无数据" : String(continuationCandidates),
+      plans.length ? `${plans.length} 个续跑计划已返回` : "暂无续跑计划",
+    ),
+    supervisorMetric("版本新鲜度", version.value, version.note),
+    supervisorMetric("数据新鲜度", freshness.value, freshness.note),
+  );
+  return grid;
+}
+
+function renderSupervisorTabs() {
+  const tabs = ["控制面概览", "服务保活", "续跑决策", "恢复历史", "人工决策", "配置"];
+  const wrapper = el("div", "supervisor-tabs");
+  tabs.forEach((label, index) => {
+    wrapper.append(el("span", `supervisor-tab${index === 0 ? " is-active" : ""}`, label));
+  });
+  return wrapper;
+}
+
+function renderSupervisorControlFlow(bundle) {
+  const snapshot = supervisorSnapshot(bundle);
+  const services = supervisorServices(bundle);
+  const decisions = supervisorDecisions(bundle);
+  const attempts = supervisorAttempts(bundle);
+  const audits = supervisorAudits(bundle);
+  const required = bundle.required || {};
+  const lastDecision = nonEmptyObject(snapshot.last_decision) || decisions[0] || null;
+  const runSummary = objectValue(snapshot.run_summary);
+  const openCount = numberOrNull(required.open_count);
+  const steps = [
+    {
+      title: "发现任务 run",
+      detail: runSummary && Object.keys(runSummary).length
+        ? `活跃=${numberText(runSummary.active)}，阻塞=${numberText(runSummary.blocked)}，续跑候选=${numberText(runSummary.continuation_candidates)}`
+        : "暂无运行汇总",
+      status: snapshot.status || "unavailable",
+      badge: snapshot.status ? supervisorStatusLabel(snapshot.status) : "不可用",
+    },
+    {
+      title: "检查服务",
+      detail: services.length ? `${services.length} 个服务返回健康记录` : "暂无服务记录",
+      status: services.length ? servicesStatus(services) : "unavailable",
+      badge: services.length ? supervisorStatusLabel(servicesStatus(services)) : "不可用",
+    },
+    {
+      title: "执行控制动作",
+      detail: lastDecision ? text(lastDecision.summary || lastDecision.reason || lastDecision.decision_id) : "暂无最近决策",
+      status: lastDecision ? lastDecision.action || "available" : "unavailable",
+      badge: lastDecision ? supervisorActionLabel(lastDecision.action) : "暂无数据",
+    },
+    {
+      title: "消费 Auditor",
+      detail: audits.length ? text(audits[0].direction_reason || audits[0].recommended_next_focus || audits[0].run_id) : "暂无 Auditor 控制输入",
+      status: audits.length ? audits[0].verdict || audits[0].status : "unavailable",
+      badge: audits.length ? auditVerdictLabel(audits[0].verdict) : "不可用",
+    },
+    {
+      title: "升级决策",
+      detail: openCount && openCount > 0
+        ? `${openCount} 条 open 人工决策`
+        : attempts.length ? `${attempts.length} 条恢复尝试记录` : "暂无失败升级记录",
+      status: openCount && openCount > 0 ? "blocked" : attempts.length ? "available" : "unavailable",
+      badge: openCount && openCount > 0 ? "需要用户决策" : attempts.length ? "已记录" : "未启用",
+    },
+  ];
+
+  const flow = el("div", "supervisor-flow");
+  steps.forEach((step) => {
+    const node = el("article", `supervisor-flow-step ${supervisorBoxStatusClass(step.status)}`);
+    node.append(el("h3", "", step.title), el("p", "", step.detail), supervisorChip(step.badge, step.status));
+    flow.append(node);
+  });
+  return supervisorSection("Supervisor 控制流", [flow]);
+}
+
+function renderSupervisorServiceDecisionGrid(bundle) {
+  const grid = el("section", "supervisor-split");
+  grid.append(renderSupervisorServices(bundle), renderSupervisorDecisionLog(bundle));
+  return grid;
+}
+
+function renderSupervisorServices(bundle) {
+  const services = supervisorServices(bundle);
+  if (!services.length) {
+    return supervisorSection("服务保活", [empty("暂无服务保活数据")]);
+  }
+  const list = el("div", "supervisor-list");
+  services.forEach((service) => list.append(renderSupervisorServiceRow(service)));
+  return supervisorSection("服务保活", [list]);
+}
+
+function renderSupervisorServiceRow(service) {
+  const version = serviceVersionLabel(service);
+  const row = supervisorListItem(
+    serviceNameLabel(service.service),
+    `${serviceReachableLabel(service)} · ${version.label}`,
+    serviceBadgeStatus(service, version),
+    serviceEvidence(service),
+  );
+  row.classList.add("supervisor-service-row");
+  return row;
+}
+
+function renderSupervisorDecisionLog(bundle) {
+  const decisions = supervisorDecisions(bundle);
+  if (!decisions.length) {
+    return supervisorSection("最近全局决策", [empty("暂无全局决策记录")]);
+  }
+  const list = el("div", "supervisor-decision-log");
+  decisions.slice(0, 6).forEach((decision) => {
+    const item = el("article", "supervisor-decision");
+    item.append(
+      el("span", "supervisor-decision-time", formatTime(decision.created_at || decision.recorded_at || decision.updated_at)),
+      el(
+        "span",
+        "supervisor-decision-text",
+        `${supervisorActionLabel(decision.action)}：${text(decision.summary || decision.reason || decision.classification || decision.decision_id)}`,
+      ),
+    );
+    const meta = [
+      decision.run_id ? `run：${decision.run_id}` : "",
+      decision.classification ? `分类=${supervisorClassificationLabel(decision.classification)}` : "",
+      decision.decision_id ? `decision：${decision.decision_id}` : "",
+    ].filter(Boolean);
+    if (meta.length) {
+      item.append(el("span", "supervisor-decision-meta", meta.join(" · ")));
+    }
+    list.append(item);
+  });
+  return supervisorSection("最近全局决策", [list]);
+}
+
+function renderSupervisorOperationalGrid(bundle) {
+  const grid = el("section", "supervisor-triple");
+  grid.append(
+    renderSupervisorFreshness(bundle),
+    renderSupervisorContinuation(bundle),
+    renderSupervisorRecovery(bundle),
+  );
+  return grid;
+}
+
+function renderSupervisorFreshness(bundle) {
+  const targets = supervisorFreshnessTargets(supervisorServices(bundle));
+  if (!targets.length) {
+    return supervisorSection("数据新鲜度目标", [empty("暂无 freshness target")]);
+  }
+  const list = el("div", "supervisor-list");
+  targets.forEach((target) => {
+    const details = [
+      target.service ? `服务：${serviceNameLabel(target.service)}` : "",
+      target.target_id ? `target_id：${target.target_id}` : "",
+      target.checks.length ? `检查：${target.checks.join("、")}` : "",
+      target.verified_at ? `验证：${formatTime(target.verified_at)}` : "",
+    ].filter(Boolean);
+    list.append(supervisorListItem(target.target_id || serviceNameLabel(target.service), freshnessStatusLabel(target.status), target.status, details));
+  });
+  return supervisorSection("数据新鲜度目标", [list]);
+}
+
+function renderSupervisorContinuation(bundle) {
+  const plans = supervisorPlans(bundle);
+  if (!plans.length) {
+    return supervisorSection("续跑幂等", [empty("暂无续跑计划")]);
+  }
+  const list = el("div", "supervisor-list");
+  plans.slice(0, 6).forEach((plan) => {
+    const details = [
+      plan.previous_run_id ? `上一个 run：${plan.previous_run_id}` : "",
+      plan.next_run_id ? `下一个 run：${plan.next_run_id}` : "",
+      plan.created_at ? `创建：${formatTime(plan.created_at)}` : "",
+      plan.idempotency_key ? `idempotency_key：${plan.idempotency_key}` : "",
+      plan.idempotency_key ? "幂等：已有 idempotency_key 时不会重复创建 continuation。" : "",
+    ].filter(Boolean);
+    list.append(supervisorListItem(plan.plan_id || plan.next_run_id || "续跑计划", text(plan.status, "暂无数据"), plan.status, details));
+  });
+  return supervisorSection("续跑幂等", [list]);
+}
+
+function renderSupervisorRecovery(bundle) {
+  const attempts = supervisorAttempts(bundle);
+  const maxFailures = numberOrNull(objectValue(supervisorSnapshot(bundle).failure_summary).max_consecutive_failures);
+  if (!attempts.length) {
+    return supervisorSection("失败升级", [empty("暂无恢复历史")]);
+  }
+  const list = el("div", "supervisor-list");
+  attempts.slice(0, 6).forEach((attempt) => {
+    const count = numberOrNull(attempt.consecutive_failure_count);
+    const max = numberOrNull(attempt.max_consecutive_failures) || maxFailures;
+    const ratio = count === null || max === null ? "暂无数据" : `${count} / ${max}`;
+    const details = [
+      attempt.failure_key ? `failure_key：${attempt.failure_key}` : "",
+      attempt.run_id ? `run：${attempt.run_id}` : "范围：project",
+      attempt.action ? `动作：${supervisorActionLabel(attempt.action)}` : "",
+      attempt.summary ? `摘要：${attempt.summary}` : "",
+      attempt.recorded_at || attempt.finished_at || attempt.started_at ? `时间：${formatTime(attempt.recorded_at || attempt.finished_at || attempt.started_at)}` : "",
+    ].filter(Boolean);
+    list.append(supervisorListItem(attempt.failure_key || attempt.attempt_id || "recovery attempt", ratio, attempt.status, details));
+  });
+  return supervisorSection("失败升级", [list]);
+}
+
+function renderSupervisorAuditorDecisionGrid(bundle) {
+  const grid = el("section", "supervisor-split");
+  grid.append(renderSupervisorAuditor(bundle), renderSupervisorUserDecisions(bundle));
+  return grid;
+}
+
+function renderSupervisorAuditor(bundle) {
+  const audits = supervisorAudits(bundle);
+  if (!audits.length) {
+    return supervisorSection("Auditor 控制输入", [empty("暂无 Auditor 控制输入")]);
+  }
+  const list = el("div", "supervisor-list");
+  audits.slice(0, 5).forEach((audit) => {
+    const details = [
+      audit.run_id ? `run：${audit.run_id}` : "",
+      audit.direction_action ? `控制动作：${supervisorActionLabel(audit.direction_action)}` : "",
+      audit.direction_reason ? `原因：${audit.direction_reason}` : "",
+      audit.recommended_next_focus ? `下一焦点：${audit.recommended_next_focus}` : "",
+      audit.cadence ? `cadence：${listText(audit.cadence)}` : "",
+      audit.latest_report_path ? `产物：${audit.latest_report_path}` : "",
+      "边界：Supervisor 只消费 Auditor 结论，不自行判断任务质量。",
+    ].filter(Boolean);
+    list.append(supervisorListItem(audit.run_id || audit.latest_report_path || "Auditor", auditVerdictLabel(audit.verdict), audit.verdict, details));
+  });
+  return supervisorSection("Auditor 控制输入", [list]);
+}
+
+function renderSupervisorUserDecisions(bundle) {
+  const required = bundle.required || {};
+  const decisions = arrayValue(required.decisions);
+  const openCount = numberOrNull(required.open_count);
+  const heading = openCount === null ? "open 决策：不可用" : `open 决策：${openCount}`;
+  if (!decisions.length) {
+    return supervisorSection("人工决策队列", [
+      supervisorListItem("open 决策", heading, openCount && openCount > 0 ? "blocked" : required.status, [
+        required.status === "unavailable" ? "暂无 needs-user-decisions 数据" : "暂无 open 决策",
+      ]),
+    ]);
+  }
+  const list = el("div", "supervisor-list");
+  decisions.slice(0, 6).forEach((decision) => {
+    const details = [
+      decision.reason ? `原因：${decision.reason}` : "",
+      decision.failure_key ? `failure_key：${decision.failure_key}` : "",
+      decision.required_user_decision ? `需要用户决定：${decision.required_user_decision}` : "",
+      decision.summary ? `摘要：${decision.summary}` : "",
+      decision.opened_at ? `打开：${formatTime(decision.opened_at)}` : "",
+    ].filter(Boolean);
+    list.append(supervisorListItem(decision.decision_id || decision.failure_key || "user decision", text(decision.status, "open"), decision.status || "blocked", details));
+  });
+  return supervisorSection("人工决策队列", [list]);
+}
+
+function renderSupervisorConfig(bundle) {
+  const snapshot = supervisorSnapshot(bundle);
+  const services = bundle.services || {};
+  const decisions = bundle.decisions || {};
+  const rows = [
+    ["模式", snapshot.mode ? text(snapshot.mode) : "未启用"],
+    ["Watch 间隔", numberOrNull(snapshot.watch_interval_seconds) === null ? "不可用" : `${snapshot.watch_interval_seconds}s`],
+    ["最近心跳", snapshot.last_heartbeat_at ? formatTime(snapshot.last_heartbeat_at) : "暂无数据"],
+    ["最近 tick", snapshot.last_tick_at ? formatTime(snapshot.last_tick_at) : "暂无数据"],
+    ["服务检查", services.checked_at ? formatTime(services.checked_at) : "暂无数据"],
+    ["状态产物", text((bundle.summary || {}).artifact_path, "不可用")],
+    ["决策计数", decisions.counts ? `decisions=${numberText(decisions.counts.decisions_total)}，plans=${numberText(decisions.counts.continuation_plans_total)}` : "暂无数据"],
+  ];
+  const grid = el("div", "supervisor-config-grid");
+  rows.forEach(([label, value]) => grid.append(infoRow(label, value)));
+  return supervisorSection("配置", [grid]);
+}
+
+function renderSupervisorDiagnostics(bundle) {
+  const diagnostics = Object.values(bundle || {}).flatMap((payload) => arrayValue(payload && payload.diagnostics));
+  if (!diagnostics.length) {
+    return null;
+  }
+  const list = el("div", "supervisor-list");
+  diagnostics.slice(0, 8).forEach((diagnostic) => {
+    list.append(supervisorListItem(text(diagnostic.source, "诊断"), text(diagnostic.status, "不可用"), diagnostic.status, [
+      text(diagnostic.message, "暂无数据"),
+    ]));
+  });
+  return supervisorSection("Supervisor 诊断", [list]);
+}
+
+function supervisorSection(title, children) {
+  const section = el("section", "supervisor-section");
+  section.append(el("h2", "supervisor-section-title", title), ...children);
+  return section;
+}
+
+function supervisorMetric(label, value, note) {
+  const item = el("div", "supervisor-metric");
+  item.append(
+    el("span", "supervisor-metric-label", label),
+    el("span", "supervisor-metric-value", text(value, "暂无数据")),
+    el("span", "supervisor-metric-note", text(note, "暂无数据")),
+  );
+  return item;
+}
+
+function supervisorChip(label, status) {
+  return el("span", `badge ${supervisorStatusClass(status)}`, text(label, "暂无数据"));
+}
+
+function supervisorListItem(title, badgeText, badgeStatus, details) {
+  const item = el("article", "supervisor-list-item");
+  const row = el("div", "supervisor-row");
+  row.append(el("span", "supervisor-row-title", text(title, "暂无数据")), supervisorChip(badgeText, badgeStatus));
+  item.append(row);
+  const detailWrap = el("div", "supervisor-row-detail");
+  const normalized = normalizeList(details);
+  if (!normalized.length) {
+    detailWrap.append(el("span", "supervisor-detail-chip", "暂无数据"));
+  } else {
+    normalized.forEach((detail) => detailWrap.append(el("span", "supervisor-detail-chip", detail)));
+  }
+  item.append(detailWrap);
+  return item;
+}
+
+function supervisorSnapshot(bundle) {
+  return objectValue(bundle && bundle.summary && bundle.summary.state);
+}
+
+function supervisorServices(bundle) {
+  return arrayValue(bundle && bundle.services && bundle.services.services);
+}
+
+function supervisorDecisions(bundle) {
+  return arrayValue(bundle && bundle.decisions && bundle.decisions.decisions);
+}
+
+function supervisorPlans(bundle) {
+  return arrayValue(bundle && bundle.decisions && bundle.decisions.continuation_plans);
+}
+
+function supervisorAttempts(bundle) {
+  return arrayValue(bundle && bundle.recovery && bundle.recovery.attempts);
+}
+
+function supervisorAudits(bundle) {
+  return arrayValue(bundle && bundle.auditor && bundle.auditor.audits);
+}
+
+function objectValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function nonEmptyObject(value) {
+  const normalized = objectValue(value);
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+function arrayValue(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function numberText(value) {
+  const number = numberOrNull(value);
+  return number === null ? "暂无数据" : String(number);
+}
+
+function supervisorStatusLabel(status) {
+  const normalized = text(status, "unavailable");
+  return SUPERVISOR_STATUS_LABELS[normalized] || text(normalized, "不可用");
+}
+
+function supervisorActionLabel(action) {
+  const normalized = text(action, "");
+  return SUPERVISOR_ACTION_LABELS[normalized] || ACTION_LABELS[normalized] || text(normalized, "暂无数据");
+}
+
+function supervisorClassificationLabel(classification) {
+  const normalized = text(classification, "");
+  return SUPERVISOR_CLASSIFICATION_LABELS[normalized] || text(normalized, "暂无数据");
+}
+
+function supervisorStatusClass(status) {
+  const normalized = text(status, "unavailable").toLowerCase();
+  if (["healthy", "available", "pass", "passed"].includes(normalized)) {
+    return "status-done";
+  }
+  if (["degraded", "planned", "created", "observe", "continue", "running", "pending", "resume", "restart_service", "create_continuation"].includes(normalized)) {
+    return "status-running";
+  }
+  if (["blocked", "stopped", "stop", "fail", "failed", "invalid_artifact", "must_fix", "request_user_decision", "open"].includes(normalized)) {
+    return "status-blocked";
+  }
+  return "status-waiting";
+}
+
+function supervisorBoxStatusClass(status) {
+  const badgeClass = supervisorStatusClass(status);
+  if (badgeClass === "status-done") {
+    return "is-done";
+  }
+  if (badgeClass === "status-running") {
+    return "is-running";
+  }
+  if (badgeClass === "status-blocked") {
+    return "is-blocked";
+  }
+  return "is-waiting";
+}
+
+function servicesStatus(services) {
+  if (!services.length) {
+    return "unavailable";
+  }
+  if (services.some((service) => ["blocked", "invalid_artifact"].includes(text(service.status, "")))) {
+    return "blocked";
+  }
+  if (services.every((service) => text(service.status, "") === "healthy")) {
+    return "healthy";
+  }
+  return "degraded";
+}
+
+function serviceNameLabel(service) {
+  const labels = {
+    "crawler-backend": "Crawler Backend",
+    "crawler-frontend": "Crawler Frontend",
+    "loop-dashboard": "Loop Dashboard",
+    "loop-auto-resume": "loop-auto-resume",
+  };
+  return labels[service] || text(service, "未知服务");
+}
+
+function serviceReachableLabel(service) {
+  if (service.reachable === true) {
+    return "端点可达";
+  }
+  if (service.reachable === false) {
+    return "端点不可达";
+  }
+  if (service.kind === "tmux") {
+    return service.tmux_session_exists === true ? "tmux 存活" : service.tmux_session_exists === false ? "tmux 不存在" : "tmux 不可用";
+  }
+  return "端点不可用";
+}
+
+function serviceVersionLabel(service) {
+  const version = objectValue(service.running_version);
+  if (!Object.keys(version).length) {
+    return { label: "版本不可用", status: "unavailable" };
+  }
+  if (version.matches_expected === true) {
+    return { label: "版本匹配", status: "healthy" };
+  }
+  if (version.matches_expected === false) {
+    return { label: "版本不匹配", status: "degraded" };
+  }
+  return { label: "版本不可用", status: "unavailable" };
+}
+
+function serviceBadgeStatus(service, version) {
+  const serviceStatus = text(service.status, "");
+  if (service.reachable === false || ["blocked", "invalid_artifact"].includes(serviceStatus)) {
+    return "blocked";
+  }
+  if (serviceStatus === "degraded" || version.status === "degraded") {
+    return "degraded";
+  }
+  return version.status;
+}
+
+function serviceTmuxEvidence(service) {
+  if (!service.tmux_session) {
+    return "tmux：未启用";
+  }
+  if (service.tmux_session_exists === true) {
+    return `tmux：${service.tmux_session} 存活`;
+  }
+  if (service.tmux_session_exists === false) {
+    return `tmux：${service.tmux_session} 不存在`;
+  }
+  return `tmux：${service.tmux_session} 状态不可用`;
+}
+
+function serviceEvidence(service) {
+  const version = objectValue(service.running_version);
+  const freshness = objectValue(service.data_freshness);
+  return [
+    service.expected_endpoint ? `端点：${service.expected_endpoint}` : "",
+    serviceTmuxEvidence(service),
+    version.runtime_metadata_path ? `runtime：${version.runtime_metadata_path}` : "runtime：不可用",
+    version.git_head || version.origin_main ? `版本：git_head=${text(version.git_head, "不可用")} · origin=${text(version.origin_main, "不可用")}` : "",
+    freshnessStatusLabel(freshness.status) !== "暂无 freshness target" ? `新鲜度：${freshnessStatusLabel(freshness.status)}` : "新鲜度：暂无 freshness target",
+    freshness.target_id ? `target_id：${freshness.target_id}` : "",
+    service.last_checked_at ? `检查：${formatTime(service.last_checked_at)}` : "",
+    service.last_restart_at ? `最近重启：${formatTime(service.last_restart_at)}` : "",
+    service.last_error ? `错误：${service.last_error}` : "",
+  ].filter(Boolean);
+}
+
+function supervisorVersionSummary(services) {
+  const versions = services.map((service) => objectValue(service.running_version)).filter((version) => Object.keys(version).length);
+  if (!services.length) {
+    return { value: "不可用", note: "暂无服务版本数据" };
+  }
+  if (!versions.length) {
+    return { value: "不可用", note: "所有服务缺少 runtime metadata" };
+  }
+  const matched = versions.filter((version) => version.matches_expected === true).length;
+  const unavailable = services.length - versions.length;
+  const note = unavailable > 0 ? `${unavailable} 个服务缺少 runtime metadata` : "按 running_version.matches_expected 统计";
+  return { value: `${matched} / ${services.length}`, note };
+}
+
+function supervisorFreshnessTargets(services) {
+  return services.map((service) => {
+    const freshness = objectValue(service.data_freshness);
+    const checks = normalizeList(freshness.checks);
+    return {
+      service: service.service,
+      status: freshness.status,
+      target_id: freshness.target_id,
+      checks,
+      verified_at: freshness.verified_at,
+    };
+  }).filter((target) => target.status || target.target_id || target.checks.length);
+}
+
+function supervisorFreshnessSummary(services) {
+  const targets = supervisorFreshnessTargets(services);
+  if (!targets.length) {
+    return { value: "暂无 freshness target", note: "暂无绑定 target、commit 或检查记录" };
+  }
+  const pass = targets.filter((target) => target.status === "pass").length;
+  const fail = targets.filter((target) => target.status === "fail").length;
+  const unavailable = targets.filter((target) => !target.status || target.status === "not_applicable").length;
+  if (fail) {
+    return { value: `${fail} 个失败`, note: targets.map((target) => target.target_id).filter(Boolean).join("；") || "查看服务行详情" };
+  }
+  if (pass) {
+    return { value: `${pass} 个通过`, note: targets.map((target) => target.target_id).filter(Boolean).join("；") || "绑定服务新鲜度记录" };
+  }
+  return { value: "不可用", note: `${unavailable} 个 target 未启用或不适用` };
+}
+
+function freshnessStatusLabel(status) {
+  const labels = {
+    pass: "通过",
+    fail: "失败",
+    not_applicable: "不适用",
+  };
+  return labels[status] || "暂无 freshness target";
 }
 
 function renderRunLists() {
