@@ -13,6 +13,7 @@ from scripts.harness_loop_supervisor import (
     run_supervisor_once,
 )
 from scripts.harness_loop_supervisor_state import read_jsonl
+from scripts.harness_loop_supervisor_state import append_jsonl, make_failure_key, open_user_decision
 
 
 AI_INFRA_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
@@ -72,6 +73,36 @@ def seed_stopped_budget_autonomous_run(
         policy_file=AI_INFRA_POLICY_FILE,
         commit=git_head,
     )
+
+
+def seed_audit_report(project_root: Path, run_id: str, audit_id: str, verdict: str) -> Path:
+    report_path = project_root / ".codex" / "loop-runs" / run_id / "audit-reports" / f"{audit_id}.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "audit_id": audit_id,
+                "created_at": "2026-07-09T00:00:00Z",
+                "created_by": "test",
+                "verdict": verdict,
+                "deterministic_signals": {
+                    "artifact_path": f".codex/loop-runs/{run_id}/deterministic-signals.json",
+                    "artifact_sha256": "a" * 64,
+                    "summary": {},
+                    "git_head_sha": "abc123",
+                },
+                "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
+                "direction_control": {"action": "continue", "reason": "test verdict"},
+                "finding_lifecycle": {"open_findings": [], "closed_findings": []},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return report_path
 
 
 def seed_run(project_root: Path, run_id: str, **overrides: object) -> Path:
@@ -202,7 +233,7 @@ def test_git_command_failure_is_explicit_service_error(tmp_path, monkeypatch):
     assert "git command failed: rev-parse HEAD" in health["running_version"]["evidence"]
 
 
-def test_service_restart_failure_opens_user_decision(tmp_path, monkeypatch):
+def test_service_restart_failures_open_user_decision_after_retry_ceiling(tmp_path, monkeypatch):
     degraded_service = {
         "service": "loop-dashboard",
         "kind": "http_and_tmux",
@@ -230,16 +261,32 @@ def test_service_restart_failure_opens_user_decision(tmp_path, monkeypatch):
         raise RuntimeError("restart failed: tmux unavailable")
 
     monkeypatch.setattr("scripts.harness_loop_supervisor.restart_service", fail_restart)
+    config = SupervisorConfig(project_root=tmp_path, restart_services=True)
 
-    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, restart_services=True))
+    first = run_supervisor_once(config)
+    second = run_supervisor_once(config)
 
-    decisions = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
+    decisions_dir = tmp_path / ".codex" / "supervisor" / "needs-user-decisions"
+    attempts = read_jsonl(tmp_path / ".codex" / "supervisor" / "recovery-attempts.jsonl")
+    assert first["restart_results"][0]["status"] == "error"
+    assert first["restart_results"][0]["recovery_attempt"]["consecutive_failure_count"] == 1
+    assert second["restart_results"][0]["recovery_attempt"]["consecutive_failure_count"] == 2
+    assert first["failure_summary"]["open_failure_keys"] == 0
+    assert second["failure_summary"]["open_failure_keys"] == 0
+    assert len(attempts) == 2
+    assert not decisions_dir.exists()
+
+    result = run_supervisor_once(config)
+
+    decisions = sorted(decisions_dir.glob("*.json"))
     assert result["restart_results"][0]["status"] == "error"
+    assert result["restart_results"][0]["recovery_attempt"]["consecutive_failure_count"] == 3
     assert result["failure_summary"]["open_failure_keys"] == 1
     assert len(decisions) == 1
     decision = json.loads(decisions[0].read_text(encoding="utf-8"))
-    assert decision["reason"] == "service_unrecoverable"
+    assert decision["reason"] == "retry_ceiling_exceeded"
     assert decision["failure_key"] == "service_down:project:loop-dashboard:restart-failed"
+    assert "service_unrecoverable" in decision["attempts"][-1]["summary"]
 
 
 def test_dry_run_passes_dry_run_to_auto_resume(tmp_path, monkeypatch):
@@ -335,3 +382,97 @@ def test_classify_run_marks_auditor_stop_as_user_decision(tmp_path):
     assert classification["classification"] == "needs_user_decision"
     assert classification["action"] == "request_user_decision"
     assert classification["reason"] == "auditor_stop"
+
+
+def test_run_supervisor_once_loads_latest_auditor_stop_and_blocks_continuation(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "audit-stop")
+    seed_audit_report(tmp_path, "audit-stop", "audit-001", "pass")
+    latest_report = seed_audit_report(tmp_path, "audit-stop", "audit-002", "stop")
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    user_decisions = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
+    assert result["run_summary"]["continuation_candidates"] == 0
+    assert result["run_summary"]["needs_user_decision"] == 1
+    assert plans == []
+    assert decisions[-1]["run_id"] == "audit-stop"
+    assert decisions[-1]["auditor_verdict"] == "stop"
+    assert decisions[-1]["action"] == "request_user_decision"
+    assert decisions[-1]["reason"] == "auditor_stop"
+    assert str(latest_report.relative_to(tmp_path)) in decisions[-1]["evidence_paths"]
+    assert len(user_decisions) == 1
+    assert json.loads(user_decisions[0].read_text(encoding="utf-8"))["reason"] == "auditor_stop"
+
+
+def test_stopped_budget_blocks_continuation_when_open_user_decision_exists(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "blocked-by-global-stop")
+    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "needs-human")
+    open_user_decision(
+        tmp_path,
+        reason="unsupported_state",
+        failure_key=failure_key,
+        summary="Existing open decision blocks autonomous continuation.",
+        required_user_decision="Resolve the existing decision before continuing.",
+        affected_runs=["existing-run"],
+        attempts=[],
+    )
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    decision_files = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
+    assert result["status"] == "blocked"
+    assert result["run_summary"]["continuation_candidates"] == 0
+    assert result["run_summary"]["needs_user_decision"] == 1
+    assert len(decision_files) == 1
+    assert len(plans) == 1
+    assert plans[0]["status"] == "blocked"
+    assert plans[0]["global_stop_result"]["status"] in {"blocked", "stop"}
+    assert plans[0]["global_stop_result"]["checked_conditions"][0]["condition"] == "open_user_decisions"
+    assert decisions[-1]["run_id"] == "blocked-by-global-stop"
+    assert decisions[-1]["action"] == "request_user_decision"
+    assert decisions[-1]["reason"] == "global_stop_open_user_decision"
+
+
+def test_existing_created_continuation_plan_records_observe_decision(tmp_path, monkeypatch):
+    seed_stopped_budget_autonomous_run(tmp_path, "already-created", parent_counter=14)
+    plans_path = tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl"
+    append_jsonl(
+        plans_path,
+        {
+            "schema_version": 1,
+            "plan_id": "continuation-already-created-001",
+            "idempotency_key": "autonomous_knowledge:ai_infra:already-created:parent-14:abc123",
+            "previous_run_id": "already-created",
+            "next_run_id": "already-created-continuation-001",
+            "domain": "ai_infra",
+            "policy_file": AI_INFRA_POLICY_FILE,
+            "previous_phase": "stopped_budget",
+            "previous_task_id": "already-created-parent-14",
+            "previous_commit": "abc123",
+            "parent_task_counter": 14,
+            "audit_cadence_state": {"unit": "parent_task", "interval": 2, "completed_since_last_audit": 0},
+            "global_stop_result": {"status": "continue", "checked_conditions": []},
+            "status": "created",
+            "created_run_path": ".codex/loop-runs/already-created-continuation-001/run.json",
+            "created_at": "2026-07-09T00:00:00Z",
+            "dry_run": False,
+        },
+    )
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    plans = read_jsonl(plans_path)
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    assert result["run_summary"]["continuation_candidates"] == 0
+    assert len(plans) == 1
+    assert decisions[-1]["run_id"] == "already-created"
+    assert decisions[-1]["classification"] == "continuation_candidate"
+    assert decisions[-1]["action"] == "observe"
+    assert decisions[-1]["reason"] == "continuation_already_created"
