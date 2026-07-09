@@ -208,6 +208,77 @@ def test_state_writers_reject_failure_keys_with_unknown_category(tmp_path):
         )
 
 
+def test_state_writers_reject_unnormalized_failure_key_segments(tmp_path):
+    bad_keys = [
+        "service_down:Project Root:crawler-backend:connection-refused",
+        "service_down:project:crawler_backend:connection-refused",
+        "service_down:project:crawler-backend:Connection Refused",
+        "service_down:project:crawler-backend:connection.refused",
+    ]
+
+    for failure_key in bad_keys:
+        with pytest.raises(ValueError, match="invalid failure_key"):
+            record_recovery_attempt(
+                tmp_path,
+                RecoveryAttemptInput(
+                    failure_key=failure_key,
+                    run_id="run-1",
+                    action="restart_service",
+                    status="fail",
+                    summary="bad key",
+                    evidence_paths=[],
+                ),
+            )
+
+        with pytest.raises(ValueError, match="invalid failure_key"):
+            open_user_decision(
+                tmp_path,
+                reason="unsupported_state",
+                failure_key=failure_key,
+                summary="bad key",
+                required_user_decision="Provide a normalized failure key.",
+                affected_runs=[],
+                attempts=[],
+            )
+
+
+@pytest.mark.parametrize(
+    ("run_summary", "failure_summary", "message"),
+    [
+        (
+            {"active": 0, "blocked": 0, "continuation_candidates": 0},
+            {"open_failure_keys": 0},
+            "run_summary.needs_user_decision",
+        ),
+        (
+            {"active": 0, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+            {},
+            "failure_summary.open_failure_keys",
+        ),
+        (
+            {"active": 0, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+            {"open_failure_keys": "zero"},
+            "failure_summary.open_failure_keys",
+        ),
+    ],
+)
+def test_build_supervisor_state_rejects_missing_or_invalid_required_summaries(
+    tmp_path, run_summary, failure_summary, message
+):
+    with pytest.raises(ValueError, match=message):
+        build_supervisor_state(
+            tmp_path,
+            mode="watch",
+            service_health={"crawler_backend": {"status": "healthy"}},
+            run_summary=run_summary,
+            failure_summary=failure_summary,
+            last_decision=None,
+            watch_interval_seconds=60,
+        )
+
+    assert not (tmp_path / ".codex" / "supervisor" / "supervisor-state.json").exists()
+
+
 def test_build_supervisor_state_persists_current_snapshot(tmp_path):
     state = build_supervisor_state(
         tmp_path,

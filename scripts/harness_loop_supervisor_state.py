@@ -21,6 +21,8 @@ ALLOWED_FAILURE_CATEGORIES = {
 }
 MAX_CONSECUTIVE_FAILURES = 3
 ALLOWED_RECOVERY_STATUSES = {"pass", "fail"}
+REQUIRED_RUN_SUMMARY_COUNTERS = ("active", "blocked", "continuation_candidates", "needs_user_decision")
+REQUIRED_FAILURE_SUMMARY_COUNTERS = ("open_failure_keys",)
 
 
 @dataclass(frozen=True)
@@ -201,9 +203,8 @@ def build_supervisor_state(
     project_root_path = Path(project_root)
     now = utc_now_iso()
     service_summary = _summarize_services(service_health)
-    failure_summary_payload = dict(failure_summary)
-    failure_summary_payload.setdefault("max_consecutive_failures", MAX_CONSECUTIVE_FAILURES)
-    run_summary_payload = dict(run_summary)
+    run_summary_payload = _validated_run_summary(run_summary)
+    failure_summary_payload = _validated_failure_summary(failure_summary)
     status = _supervisor_status(service_summary, run_summary_payload, failure_summary_payload)
     started_at = _existing_started_at(supervisor_dir(project_root_path) / "supervisor-state.json") or now
     state: dict[str, Any] = {
@@ -292,6 +293,40 @@ def _validate_failure_key(failure_key: str) -> None:
         raise ValueError(f"invalid failure_key: {failure_key}")
     if parts[0] not in ALLOWED_FAILURE_CATEGORIES:
         raise ValueError(f"unknown failure category: {parts[0]}")
+    for part in parts[1:]:
+        if part != normalize_error_class(part):
+            raise ValueError(f"invalid failure_key: {failure_key}")
+
+
+def _validated_run_summary(run_summary: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(run_summary)
+    for key in REQUIRED_RUN_SUMMARY_COUNTERS:
+        payload[key] = _required_non_negative_int(payload, f"run_summary.{key}")
+    return payload
+
+
+def _validated_failure_summary(failure_summary: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(failure_summary)
+    for key in REQUIRED_FAILURE_SUMMARY_COUNTERS:
+        payload[key] = _required_non_negative_int(payload, f"failure_summary.{key}")
+    if "max_consecutive_failures" in payload:
+        payload["max_consecutive_failures"] = _required_non_negative_int(
+            payload,
+            "failure_summary.max_consecutive_failures",
+        )
+    else:
+        payload["max_consecutive_failures"] = MAX_CONSECUTIVE_FAILURES
+    return payload
+
+
+def _required_non_negative_int(payload: Mapping[str, Any], field_path: str) -> int:
+    key = field_path.rsplit(".", 1)[-1]
+    if key not in payload:
+        raise ValueError(f"missing required {field_path}")
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"invalid required {field_path}: expected non-negative integer")
+    return value
 
 
 def _existing_started_at(path: Path) -> str | None:
