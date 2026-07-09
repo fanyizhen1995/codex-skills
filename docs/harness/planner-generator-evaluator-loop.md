@@ -125,6 +125,26 @@ enough: `running_version.freshness`, `runtime_metadata_path`, and `evidence`
 must show whether the running backend/frontend/dashboard processes match the
 intended repo version.
 
+Refresh service runtime metadata from the service startup context whenever a
+long-running process is started or restarted. The command writes the current
+PID, cwd, command, tmux session, port, and Git head for the named service:
+
+```bash
+python3 scripts/harness_loop_supervisor.py \
+  --project-root /home/fyz/codex-skills \
+  --write-service-runtime loop-dashboard \
+  --service-command "python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766" \
+  --service-host 0.0.0.0 \
+  --service-port 8766 \
+  --service-tmux-session loop-dashboard
+```
+
+Use the same pattern for `crawler-backend`, `crawler-frontend`, and
+`loop-auto-resume`, changing the service name, command, port, and tmux session
+to match the running process. Supervisor restart actions are intentionally
+allowlisted and do not fabricate runtime metadata; metadata must be written by
+the process startup path so version freshness remains evidence-backed.
+
 `loop-auto-resume` remains the lower-level recovery executor. Keep it running so
 Supervisor can delegate actionable loop phases to the existing resume path:
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -448,6 +449,48 @@ def restart_service(config: SupervisorConfig, tmux_session: str) -> dict[str, An
     if result.returncode != 0:
         raise RuntimeError(f"tmux restart failed for {tmux_session}: {result.stderr or result.stdout}")
     return {"session": tmux_session, "status": "started", "summary": "tmux session started from allowlist"}
+
+
+def write_service_runtime_metadata(
+    project_root: Path,
+    *,
+    service_name: str,
+    command: str,
+    host: str,
+    port: int | None,
+    tmux_session: str,
+    cwd: Path | None = None,
+    pid: int | None = None,
+) -> dict[str, Any]:
+    root = Path(project_root)
+    service_cwd = Path(cwd) if cwd is not None else root
+    runtime_path = root / ".codex" / "service-runtime" / f"{_safe_slug(service_name)}.json"
+    git_head = _git_head(service_cwd)
+    metadata = {
+        "schema_version": 1,
+        "service": service_name,
+        "tmux_session": tmux_session,
+        "pid": int(pid if pid is not None else os.getpid()),
+        "cwd": str(service_cwd),
+        "command": command,
+        "host": host,
+        "port": port,
+        "repo_root": str(root),
+        "git_head": git_head,
+        "origin_main": git_head,
+        "started_at": utc_now_iso(),
+        "config_fingerprint": _service_config_fingerprint(
+            service_name=service_name,
+            command=command,
+            host=host,
+            port=port,
+            tmux_session=tmux_session,
+            cwd=service_cwd,
+        ),
+        "runtime_metadata_path": _relative_to_repo(root, runtime_path),
+    }
+    _write_json(runtime_path, metadata)
+    return metadata
 
 
 def _classification_with_continuation_plan(
@@ -1019,6 +1062,27 @@ def _safe_slug(value: str) -> str:
     return normalized or "unknown"
 
 
+def _service_config_fingerprint(
+    *,
+    service_name: str,
+    command: str,
+    host: str,
+    port: int | None,
+    tmux_session: str,
+    cwd: Path,
+) -> str:
+    payload = {
+        "service": service_name,
+        "command": command,
+        "host": host,
+        "port": port,
+        "tmux_session": tmux_session,
+        "cwd": str(cwd),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return f"sha256:{hashlib.sha256(encoded.encode('utf-8')).hexdigest()}"
+
+
 def _unique_strings(values: list[str]) -> list[str]:
     unique: list[str] = []
     seen: set[str] = set()
@@ -1040,6 +1104,7 @@ def main(argv: list[str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--once", action="store_true")
     mode.add_argument("--watch", action="store_true")
+    mode.add_argument("--write-service-runtime", metavar="SERVICE")
     parser.add_argument("--interval-seconds", type=int, default=30)
     parser.add_argument("--max-ticks", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
@@ -1047,10 +1112,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-include-worktrees", dest="include_worktrees", action="store_false")
     parser.add_argument("--restart-services", action="store_true")
     parser.add_argument("--no-create-continuations", action="store_true")
+    parser.add_argument("--service-command", default="")
+    parser.add_argument("--service-host", default="127.0.0.1")
+    parser.add_argument("--service-port", type=int, default=None)
+    parser.add_argument("--service-tmux-session", default="")
+    parser.add_argument("--service-cwd", default="")
     args = parser.parse_args(argv)
 
+    project_root = Path(args.project_root)
+    if args.write_service_runtime:
+        if not args.service_command:
+            parser.error("--write-service-runtime requires --service-command")
+        metadata = write_service_runtime_metadata(
+            project_root,
+            service_name=args.write_service_runtime,
+            command=args.service_command,
+            host=args.service_host,
+            port=args.service_port,
+            tmux_session=args.service_tmux_session or args.write_service_runtime,
+            cwd=Path(args.service_cwd) if args.service_cwd else project_root,
+        )
+        _print_json(metadata)
+        return 0
+
     config = SupervisorConfig(
-        project_root=Path(args.project_root),
+        project_root=project_root,
         mode="watch" if args.watch else "once",
         watch_interval_seconds=args.interval_seconds,
         include_worktrees=args.include_worktrees,

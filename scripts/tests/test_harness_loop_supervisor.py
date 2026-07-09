@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ from scripts.harness_loop_supervisor import (
     discover_run_records,
     restart_service,
     run_supervisor_once,
+    write_service_runtime_metadata,
 )
 from scripts.harness_loop_supervisor_state import read_jsonl
 from scripts.harness_loop_supervisor_state import append_jsonl, make_failure_key, open_user_decision
@@ -197,6 +199,86 @@ def test_watch_mode_can_stop_after_max_ticks(tmp_path):
     assert state["mode"] == "watch"
     assert state["last_heartbeat_at"]
     assert state["last_tick_at"]
+
+
+def test_write_service_runtime_metadata_records_current_process_and_git_head(tmp_path, monkeypatch):
+    monkeypatch.setattr("scripts.harness_loop_supervisor._git_head", lambda cwd: "abc123")
+
+    metadata = write_service_runtime_metadata(
+        tmp_path,
+        service_name="loop-dashboard",
+        command="python3 -m uvicorn loop_dashboard.main:app",
+        host="127.0.0.1",
+        port=8766,
+        tmux_session="loop-dashboard",
+        cwd=tmp_path,
+    )
+
+    runtime_path = tmp_path / ".codex" / "service-runtime" / "loop-dashboard.json"
+    persisted = json.loads(runtime_path.read_text(encoding="utf-8"))
+    assert metadata["service"] == "loop-dashboard"
+    assert persisted["service"] == "loop-dashboard"
+    assert persisted["pid"] == os.getpid()
+    assert persisted["git_head"] == "abc123"
+    assert persisted["origin_main"] == "abc123"
+    assert persisted["runtime_metadata_path"] == ".codex/service-runtime/loop-dashboard.json"
+
+
+def test_write_service_runtime_cli_writes_metadata(tmp_path):
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(
+        ["git", "config", "user.email", "codex@example.invalid"],
+        cwd=tmp_path,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Codex"],
+        cwd=tmp_path,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    (tmp_path / "README.md").write_text("runtime metadata fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "test fixture"],
+        cwd=tmp_path,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/harness_loop_supervisor.py",
+            "--project-root",
+            str(tmp_path),
+            "--write-service-runtime",
+            "loop-dashboard",
+            "--service-command",
+            "python3 -m uvicorn loop_dashboard.main:app",
+            "--service-host",
+            "127.0.0.1",
+            "--service-port",
+            "8766",
+            "--service-tmux-session",
+            "loop-dashboard",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((tmp_path / ".codex" / "service-runtime" / "loop-dashboard.json").read_text(encoding="utf-8"))
+    assert payload["service"] == "loop-dashboard"
+    assert payload["port"] == 8766
 
 
 def test_run_supervisor_once_writes_required_artifacts(tmp_path, monkeypatch):
