@@ -12,6 +12,24 @@ The current mock is:
 
 The mock is a contract, not decorative art. Every visible claim in the mock must either be implemented from real Supervisor/Dashboard data or shown as explicitly unavailable. The implementation must not hard-code successful states in the frontend.
 
+## Completion Gate
+
+This task must ship a complete Supervisor slice, not a display-only placeholder. The implementation is incomplete unless all mock-visible Supervisor functions have production data, backend API exposure, frontend rendering, and automated verification.
+
+Minimum complete scope:
+
+- Supervisor runtime writes valid `.codex/supervisor/*` artifacts.
+- Dashboard reads those artifacts through backend APIs and renders the global Supervisor section outside the task run list.
+- Service health includes reachability, tmux state, runtime version evidence, and stale-version detection.
+- Crawler data freshness is target-specific and can fail honestly.
+- `stopped_budget` autonomous runs are classified idempotently and can produce continuation plans.
+- Retry ceiling and user-decision escalation are implemented from stable `failure_key` records.
+- Auditor decisions are consumed as control inputs without Supervisor inventing process-quality conclusions.
+- Browser evaluator proves the mock-visible states with fixtures and verifies missing data does not appear as green success.
+- Watch mode can run safely against the real project after fixture-backed tests pass.
+
+It is not acceptable to complete this task with only Dashboard panels, static fixture display, or API shells that do not have a Supervisor producer behind them. If implementation discovers a required mock-visible field is not feasible, the field must be removed from the mock/spec or shown as explicitly unavailable before the task can pass.
+
 ## Confirmed Decisions
 
 - Architecture choice: create an independent `scripts/harness_loop_supervisor.py` and reuse the existing `scripts/harness_loop_auto_resume.py` as a lower-level recovery primitive.
@@ -92,8 +110,9 @@ Required files:
 - `service-health.json`
 - `run-decisions.jsonl`
 - `recovery-attempts.jsonl`
-- `needs-user-decision.json`
+- `needs-user-decisions/<decision_id>.json`
 - `continuation-plans.jsonl`
+- `freshness-targets.jsonl`
 
 Dashboard may also expose these artifacts through a synthetic global section, but must not insert `loop-supervisor` into the task run list.
 
@@ -137,9 +156,57 @@ Required fields:
 }
 ```
 
+### `service-runtime/<service>.json`
+
+Each long-running service must write or be launched with a runtime metadata file under:
+
+`.codex/service-runtime/<service>.json`
+
+Required fields:
+
+```json
+{
+  "schema_version": 1,
+  "service": "crawler-backend",
+  "tmux_session": "personal-wiki-crawler-backend",
+  "pid": 12345,
+  "cwd": "/home/fyz/codex-skills/personal-wiki/apps/crawler_workbench/backend",
+  "command": "python3 -m uvicorn crawler_workbench.main:app --host 0.0.0.0 --port 8765",
+  "host": "0.0.0.0",
+  "port": 8765,
+  "repo_root": "/home/fyz/codex-skills",
+  "git_head": "79b0608",
+  "origin_main": "79b0608",
+  "started_at": "ISO-8601",
+  "config_fingerprint": "sha256 string"
+}
+```
+
+Supervisor must not infer "running latest" from repository `HEAD` alone. A service is latest only when all are true:
+
+- endpoint is reachable;
+- tmux session exists when expected;
+- runtime metadata exists and is fresh;
+- runtime `pid` is still alive;
+- runtime `cwd` is under the expected repo/worktree;
+- runtime `git_head` matches the expected head for that service;
+- runtime port matches the configured endpoint.
+
+If a service cannot yet emit runtime metadata, the UI must show version freshness as `不可用`, not `最新`.
+
 ### `service-health.json`
 
-Required fields per service:
+Required top-level shape:
+
+```json
+{
+  "schema_version": 1,
+  "checked_at": "ISO-8601",
+  "services": []
+}
+```
+
+Required fields per `services[]` item:
 
 ```json
 {
@@ -153,10 +220,12 @@ Required fields per service:
     "git_head": "79b0608",
     "origin_main": "79b0608",
     "matches_expected": true,
+    "runtime_metadata_path": ".codex/service-runtime/crawler-backend.json",
     "evidence": "string"
   },
   "data_freshness": {
     "status": "pass | fail | not_applicable",
+    "target_id": "ai-infra-parent-14-atlas-300i-a2",
     "checks": ["search-api", "wiki-api", "frontend-visible"]
   },
   "last_checked_at": "ISO-8601",
@@ -164,6 +233,37 @@ Required fields per service:
   "last_error": ""
 }
 ```
+
+### `freshness-targets.jsonl`
+
+Crawler/search/wiki/frontend freshness must be target-specific. A green freshness state must be tied to a concrete recently changed source, commit, or run.
+
+Required fields:
+
+```json
+{
+  "target_id": "ai-infra-parent-14-atlas-300i-a2",
+  "source_run_id": "ai-infra-expansion-continuation-20260708",
+  "target_commit": "79b0608",
+  "domain": "ai_infra",
+  "wiki_paths": [
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md"
+  ],
+  "search_terms": ["Atlas 300I A2", "64 GB"],
+  "expected_frontend_text": ["Atlas 300I A2", "compute-accelerator-spec-catalog"],
+  "api_checks": [
+    {"kind": "wiki-page", "url": "http://127.0.0.1:8765/api/wiki/page", "status": "pass"},
+    {"kind": "search", "url": "http://127.0.0.1:8765/api/search", "status": "pass"}
+  ],
+  "frontend_checks": [
+    {"page": "knowledge-workbench", "status": "pass"}
+  ],
+  "status": "pass | fail | not_applicable",
+  "verified_at": "ISO-8601"
+}
+```
+
+If no freshness target exists after an ingest or commit, Dashboard must show `暂无 freshness target`, not `数据新鲜度：通过`.
 
 ### `run-decisions.jsonl`
 
@@ -188,6 +288,42 @@ One JSON object per Supervisor decision:
 }
 ```
 
+### `continuation-plans.jsonl`
+
+Continuation planning must be idempotent. Supervisor must not create more than one continuation for the same completed budget stop unless the previous continuation is explicitly closed or invalidated.
+
+Required fields:
+
+```json
+{
+  "schema_version": 1,
+  "plan_id": "continuation-ai-infra-expansion-continuation-20260708-001",
+  "idempotency_key": "autonomous_knowledge:ai_infra:ai-infra-expansion-continuation-20260708:parent-14:79b0608",
+  "previous_run_id": "ai-infra-expansion-continuation-20260708",
+  "next_run_id": "ai-infra-expansion-continuation-20260709-001",
+  "domain": "ai_infra",
+  "policy_file": "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+  "previous_phase": "stopped_budget",
+  "previous_task_id": "ai-infra-expansion-continuation-20260708-parent-14",
+  "previous_commit": "79b0608",
+  "parent_task_counter": 14,
+  "audit_cadence_state": {
+    "unit": "parent_task",
+    "interval": 2,
+    "completed_since_last_audit": 0
+  },
+  "global_stop_result": {
+    "status": "continue | stop",
+    "checked_conditions": []
+  },
+  "status": "planned | created | skipped | blocked",
+  "created_run_path": ".codex/loop-runs/ai-infra-expansion-continuation-20260709-001/run.json",
+  "created_at": "ISO-8601"
+}
+```
+
+Supervisor must check existing plans by `idempotency_key` before creating a new run. If a matching plan is already `created`, it records an `observe` decision instead of creating a duplicate run.
+
 ### `recovery-attempts.jsonl`
 
 One JSON object per restart/resume/recovery attempt:
@@ -195,7 +331,7 @@ One JSON object per restart/resume/recovery attempt:
 ```json
 {
   "attempt_id": "recovery-20260709-0001",
-  "failure_key": "dashboard_freshness_timeout",
+  "failure_key": "dashboard_visibility:ai-infra-expansion-continuation-20260708:loop-dashboard-freshness:timeout",
   "run_id": "ai-infra-expansion-continuation-20260708",
   "action": "resume_required_evidence",
   "status": "pass | fail",
@@ -208,15 +344,50 @@ One JSON object per restart/resume/recovery attempt:
 }
 ```
 
-### `needs-user-decision.json`
+### `failure_key` Normalization
 
-Written when automatic control must stop:
+`failure_key` is a stable grouping key used for retry ceilings. It must be deterministic and must survive Supervisor restarts.
+
+Format:
+
+`<category>:<scope_id>:<subject_id>:<normalized_error_class>`
+
+Examples:
+
+- `service_down:project:crawler-backend:connection_refused`
+- `stale_version:project:crawler-frontend:git_head_mismatch`
+- `dashboard_visibility:ai-infra-expansion-continuation-20260708:loop-dashboard-freshness:timeout`
+- `required_evidence:ai-infra-expansion-continuation-20260708:loop-dashboard-freshness:missing_pass_detail`
+- `dirty_path:ai-infra-expansion-continuation-20260708:personal-wiki/domains/ai_infra/raw:unexpected_path`
+- `auditor_stop:ai-infra-expansion-continuation-20260708:latest-audit:stop`
+
+Allowed categories:
+
+- `service_down`
+- `stale_version`
+- `data_freshness`
+- `dashboard_visibility`
+- `required_evidence`
+- `dirty_path`
+- `audit_blocked`
+- `auditor_stop`
+- `continuation_duplicate`
+- `unsupported_state`
+- `unsafe_secret`
+
+The retry counter groups by `(run_id or project, failure_key)`. Passing a recovery attempt resets only that exact key.
+
+### `needs-user-decisions/<decision_id>.json`
+
+Written when automatic control must stop. Multiple decisions may be open at once, so records are stored as one file per decision instead of one global object that can be overwritten.
 
 ```json
 {
+  "decision_id": "user-decision-20260709-0001",
   "status": "open",
   "opened_at": "ISO-8601",
   "reason": "retry_ceiling_exceeded | auditor_stop | unsafe_secret | unsupported_state | service_unrecoverable",
+  "failure_key": "dashboard_visibility:ai-infra-expansion-continuation-20260708:loop-dashboard-freshness:timeout",
   "summary": "string",
   "required_user_decision": "string",
   "attempts": [],
@@ -254,7 +425,7 @@ It ignores malformed run JSON only after recording an `invalid_run_json` event.
 Supervisor must not create a continuation if any condition is true:
 
 - Auditor verdict is `stop`.
-- `needs-user-decision.json` is open.
+- Any relevant `needs-user-decisions/*.json` record is open.
 - Same `failure_key` has reached three consecutive failures.
 - No actionable gap exists and the current run has `stopped_no_action`.
 - Remaining gaps require `needs_auth`, `needs_seed_url`, or `needs_human_judgement`.
@@ -306,16 +477,18 @@ If a field has no data, the UI must display `暂无数据`, `未启用`, or `不
 | `Supervisor 在线` | `supervisor-state.status`, heartbeat age | Supervisor | `/api/supervisor` | global supervisor header | backend state test, browser evaluator |
 | `最近同步` | `supervisor-state.last_tick_at` | Supervisor | `/api/supervisor` | top global section | backend parse test |
 | `在线服务 4/4` | `service_summary` | Supervisor | `/api/supervisor` | metrics | service fixture test |
-| service rows | `service-health.json.services[]` | Supervisor | `/api/supervisor/services` | service keepalive list | backend service health tests |
+| service rows | `service-health.json` `services[]` | Supervisor | `/api/supervisor/services` | service keepalive list | backend service health tests |
+| runtime metadata | `.codex/service-runtime/<service>.json` | service launcher / Supervisor restart | `/api/supervisor/services` | version freshness chip | pid/cwd/port/git-head tests |
 | running version latest | `running_version.matches_expected` | Supervisor | `/api/supervisor/services` | service row chip | stale-version unit test |
-| data freshness pass | `data_freshness.status` | Supervisor | `/api/supervisor/services` | metric + service row | crawler freshness tests |
+| data freshness pass | `freshness-targets.jsonl` + `data_freshness.status` | Supervisor | `/api/supervisor/services` | metric + service row | crawler freshness tests |
 | continuation candidate count | `run_summary.continuation_candidates` | Supervisor | `/api/supervisor` | metrics | stopped_budget classification test |
+| continuation plan | `continuation-plans.jsonl` with `idempotency_key` | Supervisor | `/api/supervisor/decisions` | continuation candidate detail | continuation idempotency tests |
 | failed recovery count | latest `recovery-attempts.jsonl` grouped by `failure_key` | Supervisor | `/api/supervisor/recovery` | failure escalation list | retry ceiling tests |
 | control flow | derived from latest tick phases | Supervisor | `/api/supervisor` | control flow cards | browser evaluator |
 | recent decisions | `run-decisions.jsonl` | Supervisor | `/api/supervisor/decisions` | decision log | decision parsing test |
 | Auditor conclusion | latest audit report summary | Auditor, consumed by Supervisor | `/api/supervisor/auditor` | auditor interaction | auditor consumption tests |
 | next audit cadence | run policy/audit cadence state | Orchestrator/Supervisor | `/api/supervisor/auditor` | auditor interaction | cadence fixture test |
-| user decision required | `needs-user-decision.json` | Supervisor | `/api/supervisor/decision-required` | top chip + tab | retry ceiling browser evaluator |
+| user decision required | `needs-user-decisions/*.json` | Supervisor | `/api/supervisor/decision-required` | top chip + tab | retry ceiling browser evaluator |
 | task run list excludes Supervisor | run list from loop runs only | Dashboard store | existing `/api/runs` | left task list | browser evaluator |
 | task run detail | existing run detail | Dashboard store | existing `/api/runs/<id>` | right detail | existing dashboard tests |
 
@@ -329,12 +502,13 @@ Add tests for:
 - malformed run JSON recording;
 - phase classification for `stopped_budget`, `stopped_blocked`, `audit_blocked`, active phases, and human merge gates;
 - retry counter grouping by `run_id + failure_key`;
-- retry ceiling writes `needs-user-decision.json`;
+- retry ceiling writes `needs-user-decisions/<decision_id>.json`;
 - service health success and failure states;
+- service runtime metadata validation for pid/cwd/port/git head;
 - stale version detection;
-- crawler data freshness pass/fail;
+- target-specific crawler data freshness pass/fail;
 - restart allowlist rejects arbitrary sessions;
-- autonomous continuation plan creation;
+- autonomous continuation plan creation and idempotency;
 - demand development human gate is not auto-continued;
 - Auditor `stop`, `must_fix`, `refocus`, and `continue` consumption;
 - Supervisor artifact schema validation.
@@ -357,7 +531,9 @@ Browser evaluator must simulate a user and verify:
 
 - Supervisor appears in a global section, not the task run list;
 - service health rows are visible and sourced from fixture artifacts;
+- stale version and unavailable version states are visible when fixture runtime metadata is stale or missing;
 - stopped_budget autonomous run appears as a task run and as a continuation candidate in Supervisor metrics;
+- duplicate continuation plans do not create duplicate Dashboard candidates;
 - failure escalation shows 0/3, 1/3, and needs-user-decision states from fixtures;
 - Auditor interaction displays `continue`, `must_fix`, and `stop` fixture states correctly;
 - task detail remains focused on Planner/Generator/Evaluator/Auditor/logs/artifacts for the selected run;
@@ -368,9 +544,9 @@ Browser evaluator must simulate a user and verify:
 For the real project:
 
 - Start or verify crawler backend, crawler frontend, Loop Dashboard, and Supervisor watch mode.
-- Stop one allowed tmux service in an isolated test and verify Supervisor restarts it.
+- Stop one isolated fake tmux service and verify Supervisor restarts it. Real crawler/dashboard services are only checked read-only during tests unless the user explicitly approves destructive service interruption.
 - Seed a `stopped_budget` autonomous fixture and verify Supervisor classifies it as a continuation candidate.
-- Seed a repeated failure fixture and verify the third failure creates `needs-user-decision.json`.
+- Seed a repeated failure fixture and verify the third failure creates `needs-user-decisions/<decision_id>.json`.
 - Verify Dashboard shows the global Supervisor section and still shows task runs separately.
 
 ## Non-Goals
