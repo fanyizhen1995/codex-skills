@@ -75,6 +75,48 @@ def _scenario_statuses(payload: dict) -> dict[str, str]:
 
 
 class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
+    def test_loop_supervisor_scenario_seeds_contract_artifacts_without_synthetic_run(self) -> None:
+        from scripts.loop_dashboard_evaluator import seed_loop_supervisor_fixture
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            seed_loop_supervisor_fixture(repo_root)
+
+            self.assertTrue((repo_root / ".codex" / "supervisor" / "supervisor-state.json").exists())
+            self.assertTrue((repo_root / ".codex" / "supervisor" / "service-health.json").exists())
+            self.assertTrue((repo_root / ".codex" / "supervisor" / "continuation-plans.jsonl").exists())
+            self.assertTrue((repo_root / ".codex" / "supervisor" / "needs-user-decisions" / "retry-ceiling.json").exists())
+            self.assertTrue((repo_root / ".codex" / "loop-runs" / "supervisor-autonomous-budget-run" / "run.json").exists())
+            self.assertFalse((repo_root / ".codex" / "loop-runs" / "loop-supervisor").exists())
+            self.assertFalse((repo_root / ".codex" / "loop-runs" / "supervisor").exists())
+
+    def test_loop_supervisor_scenario_contract_uses_scenario_entrypoint(self) -> None:
+        scenario_path = (
+            Path(__file__).resolve().parents[2]
+            / "docs"
+            / "harness"
+            / "evaluator-scenarios"
+            / "loop-supervisor-01.json"
+        )
+
+        payload = json.loads(scenario_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["task_id"], "loop-supervisor-01")
+        self.assertTrue(payload["must_simulate"])
+        self.assertTrue(payload["user_scenarios"])
+        for scenario in payload["user_scenarios"]:
+            self.assertIn("--scenario loop-supervisor-01", scenario["entrypoint"])
+        scenario_text = json.dumps(payload, ensure_ascii=False)
+        for expected in [
+            "全局 Supervisor 面板",
+            "服务行显示正常、版本不可用、版本过期",
+            "幂等键只出现一次",
+            "需要用户决策",
+            "Auditor 区分控制输入和质量判断",
+            "暂无数据/不可用",
+        ]:
+            self.assertIn(expected, scenario_text)
+
     def test_governance_evaluator_fails_when_required_artifacts_are_missing(self) -> None:
         from scripts.loop_dashboard_evaluator import run_governance_evaluator
 

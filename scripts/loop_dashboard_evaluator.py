@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -29,6 +30,8 @@ except ModuleNotFoundError:
 
 
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
+LOOP_SUPERVISOR_SCENARIO = "loop-supervisor-01"
+LOOP_SUPERVISOR_BROWSER_SCENARIO_ID = "LOOP-SUPERVISOR-BROWSER-E2E"
 GOVERNANCE_TASK_ID = "ai-infra-loop-governance-dev-01"
 GOVERNANCE_PARENT_RUN_ID = "ai-infra-loop-governance-dev"
 GOVERNANCE_EXPANSION_RUN_ID = "ai-infra-expansion-2026-07-07-r10"
@@ -90,6 +93,11 @@ def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     output_dir = args.output_dir.resolve()
+    if args.scenario == LOOP_SUPERVISOR_SCENARIO:
+        return run_loop_supervisor_evaluator(repo_root, output_dir, port=args.port)
+    if args.scenario:
+        print(f"unsupported scenario: {args.scenario}", file=sys.stderr)
+        return 2
     if output_dir.name == GOVERNANCE_OUTPUT_DIR_NAME:
         return run_governance_evaluator(repo_root, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -156,7 +164,80 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--scenario", default="", help="Optional named evaluator scenario.")
     return parser.parse_args()
+
+
+def run_loop_supervisor_evaluator(repo_root: Path, output_dir: Path, *, port: int | None = None) -> int:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    selected_port = port if port is not None else find_free_port()
+    dashboard_url = f"http://127.0.0.1:{selected_port}"
+    server: subprocess.Popen[str] | None = None
+    fixture_root: Path | None = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="loop-supervisor-fixture-") as tmp:
+            fixture_root = Path(tmp)
+            seed_loop_supervisor_fixture(fixture_root)
+            server = start_dashboard(repo_root, fixture_root, selected_port)
+            wait_for_dashboard(dashboard_url, fixture_root, server=server)
+            api_evidence = verify_loop_supervisor_api(dashboard_url)
+            browser_evidence = run_loop_supervisor_browser_checks(dashboard_url, output_dir, fixture_root)
+            terminate_process(server)
+            server_output = collect_server_output(server)
+            server = None
+            result = {
+                "status": "pass",
+                "task_id": LOOP_SUPERVISOR_SCENARIO,
+                "scenario_id": LOOP_SUPERVISOR_BROWSER_SCENARIO_ID,
+                "summary": "浏览器模拟用户完成 Loop Supervisor 全局控制面验收场景。",
+                "scenario_results": [
+                    {
+                        "scenario_id": LOOP_SUPERVISOR_BROWSER_SCENARIO_ID,
+                        "status": "pass",
+                        "summary": "确认 Supervisor 面板、服务版本、续跑幂等、恢复升级、Auditor 控制输入和无数据降级状态。",
+                        "evidence": [
+                            "全局 Supervisor 面板可见",
+                            "任务运行列表不包含 Supervisor",
+                            "服务行显示正常、版本不可用、版本过期",
+                            "续跑候选和幂等键只出现一次",
+                            "显示需要用户决策",
+                            "Auditor 区分控制输入和质量判断",
+                            "删除 Supervisor artifacts 后显示暂无数据/不可用",
+                        ],
+                    }
+                ],
+                "checked": [
+                    "seeded supervisor state/service health/decision/recovery/auditor artifacts",
+                    "verified no synthetic loop-supervisor run in .codex/loop-runs",
+                    "verified browser-visible Supervisor contract from the mock",
+                ],
+                "rerun_commands": [
+                    "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-01 --scenario loop-supervisor-01"
+                ],
+                "dashboard_url": dashboard_url,
+                "project_root": str(fixture_root.resolve()),
+                "api_evidence": api_evidence,
+                "browser_evidence": browser_evidence,
+                "server_stdout": server_output["stdout"],
+                "server_stderr": server_output["stderr"],
+            }
+            write_json(output_dir / "result.json", result)
+            write_summary(output_dir / "summary.md", result)
+        return 0
+    except Exception as exc:
+        if server is not None:
+            terminate_process(server)
+        server_output = collect_server_output(server)
+        payload = failure_payload(exc, dashboard_url, fixture_root, server_output)
+        payload["task_id"] = LOOP_SUPERVISOR_SCENARIO
+        payload["scenario_id"] = LOOP_SUPERVISOR_BROWSER_SCENARIO_ID
+        payload["summary"] = "Loop Supervisor browser evaluator failed before completing scenario checks."
+        write_json(output_dir / "result.json", payload)
+        print(f"loop supervisor evaluator failed: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if server is not None:
+            terminate_process(server)
 
 
 def run_governance_evaluator(
@@ -685,6 +766,298 @@ def seed_fixture_project(project_root: Path) -> None:
     seed_project_skill_fixture(project_root)
     seed_rich_evaluator_result(project_root)
     seed_demand_multi_task_dashboard_fixture(project_root)
+
+
+def seed_loop_supervisor_fixture(project_root: Path) -> None:
+    supervisor_dir = project_root / ".codex" / "supervisor"
+    run_root = project_root / ".codex" / "loop-runs"
+    supervisor_dir.mkdir(parents=True, exist_ok=True)
+    write_json(
+        supervisor_dir / "supervisor-state.json",
+        {
+            "status": "healthy",
+            "mode": "watch",
+            "last_heartbeat_at": "2026-07-09T08:00:00Z",
+            "last_tick_at": "2026-07-09T08:00:30Z",
+            "watch_interval_seconds": 60,
+            "service_summary": {"total": 3, "healthy": 1, "degraded": 1, "unavailable": 1},
+            "run_summary": {
+                "active": 1,
+                "blocked": 1,
+                "stopped_budget": 1,
+                "continuation_candidates": 1,
+            },
+            "failure_summary": {"max_consecutive_failures": 3, "open_user_decisions": 1},
+            "last_decision": {
+                "decision_id": "decision-continuation-001",
+                "action": "create_continuation",
+                "classification": "continuation_candidate",
+                "summary": "supervisor-autonomous-budget-run 自动资料拓展预算耗尽，可创建下一轮。",
+            },
+        },
+    )
+    write_json(
+        supervisor_dir / "service-health.json",
+        {
+            "checked_at": "2026-07-09T08:00:30Z",
+            "services": [
+                {
+                    "service": "loop-dashboard",
+                    "status": "healthy",
+                    "reachable": True,
+                    "expected_endpoint": "http://127.0.0.1:8766/api/health",
+                    "tmux_session": "loop-dashboard",
+                    "tmux_session_exists": True,
+                    "running_version": {
+                        "runtime_metadata_path": ".codex/supervisor/runtime/loop-dashboard.json",
+                        "git_head": "abc1234",
+                        "origin_main": "abc1234",
+                        "matches_expected": True,
+                    },
+                    "data_freshness": {
+                        "status": "healthy",
+                        "target_id": "dashboard-api",
+                        "checks": ["health", "project-root"],
+                        "verified_at": "2026-07-09T08:00:20Z",
+                    },
+                    "last_checked_at": "2026-07-09T08:00:30Z",
+                },
+                {
+                    "service": "crawler-backend",
+                    "status": "degraded",
+                    "reachable": True,
+                    "expected_endpoint": "http://127.0.0.1:8765/api/health",
+                    "tmux_session": "personal-wiki-crawler-backend",
+                    "tmux_session_exists": True,
+                    "running_version": {},
+                    "data_freshness": {
+                        "status": "stale",
+                        "target_id": "crawler-health",
+                        "checks": ["health"],
+                        "verified_at": "2026-07-09T07:40:00Z",
+                    },
+                    "last_error": "runtime metadata missing for this service",
+                    "last_checked_at": "2026-07-09T08:00:30Z",
+                },
+                {
+                    "service": "crawler-frontend",
+                    "status": "degraded",
+                    "reachable": True,
+                    "expected_endpoint": "http://127.0.0.1:5173/",
+                    "tmux_session": "personal-wiki-crawler-frontend",
+                    "tmux_session_exists": True,
+                    "running_version": {
+                        "runtime_metadata_path": ".codex/supervisor/runtime/crawler-frontend.json",
+                        "git_head": "old1111",
+                        "origin_main": "new2222",
+                        "matches_expected": False,
+                    },
+                    "data_freshness": {
+                        "status": "stale",
+                        "target_id": "frontend-proxy",
+                        "checks": ["vite", "proxy"],
+                        "verified_at": "2026-07-09T07:30:00Z",
+                    },
+                    "last_checked_at": "2026-07-09T08:00:30Z",
+                },
+            ],
+        },
+    )
+    write_jsonl(
+        supervisor_dir / "run-decisions.jsonl",
+        [
+            {
+                "decision_id": "decision-continuation-001",
+                "created_at": "2026-07-09T08:00:31Z",
+                "run_id": "supervisor-autonomous-budget-run",
+                "action": "create_continuation",
+                "classification": "continuation_candidate",
+                "summary": "supervisor-autonomous-budget-run stopped_budget 后可创建下一轮。",
+            },
+            {
+                "decision_id": "decision-retry-ceiling-001",
+                "created_at": "2026-07-09T08:00:34Z",
+                "run_id": "supervisor-recovery-3",
+                "action": "request_user_decision",
+                "classification": "needs_user_decision",
+                "summary": "连续 3 / 3 次恢复失败，停止自动重试并请求用户决策。",
+            },
+        ],
+    )
+    write_jsonl(
+        supervisor_dir / "continuation-plans.jsonl",
+        [
+            {
+                "plan_id": "continuation-plan-budget-001",
+                "status": "created",
+                "previous_run_id": "supervisor-autonomous-budget-run",
+                "next_run_id": "supervisor-autonomous-budget-run-r2",
+                "idempotency_key": "resume:supervisor-autonomous-budget-run:stopped_budget",
+                "created_at": "2026-07-09T08:00:32Z",
+            },
+            {
+                "plan_id": "continuation-plan-budget-001-duplicate-suppressed",
+                "status": "duplicate_suppressed",
+                "previous_run_id": "supervisor-autonomous-budget-run",
+                "next_run_id": "supervisor-autonomous-budget-run-r2",
+                "created_at": "2026-07-09T08:00:33Z",
+                "summary": "duplicate continuation request suppressed by idempotency key",
+            },
+        ],
+    )
+    write_jsonl(
+        supervisor_dir / "recovery-attempts.jsonl",
+        [
+            {
+                "attempt_id": "recovery-0",
+                "failure_key": "crawler-backend-health",
+                "run_id": "supervisor-recovery-0",
+                "status": "planned",
+                "consecutive_failure_count": 0,
+                "max_consecutive_failures": 3,
+                "action": "restart_service",
+                "summary": "0 / 3，首次发现后准备重启服务。",
+                "recorded_at": "2026-07-09T08:00:10Z",
+            },
+            {
+                "attempt_id": "recovery-1",
+                "failure_key": "crawler-backend-health",
+                "run_id": "supervisor-recovery-1",
+                "status": "failed",
+                "consecutive_failure_count": 1,
+                "max_consecutive_failures": 3,
+                "action": "restart_service",
+                "summary": "1 / 3，重启后健康检查仍失败。",
+                "recorded_at": "2026-07-09T08:00:20Z",
+            },
+            {
+                "attempt_id": "recovery-3",
+                "failure_key": "crawler-backend-health",
+                "run_id": "supervisor-recovery-3",
+                "status": "blocked",
+                "consecutive_failure_count": 3,
+                "max_consecutive_failures": 3,
+                "action": "request_user_decision",
+                "summary": "3 / 3，达到恢复上限，需要用户决策。",
+                "recorded_at": "2026-07-09T08:00:40Z",
+            },
+        ],
+    )
+    write_json(
+        supervisor_dir / "needs-user-decisions" / "retry-ceiling.json",
+        {
+            "decision_id": "retry-ceiling",
+            "status": "open",
+            "reason": "retry_ceiling_exceeded",
+            "failure_key": "crawler-backend-health",
+            "required_user_decision": "Inspect the repeated recovery failure and choose the next action.",
+            "summary": "crawler-backend-health 连续 3 / 3 次恢复失败，Supervisor 已停止自动恢复。",
+            "opened_at": "2026-07-09T08:00:41Z",
+        },
+    )
+    seed_loop_supervisor_run(
+        run_root,
+        "supervisor-autonomous-budget-run",
+        "stopped_budget",
+        "自动资料拓展达到预算上限，Supervisor 应识别为续跑候选。",
+    )
+    seed_loop_supervisor_run(run_root, "supervisor-recovery-0", "stopped_blocked", "恢复计数 0 / 3 的测试运行。")
+    seed_loop_supervisor_run(run_root, "supervisor-recovery-1", "stopped_blocked", "恢复计数 1 / 3 的测试运行。")
+    seed_loop_supervisor_run(run_root, "supervisor-recovery-3", "stopped_blocked", "恢复计数 3 / 3 并打开用户决策。")
+    seed_loop_supervisor_auditor_run(run_root, "auditor-control-continue", "continue", "继续普通 loop。")
+    seed_loop_supervisor_auditor_run(run_root, "auditor-control-must-fix", "must_fix", "重复失败需要先整改。")
+    seed_loop_supervisor_auditor_run(run_root, "auditor-control-stop", "stop", "收益不足，建议停止。")
+
+
+def seed_loop_supervisor_run(run_root: Path, run_id: str, phase: str, requirement: str) -> None:
+    write_json(
+        run_root / run_id / "run.json",
+        {
+            "run_id": run_id,
+            "policy": "autonomous" if phase == "stopped_budget" else "demand_development",
+            "phase": phase,
+            "task_id": run_id,
+            "domain": "ai_infra",
+            "branch": "main",
+            "worktree": "",
+            "requirement": requirement,
+            "constraints": ["Supervisor fixture"],
+            "stop_conditions": ["stopped_budget", "stopped_blocked"],
+            "baseline_dirty_paths": [],
+            "allowed_paths": [],
+            "denylist_paths": [".env", ".codex/secrets"],
+            "attempts": {"planner": 1, "generator": 1, "evaluator": 1, "artifact_hygiene": 0, "cleanup": 0},
+            "limits": {"max_eval_attempts": 3},
+            "last_result": "budget_exhausted" if phase == "stopped_budget" else "blocked",
+            "next_action": "none",
+            "attempt_history": [],
+            "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
+            "reader_summary": {
+                "purpose": requirement,
+                "current_progress": "用于 Loop Supervisor evaluator fixture。",
+                "next_step": "等待 Supervisor 控制面决策。",
+                "decision_needed": "需要" if phase == "stopped_blocked" else "不需要",
+            },
+        },
+    )
+
+
+def seed_loop_supervisor_auditor_run(run_root: Path, run_id: str, verdict: str, reason: str) -> None:
+    seed_loop_supervisor_run(run_root, run_id, "stopped_blocked" if verdict in {"must_fix", "stop"} else "passed_waiting_human_merge", reason)
+    run_dir = run_root / run_id
+    write_json(
+        run_dir / "deterministic-signals.json",
+        {
+            "same_evaluator_finding_count": 2 if verdict == "must_fix" else 0,
+            "core_goal_progress_delta": 0 if verdict == "stop" else 1,
+        },
+    )
+    write_json(
+        run_dir / "audit-reports" / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "audit_id": "audit-001",
+            "created_by": "harness_loop_orchestrator",
+            "created_at": "2026-07-09T08:00:00Z",
+            "verdict": verdict,
+            "deterministic_signals": {
+                "artifact_path": f".codex/loop-runs/{run_id}/deterministic-signals.json",
+                "artifact_sha256": "fixture-sha256",
+                "summary": {
+                    "same_evaluator_finding_count": 2 if verdict == "must_fix" else 0,
+                    "core_goal_progress_delta": 0 if verdict == "stop" else 1,
+                },
+            },
+            "cadence": {"current_interval": 1, "steps_since_last_audit": 1, "next_interval_after_verdict": 2},
+            "direction_control": {
+                "action": "stop" if verdict == "stop" else "continue" if verdict == "continue" else "refocus",
+                "reason": reason,
+                "recommended_next_focus": f"Auditor quality judgment fixture for {run_id}",
+            },
+            "finding_lifecycle": {
+                "open_findings": [
+                    {
+                        "finding_id": f"{run_id}-finding",
+                        "severity": "must_fix" if verdict == "must_fix" else "should_fix",
+                        "title": "Auditor quality judgment fixture",
+                        "summary": "Auditor 负责质量判断，Supervisor 只消费控制输入。",
+                    }
+                ]
+                if verdict != "continue"
+                else [],
+                "closed_findings": [],
+            },
+        },
+    )
+
+
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+        encoding="utf-8",
+    )
 
 
 def ensure_fixture_git_repo(project_root: Path) -> None:
@@ -1561,6 +1934,137 @@ def read_error_detail(exc: urllib.error.HTTPError) -> object:
     return payload
 
 
+def verify_loop_supervisor_api(base_url: str) -> dict[str, Any]:
+    runs = read_json_url_list(f"{base_url}/api/runs")
+    run_ids = [str(run.get("run_id") or "") for run in runs if isinstance(run, dict)]
+    if "loop-supervisor" in run_ids or "supervisor" in run_ids:
+        raise AssertionError("Supervisor must not appear as a synthetic task run")
+    summary = read_json_url(f"{base_url}/api/supervisor")
+    services = read_json_url(f"{base_url}/api/supervisor/services")
+    decisions = read_json_url(f"{base_url}/api/supervisor/decisions")
+    recovery = read_json_url(f"{base_url}/api/supervisor/recovery")
+    required = read_json_url(f"{base_url}/api/supervisor/decision-required")
+    auditor = read_json_url(f"{base_url}/api/supervisor/auditor")
+    if summary.get("status") != "healthy":
+        raise AssertionError(f"Supervisor state should be healthy, got {summary.get('status')!r}")
+    if len(services.get("services") or []) != 3:
+        raise AssertionError("Supervisor services fixture should expose three service rows")
+    plans = decisions.get("continuation_plans") or []
+    if len(plans) != 2:
+        raise AssertionError("Supervisor continuation fixture should include original and duplicate-suppressed plans")
+    idempotency_keys = [plan.get("idempotency_key") for plan in plans if isinstance(plan, dict)]
+    if idempotency_keys.count("resume:supervisor-autonomous-budget-run:stopped_budget") != 1:
+        raise AssertionError("Supervisor fixture should expose one visible idempotency key after duplicate suppression")
+    attempts = recovery.get("attempts") or []
+    attempt_counts = sorted(item.get("consecutive_failure_count") for item in attempts if isinstance(item, dict))
+    if attempt_counts != [0, 1, 3]:
+        raise AssertionError(f"Supervisor recovery fixture should expose 0/3, 1/3, 3/3, got {attempt_counts!r}")
+    if required.get("open_count") != 1:
+        raise AssertionError(f"Supervisor fixture should expose one open user decision, got {required.get('open_count')!r}")
+    verdicts = {str(item.get("verdict") or "") for item in auditor.get("audits") or [] if isinstance(item, dict)}
+    if not {"continue", "must_fix", "stop"}.issubset(verdicts):
+        raise AssertionError(f"Supervisor auditor fixture should expose continue/must_fix/stop, got {sorted(verdicts)!r}")
+    return {
+        "run_ids": run_ids,
+        "service_count": len(services.get("services") or []),
+        "continuation_plan_count": len(plans),
+        "recovery_attempt_counts": attempt_counts,
+        "open_user_decisions": required.get("open_count"),
+        "auditor_verdicts": sorted(verdicts),
+    }
+
+
+def read_json_url_list(url: str) -> list[Any]:
+    with urllib.request.urlopen(url, timeout=1) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, list):
+        raise RuntimeError(f"unexpected JSON payload from {url}: {payload!r}")
+    return payload
+
+
+def run_loop_supervisor_browser_checks(dashboard_url: str, output_dir: Path, fixture_root: Path) -> dict[str, Any]:
+    try:
+        from playwright.sync_api import expect, sync_playwright
+    except ImportError as exc:
+        raise RuntimeError("Playwright for Python is not installed") from exc
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page(viewport={"width": 1280, "height": 960})
+        try:
+            page.goto(dashboard_url, wait_until="networkidle")
+            expect(page).to_have_title("Loop Dashboard")
+            supervisor_panel = page.get_by_test_id("supervisor-panel")
+            expect(supervisor_panel).to_be_visible()
+            expect(supervisor_panel).to_contain_text("全局 Agent：Loop Supervisor")
+            expect(supervisor_panel).to_contain_text("Supervisor 是项目级运行控制面")
+            expect(supervisor_panel).to_contain_text("Auditor 负责判断流程质量")
+            expect(supervisor_panel).to_contain_text("Supervisor 负责执行控制动作")
+
+            run_list = page.get_by_test_id("run-list")
+            expect(run_list).to_contain_text("supervisor-autonomous-budget-run")
+            run_ids = page.locator(".run-button").evaluate_all("buttons => buttons.map(button => button.dataset.runId)")
+            if "loop-supervisor" in run_ids or "supervisor" in run_ids:
+                raise AssertionError(f"Supervisor must not appear in task run buttons: {run_ids!r}")
+
+            expect(supervisor_panel).to_contain_text("Loop Dashboard")
+            expect(supervisor_panel).to_contain_text("端点可达 · 版本匹配")
+            expect(supervisor_panel).to_contain_text("Crawler Backend")
+            expect(supervisor_panel).to_contain_text("版本不可用")
+            expect(supervisor_panel).to_contain_text("runtime metadata missing for this service")
+            expect(supervisor_panel).to_contain_text("Crawler Frontend")
+            expect(supervisor_panel).to_contain_text("版本不匹配")
+
+            panel_text = supervisor_panel.inner_text()
+            if visible_text_count(panel_text, "分类=续跑候选") != 1:
+                raise AssertionError("continuation candidate classification should appear exactly once")
+            if visible_text_count(panel_text, "幂等键：resume:supervisor-autonomous-budget-run:stopped_budget") != 1:
+                raise AssertionError("deduplicated idempotency key should appear exactly once")
+            expect(supervisor_panel).to_contain_text("0 / 3")
+            expect(supervisor_panel).to_contain_text("1 / 3")
+            expect(supervisor_panel).to_contain_text("3 / 3")
+            expect(supervisor_panel).to_contain_text("需要用户决策")
+            expect(supervisor_panel).to_contain_text("人工决策：1 条待处理")
+            expect(supervisor_panel).to_contain_text("retry-ceiling")
+            expect(supervisor_panel).to_contain_text("同一问题连续恢复失败达到上限")
+
+            expect(supervisor_panel).to_contain_text("Auditor 控制输入")
+            expect(supervisor_panel).to_contain_text("继续")
+            expect(supervisor_panel).to_contain_text("必须整改")
+            expect(supervisor_panel).to_contain_text("停止")
+            expect(supervisor_panel).to_contain_text("边界：Supervisor 只消费 Auditor 结论，不自行判断任务质量。")
+            expect(supervisor_panel).to_contain_text("Auditor quality judgment fixture")
+
+            shutil.rmtree(fixture_root / ".codex" / "supervisor")
+            page.reload(wait_until="networkidle")
+            supervisor_panel = page.get_by_test_id("supervisor-panel")
+            expect(supervisor_panel).to_contain_text("全局 Agent：Loop Supervisor")
+            expect(supervisor_panel).to_contain_text("暂无数据")
+            expect(supervisor_panel).to_contain_text("不可用")
+            expect(supervisor_panel).not_to_contain_text("健康状态：运行正常")
+            expect(supervisor_panel).not_to_contain_text("端点可达 · 版本匹配")
+
+            screenshot_path = output_dir / "loop-supervisor-success.png"
+            page.screenshot(path=str(screenshot_path), full_page=True)
+            return {
+                "screenshot": str(screenshot_path),
+                "title": page.title(),
+                "supervisor_excerpt_after_artifact_removal": supervisor_panel.inner_text()[:300],
+            }
+        except Exception:
+            try:
+                page.screenshot(path=str(output_dir / "loop-supervisor-failure.png"), full_page=True)
+            except Exception:
+                pass
+            raise
+        finally:
+            browser.close()
+
+
+def visible_text_count(text_value: str, needle: str) -> int:
+    return text_value.count(needle)
+
+
 def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
     try:
         from playwright.sync_api import expect, sync_playwright
@@ -1863,6 +2367,24 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     if "generated_at" not in payload_with_timestamp:
         payload_with_timestamp["generated_at"] = datetime.now(timezone.utc).isoformat()
     path.write_text(json.dumps(payload_with_timestamp, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_summary(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        f"# {payload.get('task_id', 'loop-dashboard-evaluator')}",
+        "",
+        f"- status: {payload.get('status', 'unknown')}",
+        f"- scenario: {payload.get('scenario_id', '')}",
+        f"- summary: {payload.get('summary', '')}",
+        "",
+        "## Checked",
+    ]
+    lines.extend(f"- {item}" for item in payload.get("checked", []))
+    lines.append("")
+    lines.append("## Rerun")
+    lines.extend(f"- `{command}`" for command in payload.get("rerun_commands", []))
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def failure_payload(

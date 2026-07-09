@@ -1,0 +1,45 @@
+{
+  "task_id": "loop-supervisor-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "LOOP-SUPERVISOR-BROWSER-E2E",
+      "user_goal": "As an evaluator, verify the Loop Dashboard renders the global Supervisor control plane from real Supervisor artifacts without treating it as a task run.",
+      "prerequisites": [
+        "The evaluator can start an isolated Loop Dashboard backend against a temporary fixture repository.",
+        "The fixture includes .codex/supervisor artifacts and ordinary .codex/loop-runs records."
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-01 --scenario loop-supervisor-01",
+      "steps": [
+        "Seed valid Supervisor state and service health artifacts.",
+        "Seed one service with missing runtime metadata and one service with stale or mismatched runtime metadata.",
+        "Seed a stopped_budget autonomous run, a continuation candidate, and a duplicate-suppressed idempotent continuation plan.",
+        "Seed recovery attempts at 0/3, 1/3, and 3/3 plus an open user decision.",
+        "Seed Auditor control inputs for continue, must_fix, and stop while keeping Auditor quality judgment text distinct from Supervisor control actions.",
+        "Open the dashboard in Chromium and inspect the global Supervisor panel.",
+        "Delete Supervisor artifacts and reload the dashboard to verify degraded empty states."
+      ],
+      "expected_outcomes": [
+        "全局 Supervisor 面板 is visible and says Supervisor is independent from the task list.",
+        "The task run list does not include loop-supervisor or supervisor.",
+        "服务行显示正常、版本不可用、版本过期 or mismatched version states with concrete evidence.",
+        "The stopped_budget run is visible as an ordinary run, but no synthetic Supervisor run appears in .codex/loop-runs.",
+        "The continuation candidate and 幂等键只出现一次 even when a duplicate continuation request was suppressed.",
+        "The recovery ceiling shows 0/3, 1/3, 3/3 and 需要用户决策.",
+        "Auditor 区分控制输入和质量判断: the UI states Supervisor consumes Auditor conclusions but does not judge task quality.",
+        "After deleting Supervisor artifacts, the UI displays 暂无数据/不可用 instead of a green success state."
+      ],
+      "failure_signals": [
+        "The evaluator does not accept --scenario loop-supervisor-01.",
+        "The browser can only pass when fake green defaults are shown.",
+        "A synthetic loop-supervisor run is created under .codex/loop-runs.",
+        "The duplicate idempotency key appears multiple times in visible UI.",
+        "Auditor verdicts are rendered as if Supervisor produced quality judgments."
+      ],
+      "cleanup": [
+        "Temporary fixture repository and isolated dashboard process are removed by the evaluator."
+      ],
+      "automation_hint": "playwright"
+    }
+  ]
+}
