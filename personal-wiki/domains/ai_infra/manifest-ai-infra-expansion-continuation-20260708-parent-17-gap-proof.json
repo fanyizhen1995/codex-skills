@@ -1,0 +1,98 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-17",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "AWS Trainium2 Trn2 aggregate-memory catalog promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:aws:trainium2-trn2-offering:trn2-48xlarge-trn2u-48xlarge"
+  },
+  "identity_keys": [
+    {
+      "title": "AWS Trainium2 Trn2 offering",
+      "source_type": "hardware",
+      "identity_key": "hardware:aws:trainium2-trn2-offering:trn2-48xlarge-trn2u-48xlarge"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local AWS Trn2 captures found and reused, including raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated comparison and network/storage pages listed AWS Trainium2 Trn2 and UltraServer as aggregate cloud-offering comparison evidence. The structured resolved row for aws-trainium2-trn2-offering contained cloud_accelerator_count=16 only; aggregate_memory was schema-supported but unresolved before this parent task.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map. No new standalone AWS Trn2 wiki page was needed.",
+    "prior_manifest_scan": "Prior parent/r10 manifests mention AWS Trn2 as EFA/cloud-offering boundary evidence or as a non-edited aggregate row. Parent-1 through parent-16 promoted Corigine, SGLang supplements, Yusur, H200, Kubernetes/Kueue/Volcano, AWS/Lambda case-study/dashboard evidence, Resnics N2025, NVIDIA confidential inference, Asterfusion, Kunlunxin R200/R200-8F, Iluvatar Tiangai, MetaX C-series/C600, Huawei Atlas 300I A2, JaguarMicro Yunxiao DPU, and July 8 SGLang page-level operations, not AWS Trn2 aggregate memory."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "data/compute_accelerators/schema/spec-fields.yaml",
+      "result": "aggregate_memory already exists as a cloud_offering role-specific field with GB canonical unit and applies_to including ai_asic; no schema change was needed."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "The existing aws-trainium2-trn2-offering SKU row was reused; no UltraServer SKU row was added."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "Before parent-17, the AWS Trn2 row had obs-aws-trn2-accelerator-count only. Added obs-aws-trn2-aggregate-memory for the source-stated 1.5 TB accelerator memory on trn2.48xlarge and trn2u.48xlarge, converted to 1536 GB."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "Before parent-17, aws-trainium2-trn2-offering resolved only cloud_accelerator_count=16. Added aggregate_memory=1536 GB pointing to obs-aws-trn2-aggregate-memory."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "The comparison page now identifies 1536 GB as the resolved Trn2 instance aggregate memory while keeping UltraServer memory, aggregate compute, total memory bandwidth, and EFAv3 as comparison-only boundary evidence."
+    },
+    {
+      "target": "wiki/projects/compute-accelerator-spec-catalog.md",
+      "result": "The catalog page now records parent-17 as an incremental cloud-offering aggregate-memory promotion on the existing Trn2 row."
+    },
+    {
+      "target": "coverage-map.json and loop-state.json",
+      "result": "Hardware coverage and known_sources record parent-17 without mutating unrelated blocked gaps, SGLang parent-16 evidence, or non-hardware layers."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official AWS Trn2 instance page with a source-visible product-details table for trn2.48xlarge and trn2u.48xlarge. The catalog had already represented the same cloud offering with 16 Trainium2 chips but had not promoted the source-visible 1.5 TB accelerator memory. The safe catalog boundary is aggregate_memory=1536 GB on the existing Trn2 cloud-offering row.",
+  "promoted_fields": [
+    {
+      "sku_id": "aws-trainium2-trn2-offering",
+      "fields": {
+        "cloud_accelerator_count": "16 count, pre-existing",
+        "aggregate_memory": "1536 GB"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "Product details table states trn2.48xlarge and trn2u.48xlarge have 16 Trainium2 chips and 1.5 TB accelerator memory.",
+      "boundary": "The catalog resolves only the existing cloud-offering count and aggregate_memory field; 1.5 TB is recorded as 1536 GB."
+    },
+    {
+      "source_value": "The page states Trn2 UltraServers have 64 Trainium2 chips, 6 TB high bandwidth memory, 83.2 FP8 PFLOPS, 185 TBps total memory bandwidth, and 12.8 Tbps EFAv3.",
+      "boundary": "No UltraServer structured row was added in parent-17. UltraServer values remain raw comparison and boundary evidence because the existing SKU row is the Trn2 instance offering and the planner's safe primary promotion is the 16-chip instance aggregate memory."
+    },
+    {
+      "source_value": "The page also states aggregate FP8 performance, total memory bandwidth, EFAv3 bandwidth, local NVMe storage, vCPU count, host memory, price-performance, energy-efficiency, model counts, service integrations, availability, and customer testimonials.",
+      "boundary": "No aggregate compute, memory_bandwidth, network_bandwidth, storage, host, cost, energy, model-count, service-integration, availability, testimonial, benchmark, production-operation, SLO, training-throughput, or inference-throughput field was promoted."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Trn2 UltraServer structured row was added.",
+    "No UltraServer 6 TB memory, 64 Trainium2 chips, 83.2 FP8 PFLOPS, 185 TBps memory bandwidth, 12.8 Tbps EFAv3, NeuronLink, or availability wording was promoted as a resolved catalog field.",
+    "No aggregate FP8 PFLOPS was promoted into fp8_tflops, no total memory bandwidth was promoted into memory_bandwidth, and no EFAv3 bandwidth was promoted into network_bandwidth.",
+    "No local NVMe storage, EBS bandwidth, vCPU count, host memory, price-performance, energy-efficiency, model count, testimonial, service-integration, benchmark, production-operation, service-SLO, training-throughput, or inference-throughput claim was promoted.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

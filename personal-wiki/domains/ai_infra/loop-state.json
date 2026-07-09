@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-09T17:33:52Z",
+  "last_scan_at": "2026-07-09T18:10:18Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -775,6 +775,26 @@
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md"
+      ]
+    },
+    {
+      "id": "compute-accelerator-continuation-aws-trn2-aggregate-memory",
+      "title": "Resolved AWS Trainium2 Trn2 aggregate memory catalog field",
+      "source": "local wiki/raw AWS Trn2 capture",
+      "status": "known",
+      "updated_at": "2026-07-09T18:10:18Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-3-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-verification.json"
       ]
     }
   ],

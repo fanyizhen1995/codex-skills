@@ -545,6 +545,19 @@ observations:
     is_inferred: false
     confidence: medium
     notes: Cloud offering aggregate field; does not describe one chip package.
+  - observation_id: obs-aws-trn2-aggregate-memory
+    sku_id: aws-trainium2-trn2-offering
+    field: aggregate_memory
+    value: 1536
+    unit: GB
+    source_id: aws-trn2-instance-page
+    source_rank: S2
+    captured_at: "2026-06-27"
+    source_locator: "AWS Trn2 page; Product details table for trn2.48xlarge and trn2u.48xlarge accelerator memory"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Source states 1.5 TB accelerator memory for both trn2.48xlarge and trn2u.48xlarge; catalog records the cloud-offering aggregate as 1536 GB. UltraServer 6 TB remains comparison-only boundary evidence.
   - observation_id: obs-google-tpu-v5p-source-entry
     sku_id: google-cloud-tpu-v5p-offering
     field: form_factor

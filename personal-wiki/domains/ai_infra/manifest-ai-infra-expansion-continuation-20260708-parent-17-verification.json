@@ -1,0 +1,237 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-17",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-task-3",
+  "domain": "ai_infra",
+  "verified_at": "2026-07-09T18:18:20Z",
+  "status": "pass",
+  "commit": "",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "source_evidence": {
+    "selected_raw_sources": [
+      "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md"
+    ],
+    "promoted_boundary": "Promoted only source-visible aggregate_memory=1536 GB for the existing AWS Trainium2 Trn2 cloud-offering row covering trn2.48xlarge and trn2u.48xlarge. UltraServer aggregate memory, aggregate compute, total memory bandwidth, EFAv3, storage, cost, energy, service, testimonial, benchmark, SLO, and production-operation claims remain boundary evidence."
+  },
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/backlinks.json",
+      "stderr": ""
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-3-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/wiki/backlinks.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "valid JSON",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-17'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "parent-17 gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-task-3-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-002-task-3'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "run-local task-3 gap proof contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "coverage-map and loop-state contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-002/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "planner output contract validation passed",
+      "stderr": ""
+    },
+    {
+      "command": "rg -n \"Trainium2|Trn2|trn2\\.48xlarge|trn2u\\.48xlarge|UltraServer|aggregate_memory|1\\.5 TB|1536|6 TB|6144|NeuronLink|EFAv3\" ... | wc -l",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "45",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that AWS Trn2 aggregate_memory was unresolved before parent-17 and prior manifests cite AWS Trn2 only as boundary or cloud_accelerator_count evidence",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "duplicate/gap proof confirms Trn2 aggregate_memory was unresolved before parent-17 and prior manifests treated Trn2 as boundary/cloud count evidence",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that fp8_tflops, memory_bandwidth, network_bandwidth, local NVMe storage, EFAv3 fabric bandwidth, price-performance, energy-efficiency, and testimonial claims were not promoted into structured accelerator fields",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "boundary check passed: no aggregate compute, total bandwidth, EFAv3, local NVMe, UltraServer memory, price-performance, energy-efficiency, or testimonial structured promotion",
+      "stderr": ""
+    },
+    {
+      "command": "boundary check that any UltraServer structured row, if added, is explicitly separated from the Trn2 instance row and preserves the source preview/availability ambiguity; otherwise verify UltraServer remains comparison-only boundary evidence",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "UltraServer structured-row boundary check passed; existing Trn2 offering row remains the only AWS Trainium2 SKU row",
+      "stderr": ""
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no sensitive assignment-like patterns found in 12 changed ai_infra paths",
+      "stderr": ""
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "autonomous scope check passed for 12 ai_infra changed paths",
+      "stderr": ""
+    },
+    {
+      "command": "dependency/code-change applicability check; run backend/frontend/dashboard/harness tests only if code or package files change",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no backend, frontend, dashboard, harness, package, lock, or dependency files changed; code tests not applicable",
+      "stderr": ""
+    },
+    {
+      "command": "external-link and Domain Channels applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "no new external fetch, link probe, crawler source subscription, or Domain Channels change was performed; existing local AWS Trn2 raw capture was reused",
+      "stderr": ""
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, loop-dashboard-freshness, loop-auto-resume freshness, and loop-supervisor freshness; do not start long-lived services, run localhost probes, or restart services from this wiki/data-only task",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services, run localhost probes, restart services, run tmux, uvicorn, npm, Vite, or other long-lived processes",
+      "stderr": ""
+    },
+    {
+      "command": "commit-result and push-result evidence for an independent parent-17 wiki/crawler commit; if push fails, record remote, error output, and current branch status",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "not run by generator per task instruction; commit and push are delegated to the orchestrator after gates pass",
+      "stderr": ""
+    }
+  ],
+  "notes": [
+    "No live service, local socket, tmux, uvicorn, npm, Vite, or other long-lived process check is run by the generator.",
+    "No external fetch or dependency/code change was performed; this task reuses an existing local AWS Trn2 raw capture.",
+    "No git commit was run; commit is intentionally empty for the orchestrator.",
+    "Search/API, frontend, crawler workbench, Loop Dashboard, loop-auto-resume, and loop-supervisor checks are delegated to orchestrator-owned trusted live evidence."
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "stable_evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "semantic_gate": "crawler backend, crawler frontend, and Loop Dashboard service availability after parent-17 AWS Trn2 aggregate-memory wiki/state updates"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "stable_evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "semantic_gate": "crawler workbench sources, channels, queue, wiki, and search freshness after parent-17 AWS Trn2 aggregate-memory updates"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "stable_evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "semantic_gate": "search/API visibility for AWS Trainium2 Trn2, trn2.48xlarge, trn2u.48xlarge, aggregate_memory, 1536 GB, and parent-17 gap proof"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "stable_evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "semantic_gate": "crawler workbench frontend visibility for parent-17 AWS Trn2 aggregate-memory wiki pages and search terms"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "stable_evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "semantic_gate": "Loop Dashboard visibility for current run task-3/parent-17, child task state, agent actions, evaluator scenarios, completed history, errors/blocked fields, and user decision fields"
+    }
+  ]
+}

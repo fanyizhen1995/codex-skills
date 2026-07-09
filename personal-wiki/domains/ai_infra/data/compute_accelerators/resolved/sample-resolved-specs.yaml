@@ -361,6 +361,14 @@ resolved_specs:
         confidence: medium
         conflict_status: clean
         updated_at: "2026-06-27"
+      aggregate_memory:
+        value: 1536
+        unit: GB
+        source_observation_id: obs-aws-trn2-aggregate-memory
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-09"
   - sku_id: intel-ipu-adapter-e2100
     resolved_fields:
       network_bandwidth:

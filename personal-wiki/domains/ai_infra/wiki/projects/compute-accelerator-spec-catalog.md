@@ -42,6 +42,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
   - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
   - ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
+  - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
@@ -55,6 +56,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
 ---
 
 # Summary
@@ -180,6 +182,17 @@ bare-metal/VM/container management, security isolation, QoS, elastic
 network/storage, hot-plug, live migration, hot upgrade, cloud-disk boot, memory,
 host interface, power, benchmark, production-operation, and service-SLO claims
 remain boundary evidence outside resolved catalog fields. [Yunxiao raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md)
+
+Continuation parent 17 promotes the existing AWS Trainium2 Trn2 cloud offering
+row only for source-visible aggregate accelerator memory. The prior row already
+resolved `cloud_accelerator_count=16`; it now also resolves
+`aggregate_memory=1536 GB` for the `trn2.48xlarge` and `trn2u.48xlarge`
+instance sizes from the source-stated 1.5 TB accelerator-memory table value.
+The Trn2 UltraServer 6 TB memory value, 64 Trainium2 chips, 83.2 FP8 PFLOPS,
+185 TBps total memory bandwidth, 12.8 Tbps EFAv3, NeuronLink, local NVMe
+storage, price-performance, energy-efficiency, service integration,
+availability, and testimonial text remain raw comparison or boundary evidence
+outside resolved structured fields. [Trn2 raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)
 
 The 2026-07-08 continuation parent task promotes one additional local
 product-brief slice: Corigine Agilio CX 2x25GbE SmartNIC now has resolved

@@ -23,6 +23,7 @@ source_refs:
   - ../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz
   - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
   - ../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md
@@ -205,8 +206,12 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [MetaX C600](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md)
 - Aggregate records must be normalized before card-to-card comparison: AWS
   Trn2/UltraServer, Huawei Atlas 800T A3, and Kunlunxin R480-X8 report
-  multi-chip or system-level totals. Use them for capacity planning, not as
-  direct single-card substitutes. [AWS Trn2](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md),
+  multi-chip or system-level totals. The structured catalog resolves only the
+  Trn2 instance cloud offering count and aggregate accelerator memory:
+  16 Trainium2 chips and 1536 GB accelerator memory for `trn2.48xlarge` and
+  `trn2u.48xlarge`. UltraServer 6 TB memory and aggregate compute/bandwidth
+  remain comparison-only boundary evidence. Use these rows for capacity
+  planning, not as direct single-card substitutes. [AWS Trn2](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md),
   [Atlas 800T A3](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md),
   [R480-X8](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md)
 - DPU/SmartNIC records are not FLOPS peers. NVIDIA BlueField-3, Asterfusion
@@ -239,7 +244,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Intel Gaudi 3 HL-338 | AI ASIC / PCIe card | 128 GB memory | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | NXP i.MX 95 eIQ Neutron NPU | integrated SoC NPU | integrated SoC NPU form factor | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | NVIDIA BlueField-3 DPU | DPU | 400 Gb/s network bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
-| AWS Trainium2 Trn2 offering | cloud AI ASIC offering | 16 accelerators per `trn2.48xlarge` / `trn2u.48xlarge` offering | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
+| AWS Trainium2 Trn2 offering | cloud AI ASIC offering | 16 accelerators and 1536 GB aggregate accelerator memory per `trn2.48xlarge` / `trn2u.48xlarge` offering | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) |
 | Google Cloud TPU v5p offering | cloud TPU offering | cloud offering form factor | [observations](../../data/compute_accelerators/observations/sample-observations.yaml) |
 | AMD Alveo V80 | FPGA / PCIe card | no resolved parameter yet | [SKUs](../../data/compute_accelerators/skus/sample-skus.yaml) |
 | Intel IPU Adapter E2100 | IPU / PCIe card | 200 Gb/s network bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
@@ -275,7 +280,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Record | Form | Compute | Memory and bandwidth | Power / interface / interconnect | Citation |
 | --- | --- | --- | --- | --- | --- |
 | NVIDIA H200 SXM / H200 NVL | SXM module / PCIe dual-slot air-cooled | H200 SXM: FP64 34 TFLOPS, FP32 67 TFLOPS, TF32 989 TFLOPS, BF16/FP16 1,979 TFLOPS, FP8/INT8 3,958 TFLOPS; H200 NVL: FP64 30 TFLOPS, FP32 60 TFLOPS, BF16/FP16 1,671 TFLOPS, FP8/INT8 3,341 TFLOPS. Only H200 SXM FP64, FP32, BF16, FP16, and FP8 are resolved; TF32 lacks a catalog field and INT8 stays out because the source row uses the incompatible TFLOPS wording for the catalog's TOPS field. | 141 GB HBM3e; 4.8 TB/s | SXM up to 700 W; NVL up to 600 W; H200 SXM interconnect row lists NVIDIA NVLink 900GB/s and PCIe Gen5 128GB/s | [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md) |
-| AWS Trainium2 Trn2 / Trn2 UltraServer | cloud offering | Trn2 instance: up to 20.8 FP8 PFLOPS; UltraServer: up to 83.2 FP8 PFLOPS | Trn2: 1.5 TB HBM3 and 46 TBps total memory bandwidth; UltraServer: 6 TB HBM and 185 TBps total bandwidth | Trn2: 16 Trainium2 chips and 3.2 Tbps EFAv3; UltraServer: 64 chips and 12.8 Tbps EFAv3 | [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) |
+| AWS Trainium2 Trn2 / Trn2 UltraServer | cloud offering | Trn2 instance: up to 20.8 FP8 PFLOPS; UltraServer: up to 83.2 FP8 PFLOPS. Aggregate compute is comparison-only, not `fp8_tflops`. | Trn2: resolved cloud-offering aggregate memory is 1536 GB from the source-stated 1.5 TB HBM3; 46 TBps total memory bandwidth remains comparison-only. UltraServer: 6 TB HBM and 185 TBps total bandwidth remain boundary evidence. | Trn2: 16 Trainium2 chips and 3.2 Tbps EFAv3; UltraServer: 64 chips and 12.8 Tbps EFAv3. EFAv3 remains cloud-fabric evidence, not `network_bandwidth`. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) |
 | Huawei Atlas 300I A2 | dual-slot full-height full-length PCIe inference card | 560 TOPS INT8; 280 TFLOPS FP16; CPU text is source-visible but not promoted | Resolved as two memory variants: 32 GB at 0.8 TB/s, and 64 GB at 1.6 TB/s on-card memory | PCIe 5.0; maximum 350 W. Passive air cooling, fan modules, operating temperature, and dimensions remain source-visible boundary evidence, not resolved catalog fields. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md) |
 | Huawei Atlas 800T A3 | 10U training supernode server | 8 Ascend 910 processors; up to 6.0 PFLOPS FP16 and 12.0 POPS INT8 | 8 x 128 GB on-chip memory; 3.2 TB/s memory bandwidth | D2D 784 GB/s bidirectional; 8 x 400GE RoCE direct and 56 x 400GE bus-protocol interfaces; up to 5 PCIe 5.0 slots | [raw](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md) |
 | Biren Bili 106B | full-height full-length double-wide PCIe card | not captured | not captured | peak power 300 W | [raw](../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md) |
