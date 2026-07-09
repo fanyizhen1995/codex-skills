@@ -39,6 +39,138 @@ def seed_minimal_run(repo_root: Path) -> None:
     )
 
 
+def append_jsonl(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def seed_supervisor_artifacts(repo_root: Path) -> None:
+    supervisor_dir = repo_root / ".codex" / "supervisor"
+    write_json(
+        supervisor_dir / "supervisor-state.json",
+        {
+            "schema_version": 1,
+            "project_root": str(repo_root),
+            "status": "healthy",
+            "started_at": "2026-07-09T00:00:00Z",
+            "last_heartbeat_at": "2026-07-09T00:01:00Z",
+            "last_tick_at": "2026-07-09T00:01:00Z",
+            "generated_at": "2026-07-09T00:01:00Z",
+            "mode": "watch",
+            "service_summary": {"total": 1, "healthy": 1, "degraded": 0},
+            "service_health": {
+                "crawler-backend": {
+                    "service": "crawler-backend",
+                    "status": "healthy",
+                    "last_error": "",
+                }
+            },
+            "run_summary": {"active": 1, "blocked": 0, "continuation_candidates": 1, "needs_user_decision": 1},
+            "failure_summary": {"open_failure_keys": 1, "max_consecutive_failures": 3},
+            "last_decision": {"decision_id": "supervisor-000001", "run_id": "demo-run"},
+            "watch_interval_seconds": 60,
+        },
+    )
+    write_json(
+        supervisor_dir / "service-health.json",
+        {
+            "schema_version": 1,
+            "checked_at": "2026-07-09T00:01:00Z",
+            "services": [
+                {
+                    "service": "crawler-backend",
+                    "kind": "http_and_tmux",
+                    "status": "healthy",
+                    "reachable": True,
+                    "tmux_session_exists": True,
+                    "last_error": "token=service-secret",
+                }
+            ],
+        },
+    )
+    append_jsonl(
+        supervisor_dir / "run-decisions.jsonl",
+        {
+            "schema_version": 1,
+            "decision_id": "supervisor-000001",
+            "run_id": "demo-run",
+            "classification": "continuation_candidate",
+            "action": "create_continuation",
+            "reason": "finished_parent_task",
+            "created_at": "2026-07-09T00:01:01Z",
+            "evidence_paths": [".codex/loop-runs/demo-run/run.json"],
+        },
+    )
+    append_jsonl(
+        supervisor_dir / "continuation-plans.jsonl",
+        {
+            "schema_version": 1,
+            "plan_id": "continuation-demo-run-001",
+            "idempotency_key": "autonomous_knowledge:ai_infra:demo-run:parent-1:abc123",
+            "previous_run_id": "demo-run",
+            "next_run_id": "demo-run-continuation-001",
+            "status": "planned",
+            "created_at": "2026-07-09T00:01:02Z",
+        },
+    )
+    append_jsonl(
+        supervisor_dir / "recovery-attempts.jsonl",
+        {
+            "schema_version": 1,
+            "attempt_id": "recovery-000001",
+            "failure_key": "service_down:project:crawler-backend:http",
+            "run_id": "",
+            "action": "restart_service",
+            "status": "fail",
+            "summary": "token=recovery-secret",
+            "consecutive_failure_count": 1,
+            "recorded_at": "2026-07-09T00:01:03Z",
+        },
+    )
+    write_json(
+        supervisor_dir / "needs-user-decisions" / "service_down-project-crawler-backend-http.json",
+        {
+            "schema_version": 1,
+            "decision_id": "service_down-project-crawler-backend-http",
+            "opened_at": "2026-07-09T00:01:04Z",
+            "status": "open",
+            "reason": "retry_ceiling_exceeded",
+            "failure_key": "service_down:project:crawler-backend:http",
+            "summary": "api_key=user-decision-secret",
+            "required_user_decision": "Inspect repeated recovery failure.",
+            "affected_runs": [],
+            "attempts": [],
+        },
+    )
+    seed_minimal_run(repo_root)
+    write_json(
+        repo_root / ".codex" / "loop-runs" / "demo-run" / "audit-reports" / "audit-002.json",
+        {
+            "schema_version": 1,
+            "run_id": "demo-run",
+            "audit_id": "audit-002",
+            "created_at": "2026-07-09T00:01:05Z",
+            "verdict": "stop",
+            "direction_control": {"action": "stop", "reason": "secret=audit-secret"},
+            "finding_lifecycle": {"open_findings": [{"finding_id": "audit-002-stop", "severity": "must_fix"}]},
+        },
+    )
+    write_json(
+        repo_root / ".codex" / "loop-runs" / "loop-supervisor" / "run.json",
+        {
+            "run_id": "loop-supervisor",
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "loop-supervisor",
+            "requirement": "Supervisor global artifacts must not be listed as a task run.",
+            "attempts": {},
+            "last_result": "none",
+            "next_action": "observe",
+        },
+    )
+
+
 def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     client = TestClient(create_app(project_root=tmp_path))
@@ -51,6 +183,52 @@ def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
     assert client.get("/api/runs/demo-run").json()["phase"] == "passed_waiting_human_merge"
     assert client.get("/api/runs/demo-run/events").json()["run_id"] == "demo-run"
     assert client.get("/api/runs/demo-run/logs").json()["run_id"] == "demo-run"
+
+
+def test_supervisor_api_returns_honest_missing_state(tmp_path: Path) -> None:
+    client = TestClient(create_app(project_root=tmp_path))
+
+    payload = client.get("/api/supervisor").json()
+
+    assert payload["status"] == "unavailable"
+    assert payload["state"]["status_label"] == "暂无数据"
+
+
+def test_supervisor_api_reads_services_decisions_recovery_and_user_decisions(tmp_path: Path) -> None:
+    seed_supervisor_artifacts(tmp_path)
+    client = TestClient(create_app(project_root=tmp_path))
+
+    assert client.get("/api/supervisor").json()["status"] == "healthy"
+    assert client.get("/api/supervisor/services").json()["services"][0]["service"] == "crawler-backend"
+    assert client.get("/api/supervisor/decisions").json()["continuation_plans"][0]["idempotency_key"]
+    assert client.get("/api/supervisor/recovery").json()["attempts"][0]["consecutive_failure_count"] == 1
+    assert client.get("/api/supervisor/decision-required").json()["open_count"] == 1
+    assert client.get("/api/supervisor/auditor").json()["audits"][0]["verdict"] == "stop"
+
+
+def test_supervisor_api_redacts_artifacts_and_reports_malformed_jsonl(tmp_path: Path) -> None:
+    seed_supervisor_artifacts(tmp_path)
+    recovery_path = tmp_path / ".codex" / "supervisor" / "recovery-attempts.jsonl"
+    with recovery_path.open("a", encoding="utf-8") as handle:
+        handle.write('{"summary": "Authorization: Bearer malformed-secret"\n')
+    client = TestClient(create_app(project_root=tmp_path))
+
+    response = client.get("/api/supervisor/recovery")
+
+    assert response.status_code == 200
+    payload = response.json()
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert payload["status"] == "invalid_artifact"
+    assert "token=[REDACTED]" in serialized
+    assert "recovery-secret" not in serialized
+    assert "malformed-secret" not in serialized
+
+
+def test_run_list_excludes_supervisor_global_artifacts(tmp_path: Path) -> None:
+    seed_supervisor_artifacts(tmp_path)
+    runs = TestClient(create_app(project_root=tmp_path)).get("/api/runs").json()
+
+    assert all(run["run_id"] != "loop-supervisor" for run in runs)
 
 
 def test_api_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:

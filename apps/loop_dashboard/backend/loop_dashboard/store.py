@@ -67,6 +67,26 @@ AUDIT_SIGNAL_KEYS = frozenset(
         "remaining_value_estimate",
     }
 )
+SUPERVISOR_RUN_IDS = {"loop-supervisor", "supervisor"}
+SUPERVISOR_JSONL_LIMIT = 100
+SUPERVISOR_STATUS_LABELS = {
+    "available": "可用",
+    "healthy": "运行正常",
+    "degraded": "服务异常",
+    "blocked": "需要处理",
+    "unavailable": "暂无数据",
+    "invalid_artifact": "产物无效",
+}
+SUPERVISOR_SENSITIVE_KEYS = {
+    "api_key",
+    "apikey",
+    "access_token",
+    "authorization",
+    "client_secret",
+    "password",
+    "secret",
+    "token",
+}
 
 
 class RunSource(NamedTuple):
@@ -102,6 +122,7 @@ class LoopDashboardStore:
     def __init__(self, project_root: Path | str) -> None:
         self.project_root = Path(project_root).resolve()
         self.loop_runs_dir = self.project_root / ".codex" / "loop-runs"
+        self.supervisor_dir = self.project_root / ".codex" / "supervisor"
 
     def project_info(self) -> dict[str, Any]:
         return {
@@ -111,10 +132,187 @@ class LoopDashboardStore:
             "history_sources": [self._source_path(source.run_dir) for source in self._run_sources()],
         }
 
+    def supervisor_summary(self) -> dict[str, Any]:
+        state, diagnostic, existed = self._read_supervisor_json("supervisor-state.json")
+        if diagnostic is not None:
+            status = "invalid_artifact"
+            return {
+                "status": status,
+                "status_label": self._supervisor_status_label(status),
+                "state": self._empty_supervisor_state(status),
+                "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
+                "diagnostics": [diagnostic],
+            }
+        if not existed:
+            status = "unavailable"
+            return {
+                "status": status,
+                "status_label": self._supervisor_status_label(status),
+                "state": self._empty_supervisor_state(status),
+                "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
+                "diagnostics": [],
+            }
+
+        status = str(state.get("status") or "available")
+        payload = self._supervisor_state_payload(state, status)
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "state": payload,
+            "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
+            "diagnostics": [],
+        }
+
+    def supervisor_services(self) -> dict[str, Any]:
+        payload, diagnostic, existed = self._read_supervisor_json("service-health.json")
+        if diagnostic is not None:
+            status = "invalid_artifact"
+            return self._supervisor_services_payload(status, [], "", [diagnostic])
+        if not existed:
+            return self._supervisor_services_payload("unavailable", [], "", [])
+
+        raw_services = payload.get("services")
+        if not isinstance(raw_services, list):
+            status = "invalid_artifact"
+            diagnostic = self._supervisor_diagnostic(
+                self.supervisor_dir / "service-health.json",
+                "service-health.json field services must be a list",
+            )
+            return self._supervisor_services_payload(status, [], str(payload.get("checked_at") or ""), [diagnostic])
+
+        services = [item for item in raw_services if isinstance(item, dict)]
+        status = "healthy" if services and all(str(item.get("status") or "") == "healthy" for item in services) else "degraded"
+        if not services:
+            status = "unavailable"
+        return self._supervisor_services_payload(status, services, str(payload.get("checked_at") or ""), [])
+
+    def supervisor_decisions(self) -> dict[str, Any]:
+        decisions = self._read_supervisor_jsonl("run-decisions.jsonl")
+        plans = self._read_supervisor_jsonl("continuation-plans.jsonl")
+        status = self._combined_supervisor_status([decisions, plans])
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "decisions": decisions["items"],
+            "continuation_plans": plans["items"],
+            "counts": {
+                "decisions_total": decisions["total_count"],
+                "decisions_returned": decisions["returned_count"],
+                "continuation_plans_total": plans["total_count"],
+                "continuation_plans_returned": plans["returned_count"],
+                "invalid_lines": decisions["invalid_count"] + plans["invalid_count"],
+            },
+            "diagnostics": [*decisions["diagnostics"], *plans["diagnostics"]],
+        }
+
+    def supervisor_recovery(self) -> dict[str, Any]:
+        attempts = self._read_supervisor_jsonl("recovery-attempts.jsonl")
+        status = str(attempts["status"])
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "attempts": attempts["items"],
+            "counts": {
+                "total": attempts["total_count"],
+                "returned": attempts["returned_count"],
+                "invalid_lines": attempts["invalid_count"],
+            },
+            "diagnostics": attempts["diagnostics"],
+        }
+
+    def supervisor_decision_required(self) -> dict[str, Any]:
+        decisions_dir = self.supervisor_dir / "needs-user-decisions"
+        safe_dir = self._safe_dir_under(decisions_dir, self.supervisor_dir)
+        if safe_dir is None:
+            status = "unavailable"
+            return {
+                "status": status,
+                "status_label": self._supervisor_status_label(status),
+                "open_count": 0,
+                "decisions": [],
+                "total_count": 0,
+                "diagnostics": [],
+            }
+
+        decisions: list[dict[str, Any]] = []
+        diagnostics: list[dict[str, str]] = []
+        total_count = 0
+        for path in sorted(safe_dir.glob("*.json"), key=lambda item: item.name):
+            safe_path = self._safe_file_under(path, safe_dir)
+            if safe_path is None:
+                continue
+            total_count += 1
+            payload, diagnostic = self._read_json_file_with_diagnostic(safe_path, allowed_root=safe_dir)
+            if diagnostic is not None:
+                diagnostics.append(diagnostic)
+                continue
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("status") == "open":
+                decisions.append(payload)
+
+        decisions.sort(key=lambda item: (str(item.get("opened_at") or ""), str(item.get("decision_id") or "")))
+        status = "invalid_artifact" if diagnostics else "available"
+        if total_count == 0 and not diagnostics:
+            status = "unavailable"
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "open_count": len(decisions),
+            "decisions": decisions,
+            "total_count": total_count,
+            "diagnostics": diagnostics,
+        }
+
+    def supervisor_auditor(self) -> dict[str, Any]:
+        audits: list[dict[str, Any]] = []
+        diagnostics: list[dict[str, str]] = []
+        for run_id, record in self._run_records_by_id().items():
+            report_path, report = self._latest_audit_report(record.source.run_dir)
+            if report_path is not None and not report:
+                diagnostics.append(self._supervisor_diagnostic(report_path, "audit report could not be parsed"))
+                continue
+            if report_path is None:
+                continue
+            summary = self._audit_summary(record.source.run_dir)
+            if summary.get("status") != "available":
+                continue
+            audits.append(
+                {
+                    "run_id": run_id,
+                    "source_kind": record.source.source_kind,
+                    "updated_at": self._mtime_iso(report_path),
+                    "status": summary.get("status"),
+                    "engine_status": summary.get("engine_status"),
+                    "phase_notice": summary.get("phase_notice"),
+                    "verdict": summary.get("verdict"),
+                    "open_must_fix": summary.get("open_must_fix"),
+                    "direction_action": summary.get("direction_action"),
+                    "direction_reason": summary.get("direction_reason"),
+                    "recommended_next_focus": summary.get("recommended_next_focus"),
+                    "latest_report_path": summary.get("latest_report_path"),
+                    "findings": summary.get("findings"),
+                    "signals": summary.get("signals"),
+                    "cadence": summary.get("cadence"),
+                }
+            )
+
+        audits.sort(key=lambda item: (str(item.get("updated_at") or ""), str(item.get("run_id") or "")), reverse=True)
+        status = "invalid_artifact" if diagnostics else ("available" if audits else "unavailable")
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "audits": audits[:SUPERVISOR_JSONL_LIMIT],
+            "total_count": len(audits),
+            "returned_count": min(len(audits), SUPERVISOR_JSONL_LIMIT),
+            "diagnostics": diagnostics,
+        }
+
     def list_runs(self) -> list[dict[str, Any]]:
         runs = [self._load_run_summary(source.run_dir, source.source_kind) for source in self._run_sources()]
         runs = self._dedupe_runs(runs)
         runs = self._filter_top_level_runs(runs)
+        runs = self._filter_supervisor_runs(runs)
         return sorted(runs, key=lambda run: (run.get("updated_at", ""), run.get("run_id", "")), reverse=True)
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
@@ -250,7 +448,7 @@ class LoopDashboardStore:
         ]
 
     def _run_source(self, run_id: str) -> RunSource | None:
-        if not self._safe_run_id(run_id):
+        if not self._safe_run_id(run_id) or self._is_supervisor_run_id(run_id):
             return None
         sources_by_id = self._run_source_index()
         return sources_by_id.get(run_id)
@@ -263,7 +461,7 @@ class LoopDashboardStore:
         for source in self._run_sources():
             data = self._read_json(source.run_dir / "run.json", allowed_root=source.run_dir)
             run_id = str(data.get("run_id") or source.run_dir.name) if isinstance(data, dict) else source.run_dir.name
-            if not self._safe_run_id(run_id):
+            if not self._safe_run_id(run_id) or self._is_supervisor_run_id(run_id):
                 continue
             updated_at = self._updated_at(source.run_dir)
             previous = records_by_id.get(run_id)
@@ -278,7 +476,7 @@ class LoopDashboardStore:
         runs_by_id: dict[str, dict[str, Any]] = {}
         for run in runs:
             run_id = str(run.get("run_id") or "")
-            if not self._safe_run_id(run_id):
+            if not self._safe_run_id(run_id) or self._is_supervisor_run_id(run_id):
                 continue
             previous = runs_by_id.get(run_id)
             if previous is None or (
@@ -319,9 +517,15 @@ class LoopDashboardStore:
             top_level.append(run)
         return top_level
 
+    def _filter_supervisor_runs(self, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [run for run in runs if not self._is_supervisor_run_id(str(run.get("run_id") or ""))]
+
     def _safe_run_id(self, run_id: str) -> bool:
         candidate_path = Path(run_id)
         return bool(run_id) and not candidate_path.is_absolute() and ".." not in candidate_path.parts and "/" not in run_id and "\\" not in run_id
+
+    def _is_supervisor_run_id(self, run_id: str) -> bool:
+        return str(run_id).strip().lower() in SUPERVISOR_RUN_IDS
 
     def _run_kind(self, run_data: dict[str, Any]) -> str:
         value = run_data.get("run_kind")
@@ -1899,6 +2103,170 @@ class LoopDashboardStore:
             except OSError:
                 continue
         return [path for _mtime, path in sorted(safe_paths)]
+
+    def _read_supervisor_json(self, filename: str) -> tuple[dict[str, Any], dict[str, str] | None, bool]:
+        path = self.supervisor_dir / filename
+        safe_path = self._safe_file_under(path, self.supervisor_dir)
+        if safe_path is None:
+            return {}, None, False
+        payload, diagnostic = self._read_json_file_with_diagnostic(safe_path, allowed_root=self.supervisor_dir)
+        if diagnostic is not None:
+            return {}, diagnostic, True
+        if not isinstance(payload, dict):
+            return {}, self._supervisor_diagnostic(safe_path, "JSON artifact must be an object"), True
+        return payload, None, True
+
+    def _read_supervisor_jsonl(self, filename: str, limit: int = SUPERVISOR_JSONL_LIMIT) -> dict[str, Any]:
+        path = self.supervisor_dir / filename
+        safe_path = self._safe_file_under(path, self.supervisor_dir)
+        if safe_path is None:
+            return {
+                "status": "unavailable",
+                "items": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "invalid_count": 0,
+                "diagnostics": [],
+            }
+
+        items: list[dict[str, Any]] = []
+        diagnostics: list[dict[str, str]] = []
+        try:
+            lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError as exc:
+            return {
+                "status": "invalid_artifact",
+                "items": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "invalid_count": 1,
+                "diagnostics": [self._supervisor_diagnostic(safe_path, f"could not read JSONL artifact: {exc}")],
+            }
+
+        for line_number, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                diagnostics.append(
+                    self._supervisor_diagnostic(
+                        safe_path,
+                        f"malformed JSONL line {line_number}: {exc.msg} at column {exc.colno}",
+                    )
+                )
+                continue
+            if not isinstance(payload, dict):
+                diagnostics.append(self._supervisor_diagnostic(safe_path, f"JSONL line {line_number} must be an object"))
+                continue
+            items.append(self._redact_artifact_value(payload))
+
+        recent_items = items[-limit:]
+        return {
+            "status": "invalid_artifact" if diagnostics else "available",
+            "items": recent_items,
+            "total_count": len(items),
+            "returned_count": len(recent_items),
+            "invalid_count": len(diagnostics),
+            "diagnostics": diagnostics,
+        }
+
+    def _read_json_file_with_diagnostic(self, path: Path, allowed_root: Path) -> tuple[Any, dict[str, str] | None]:
+        safe_path = self._safe_file_under(path, allowed_root)
+        if safe_path is None:
+            return None, self._supervisor_diagnostic(path, "artifact is not a safe file under the supervisor directory")
+        try:
+            payload = json.loads(safe_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            return None, self._supervisor_diagnostic(
+                safe_path,
+                f"malformed JSON artifact: {exc.msg} at line {exc.lineno} column {exc.colno}",
+            )
+        except OSError as exc:
+            return None, self._supervisor_diagnostic(safe_path, f"could not read artifact: {exc}")
+        return self._redact_artifact_value(payload), None
+
+    def _redact_artifact_value(self, value: Any, key: str = "") -> Any:
+        normalized_key = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
+        if normalized_key in SUPERVISOR_SENSITIVE_KEYS:
+            return "[REDACTED]"
+        if isinstance(value, str):
+            return self._trim(redact_text(value), 1000)
+        if isinstance(value, list):
+            return [self._redact_artifact_value(item) for item in value]
+        if isinstance(value, dict):
+            return {str(child_key): self._redact_artifact_value(child_value, str(child_key)) for child_key, child_value in value.items()}
+        return value
+
+    def _supervisor_diagnostic(self, path: Path, message: str) -> dict[str, str]:
+        return {
+            "status": "invalid_artifact",
+            "source": self._relative_artifact(path),
+            "message": self._trim(redact_text(message), 240),
+        }
+
+    def _supervisor_artifact_path(self, filename: str) -> str:
+        return self._relative_artifact(self.supervisor_dir / filename)
+
+    def _supervisor_status_label(self, status: str) -> str:
+        return SUPERVISOR_STATUS_LABELS.get(str(status), str(status) or SUPERVISOR_STATUS_LABELS["unavailable"])
+
+    def _empty_supervisor_state(self, status: str) -> dict[str, Any]:
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "service_summary": {},
+            "run_summary": {},
+            "failure_summary": {},
+            "service_health": {},
+            "last_decision": None,
+            "mode": "",
+            "last_heartbeat_at": "",
+            "last_tick_at": "",
+            "generated_at": "",
+            "watch_interval_seconds": 0,
+        }
+
+    def _supervisor_state_payload(self, state: dict[str, Any], status: str) -> dict[str, Any]:
+        payload = dict(state)
+        payload["status"] = status
+        payload["status_label"] = self._supervisor_status_label(status)
+        for key, fallback in (
+            ("service_summary", {}),
+            ("run_summary", {}),
+            ("failure_summary", {}),
+            ("service_health", {}),
+        ):
+            if not isinstance(payload.get(key), dict):
+                payload[key] = fallback
+        if "last_decision" not in payload:
+            payload["last_decision"] = None
+        return payload
+
+    def _supervisor_services_payload(
+        self,
+        status: str,
+        services: list[dict[str, Any]],
+        checked_at: str,
+        diagnostics: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        return {
+            "status": status,
+            "status_label": self._supervisor_status_label(status),
+            "checked_at": checked_at,
+            "services": services,
+            "service_count": len(services),
+            "diagnostics": diagnostics,
+        }
+
+    def _combined_supervisor_status(self, streams: list[dict[str, Any]]) -> str:
+        statuses = {str(stream.get("status") or "unavailable") for stream in streams}
+        if "invalid_artifact" in statuses:
+            return "invalid_artifact"
+        if "available" in statuses:
+            return "available"
+        return "unavailable"
 
     def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
         safe_path = self._safe_file_under(path, allowed_root or self.project_root)

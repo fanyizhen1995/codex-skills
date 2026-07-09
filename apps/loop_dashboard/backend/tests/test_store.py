@@ -12,6 +12,100 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def append_jsonl(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def seed_supervisor_store_artifacts(repo_root: Path) -> None:
+    supervisor_dir = repo_root / ".codex" / "supervisor"
+    write_json(
+        supervisor_dir / "supervisor-state.json",
+        {
+            "schema_version": 1,
+            "project_root": str(repo_root),
+            "status": "degraded",
+            "started_at": "2026-07-09T00:00:00Z",
+            "last_heartbeat_at": "2026-07-09T00:01:00Z",
+            "last_tick_at": "2026-07-09T00:01:00Z",
+            "generated_at": "2026-07-09T00:01:00Z",
+            "mode": "watch",
+            "service_summary": {"total": 1, "healthy": 0, "degraded": 1},
+            "service_health": {
+                "crawler-backend": {
+                    "service": "crawler-backend",
+                    "status": "degraded",
+                    "last_error": "Authorization: Bearer state-secret",
+                }
+            },
+            "run_summary": {"active": 0, "blocked": 1, "continuation_candidates": 0, "needs_user_decision": 1},
+            "failure_summary": {"open_failure_keys": 1, "max_consecutive_failures": 3},
+            "last_decision": {"decision_id": "supervisor-000001", "run_id": "store-run"},
+            "watch_interval_seconds": 60,
+        },
+    )
+    append_jsonl(
+        supervisor_dir / "run-decisions.jsonl",
+        {
+            "schema_version": 1,
+            "decision_id": "supervisor-000001",
+            "run_id": "store-run",
+            "classification": "needs_user_decision",
+            "action": "request_user_decision",
+            "reason": "api_key=decision-secret",
+            "created_at": "2026-07-09T00:01:01Z",
+        },
+    )
+    append_jsonl(
+        supervisor_dir / "recovery-attempts.jsonl",
+        {
+            "schema_version": 1,
+            "attempt_id": "recovery-000001",
+            "failure_key": "service_down:project:crawler-backend:http",
+            "run_id": "",
+            "action": "restart_service",
+            "status": "fail",
+            "summary": "token=recovery-secret",
+            "consecutive_failure_count": 1,
+            "recorded_at": "2026-07-09T00:01:02Z",
+        },
+    )
+    write_json(
+        supervisor_dir / "needs-user-decisions" / "later.json",
+        {
+            "schema_version": 1,
+            "decision_id": "later",
+            "opened_at": "2026-07-09T00:02:00Z",
+            "status": "open",
+            "summary": "later",
+        },
+    )
+    write_json(
+        supervisor_dir / "needs-user-decisions" / "earlier.json",
+        {
+            "schema_version": 1,
+            "decision_id": "earlier",
+            "opened_at": "2026-07-09T00:01:00Z",
+            "status": "open",
+            "summary": "secret=user-decision-secret",
+        },
+    )
+    seed_run(repo_root, "store-run", "audit_blocked", last_result="blocked", next_action="inspect_required_evidence")
+    write_json(
+        repo_root / ".codex" / "loop-runs" / "store-run" / "audit-reports" / "audit-004.json",
+        {
+            "schema_version": 1,
+            "run_id": "store-run",
+            "audit_id": "audit-004",
+            "created_at": "2026-07-09T00:03:00Z",
+            "verdict": "stop",
+            "direction_control": {"action": "stop", "reason": "password=audit-secret"},
+            "finding_lifecycle": {"open_findings": [{"finding_id": "audit-004-stop", "severity": "must_fix"}]},
+        },
+    )
+
+
 def seed_run(
     repo_root: Path,
     run_id: str,
@@ -145,6 +239,76 @@ def test_safe_join_rejects_path_traversal_and_absolute_paths(tmp_path: Path) -> 
         safe_join(tmp_path, "../outside")
     with pytest.raises(ValueError):
         safe_join(tmp_path, "/tmp/outside")
+
+
+def test_supervisor_store_returns_honest_missing_state(tmp_path: Path) -> None:
+    payload = LoopDashboardStore(tmp_path).supervisor_summary()
+
+    assert payload["status"] == "unavailable"
+    assert payload["state"]["status_label"] == "暂无数据"
+    assert payload["state"]["service_summary"] == {}
+
+
+def test_supervisor_store_reads_artifacts_sorts_user_decisions_and_audits(tmp_path: Path) -> None:
+    seed_supervisor_store_artifacts(tmp_path)
+    store = LoopDashboardStore(tmp_path)
+
+    summary = store.supervisor_summary()
+    decisions = store.supervisor_decisions()
+    required = store.supervisor_decision_required()
+    auditor = store.supervisor_auditor()
+
+    serialized = json.dumps(
+        {
+            "summary": summary,
+            "decisions": decisions,
+            "required": required,
+            "auditor": auditor,
+        },
+        ensure_ascii=False,
+    )
+    assert summary["status"] == "degraded"
+    assert summary["state"]["status_label"] == "服务异常"
+    assert decisions["decisions"][0]["reason"] == "api_key=[REDACTED]"
+    assert [item["decision_id"] for item in required["decisions"]] == ["earlier", "later"]
+    assert required["open_count"] == 2
+    assert auditor["audits"][0]["run_id"] == "store-run"
+    assert auditor["audits"][0]["verdict"] == "stop"
+    assert "state-secret" not in serialized
+    assert "decision-secret" not in serialized
+    assert "user-decision-secret" not in serialized
+    assert "audit-secret" not in serialized
+
+
+def test_supervisor_store_reports_invalid_malformed_json_and_jsonl_without_leaking_content(tmp_path: Path) -> None:
+    supervisor_dir = tmp_path / ".codex" / "supervisor"
+    supervisor_dir.mkdir(parents=True)
+    (supervisor_dir / "supervisor-state.json").write_text(
+        '{"status": "healthy", "last_error": "token=state-secret"', encoding="utf-8"
+    )
+    append_jsonl(
+        supervisor_dir / "recovery-attempts.jsonl",
+        {
+            "schema_version": 1,
+            "attempt_id": "recovery-000001",
+            "summary": "Authorization: Bearer recovery-secret",
+            "consecutive_failure_count": 1,
+        },
+    )
+    with (supervisor_dir / "recovery-attempts.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write('{"summary": "token=jsonl-secret"\n')
+    store = LoopDashboardStore(tmp_path)
+
+    summary = store.supervisor_summary()
+    recovery = store.supervisor_recovery()
+    serialized = json.dumps({"summary": summary, "recovery": recovery}, ensure_ascii=False)
+
+    assert summary["status"] == "invalid_artifact"
+    assert recovery["status"] == "invalid_artifact"
+    assert recovery["attempts"][0]["summary"] == "Authorization: Bearer [REDACTED]"
+    assert "state-secret" not in serialized
+    assert "recovery-secret" not in serialized
+    assert "jsonl-secret" not in serialized
 
 
 def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path) -> None:

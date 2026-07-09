@@ -32,6 +32,30 @@ def create_app(project_root: Path | str | None = None) -> FastAPI:
     def current_project() -> dict:
         return store.project_info()
 
+    @app.get("/api/supervisor")
+    def supervisor_summary() -> dict:
+        return store.supervisor_summary()
+
+    @app.get("/api/supervisor/services")
+    def supervisor_services() -> dict:
+        return store.supervisor_services()
+
+    @app.get("/api/supervisor/decisions")
+    def supervisor_decisions() -> dict:
+        return store.supervisor_decisions()
+
+    @app.get("/api/supervisor/recovery")
+    def supervisor_recovery() -> dict:
+        return store.supervisor_recovery()
+
+    @app.get("/api/supervisor/decision-required")
+    def supervisor_decision_required() -> dict:
+        return store.supervisor_decision_required()
+
+    @app.get("/api/supervisor/auditor")
+    def supervisor_auditor() -> dict:
+        return store.supervisor_auditor()
+
     @app.get("/api/runs")
     def list_runs() -> list[dict]:
         return store.list_runs()
