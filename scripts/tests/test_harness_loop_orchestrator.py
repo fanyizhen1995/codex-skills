@@ -2600,6 +2600,109 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(commit_result["status"], "blocked")
             self.assertIn("commit failed", commit_result["error"])
 
+    def test_run_autonomous_retries_a_transient_commit_failure_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "demo-run"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-1"
+            changed_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/retry.md"
+            target = repo_root / changed_path
+            target.parent.mkdir(parents=True)
+            target.write_text("# Retry commit\n", encoding="utf-8")
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "next_action": "inspect_autonomous_commit",
+                    "last_result": "blocked",
+                    "task_id": task_id,
+                }
+            )
+            save_run(repo_root, run)
+            run_dir = run_dir_for(repo_root, run_id)
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": [changed_path],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [changed_path],
+                    "cleanup_required": False,
+                    "notes": "Retry a transient commit failure.",
+                },
+            )
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "blocked",
+                    "commit": "",
+                    "error": "transient index lock",
+                    "created_by": "harness_loop_orchestrator",
+                },
+            )
+
+            status = run_autonomous(
+                repo_root,
+                run_id,
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_tasks=1,
+            )
+
+            self.assertEqual(status["phase"], "stopped_budget")
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["_autonomous_commit_retries_by_task"], {task_id: 1})
+            commit_result = read_json_file(run_dir / "commit-result.json")
+            self.assertEqual(commit_result["status"], "pass")
+            self.assertTrue(commit_result["commit"])
+
+    def test_run_autonomous_records_commit_stderr(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            seed_candidate_loop_state(repo_root, "ai_infra")
+            commit_error = subprocess.CalledProcessError(
+                128,
+                ["git", "commit"],
+                stderr=b"fatal: Unable to create '.git/index.lock': File exists.\n",
+            )
+
+            with patch("scripts.harness_loop_orchestrator.run_git_commit", side_effect=commit_error):
+                status = run_autonomous(
+                    repo_root,
+                    "demo-run",
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_tasks=1,
+                )
+
+            self.assertEqual(status["phase"], "stopped_blocked")
+            commit_result = read_json_file(run_dir_for(repo_root, "demo-run") / "commit-result.json")
+            self.assertIn("index.lock", commit_result["error"])
+
     def test_run_autonomous_blocks_denylist_changed_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

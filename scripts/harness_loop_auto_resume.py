@@ -21,6 +21,7 @@ except ImportError:  # pragma: no cover - script execution from scripts/
 
 ACTIONABLE_PHASES = {"audit_blocked", "stopped_blocked"}
 ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS = {
+    "inspect_autonomous_commit",
     "inspect_autonomous_dirty_paths",
     "inspect_required_evidence",
     "retry_autonomous_push",

@@ -91,6 +91,27 @@ def seed_autonomous_required_evidence_blocked_run(repo_root: Path, run_id: str) 
     write_json_file(run_dir_for(repo_root, run_id) / "run.json", run)
 
 
+def seed_autonomous_commit_blocked_run(repo_root: Path, run_id: str) -> None:
+    init_git_repo(repo_root)
+    run = create_preflight_run(
+        repo_root=repo_root,
+        mode="autonomous-knowledge",
+        requirement="Resume commit-blocked autonomous run",
+        run_id=run_id,
+        domain="ai_infra",
+        confirm=True,
+    )
+    run.update(
+        {
+            "phase": "stopped_blocked",
+            "next_action": "inspect_autonomous_commit",
+            "last_result": "blocked",
+            "task_id": f"{run_id}-parent-5",
+        }
+    )
+    write_json_file(run_dir_for(repo_root, run_id) / "run.json", run)
+
+
 def seed_autonomous_planning_run(repo_root: Path, run_id: str) -> None:
     init_git_repo(repo_root)
     create_preflight_run(
@@ -176,6 +197,28 @@ class HarnessLoopAutoResumeTests(unittest.TestCase):
             self.assertEqual(result["resumed"][0]["run_id"], "evidence-stuck")
             self.assertEqual(result["resumed"][0]["phase"], "stopped_blocked")
             self.assertEqual(result["resumed"][0]["next_action"], "inspect_required_evidence")
+
+    def test_resume_once_dry_run_finds_autonomous_commit_blocked_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp)
+            seed_autonomous_commit_blocked_run(project_root, "commit-stuck")
+
+            result = resume_once(
+                project_root=project_root,
+                include_worktrees=False,
+                planner_driver="fake",
+                generator_driver="fake",
+                evaluator_driver="fake",
+                max_eval_attempts=2,
+                max_children=3,
+                max_tasks=3,
+                dry_run=True,
+            )
+
+            self.assertEqual(result["candidate_count"], 1, json.dumps(result, indent=2, ensure_ascii=False))
+            self.assertEqual(result["dry_run_count"], 1)
+            self.assertEqual(result["resumed"][0]["run_id"], "commit-stuck")
+            self.assertEqual(result["resumed"][0]["next_action"], "inspect_autonomous_commit")
 
     def test_resume_once_dry_run_finds_autonomous_planning_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

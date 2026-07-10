@@ -3403,6 +3403,8 @@ def _record_generator_attempt_for_task(run: dict[str, Any]) -> None:
 
 _AUTONOMOUS_COMPLETED_TASK_IDS_KEY = "_autonomous_completed_task_ids"
 _AUTONOMOUS_COMPLETED_REMEDIATION_TASK_IDS_KEY = "_autonomous_completed_remediation_task_ids"
+_AUTONOMOUS_COMMIT_RETRIES_KEY = "_autonomous_commit_retries_by_task"
+_MAX_AUTONOMOUS_COMMIT_RESUME_RETRIES = 1
 
 
 def _completed_autonomous_task_ids(run: Mapping[str, Any]) -> list[str]:
@@ -3703,6 +3705,20 @@ def _diagnose_generator_supplied_commit_paths(
     )
 
 
+def _command_failure_detail(exc: Exception) -> str:
+    if not isinstance(exc, subprocess.CalledProcessError):
+        return str(exc)
+    parts = [str(exc)]
+    for label, stream in (("stderr", exc.stderr), ("stdout", exc.stdout)):
+        if isinstance(stream, bytes):
+            text = stream.decode("utf-8", errors="replace").strip()
+        else:
+            text = str(stream or "").strip()
+        if text:
+            parts.append(f"{label}: {text}")
+    return "; ".join(parts)
+
+
 def _commit_autonomous_changes(
     repo_root: Path,
     run: dict[str, Any],
@@ -3806,7 +3822,7 @@ def _commit_autonomous_changes(
                 {
                     "status": "blocked",
                     "commit": "",
-                    "error": str(exc),
+                    "error": _command_failure_detail(exc),
                     "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
                 },
             )
@@ -5494,6 +5510,50 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
     return True
 
 
+def _resume_autonomous_commit_block(repo_root: Path, run: dict[str, Any]) -> bool:
+    if run.get("phase") != "stopped_blocked":
+        return False
+    if run.get("next_action") != "inspect_autonomous_commit":
+        return False
+    run_id = str(run["run_id"])
+    task_id = str(run.get("task_id", "")).strip()
+    run_dir = run_dir_for(repo_root, run_id)
+    try:
+        generator_result = read_json_file(run_dir / "generator-result.json")
+        validate_generator_result_payload(generator_result)
+        commit_result = read_json_file(run_dir / "commit-result.json")
+    except Exception:
+        return False
+    if commit_result.get("status") != "blocked" or str(commit_result.get("commit", "")).strip():
+        return False
+
+    retries = run.get(_AUTONOMOUS_COMMIT_RETRIES_KEY)
+    if not isinstance(retries, dict):
+        retries = {}
+    retry_count = retries.get(task_id, 0)
+    if not isinstance(retry_count, int) or retry_count < 0:
+        retry_count = 0
+    if retry_count >= _MAX_AUTONOMOUS_COMMIT_RESUME_RETRIES:
+        return False
+
+    dirty_result = _check_autonomous_dirty_paths(repo_root, run, list(generator_result["changed_paths"]))
+    write_json_file(run_dir / "dirty-paths-result.json", dirty_result)
+    if not dirty_result["allowed"]:
+        return False
+
+    current = load_run(repo_root, run_id)
+    current_retries = current.get(_AUTONOMOUS_COMMIT_RETRIES_KEY)
+    if not isinstance(current_retries, dict):
+        current_retries = {}
+    current_retries[task_id] = retry_count + 1
+    current[_AUTONOMOUS_COMMIT_RETRIES_KEY] = current_retries
+    current["phase"] = "cleanup"
+    current["next_action"] = "commit_autonomous_changes"
+    current["last_result"] = "none"
+    save_run(repo_root, current)
+    return True
+
+
 def run_autonomous(
     repo_root: Path | str,
     run_id: str,
@@ -5560,6 +5620,8 @@ def _run_autonomous_locked(
             if _resume_autonomous_dirty_path_block(root, run):
                 continue
             if _resume_autonomous_required_evidence_block(root, run):
+                continue
+            if _resume_autonomous_commit_block(root, run):
                 continue
             return status_for_run(root, run_id)
         if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
