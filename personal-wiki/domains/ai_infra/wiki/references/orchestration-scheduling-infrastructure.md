@@ -29,7 +29,7 @@ source_refs:
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json
-updated: 2026-07-08
+updated: 2026-07-10
 related:
   - ai-infra-coverage-map.md
   - distributed-training-infrastructure.md
@@ -90,6 +90,14 @@ Kueue issue #12207 adds quota-admission evidence for DRA partitionable devices: 
 
 Volcano issue #5119 reports a `vcjob` using `ResourceClaimTemplate` failing dynamic-resource preparation when the pod skipped DRA scheduler-plugin operations. Issue #4692 reports Volcano's DRA PreBind integration blocking the main scheduling workflow when a lock is not released until timeout. Issue #5335 reports dry-run rollback leaving vGPU assignment annotations that bypass later capacity validation and can over-subscribe GPUs, and issue #5361 reports Hami vGPU scheduling taking more than ten minutes on a 200-node, 8-GPU-per-node cluster after a Volcano and device-plugin upgrade because API-server rate limiting delayed resource-view generation. Older issue #2965 remains a device-plugin reinstall boundary: node `OutOfSync` marking prevented scheduling after GPU resource reporting dropped to zero. These stay issue-level operational signals, not GPU-operator upgrade postmortems with full service impact and remediation ownership. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
 
+Parent-20 adds a bounded Volcano scheduler benchmark and performance slice from the same local corpus. Volcano issue #999 is a benchmark-design request rather than a measured result: it asks for scalability performance testing, suggests Kubemark to simulate nodes, names large pod counts such as 100k pods on 1k-5k nodes, and separates scheduler throughput from average scheduling latency under fixed pod creation frequency. A comment adds that scheduler performance needs a pressure simulator because RPC response latency does not directly represent scheduling work. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
+
+Volcano issue #1740 is a throughput requirement signal for high-performance workload submission. The issue states that high-performance workloads are moving to Kubernetes and that current scheduler throughput did not meet large-scale job-submission requirements; a maintainer comment asks for a performance report before more improvement. Treat it as demand and design pressure for throughput work, not as a throughput benchmark result. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
+
+Volcano issue #1059 is a reporter-stated performance incident with an environment boundary: Volcano v1.0.1 on Kubernetes 1.14 reportedly took nearly 30 minutes to schedule 1k podgroups with 1w pods in a 1w-node cluster, and 2 MB/s log growth at log level 3 was reported as dramatically affecting scheduler performance. This supports log-volume sensitivity as issue-level scheduler performance evidence, not a controlled benchmark baseline or production postmortem. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
+
+Volcano issue #5536 adds recent scheduler hot-path optimization evidence: after #5505, stable-filter plugins such as `NodeAffinity` can have `PreFilter` return `Skip`, but `predicateByStablefilter` still called `Filter()` for every node unless it checked `handleSkipPredicatePlugin(state, name)`. This supports stable-filter skip handling as a scheduler hot-path concern; it does not provide measured throughput or latency output. [raw](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
+
 The SGLang index remains a downstream runtime lead for Slurm and accelerator scheduling. In particular, issue #23627 records DP scheduler workers escaping a Slurm job cgroup and surviving job termination, blocking GPU reuse. This is useful evidence that runtime-level schedulers can violate HPC allocation cleanup boundaries, but it should be paired with Slurm or runtime-specific source captures before becoming a general Slurm-on-Kubernetes or Slurm operations claim. [raw](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
 
 # Duplicate Boundaries
@@ -107,8 +115,8 @@ Use this page as source-backed coverage for:
 - `security-governance-cost`: only where Kueue quota, ResourceFlavor, cohorts, or ResourceQuota explain admission and accelerator governance; use the security/governance page for cost and tenant isolation.
 - `hardware-accelerator`: only where device plugins and GPU operators expose or manage accelerators; do not use this page for SKU parameters.
 
-Remaining gaps for this layer are production scheduling incidents, cross-scheduler migration reports, Slurm-on-Kubernetes bridge deployments, scheduler benchmark evidence, and operator upgrade failure/postmortem evidence.
-The local issue corpora now cover issue-level admission, preemption, DRA ResourceClaim/ResourceSlice, GPU device, device-plugin coexistence, vGPU, and upgrade-adjacent failure signals. They do not yet close the need for production incidents, scheduler benchmarks, Slurm-on-Kubernetes bridge deployments, or GPU-operator/device-plugin upgrade postmortems with full environment and remediation context.
+Remaining gaps for this layer are production scheduling incidents, cross-scheduler migration reports, Slurm-on-Kubernetes bridge deployments, controlled scheduler benchmark results, and operator upgrade failure/postmortem evidence.
+The local issue corpora now cover issue-level admission, preemption, DRA ResourceClaim/ResourceSlice, GPU device, device-plugin coexistence, vGPU, scheduler benchmark design, throughput demand, log-volume performance sensitivity, stable-filter skip handling, and upgrade-adjacent failure signals. They do not yet close the need for production incidents, controlled scheduler benchmark outputs with full environment and measured results, Slurm-on-Kubernetes bridge deployments, or GPU-operator/device-plugin upgrade postmortems with full environment and remediation context.
 
 # Citations
 

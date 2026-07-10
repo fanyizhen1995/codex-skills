@@ -1,0 +1,126 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-3",
+  "layer": "orchestration-scheduling",
+  "candidate": {
+    "title": "Volcano scheduler benchmark and throughput issue slice",
+    "source_type": "github_issue_set",
+    "identity_key": "github_issue_set:volcano-scheduler-benchmark-throughput:run-local-task-3"
+  },
+  "identity_keys": [
+    {
+      "title": "Volcano scheduler benchmark design request",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 999,
+      "identity_key": "github:volcano-sh/volcano#999"
+    },
+    {
+      "title": "Volcano scheduler throughput optimization request",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 1740,
+      "identity_key": "github:volcano-sh/volcano#1740"
+    },
+    {
+      "title": "Volcano scheduler log-level performance incident report",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 1059,
+      "identity_key": "github:volcano-sh/volcano#1059"
+    },
+    {
+      "title": "Volcano stable filter skip hot-path issue",
+      "source_type": "github_issue",
+      "owner": "volcano-sh",
+      "repo": "volcano",
+      "number": 5536,
+      "identity_key": "github:volcano-sh/volcano#5536"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Searched existing local Volcano raw GitHub index and joined-comment corpus under personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues. No network fetch was used. Issues #999, #1059, #1740, and #5536 are visible in the local index and joined-comment file with scheduler benchmark, scheduler throughput, log-level performance, stable filter, predicateByStablefilter, and PreFilter skip terms.",
+    "wiki_search": "Searched Orchestration Scheduling Infrastructure, Kubernetes/Volcano/Kueue GitHub Closed Issues, AI Infra Coverage Map, coverage-map.json, loop-state.json, ingest.md, and prior continuation parent manifests. Parent-5 promoted DRA, ResourceClaimTemplate, PreBind lock, vGPU, Hami vGPU, and device-plugin reinstall boundaries for Volcano #5119, #4692, #5335, #5361, and #2965, but did not promote Volcano #999, #1059, #1740, or #5536 as scheduler benchmark, throughput, log-volume performance, or stable-filter skip evidence.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Orchestration Scheduling Infrastructure, Kubernetes/Volcano/Kueue GitHub Closed Issues, and AI Infra Coverage Map. No new standalone page was needed.",
+    "prior_manifest_scan": "Parent-18 BlueField-4 and parent-19 Iluvatar Zhikai are hardware catalog slices. Parent-5 is the relevant duplicate boundary for Kubernetes/Kueue/Volcano issue-level orchestration evidence; it intentionally left scheduler benchmark and throughput gaps partial."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "manifest-ai-infra-expansion-continuation-20260708-parent-5-gap-proof.json",
+      "result": "Parent-5 promoted Kubernetes #139016, #137617, #138882, #135661, #133702, #133488, #135901, #138407; Kueue #12207 and #9868; and Volcano #5119, #4692, #5335, #5361, and #2965. It did not list or summarize Volcano #999, #1059, #1740, or #5536."
+    },
+    {
+      "target": "wiki/references/orchestration-scheduling-infrastructure.md",
+      "result": "Before parent-20, the page covered official scheduler/controller/device-plugin/operator surfaces, Kueue admission/preemption/placement examples, Volcano gang scheduling/preemption/vGPU/scheduler panic/upgrade examples, and parent-5 DRA/device-plugin/vGPU/Hami issue signals. It did not contain a Volcano scheduler benchmark-design, throughput-demand, log-volume performance, or stable-filter skip section for #999/#1740/#1059/#5536."
+    },
+    {
+      "target": "wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+      "result": "Before parent-20, the corpus page documented counts, raw files, retrieval rules, monthly sync setup, and parent-5 DRA/device-plugin slice. It did not summarize #999, #1059, #1740, or #5536."
+    },
+    {
+      "target": "coverage-map.json and loop-state.json",
+      "result": "Before parent-20, the orchestration-scheduling layer still listed scheduler benchmark evidence as a candidate gap and had no known_source entry for a Volcano benchmark/throughput issue slice."
+    }
+  ],
+  "gap_reason": "The local Volcano corpus contains non-duplicate issue-level evidence for scheduler benchmark design, throughput requirements, log-volume performance sensitivity, and stable-filter hot-path skip handling. This improves orchestration-scheduling coverage while preserving the gap for controlled scheduler benchmark results with full environment and measured outputs.",
+  "promoted_issue_signals": [
+    {
+      "repo": "volcano-sh/volcano",
+      "issues": [
+        999
+      ],
+      "signal": "Benchmark-design request naming scalability performance tests, Kubemark-style node simulation, large pod counts such as 100k pods, 1k-5k nodes, scheduler throughput, average scheduling latency under fixed pod creation frequency, and device-aware repeats such as GPU tests.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+      "boundary": "Design request and pressure-simulator discussion only; no controlled benchmark output was promoted."
+    },
+    {
+      "repo": "volcano-sh/volcano",
+      "issues": [
+        1740
+      ],
+      "signal": "Throughput requirement signal for high-performance workload migration to Kubernetes and large-scale job submission; comments ask for a performance report before further improvement.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+      "boundary": "Requirement and design-pressure evidence only; no throughput number was promoted."
+    },
+    {
+      "repo": "volcano-sh/volcano",
+      "issues": [
+        1059
+      ],
+      "signal": "Reporter-stated performance incident: Volcano v1.0.1 on Kubernetes 1.14 reportedly took nearly 30 minutes to schedule 1k podgroups with 1w pods in a 1w-node cluster, and log growth around 2 MB/s at log level 3 affected scheduler performance.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+      "boundary": "Reporter observation scoped to its stated environment; not a controlled benchmark baseline, production postmortem, SLO, or reproducible result."
+    },
+    {
+      "repo": "volcano-sh/volcano",
+      "issues": [
+        5536
+      ],
+      "signal": "Stable-filter hot-path evidence: predicateByStablefilter needed to honor PreFilter Skip state through handleSkipPredicatePlugin(state, name) before calling Filter for every node.",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz",
+      "boundary": "Hot-path optimization evidence only; no measured scheduler throughput or latency output was promoted."
+    }
+  ],
+  "non_promoted_boundaries": [
+    "No parent-5 DRA, ResourceClaimTemplate, PreBind, vGPU, Hami, device-plugin, Kubernetes DRA, or Kueue DRA issue was re-promoted as new parent-20 evidence.",
+    "Volcano #999 and #1740 remain benchmark-design or throughput-request evidence unless future raw sources provide measured results.",
+    "Volcano #1059 remains a reporter-stated observation scoped to Volcano v1.0.1 and Kubernetes 1.14, not a controlled benchmark baseline or production postmortem.",
+    "Volcano #5536 remains stable-filter hot-path evidence, not proof of measured performance improvement.",
+    "No accelerator catalog data, hardware pages, inference runtime pages, data/RAG pages, network/storage pages, crawler code, backend/frontend/dashboard code, source profiles, or subscriptions were changed."
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-scheduler-benchmark-parent-20.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-20-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-20-verification.json"
+  ],
+  "run_parent_task_id": "ai-infra-expansion-continuation-20260708-parent-20"
+}

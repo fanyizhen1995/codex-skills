@@ -26,7 +26,7 @@ source_refs:
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-api-pages.json.gz
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-issue-comments-api-pages.json.gz
-updated: 2026-07-08
+updated: 2026-07-10
 aliases:
   - Kubernetes closed issue corpus
   - Volcano closed issue corpus
@@ -115,6 +115,20 @@ The Kueue slice adds #12207 as a DRA partitionable-device quota borrowing bug wi
 The Volcano slice adds #5119 for `ResourceClaimTemplate` preparation failure in `vcjob`, #4692 for an unreleased DRA PreBind lock blocking the main scheduling workflow until timeout, #5335 for stale vGPU annotations after dry-run rollback causing over-subscription, #5361 for Hami vGPU scheduling delays in a 200-node, 8-GPU-per-node cluster after a Volcano and device-plugin upgrade, and #2965 as an older device-plugin reinstall and node `OutOfSync` scheduling boundary.
 
 This slice is local issue-level evidence. It is not a complete comment corpus, production postmortem set, scheduler benchmark corpus, Slurm-on-Kubernetes bridge proof, or GPU-operator upgrade incident closure.
+
+# Parent-20 Volcano Scheduler Benchmark And Throughput Slice
+
+The continuation parent-20 retrieval pass reused the local Volcano closed-issue index and joined-comment corpus. It first treated parent-5 as a duplicate boundary: parent-5 promoted Kubernetes DRA and device-management issues, Kueue DRA quota issues, and Volcano DRA/vGPU/device-plugin/Hami upgrade-adjacent issues, but did not promote scheduler benchmark or throughput issues #999, #1740, #1059, or #5536.
+
+Volcano #999, "Benchmark on volcano scheduler", is retained as benchmark-design evidence. The issue asks for scalability performance testing, suggests Kubemark to simulate Kubernetes nodes, names dimensions such as large pod counts, 1k-5k nodes, scheduler throughput, average scheduling latency under fixed pod creation frequency, and advanced device tests such as GPU repeats. Its comments discuss a pressure simulator for scheduler performance. It does not contain controlled benchmark measurements.
+
+Volcano #1740, "Optimize the throughput of scheduler", is retained as a throughput-requirement signal. The issue says high-performance workloads are moving to Kubernetes and that scheduler throughput did not meet large-scale job submission requirements; a maintainer comment asks for a performance report before additional improvement. This is requirement and design-pressure evidence, not measured throughput.
+
+Volcano #1059, "better log level to improve scheduler performance", is retained as a reported performance incident. The reporter stated that Volcano v1.0.1 on Kubernetes 1.14 took nearly 30 minutes to schedule 1k podgroups with 1w pods in a 1w-node cluster, and that log growth around 2 MB/s at log level 3 affected scheduler performance. The source does not provide a controlled benchmark harness, repeated results, remediation timeline, or production impact boundary.
+
+Volcano #5536, "Add skip check in `predicateByStablefilter`", is retained as stable-filter hot-path evidence. The issue reports that stable filter plugins such as `NodeAffinity` can have `PreFilter` return `Skip`, but `predicateByStablefilter` still called `Filter()` for every node without `handleSkipPredicatePlugin(state, name)`. This is scheduler hot-path optimization evidence, not latency or throughput measurement.
+
+This slice updates the orchestration-scheduling gap from "scheduler benchmark evidence missing" to "controlled scheduler benchmark results still missing." Local issue records now cover benchmark dimensions, throughput demand, one reporter-stated performance incident, and a stable-filter skip optimization, while benchmark outputs with full environment and measured results remain unclosed.
 
 # Relationships
 

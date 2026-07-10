@@ -1,0 +1,132 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-20",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-3",
+  "status": "pass",
+  "created_at": "2026-07-10T07:36:12Z",
+  "summary": "Promoted a bounded local Volcano scheduler performance evidence slice. Issue #999 remains benchmark-design evidence, #1740 remains a throughput-requirement signal, #1059 remains a reporter observation scoped to Volcano v1.0.1 and Kubernetes 1.14, and #5536 remains stable-filter hot-path evidence. No controlled benchmark result, SLO, production postmortem, or reproducible baseline was claimed.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-20-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-20-verification.json",
+    "personal-wiki/domains/ai_infra/raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-scheduler-benchmark-parent-20.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/kubernetes-volcano-kueue-github-closed-issues.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Rebuilt the ai_infra index; no new index diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "summary": "Regenerated backlinks; no new backlinks diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool coverage-map.json, loop-state.json, and both parent-20 gap proofs",
+      "status": "pass",
+      "summary": "All four JSON artifacts parse successfully."
+    },
+    {
+      "command": "validate_gap_proof_file for semantic parent-20 and run-local task-3",
+      "status": "pass",
+      "summary": "Both gap proofs satisfy the harness contract and exact task IDs."
+    },
+    {
+      "command": "validate_coverage_map_payload, validate_loop_state_payload, validate_planner_output_payload",
+      "status": "pass",
+      "summary": "Coverage map, loop state, and planner output satisfy harness contracts."
+    },
+    {
+      "command": "read local Volcano joined-comment corpus and assert issues 999, 1059, 1740, and 5536",
+      "status": "pass",
+      "summary": "All four selected issues exist with non-empty title/body/comment evidence."
+    },
+    {
+      "command": "bounded content search for Volcano benchmark, throughput, reporter observation, stable-filter, and parent-20 terms",
+      "status": "pass",
+      "summary": "Curated pages, coverage map, loop state, and ingest log expose the intended issue-level slice."
+    },
+    {
+      "command": "boundary check for unrelated ai_infra slices",
+      "status": "pass",
+      "summary": "Accelerator data, hardware/projects, inference, data/RAG, network/storage, and security/governance pages remain unchanged."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "summary": "No whitespace errors."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over added ai_infra lines",
+      "status": "pass",
+      "summary": "No credential assignment, authorization header, bearer token, password, secret, API key, or private-key additions."
+    },
+    {
+      "command": "autonomous scope review against planner-output.json",
+      "status": "pass",
+      "summary": "All ten declared paths are inside personal-wiki/domains/ai_infra and outside denylists."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No application, harness, package, lockfile, dependency, or generated code changed; code tests are not applicable."
+    },
+    {
+      "command": "delegated trusted live evidence manifest",
+      "status": "delegated",
+      "summary": "Service, crawler freshness, search, frontend, and dashboard checks remain orchestrator-owned; no local service probes were run."
+    },
+    {
+      "command": "commit-result and push-result",
+      "status": "delegated",
+      "summary": "Generator did not commit or push; the orchestrator remains responsible after evaluator and evidence gates pass."
+    },
+    {
+      "command": "parent-task-level Auditor cadence",
+      "status": "delegated",
+      "summary": "The orchestrator must run the ordinary Auditor after parent-20 because two parent tasks have completed since audit-001."
+    }
+  ],
+  "delegated_live_evidence_ids": [
+    "service-availability",
+    "crawler-workbench-freshness",
+    "search-api-visibility",
+    "frontend-visibility",
+    "loop-dashboard-freshness"
+  ],
+  "not_applicable": [
+    {
+      "gate": "Domain Channels evidence",
+      "reason": "No crawler source subscriptions or Domain Channels changed."
+    },
+    {
+      "gate": "link probe or blocked/auth evidence",
+      "reason": "No new external source was fetched; the existing local Volcano corpus was reused."
+    },
+    {
+      "gate": "code tests",
+      "reason": "No crawler/backend/frontend/dashboard/harness code changed."
+    },
+    {
+      "gate": "supply-chain result",
+      "reason": "No dependency or package files changed."
+    },
+    {
+      "gate": "fresh no-action evidence",
+      "reason": "The task produced a source-backed knowledge update."
+    }
+  ],
+  "commit": ""
+}
