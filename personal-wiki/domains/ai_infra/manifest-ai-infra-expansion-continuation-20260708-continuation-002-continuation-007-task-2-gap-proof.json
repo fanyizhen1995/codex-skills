@@ -1,0 +1,129 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Iluvatar Zhikai 50 and Zhikai 100 accelerator catalog field promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:iluvatar:zhikai-50-zhikai-100"
+  },
+  "identity_keys": [
+    {
+      "title": "Iluvatar Zhikai 50",
+      "source_type": "hardware",
+      "identity_key": "hardware:iluvatar:zhikai-50:16gb"
+    },
+    {
+      "title": "Iluvatar Zhikai 100",
+      "source_type": "hardware",
+      "identity_key": "hardware:iluvatar:zhikai-100:32gb"
+    },
+    {
+      "title": "Iluvatar Tiangai 100 and Tiangai 150",
+      "source_type": "hardware",
+      "identity_key": "hardware:iluvatar:tiangai:tg100-tg150",
+      "boundary": "Parent-11 duplicate-boundary row only; not modified by this run-local task."
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local Iluvatar Zhikai capture found and reused: raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md. The 20260627 capture has the same content hash and is duplicate/refresh evidence. No new external fetch was needed.",
+    "wiki_search": "Before this run-local task, curated pages represented parent-11 Iluvatar Tiangai 100/150 as structured rows and represented Iluvatar ZK50 / ZK100 only as a raw comparison row in Compute Accelerator Parameter Comparison. No curated page represented distinct structured Zhikai 50 or Zhikai 100 rows.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map. No standalone Iluvatar Zhikai page was needed.",
+    "structured_catalog_scan": "Before this run-local task, data/compute_accelerators/skus/sample-skus.yaml had iluvatar-tiangai-100 and iluvatar-tiangai-150 only; observations/sample-observations.yaml and resolved/sample-resolved-specs.yaml had no iluvatar-zhikai-50, iluvatar-zhikai-100, MR-V50, or MR-V100 rows.",
+    "prior_manifest_scan": "Parent-11 intentionally promoted only Iluvatar Tiangai 100 and Tiangai 150. Parent-1 through parent-18 and continuation task manifests promoted Corigine, SGLang supplements, Yusur, H200, Kubernetes/Kueue/Volcano, AWS/Lambda evidence, Resnics N2025, NVIDIA confidential inference, Asterfusion, Kunlunxin R200/R200-8F, Iluvatar Tiangai, MetaX C-series/C600, Huawei Atlas 300I A2, JaguarMicro Yunxiao DPU, July 8/9 SGLang batches, AWS Trn2 aggregate memory, and NVIDIA BlueField-4. They did not promote Iluvatar Zhikai 50/100 structured catalog facts."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json",
+      "result": "Parent-11 lists Tiangai 100 and Tiangai 150 identity keys and explicitly treats Zhikai 50/100 as adjacent non-promoted Iluvatar family context."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Before this run-local task, Iluvatar ZK50 / ZK100 was present as one raw comparison row with visible form, memory, power, and interface text, but no resolved-spec citation or distinct SKU rows."
+    },
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "No pre-existing iluvatar-zhikai-50 or iluvatar-zhikai-100 SKU rows; this task adds one SKU per source-visible card variant and leaves Tiangai rows unchanged."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "No pre-existing Zhikai observations; this task adds only form_factor, memory_capacity, memory_type, host_interface, and tdp observations for Zhikai 50 and Zhikai 100."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "No pre-existing Zhikai resolved fields; this task adds resolved fields pointing to the new Zhikai observations only."
+    },
+    {
+      "target": "data/compute_accelerators/sources/source-registry.yaml",
+      "result": "Existing iluvatar-zk100-product-page source registry entry was reused and clarified to cover both Zhikai 50 and Zhikai 100 because the local page table lists both cards."
+    },
+    {
+      "target": "coverage-map.json and loop-state.json",
+      "result": "This task records Zhikai 50/100 evidence while preserving parent-18 BlueField-4 and parent-11 Tiangai evidence as current duplicate-boundary state."
+    }
+  ],
+  "gap_reason": "The local corpus already contained an official product-specific Iluvatar Zhikai capture with a table that maps form factor, HBM2E memory capacity/type, PCIe Gen4.0 x16 host interface, and board power to Zhikai 50 / MR-V50 and Zhikai 100 / MR-V100. Those source-visible schema-supported fields were only present as raw comparison evidence and had not been promoted into the structured accelerator catalog.",
+  "promoted_fields": [
+    {
+      "sku_id": "iluvatar-zhikai-50",
+      "fields": {
+        "form_factor": "half-length half-height single-slot PCIe card",
+        "memory_capacity": "16 GB",
+        "memory_type": "HBM2E",
+        "host_interface": "PCIe Gen4.0 x16 lane",
+        "tdp": "75 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md"
+    },
+    {
+      "sku_id": "iluvatar-zhikai-100",
+      "fields": {
+        "form_factor": "full-length full-height single-slot PCIe card",
+        "memory_capacity": "32 GB",
+        "memory_type": "HBM2E",
+        "host_interface": "PCIe Gen4.0 x16 lane",
+        "tdp": "150 W"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "The product table lists Zhikai 50 as half-length half-height single-slot PCIe, 75 W, 16 GB HBM2E, and MR-V50; it lists Zhikai 100 as full-length full-height single-slot PCIe, 150 W, 32 GB HBM2E, and MR-V100.",
+      "boundary": "Resolved only form_factor, memory_capacity, memory_type, host_interface, and tdp for the two distinct card rows."
+    },
+    {
+      "source_value": "The table lists PCIe as PCle Gen4.0 X 16 lane.",
+      "boundary": "Recorded as the normalized host_interface string PCIe Gen4.0 x16 lane while preserving the source locator and notes."
+    },
+    {
+      "source_value": "The page says the cards support FP32, FP16, INT8 mixed-precision inference.",
+      "boundary": "No fp32_tflops, fp16_tflops, int8_tops, benchmark, throughput, ranking, or production-operation field is resolved because the source does not expose exact schema-compatible performance values."
+    },
+    {
+      "source_value": "The page states 128-channel video decode, H.264/H.265/VP9/AVS2 support, JPEG decode/encode rates, CUDA ecosystem compatibility, mainstream framework support, average migration-time reduction, 2-3x actual-use performance, 800+ instructions, cost positioning, and application scenarios.",
+      "boundary": "These claims remain curated boundary text only and are not catalog facts, codec-capacity fields, ecosystem-completion proof, benchmarks, production-operation evidence, service SLOs, cost facts, or rankings."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/sources/source-registry.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No Iluvatar Tiangai 100 or Tiangai 150 structured row was changed.",
+    "No Zhikai FP32, FP16, INT8, video/image codec capacity, CUDA ecosystem compatibility, migration-time, performance-ratio, instruction-set, application-scenario, cost, benchmark, production-operation, service-SLO, ranking, or aggregate-system claim was promoted.",
+    "No BlueField, SGLang, AWS Trn2, JaguarMicro, Atlas 300I A2, MetaX, Kunlunxin, Asterfusion, Yusur, Resnics, Corigine, Cambricon, H200, Kubernetes/Kueue/Volcano, data/RAG, observability, governance, cost, or network/storage row was modified except duplicate-boundary context.",
+    "No new external source was fetched, and no crawler subscriptions or Domain Channels were changed."
+  ]
+}

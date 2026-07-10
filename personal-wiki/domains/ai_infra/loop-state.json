@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-10T04:28:36Z",
+  "last_scan_at": "2026-07-10T05:47:01Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -97,7 +97,7 @@
       "title": "Compute accelerator inventory, catalog, and parameter comparison",
       "source": "local wiki/raw",
       "status": "known",
-      "updated_at": "2026-07-08T10:47:53Z",
+      "updated_at": "2026-07-10T05:47:01Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-06-r5-task-1-gap-proof.json",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json",
@@ -105,7 +105,9 @@
         "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-crawl-inventory.md",
         "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
-        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json"
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md"
       ]
     },
     {
@@ -818,6 +820,26 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.ingest-plan.md",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-verification.json"
+      ]
+    },
+    {
+      "id": "compute-accelerator-continuation-iluvatar-zhikai-fields",
+      "title": "Resolved Iluvatar Zhikai 50 and Zhikai 100 catalog fields",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-10T05:47:01Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-verification.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml"
       ]
     }
   ],

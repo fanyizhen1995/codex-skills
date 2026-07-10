@@ -1598,6 +1598,136 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official product page states board power is 350 W.
+  - observation_id: obs-iluvatar-zhikai-50-form-factor
+    sku_id: iluvatar-zhikai-50
+    field: form_factor
+    value: half-length half-height single-slot PCIe card
+    unit: none
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications size row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table maps the smaller card column to a half-length half-height single-slot PCIe card.
+  - observation_id: obs-iluvatar-zhikai-50-memory-capacity
+    sku_id: iluvatar-zhikai-50
+    field: memory_capacity
+    value: 16
+    unit: GB
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications memory row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table maps Zhikai 50 / MR-V50 to 16 GB HBM2E.
+  - observation_id: obs-iluvatar-zhikai-50-memory-type
+    sku_id: iluvatar-zhikai-50
+    field: memory_type
+    value: HBM2E
+    unit: none
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications memory row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table identifies Zhikai 50 memory as HBM2E.
+  - observation_id: obs-iluvatar-zhikai-50-host-interface
+    sku_id: iluvatar-zhikai-50
+    field: host_interface
+    value: PCIe Gen4.0 x16 lane
+    unit: none
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications interface row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table lists a shared PCIe Gen4.0 x16 lane interface for the Zhikai accelerator cards; the source text spells PCIe as PCle.
+  - observation_id: obs-iluvatar-zhikai-50-tdp
+    sku_id: iluvatar-zhikai-50
+    field: tdp
+    value: 75
+    unit: W
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications power row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table maps Zhikai 50 / MR-V50 to 75 W board power.
+  - observation_id: obs-iluvatar-zhikai-100-form-factor
+    sku_id: iluvatar-zhikai-100
+    field: form_factor
+    value: full-length full-height single-slot PCIe card
+    unit: none
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications size row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table maps the larger card column to a full-length full-height single-slot PCIe card.
+  - observation_id: obs-iluvatar-zhikai-100-memory-capacity
+    sku_id: iluvatar-zhikai-100
+    field: memory_capacity
+    value: 32
+    unit: GB
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications memory row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table maps Zhikai 100 / MR-V100 to 32 GB HBM2E.
+  - observation_id: obs-iluvatar-zhikai-100-memory-type
+    sku_id: iluvatar-zhikai-100
+    field: memory_type
+    value: HBM2E
+    unit: none
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications memory row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table identifies Zhikai 100 memory as HBM2E.
+  - observation_id: obs-iluvatar-zhikai-100-host-interface
+    sku_id: iluvatar-zhikai-100
+    field: host_interface
+    value: PCIe Gen4.0 x16 lane
+    unit: none
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications interface row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table lists a shared PCIe Gen4.0 x16 lane interface for the Zhikai accelerator cards; the source text spells PCIe as PCle.
+  - observation_id: obs-iluvatar-zhikai-100-tdp
+    sku_id: iluvatar-zhikai-100
+    field: tdp
+    value: 150
+    unit: W
+    source_id: iluvatar-zk100-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Iluvatar Zhikai 100 product page; product specifications power row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official product table maps Zhikai 100 / MR-V100 to 150 W board power.
   - observation_id: obs-metax-c500-form-factor
     sku_id: metax-c500
     field: form_factor

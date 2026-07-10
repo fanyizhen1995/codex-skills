@@ -260,6 +260,24 @@ skus:
     form_factor: training accelerator
     release_status: released
     source_refs: [iluvatar-tg150-product-page]
+  - sku_id: iluvatar-zhikai-50
+    vendor_id: iluvatar
+    family_id: iluvatar-zhikai
+    canonical_name: Iluvatar Zhikai 50
+    aliases: [Zhikai 50, ZK50, MR-V50, Zhikai 50 accelerator card]
+    scope: gpu
+    form_factor: half-length half-height single-slot PCIe card
+    release_status: released
+    source_refs: [iluvatar-zk100-product-page]
+  - sku_id: iluvatar-zhikai-100
+    vendor_id: iluvatar
+    family_id: iluvatar-zhikai
+    canonical_name: Iluvatar Zhikai 100
+    aliases: [Zhikai 100, ZK100, MR-V100, Zhikai 100 accelerator card]
+    scope: gpu
+    form_factor: full-length full-height single-slot PCIe card
+    release_status: released
+    source_refs: [iluvatar-zk100-product-page]
   - sku_id: metax-c500
     vendor_id: metax
     family_id: metax-xiyun-c

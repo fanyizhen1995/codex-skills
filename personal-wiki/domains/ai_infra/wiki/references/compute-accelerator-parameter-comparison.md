@@ -97,6 +97,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json
 ---
 
 # Summary
@@ -151,6 +152,9 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   resolved fields for form factor, 32 GB HBM2, `PCIe Gen4.0 x16 lane`,
   source-stated 64 GB/s inter-chip bandwidth, and 250 W board power, plus
   Tiangai 150 resolved fields for 64 GB HBM memory and 350 W board power only.
+  Continuation parent 19 adds distinct Iluvatar Zhikai 50 and Zhikai 100 rows
+  for only the source-visible form factor, HBM2E memory capacity/type, PCIe
+  Gen4.0 x16 host interface, and board-power fields.
   Continuation parent 12 adds MetaX C500, C500X, C550, and C588 resolved rows
   for source-visible form factor, memory capacity, MetaXLink interconnect
   wording, and maximum power only; continuation parent 13 adds MetaX C600
@@ -176,7 +180,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [NCCL issue page](../../raw/github/nvidia-nccl-closed-issues/api-pages/closed-issues-page-011.json.gz),
   [SGLang comment page](../../raw/github/sgl-project-sglang-closed-issues-prs/comment-pages/issue-comments-page-205.json.gz)
 - Strong domestic card/module-level comparison set: Huawei Atlas 300I A2,
-  Cambricon MLU370, Kunlunxin R200/R200-8F/RG800, Iluvatar Tiangai 100, and the
+  Cambricon MLU370, Kunlunxin R200/R200-8F/RG800, Iluvatar Tiangai 100,
+  Iluvatar Zhikai 50/100, and the
   MetaX C500/C500X/C550/C588 pages expose enough local raw parameters to compare
   some compute, deployment-envelope, memory-capacity, memory-bandwidth,
   host-interface, interconnect-wording, and power fields as individual products.
@@ -191,7 +196,10 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   benchmark, production-operation, or ecosystem-completion claims; C600 also
   does not resolve memory capacity or memory type from qualitative memory text. R200/R200-8F
   and RG800 now have structured resolved rows for schema-supported fields; INT16
-  remains comparison-only.
+  remains comparison-only. Zhikai FP32/FP16/INT8 support, video/image codec
+  capacity, CUDA compatibility, migration-time, performance-ratio,
+  instruction-set, cost, application-scenario, benchmark, production-operation,
+  service-SLO, and ranking text remains comparison-only boundary evidence.
   [Atlas 300I A2](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md),
   [MLU370-S4/S8](../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260628T060442871520Z-www-cambricon-com-index-php-dd51e6b9e9.md),
   [MLU370-X4](../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md),
@@ -200,6 +208,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [RG800](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md),
   [Tiangai 100](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md),
   [Tiangai 150](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md),
+  [Zhikai 50/100](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md),
   [MetaX C500](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md),
   [MetaX C500X](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md),
   [MetaX C550](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md),
@@ -265,6 +274,8 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Kunlunxin RG800 | AI ASIC / PCIe card | 256 TOPS INT8; 128 TFLOPS FP16; 32 TFLOPS FP32; 32 GB GDDR6; 512 GB/s memory bandwidth; PCIe 4.0 x16; 130 W; full-height full-length single-slot card | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md) |
 | Iluvatar Tiangai 100 | GPU / PCIe card | full-length full-height dual-slot PCIe card; 32 GB HBM2; PCIe Gen4.0 x16 lane; source-stated 64 GB/s inter-chip bandwidth; 250 W board power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md) |
 | Iluvatar Tiangai 150 | GPU / training accelerator | 64 GB HBM memory; 350 W board power. Exact compute peaks, memory bandwidth, form factor, host interface, and benchmark claims are not resolved from the local page. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md) |
+| Iluvatar Zhikai 50 | GPU / PCIe inference card | half-length half-height single-slot PCIe card; 16 GB HBM2E; PCIe Gen4.0 x16 lane; 75 W board power. FP32/FP16/INT8 support, codec capacity, CUDA compatibility, migration-time, performance-ratio, instruction-set, application, cost, benchmark, operation, SLO, and ranking claims are not resolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md) |
+| Iluvatar Zhikai 100 | GPU / PCIe inference card | full-length full-height single-slot PCIe card; 32 GB HBM2E; PCIe Gen4.0 x16 lane; 150 W board power. FP32/FP16/INT8 support, codec capacity, CUDA compatibility, migration-time, performance-ratio, instruction-set, application, cost, benchmark, operation, SLO, and ranking claims are not resolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md) |
 | Biren Bili 106B | AI ASIC / PCIe card | full-height full-length double-wide PCIe card; 300 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md) |
 | Biren Bili 106M | AI ASIC / OAM module | air-cooled OAM module; 400 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md) |
 | Biren Bili 166C | AI ASIC / PCIe card | full-height full-length 290 mm double-wide PCIe inference card; 300 W peak power | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md) |
@@ -305,7 +316,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Enflame S60 | PCIe inference accelerator | not captured | not captured | PCIe 5.0 visible in capture | [raw](../../raw/crawler/compute-accelerators-enflame-s60/20260628T060446917641Z-www-enflame-tech-com-s60-7ee9e26bdb.md) |
 | Iluvatar Tiangai 100 | full-length full-height dual-slot PCIe card | not captured | 32 GB HBM2; no source-visible memory bandwidth | PCIe Gen4.0 x16 lane; 250 W; source-stated 64 GB/s host bidirectional bandwidth and 64 GB/s inter-chip bandwidth. Form factor, memory, host interface, inter-chip bandwidth string, and power are resolved; host bandwidth is not normalized into a catalog field. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md) |
 | Iluvatar Tiangai 150 | training accelerator | not captured | 64 GB HBM; no source-visible memory bandwidth | board power 350 W. Form factor, host interface, compute peaks, benchmark parity, ecosystem compatibility, production-operation, training-throughput, and inference-throughput claims remain unresolved. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md) |
-| Iluvatar ZK50 / ZK100 | ZK50 half-length half-height single-slot PCIe; ZK100 full-length full-height single-slot PCIe | supports FP32, FP16, INT8; exact peaks not captured | ZK50: 16 GB HBM2E; ZK100: 32 GB HBM2E | ZK50: 75 W; ZK100: 150 W; PCIe Gen4 x16 | [raw](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md) |
+| Iluvatar ZK50 / ZK100 | ZK50 half-length half-height single-slot PCIe; ZK100 full-length full-height single-slot PCIe | supports FP32, FP16, INT8; exact peaks not captured and the support wording is not a resolved compute field | ZK50: 16 GB HBM2E; ZK100: 32 GB HBM2E | ZK50: 75 W; ZK100: 150 W; PCIe Gen4 x16. Form factor, memory capacity/type, host interface, and power are resolved; video/image codec capacity, CUDA ecosystem compatibility, migration-time, performance-ratio, instruction-set, cost, application-scenario, benchmark, production-operation, service-SLO, and ranking text remain boundary evidence. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md) |
 | Kunlunxin R200 / R200-8F | full-height full-length dual-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32. INT8, FP16, and FP32 are resolved; INT16 is comparison-only because the catalog has no INT16 field. | R200: 16 GB GDDR6; R200-8F: 32 GB GDDR6; 512 GB/s | PCIe Gen4 x16 compatible with Gen3/2/1; R200 150 W; R200-8F 160 W | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md) |
 | Kunlunxin R480-X8 | 8 OAM modules on UBB | 256 TOPS INT8 x8; 128 TOPS INT16 x8; 128 TFLOPS FP16 x8; 32 TFLOPS FP32 x8 | 32 GB x8 GDDR6; 512 GB/s x8 | 200 GB/s chip-to-chip interconnect | [raw](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md) |
 | Kunlunxin RG800 | full-height full-length single-slot card | 256 TOPS INT8; 128 TOPS INT16; 128 TFLOPS FP16; 32 TFLOPS FP32 | 32 GB GDDR6; 512 GB/s | PCIe 4.0 x16; 130 W | [raw](../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md) |

@@ -1,0 +1,210 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-19",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2",
+  "status": "pass",
+  "created_at": "2026-07-10T05:57:32Z",
+  "summary": "Promoted only source-visible, schema-supported Iluvatar Zhikai 50 and Zhikai 100 catalog fields from the existing local Zhikai product-page capture. Zhikai 50 resolves form_factor, 16 GB HBM2E memory, PCIe Gen4.0 x16 lane host interface, and 75 W board power. Zhikai 100 resolves form_factor, 32 GB HBM2E memory, PCIe Gen4.0 x16 lane host interface, and 150 W board power. FP32/FP16/INT8 support, codec capacity, CUDA compatibility, migration-time, performance-ratio, instruction-set, cost, benchmark, production-operation, service-SLO, and ranking text remain boundary evidence only.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/sources/source-registry.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "promoted_fields": [
+    {
+      "sku_id": "iluvatar-zhikai-50",
+      "fields": {
+        "form_factor": "half-length half-height single-slot PCIe card",
+        "memory_capacity": "16 GB",
+        "memory_type": "HBM2E",
+        "host_interface": "PCIe Gen4.0 x16 lane",
+        "tdp": "75 W"
+      }
+    },
+    {
+      "sku_id": "iluvatar-zhikai-100",
+      "fields": {
+        "form_factor": "full-length full-height single-slot PCIe card",
+        "memory_capacity": "32 GB",
+        "memory_type": "HBM2E",
+        "host_interface": "PCIe Gen4.0 x16 lane",
+        "tdp": "150 W"
+      }
+    }
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/index.md"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "personal-wiki/domains/ai_infra/wiki/backlinks.json"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No accelerator catalog validation issues"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "ok"
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-19'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-2'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-002-continuation-007/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "rg -n \"Zhikai|ZK50|ZK100|MR-V50|MR-V100|HBM2E|75W|150W|PCIe Gen4|PCle Gen4|iluvatar-zhikai-50|iluvatar-zhikai-100|memory_capacity|memory_type|host_interface|form_factor|tdp\" personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-iluvatar-zk100 personal-wiki/domains/ai_infra/data/compute_accelerators personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md personal-wiki/domains/ai_infra/coverage-map.json personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Zhikai evidence is visible in raw, structured catalog rows, curated pages, coverage-map, and loop-state."
+    },
+    {
+      "command": "structured data diff parser for Zhikai field boundaries",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Only iluvatar-zhikai-50 and iluvatar-zhikai-100 structured entries were added; existing Tiangai and unrelated rows match HEAD."
+    },
+    {
+      "command": "Zhikai resolved-field parser",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "Both Zhikai rows resolve exactly form_factor, memory_capacity, memory_type, host_interface, and tdp."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed ai_infra files",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No assignment-like secrets found across 14 changed ai_infra paths."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "All 14 declared ai_infra changed paths are inside planner allowed_paths and outside denylist patterns."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "stdout": "No backend, frontend, dashboard, harness, package, lockfile, dependency, or generated code file changed; code tests are not applicable."
+    },
+    {
+      "command": "delegated trusted live evidence manifest for service-availability, crawler-workbench-freshness, search-api-visibility, frontend-visibility, and loop-dashboard-freshness",
+      "status": "delegated",
+      "exit_code": 0,
+      "stdout": "Delegated to orchestrator-owned trusted-live-evidence artifacts; generator did not start services or run localhost probes."
+    },
+    {
+      "command": "commit-result and push-result",
+      "status": "delegated",
+      "exit_code": 0,
+      "stdout": "No git commit or push was run by the generator; the orchestrator commits and pushes after gates pass."
+    }
+  ],
+  "delegated_live_evidence_ids": [
+    "service-availability",
+    "crawler-workbench-freshness",
+    "search-api-visibility",
+    "frontend-visibility",
+    "loop-dashboard-freshness"
+  ],
+  "not_applicable": [
+    {
+      "gate": "Domain Channels evidence",
+      "reason": "No crawler source subscriptions or Domain Channels changed."
+    },
+    {
+      "gate": "link probe or blocked/auth evidence",
+      "reason": "No new external sources were fetched; the task reused an existing local raw capture."
+    },
+    {
+      "gate": "code tests",
+      "reason": "No crawler/backend/frontend/dashboard/harness code changed."
+    },
+    {
+      "gate": "supply-chain result",
+      "reason": "No dependency or package files changed."
+    },
+    {
+      "gate": "fresh no-action evidence",
+      "reason": "The task produced ai_infra knowledge/data changes and did not stop as no-action."
+    }
+  ],
+  "commit": ""
+}

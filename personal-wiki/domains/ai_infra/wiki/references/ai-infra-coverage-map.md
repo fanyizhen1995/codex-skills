@@ -85,6 +85,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
   - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
   - ../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md
@@ -108,6 +109,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
   - ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
   - ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
+  - ../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md
   - ../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md
   - ../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md
   - ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md
@@ -212,6 +214,17 @@ Parent 10 promotes a bounded Kunlunxin R200 series catalog slice from the existi
 
 Parent 11 promotes a bounded Iluvatar Tiangai catalog slice from existing local product-page captures. Tiangai 100 now resolves full-length full-height dual-slot PCIe card form factor, 32 GB HBM2, `PCIe Gen4.0 x16 lane`, source-stated 64 GB/s inter-chip bandwidth, and 250 W board power. Tiangai 150 now resolves only 64 GB HBM memory and 350 W board power. Tiangai compute peaks, memory bandwidth, TG150 form factor, TG150 host interface, benchmark parity, model-count performance, ecosystem compatibility, production-operation, service-SLO, training-throughput, and inference-throughput claims remain outside resolved catalog fields.
 
+Parent 19 promotes a distinct Iluvatar Zhikai 50 and Zhikai 100 catalog slice
+from the existing local Zhikai product-page capture. Zhikai 50 now resolves
+half-length half-height single-slot PCIe card form factor, 16 GB HBM2E,
+`PCIe Gen4.0 x16 lane`, and 75 W board power. Zhikai 100 now resolves
+full-length full-height single-slot PCIe card form factor, 32 GB HBM2E,
+`PCIe Gen4.0 x16 lane`, and 150 W board power. FP32/FP16/INT8 support,
+video/image codec capacity, CUDA compatibility, migration-time,
+performance-ratio, instruction-set, cost, application-scenario, benchmark,
+production-operation, service-SLO, and ranking text remains boundary evidence
+outside resolved catalog fields.
+
 Parent 12 promotes a bounded MetaX C-series catalog slice from existing local product-page captures. C500, C500X, C550, and C588 now resolve only source-visible form factor, memory capacity, MetaXLink interconnect wording, and maximum power. Compute peaks, memory bandwidth, memory generation, host-interface lane count, virtualization guarantees, benchmark claims, DeepSeek/model operation, ecosystem compatibility, production-operation, server products, and supernode claims remain outside resolved catalog fields.
 
 Parent 13 promotes the remaining bounded MetaX C600 catalog slice from the existing local product-page capture. C600 now resolves only source-visible OAM 2.0 module form factor, MetaXLink/MetaXLink-E interconnect wording, and 1000 W maximum power. Qualitative memory, compute, GPU-ecosystem, application, production-operation, server, topology-scale, and 128-card supernode wording remains outside resolved catalog fields.
@@ -265,6 +278,8 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Iluvatar Tiangai 100 product capture](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md)
 - [Iluvatar Tiangai 150 product capture](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md)
 - [Continuation parent-11 Iluvatar Tiangai gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json)
+- [Iluvatar Zhikai 50/100 product capture](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md)
+- [Continuation parent-19 Iluvatar Zhikai gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json)
 - [MetaX C500 product capture](../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md)
 - [MetaX C500X product capture](../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md)
 - [MetaX C550 product capture](../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md)

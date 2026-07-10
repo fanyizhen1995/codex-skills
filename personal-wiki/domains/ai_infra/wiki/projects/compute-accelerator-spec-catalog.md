@@ -24,6 +24,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
   - ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
   - ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
+  - ../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md
   - ../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md
   - ../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md
   - ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md
@@ -59,6 +60,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json
 ---
 
 # Summary
@@ -146,6 +148,19 @@ TG150 host interface, benchmark parity, model-count performance, ecosystem
 compatibility, production-operation, service-SLO, training-throughput, or
 inference-throughput proof, so those claims remain boundary evidence outside
 resolved catalog fields. [TG100 raw](../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md) [TG150 raw](../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md)
+
+Continuation parent 19 promotes a distinct Iluvatar Zhikai inference-card slice
+from the existing local official product-page capture. Zhikai 50 now resolves
+half-length half-height single-slot PCIe card form factor, 16 GB HBM2E,
+`PCIe Gen4.0 x16 lane`, and 75 W board power. Zhikai 100 now resolves
+full-length full-height single-slot PCIe card form factor, 32 GB HBM2E,
+`PCIe Gen4.0 x16 lane`, and 150 W board power. The source-visible FP32, FP16,
+INT8 support, 128-channel video decode, H.264/H.265/VP9/AVS2 and JPEG image
+codec capacity, CUDA-ecosystem compatibility, 50% migration-time wording, 2-3x
+actual-use performance, 800+ instruction-set wording, cost positioning,
+application scenarios, mainstream-framework support, benchmarks,
+production-operation, service-SLO, and ranking claims remain boundary evidence
+outside resolved catalog fields. [Zhikai raw](../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md)
 
 Continuation parent 12 promotes a bounded MetaX C-series slice from existing
 local official product-page captures. C500, C500X, C550, and C588 now have
@@ -291,7 +306,9 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-10-gap-proof.json
 - ../../raw/crawler/compute-accelerators-iluvatar-tg100/20260628T060648884971Z-www-iluvatar-com-productdetails-8c03246db5.md
 - ../../raw/crawler/compute-accelerators-iluvatar-tg150/20260628T060649205621Z-www-iluvatar-com-productdetails-c8a0efc7a3.md
+- ../../raw/crawler/compute-accelerators-iluvatar-zk100/20260628T060649509748Z-www-iluvatar-com-productdetails-9cf9c89ce3.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-11-gap-proof.json
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json
 - ../../raw/crawler/compute-accelerators-metax-c500/20260628T060652781059Z-www-metax-tech-com-prod-html-8de5962075.md
 - ../../raw/crawler/compute-accelerators-metax-c500x/20260628T060653016639Z-www-metax-tech-com-prod-html-51b80e7359.md
 - ../../raw/crawler/compute-accelerators-metax-c550/20260628T060653231697Z-www-metax-tech-com-prod-html-ea84ef2c6c.md

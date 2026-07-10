@@ -333,14 +333,14 @@ sources:
     crawl_policy: snapshot_and_candidate_extract
     notes: Official Iluvatar page for Tiangai 150 accelerator specifications; page is Nuxt-heavy.
   - source_id: iluvatar-zk100-product-page
-    name: Iluvatar Zhikai 100 inference accelerator product page
+    name: Iluvatar Zhikai 50 and Zhikai 100 inference accelerator product page
     url: https://www.iluvatar.com/productDetails?fullCode=cpjs-yj-tlxltt-zk100
     source_rank: S1
     publisher: Iluvatar CoreX
     source_type: product_page
     trust_policy: official_vendor_ai_accelerator
     crawl_policy: snapshot_and_candidate_extract
-    notes: Official Iluvatar page for Zhikai 100 inference accelerator specifications; page is Nuxt-heavy.
+    notes: Official Iluvatar page for Zhikai 50 and Zhikai 100 inference accelerator specifications; page is Nuxt-heavy.
   - source_id: enflame-s60-product-page
     name: Enflame S60 inference accelerator card product page
     url: https://www.enflame-tech.com/s60

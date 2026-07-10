@@ -1035,6 +1035,90 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-08"
+  - sku_id: iluvatar-zhikai-50
+    resolved_fields:
+      form_factor:
+        value: half-length half-height single-slot PCIe card
+        unit: none
+        source_observation_id: obs-iluvatar-zhikai-50-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      memory_capacity:
+        value: 16
+        unit: GB
+        source_observation_id: obs-iluvatar-zhikai-50-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      memory_type:
+        value: HBM2E
+        unit: none
+        source_observation_id: obs-iluvatar-zhikai-50-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      host_interface:
+        value: PCIe Gen4.0 x16 lane
+        unit: none
+        source_observation_id: obs-iluvatar-zhikai-50-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      tdp:
+        value: 75
+        unit: W
+        source_observation_id: obs-iluvatar-zhikai-50-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+  - sku_id: iluvatar-zhikai-100
+    resolved_fields:
+      form_factor:
+        value: full-length full-height single-slot PCIe card
+        unit: none
+        source_observation_id: obs-iluvatar-zhikai-100-form-factor
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      memory_capacity:
+        value: 32
+        unit: GB
+        source_observation_id: obs-iluvatar-zhikai-100-memory-capacity
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      memory_type:
+        value: HBM2E
+        unit: none
+        source_observation_id: obs-iluvatar-zhikai-100-memory-type
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      host_interface:
+        value: PCIe Gen4.0 x16 lane
+        unit: none
+        source_observation_id: obs-iluvatar-zhikai-100-host-interface
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      tdp:
+        value: 150
+        unit: W
+        source_observation_id: obs-iluvatar-zhikai-100-tdp
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
   - sku_id: metax-c500
     resolved_fields:
       form_factor:
