@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-10 Autonomous Loop Continuation Hardening
+
+- Completed `loop-runtime-continuation-hardening-01`: Supervisor now owns idempotent `stopped_budget` continuation creation, while `loop-auto-resume` exclusively executes actionable runs under per-run locks and automatically retries transient autonomous commit inspection failures.
+- Proved four semantic AI infra parent tasks advanced without manual phase starts: parent-18 NVIDIA BlueField-4 (`ad78c73`), parent-19 Iluvatar Zhikai 50/100 (`5da2892`), parent-20 Volcano performance issues (`accdace`), and parent-21 Huawei Atlas 800T A3 (`d1c6b21`). Supervisor created continuation-008 after budget exhaustion, and parent-21 completed there automatically.
+- Verified the two-parent audit cadence: `audit-001.json` after parent-18 and `audit-002.json` after parent-20 both returned `pass` with `continue`; parent-22 is now being planned automatically and is the next ordinary audit boundary.
+- Fixed two runtime blockers: `.codex/supervisor/**` no longer causes false autonomous dirty-path blocks (`cd4b890`), and transient Git commit failures are retried once per task with stderr retained in `commit-result.json` (`3d40fdd`). Parent-19 exercised the retry path after a real Git exit 128.
+- Recorded upstream instability without treating it as a harness pass: parent-18 had two SSE timeouts, parent-20 had two 30-minute Generator timeouts, and parent-21 used Planner fallback before Generator attempt 1 hit model capacity; completed artifacts and independent Evaluator passes allowed automatic recovery. The generic Planner timeout fallback remains a known quality risk because it loses a concrete candidate and verification plan.
+- Runtime and visibility evidence: Crawler backend `8765`, Crawler frontend `5173`, Loop Dashboard `8766`, `loop-supervisor`, and `loop-auto-resume` were online; target-specific crawler/wiki/search/frontend freshness passed after parent-21; current continuation is visible in the Dashboard.
+- Verification evidence:
+  - Task `verify` command -> exit 0: 123 focused harness tests, 202 orchestrator tests, 74 Dashboard backend tests, and 21 Dashboard frontend/evaluator tests passed.
+  - `python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-runtime-continuation-hardening-01 --scenario loop-supervisor-01` -> `status=pass`; browser screenshot: `.codex/loop-dashboard-eval/loop-runtime-continuation-hardening-01/loop-supervisor-success.png`.
+  - `python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra` -> `No validation issues`.
+  - Crawler backend health, Crawler frontend HTTP, Loop Dashboard health, `loop-auto-resume`, `loop-supervisor`, JSON validation, and `git diff --check` all passed.
+
 ## 2026-07-09 Loop Supervisor 01
 
 - Completed `loop-supervisor-01`: added a real project-level Loop Supervisor runtime, global Dashboard APIs/UI, browser evaluator scenario, CLI watch mode, and service runtime metadata refresh support.
