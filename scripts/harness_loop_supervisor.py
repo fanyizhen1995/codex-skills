@@ -193,6 +193,12 @@ def run_supervisor_once(config: SupervisorConfig) -> dict[str, Any]:
 
     run_records = discover_run_records(root, include_worktrees=config.include_worktrees)
     _archive_stale_user_decisions(root, run_records)
+    descendants_by_parent: dict[tuple[str, str], list[RunRecord]] = {}
+    for candidate in run_records:
+        previous_run_id = str(candidate.payload.get("previous_run_id") or "") if candidate.valid else ""
+        if previous_run_id:
+            key = (str(candidate.repo_root.resolve()), previous_run_id)
+            descendants_by_parent.setdefault(key, []).append(candidate)
     decisions: list[dict[str, Any]] = []
     continuation_candidates = 0
     active = 0
@@ -214,6 +220,19 @@ def run_supervisor_once(config: SupervisorConfig) -> dict[str, Any]:
         else:
             classification = classify_run(record)
 
+        descendant_key = (str(record.repo_root.resolve()), record.run_id)
+        descendants = descendants_by_parent.get(descendant_key, [])
+        if classification["classification"] == "continuation_candidate" and descendants:
+            classification = {
+                **classification,
+                "classification": "terminal",
+                "action": "observe",
+                "reason": "continuation_superseded_by_descendant",
+                "evidence_paths": [
+                    *classification.get("evidence_paths", []),
+                    *[_relative_to_repo(record.repo_root, item.run_json_path) for item in descendants],
+                ],
+            }
         if classification["classification"] == "continuation_candidate" and config.create_continuations:
             plan = plan_continuation(config, record, classification=classification)
             classification = _classification_with_continuation_plan(classification, plan)

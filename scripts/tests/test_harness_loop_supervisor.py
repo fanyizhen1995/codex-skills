@@ -326,6 +326,29 @@ def test_stopped_budget_autonomous_plan_is_idempotent(tmp_path, monkeypatch):
     assert second["run_summary"]["continuation_candidates"] == 1
 
 
+def test_stopped_budget_ancestor_does_not_create_parallel_continuation_when_descendant_exists(
+    tmp_path, monkeypatch
+):
+    seed_stopped_budget_autonomous_run(tmp_path, "campaign-parent-14", parent_counter=14)
+    descendant_path = seed_stopped_budget_autonomous_run(tmp_path, "campaign-parent-17", parent_counter=17)
+    descendant = json.loads(descendant_path.read_text(encoding="utf-8"))
+    descendant["previous_run_id"] = "campaign-parent-14"
+    descendant_path.write_text(json.dumps(descendant, indent=2) + "\n", encoding="utf-8")
+    patch_service_checks(monkeypatch)
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    decisions = read_jsonl(tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl")
+    ancestor_decision = next(item for item in decisions if item["run_id"] == "campaign-parent-14")
+    assert result["run_summary"]["continuation_candidates"] == 1
+    assert len(plans) == 1
+    assert plans[0]["previous_run_id"] == "campaign-parent-17"
+    assert ancestor_decision["classification"] == "terminal"
+    assert ancestor_decision["action"] == "observe"
+    assert ancestor_decision["reason"] == "continuation_superseded_by_descendant"
+
+
 def test_stopped_budget_without_commit_uses_stable_idempotency_when_repo_head_changes(tmp_path, monkeypatch):
     seed_run(
         tmp_path,
