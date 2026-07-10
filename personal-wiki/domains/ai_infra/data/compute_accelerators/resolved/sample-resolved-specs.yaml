@@ -1397,3 +1397,21 @@ resolved_specs:
         confidence: high
         conflict_status: clean
         updated_at: "2026-07-09"
+  - sku_id: huawei-atlas-800t-a3-system
+    resolved_fields:
+      cloud_accelerator_count:
+        value: 8
+        unit: count
+        source_observation_id: obs-huawei-atlas-800t-a3-accelerator-count
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"
+      aggregate_memory:
+        value: 1024
+        unit: GB
+        source_observation_id: obs-huawei-atlas-800t-a3-aggregate-memory
+        resolved_by: rule
+        confidence: high
+        conflict_status: clean
+        updated_at: "2026-07-10"

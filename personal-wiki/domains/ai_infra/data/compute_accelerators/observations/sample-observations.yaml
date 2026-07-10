@@ -2157,3 +2157,29 @@ observations:
     is_inferred: false
     confidence: high
     notes: Official table lists maximum power as 350 W.
+  - observation_id: obs-huawei-atlas-800t-a3-accelerator-count
+    sku_id: huawei-atlas-800t-a3-system
+    field: cloud_accelerator_count
+    value: 8
+    unit: count
+    source_id: huawei-atlas-800t-a3-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 800T A3 product page; technical specifications table NPU row"
+    is_official: true
+    is_inferred: false
+    confidence: high
+    notes: Official table lists one server with 8 Ascend 910 processors; the catalog records this only as an aggregate system count, not a single-card metric.
+  - observation_id: obs-huawei-atlas-800t-a3-aggregate-memory
+    sku_id: huawei-atlas-800t-a3-system
+    field: aggregate_memory
+    value: 1024
+    unit: GB
+    source_id: huawei-atlas-800t-a3-product-page
+    source_rank: S1
+    captured_at: "2026-06-28"
+    source_locator: "Huawei Atlas 800T A3 product page; technical specifications table on-chip memory row"
+    is_official: true
+    is_inferred: true
+    confidence: high
+    notes: Official table lists 8 x 128 GB on-chip memory; aggregate_memory records the scoped 1024 GB system aggregate and does not normalize the 3.2 TB/s memory bandwidth into a single-accelerator field.

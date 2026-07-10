@@ -1,0 +1,86 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-21",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "Huawei Atlas 800T A3 aggregate training-server fields",
+    "source_type": "hardware",
+    "vendor": "huawei",
+    "model": "atlas-800t-a3",
+    "sku_or_memory_variant": "aggregate-training-server",
+    "identity_key": "hardware:huawei:atlas-800t-a3:aggregate-training-server"
+  },
+  "identity_keys": [
+    {
+      "title": "Huawei Atlas 800T A3 official product page",
+      "source_type": "hardware",
+      "vendor": "huawei",
+      "model": "atlas-800t-a3",
+      "sku_or_memory_variant": "aggregate-training-server",
+      "identity_key": "hardware:huawei:atlas-800t-a3:aggregate-training-server",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Read the existing local Huawei Atlas 800T A3 product-page capture. The technical table states one Atlas 800T A3 server has 8 Ascend 910 processors and 8 x 128 GB on-chip memory, plus additional aggregate system values. No network fetch was used.",
+    "wiki_search": "Searched compute accelerator catalog, parameter comparison, coverage map, coverage-map.json, loop-state.json, ingest.md, and prior manifests for Atlas 800T A3, huawei-atlas-800t, aggregate_memory, cloud_accelerator_count, 8 Ascend, and 8 x 128 GB. Existing pages used Atlas 800T A3 only as raw aggregate comparison or boundary evidence; no structured SKU row or resolved aggregate fields existed.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this hardware catalog slice to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map. No standalone page was needed.",
+    "prior_manifest_scan": "Parent-14 explicitly avoided Atlas 800T A3 while promoting Atlas 300I A2 card variants. Parent-17 promoted only AWS Trn2 aggregate memory. Earlier hardware manifests mention Atlas 800T A3 as an aggregate/system boundary, not as a resolved catalog row."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json",
+      "result": "Parent-14 says no Huawei Atlas 800T A3 or aggregate system claim was promoted while resolving Atlas 300I A2 card variants."
+    },
+    {
+      "target": "manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json",
+      "result": "Parent-17 resolves aggregate_memory only for the existing AWS Trn2 cloud-offering row and does not mention Atlas 800T A3."
+    },
+    {
+      "target": "compute-accelerator-parameter-comparison.md",
+      "result": "Before parent-21, Atlas 800T A3 appeared only in the aggregate raw comparison row; the structured catalog did not resolve cloud_accelerator_count or aggregate_memory."
+    },
+    {
+      "target": "coverage-map.json and loop-state.json",
+      "result": "Before parent-21, hardware notes kept aggregate systems unresolved and had no known_source entry for Atlas 800T A3 aggregate catalog fields."
+    }
+  ],
+  "gap_reason": "The local official Atlas 800T A3 product page contains source-visible aggregate system fields that fit existing schema fields without changing the schema: cloud_accelerator_count=8 and aggregate_memory=1024 GB. Promoting only those fields improves hardware coverage while preserving aggregate compute, fabric, storage, cooling, benchmark, and operation claims as boundary evidence.",
+  "promoted_fields": [
+    {
+      "sku_id": "huawei-atlas-800t-a3-system",
+      "field": "cloud_accelerator_count",
+      "value": 8,
+      "unit": "count",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md",
+      "boundary": "Aggregate training-server count from one Atlas 800T A3 server; not a single-card metric."
+    },
+    {
+      "sku_id": "huawei-atlas-800t-a3-system",
+      "field": "aggregate_memory",
+      "value": 1024,
+      "unit": "GB",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md",
+      "boundary": "Derived only from source-stated 8 x 128 GB on-chip memory; memory bandwidth remains comparison-only."
+    }
+  ],
+  "non_promoted_boundaries": [
+    "6.0 PFLOPS FP16 and 12.0 POPS INT8 remain aggregate system compute values, not single-accelerator resolved fields.",
+    "3.2 TB/s memory bandwidth, 784 GB/s D2D bandwidth, 8 x 400GE RoCE, 56 x 400GE bus-protocol interfaces, PCIe 5.0 expansion slots, local storage, power, cooling, fans, dimensions, and operating-temperature values remain boundary evidence.",
+    "No Atlas 300I A2, AWS Trn2, Kunlunxin R480-X8, DPU, inference runtime, orchestration, data/RAG, security, network/storage, crawler code, backend/frontend, dashboard, source profile, or subscription was modified as a new factual promotion."
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-21-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-21-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.parent-21.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ]
+}

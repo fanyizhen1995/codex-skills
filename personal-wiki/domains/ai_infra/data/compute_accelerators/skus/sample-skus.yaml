@@ -197,6 +197,15 @@ skus:
     form_factor: dual-slot full-height full-length PCIe card
     release_status: released
     source_refs: [huawei-atlas-300i-a2-product-page]
+  - sku_id: huawei-atlas-800t-a3-system
+    vendor_id: huawei
+    family_id: huawei-ascend-atlas
+    canonical_name: Huawei Atlas 800T A3 training server
+    aliases: [Atlas 800T A3, Atlas 800T A3 supernode server]
+    scope: npu
+    form_factor: 10U rack training supernode server
+    release_status: released
+    source_refs: [huawei-atlas-800t-a3-product-page]
   - sku_id: cambricon-mlu370-x4
     vendor_id: cambricon
     family_id: cambricon-mlu370

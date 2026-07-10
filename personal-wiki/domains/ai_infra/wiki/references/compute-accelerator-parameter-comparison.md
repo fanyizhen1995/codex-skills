@@ -27,6 +27,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
   - ../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-21-gap-proof.json
   - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
   - ../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md
   - ../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md
@@ -216,11 +217,14 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   [MetaX C600](../../raw/crawler/compute-accelerators-metax-c600/20260628T060653669535Z-www-metax-tech-com-prod-html-259649e029.md)
 - Aggregate records must be normalized before card-to-card comparison: AWS
   Trn2/UltraServer, Huawei Atlas 800T A3, and Kunlunxin R480-X8 report
-  multi-chip or system-level totals. The structured catalog resolves only the
-  Trn2 instance cloud offering count and aggregate accelerator memory:
-  16 Trainium2 chips and 1536 GB accelerator memory for `trn2.48xlarge` and
-  `trn2u.48xlarge`. UltraServer 6 TB memory and aggregate compute/bandwidth
-  remain comparison-only boundary evidence. Use these rows for capacity
+  multi-chip or system-level totals. The structured catalog resolves the
+  Trn2 instance cloud offering count and aggregate accelerator memory
+  (16 Trainium2 chips and 1536 GB for `trn2.48xlarge` and `trn2u.48xlarge`)
+  and the Atlas 800T A3 training-server aggregate count and memory
+  (8 Ascend 910 processors and 1024 GB from 8 x 128 GB on-chip memory).
+  UltraServer 6 TB memory, Atlas 800T A3 aggregate compute/bandwidth/network
+  values, and other system-level totals remain comparison-only boundary
+  evidence. Use these rows for capacity
   planning, not as direct single-card substitutes. [AWS Trn2](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md),
   [Atlas 800T A3](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md),
   [R480-X8](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md)
@@ -302,7 +306,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | NVIDIA H200 SXM / H200 NVL | SXM module / PCIe dual-slot air-cooled | H200 SXM: FP64 34 TFLOPS, FP32 67 TFLOPS, TF32 989 TFLOPS, BF16/FP16 1,979 TFLOPS, FP8/INT8 3,958 TFLOPS; H200 NVL: FP64 30 TFLOPS, FP32 60 TFLOPS, BF16/FP16 1,671 TFLOPS, FP8/INT8 3,341 TFLOPS. Only H200 SXM FP64, FP32, BF16, FP16, and FP8 are resolved; TF32 lacks a catalog field and INT8 stays out because the source row uses the incompatible TFLOPS wording for the catalog's TOPS field. | 141 GB HBM3e; 4.8 TB/s | SXM up to 700 W; NVL up to 600 W; H200 SXM interconnect row lists NVIDIA NVLink 900GB/s and PCIe Gen5 128GB/s | [raw](../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md) |
 | AWS Trainium2 Trn2 / Trn2 UltraServer | cloud offering | Trn2 instance: up to 20.8 FP8 PFLOPS; UltraServer: up to 83.2 FP8 PFLOPS. Aggregate compute is comparison-only, not `fp8_tflops`. | Trn2: resolved cloud-offering aggregate memory is 1536 GB from the source-stated 1.5 TB HBM3; 46 TBps total memory bandwidth remains comparison-only. UltraServer: 6 TB HBM and 185 TBps total bandwidth remain boundary evidence. | Trn2: 16 Trainium2 chips and 3.2 Tbps EFAv3; UltraServer: 64 chips and 12.8 Tbps EFAv3. EFAv3 remains cloud-fabric evidence, not `network_bandwidth`. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) |
 | Huawei Atlas 300I A2 | dual-slot full-height full-length PCIe inference card | 560 TOPS INT8; 280 TFLOPS FP16; CPU text is source-visible but not promoted | Resolved as two memory variants: 32 GB at 0.8 TB/s, and 64 GB at 1.6 TB/s on-card memory | PCIe 5.0; maximum 350 W. Passive air cooling, fan modules, operating temperature, and dimensions remain source-visible boundary evidence, not resolved catalog fields. | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md) |
-| Huawei Atlas 800T A3 | 10U training supernode server | 8 Ascend 910 processors; up to 6.0 PFLOPS FP16 and 12.0 POPS INT8 | 8 x 128 GB on-chip memory; 3.2 TB/s memory bandwidth | D2D 784 GB/s bidirectional; 8 x 400GE RoCE direct and 56 x 400GE bus-protocol interfaces; up to 5 PCIe 5.0 slots | [raw](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md) |
+| Huawei Atlas 800T A3 | 10U training supernode server | 8 Ascend 910 processors is resolved as an aggregate system count; up to 6.0 PFLOPS FP16 and 12.0 POPS INT8 remain comparison-only system totals | 8 x 128 GB on-chip memory is resolved as 1024 GB aggregate memory; 3.2 TB/s memory bandwidth remains comparison-only | D2D 784 GB/s bidirectional, 8 x 400GE RoCE direct, 56 x 400GE bus-protocol interfaces, up to 5 PCIe 5.0 slots, storage, power, cooling, fans, dimensions, and operating-temperature remain aggregate boundary evidence | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md) |
 | Biren Bili 106B | full-height full-length double-wide PCIe card | not captured | not captured | peak power 300 W | [raw](../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md) |
 | Biren Bili 106M | air-cooled OAM module | not captured | not captured | peak power 400 W | [raw](../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md) |
 | Biren Bili 166C | full-height full-length 290 mm double-wide PCIe inference card | not captured | not captured | peak power 300 W | [raw](../../raw/crawler/compute-accelerators-biren-166c/20260628T060441390991Z-www-birentech-com-product-hardware-166c-f3c5e11442.md) |
@@ -374,8 +378,10 @@ resolved catalog field.
 
 The highest aggregate numbers are cloud/system records, not single cards. AWS
 Trn2 and Huawei Atlas 800T A3 report multi-chip or multi-server totals, while
-Kunlunxin R480-X8 reports an 8-module aggregate. These are useful capacity
-planning records, but must be normalized before card-to-card comparison.
+Kunlunxin R480-X8 reports an 8-module aggregate. The structured catalog now
+normalizes only the safe aggregate count and memory fields for AWS Trn2 and
+Atlas 800T A3; compute, bandwidth, fabric, storage, and deployment claims still
+need separate schema boundaries before card-to-card comparison.
 
 Several domestic GPU/AI accelerator vendors expose form factor and power more
 clearly than compute peaks in the captured HTML. Biren pages remain useful for
@@ -453,6 +459,7 @@ their exact product or variant boundaries.
 - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
 - ../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-21-gap-proof.json
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-s4-s8/20260628T060442871520Z-www-cambricon-com-index-php-dd51e6b9e9.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md

@@ -18,6 +18,7 @@ source_refs:
   - ../../data/compute_accelerators/resolved/sample-resolved-specs.yaml
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
   - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
+  - ../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
   - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
   - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md
@@ -61,6 +62,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-19-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-21-gap-proof.json
 ---
 
 # Summary
@@ -191,6 +193,19 @@ factor, compute, interface, and power fields with 64 GB on-card memory and
 module, operating-temperature, and dimension text remains boundary evidence and
 is not promoted into catalog fields. [Atlas 300I A2 raw](../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md)
 
+Continuation parent 21 promotes Huawei Atlas 800T A3 as an explicitly scoped
+aggregate training-server row from the existing local official product-page
+capture. The row resolves only `cloud_accelerator_count=8` for the source-stated
+8 Ascend 910 processors in one server and `aggregate_memory=1024 GB` from the
+source-stated 8 x 128 GB on-chip memory. The 10U server form factor remains a
+SKU descriptor. The source-visible 6.0 PFLOPS FP16, 12.0 POPS INT8, 3.2 TB/s
+memory bandwidth, 784 GB/s D2D bandwidth, 8 x 400GE RoCE interfaces, 56 x 400GE
+bus-protocol interfaces, PCIe 5.0 expansion slots, local storage, power,
+cooling, fans, dimensions, operating-temperature, deployment, benchmark,
+production-operation, service-SLO, training-throughput, and inference-throughput
+claims remain aggregate-system boundary evidence outside resolved catalog
+fields. [Atlas 800T A3 raw](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md)
+
 Continuation parent 15 promotes a bounded JaguarMicro Yunxiao DPU slice from the
 existing local official announcement. The structured row resolves only aggregate
 50 Gb/s Ethernet bandwidth from the source-visible `2x25G` statement. RoCE
@@ -275,6 +290,8 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-4-gap-proof.json
 - ../../raw/crawler/compute-accelerators-huawei-atlas-300i-a2/20260628T055951712859Z-e-huawei-com-cn-products-computing-ascend-atlas-300i-a2-be2af90418.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
+- ../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-21-gap-proof.json
 - ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
 - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md

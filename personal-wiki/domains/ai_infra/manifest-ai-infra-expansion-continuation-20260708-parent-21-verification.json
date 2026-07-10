@@ -1,0 +1,74 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-21",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-1",
+  "created_at": "2026-07-10T08:18:45Z",
+  "summary": "Parent-21 promotes a bounded Huawei Atlas 800T A3 aggregate training-server catalog slice and delegates live service evidence to the orchestrator.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-21-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-21-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.parent-21.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md"
+  ],
+  "promoted_boundary": "Resolved only cloud_accelerator_count=8 and aggregate_memory=1024 GB for huawei-atlas-800t-a3-system from the existing official Huawei product-page capture.",
+  "non_promoted_boundary": "Aggregate compute, memory bandwidth, D2D, RoCE/bus interfaces, PCIe expansion slots, storage, power, cooling, dimensions, benchmark, production-operation, service-SLO, training-throughput, and inference-throughput remain boundary evidence.",
+  "verify_results": [
+    {
+      "command": "python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra wiki index; no index diff remained."
+    },
+    {
+      "command": "python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No accelerator catalog validation issues."
+    },
+    {
+      "command": "python - <<'PY' ... validate_coverage_map_payload, validate_loop_state_payload, validate_gap_proof_file ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json, loop-state.json, semantic parent gap proof, and run-local gap proof satisfy harness contracts."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in changed ai_infra paths."
+    },
+    {
+      "command": "python - <<'PY' ... credential pattern scan for changed paths ... PY",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No assignment-style secrets, bearer credentials, or AWS access keys detected in changed paths."
+    },
+    {
+      "command": "live service/API/frontend/dashboard checks",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Per generator instructions, live service, search API, crawler workbench freshness, frontend visibility, and Loop Dashboard freshness checks are delegated to orchestrator trusted live evidence capture."
+    }
+  ]
+}
