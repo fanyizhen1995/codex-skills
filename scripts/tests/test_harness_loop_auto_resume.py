@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.harness_loop_auto_resume import resume_once
 from scripts.harness_loop_contracts import read_json_file, run_dir_for, write_json_file
@@ -197,6 +198,31 @@ class HarnessLoopAutoResumeTests(unittest.TestCase):
             self.assertEqual(result["resumed"][0]["run_id"], "planning-run")
             self.assertEqual(result["resumed"][0]["phase"], "planning")
             self.assertEqual(result["resumed"][0]["next_action"], "run_autonomous_planner")
+
+    def test_resume_once_skips_run_locked_by_another_executor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp)
+            seed_autonomous_planning_run(project_root, "planning-run")
+
+            with patch(
+                "scripts.harness_loop_orchestrator.acquire_run_lock",
+                side_effect=__import__("scripts.harness_loop_runtime_lock", fromlist=["RunLockBusy"]).RunLockBusy(
+                    "planning-run", "other-executor"
+                ),
+            ):
+                result = resume_once(
+                    project_root=project_root,
+                    include_worktrees=False,
+                    planner_driver="fake",
+                    generator_driver="fake",
+                    evaluator_driver="fake",
+                    max_eval_attempts=2,
+                    max_children=3,
+                    max_tasks=1,
+                )
+
+            self.assertEqual(result["locked_count"], 1)
+            self.assertEqual(result["locked"][0]["status"], "locked_by_other_executor")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
-  "last_updated": "2026-07-09",
-  "current_focus": "Loop Auditor auto-resume is running; next harness backlog items are a global Loop Auditor redesign for whole-loop process review and a unified Loop Supervisor for service health, crawler backend/frontend data and version freshness, run ownership, recovery, and Dashboard traceability.",
+  "last_updated": "2026-07-10",
+  "current_focus": "Harden autonomous loop continuation ownership, inherited parent/audit state, service and data freshness, Dashboard decisions, automatic push, then ingest the July 9 SGLang raw batch and monitor four AI infra parent rounds.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -312,6 +312,24 @@
         "task_level_required": true,
         "final_level_required": false,
         "task_scope": "local_repo_and_harness",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
+      "id": "loop-runtime-continuation-hardening-01",
+      "title": "Harden autonomous loop continuation and runtime freshness",
+      "description": "Give Supervisor exclusive ownership of idempotent stopped_budget continuation creation while loop-auto-resume exclusively executes existing actionable runs under a per-run lock; preserve semantic parent and two-parent Auditor cadence state across continuations; separate service reachability from service-specific code freshness; publish target-specific crawler/wiki/frontend freshness after autonomous commits; show only current actionable decisions in the Dashboard headline; automatically push autonomous main-branch wiki commits with retryable evidence; ingest the pending July 9 SGLang raw batch; and prove uninterrupted progression across four AI infra parent tasks.",
+      "status": "in_progress",
+      "priority": "high",
+      "blocked_by": "loop-supervisor-01",
+      "verify": "python3 -m pytest -q scripts/tests/test_harness_loop_runtime_lock.py scripts/tests/test_harness_loop_supervisor_state.py scripts/tests/test_harness_loop_supervisor.py scripts/tests/test_harness_loop_auto_resume.py scripts/tests/test_harness_loop_contracts.py && python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests/test_api.py apps/loop_dashboard/backend/tests/test_store.py apps/loop_dashboard/backend/tests/test_redaction.py && node --check apps/loop_dashboard/frontend/app.js && python3 -m pytest -q apps/loop_dashboard/frontend/test_supervisor_contract.py scripts/tests/test_loop_dashboard_evaluator.py && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-runtime-continuation-hardening-01 --scenario loop-supervisor-01 && python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra && curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health && curl --noproxy '*' -fsSI http://127.0.0.1:5173/ && curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health && tmux has-session -t loop-auto-resume && tmux has-session -t loop-supervisor && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-runtime-continuation-hardening-01.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
         "final_scope": "report_and_artifacts",
         "max_task_eval_attempts": 3,
         "max_final_eval_attempts": 2

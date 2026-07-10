@@ -804,7 +804,7 @@ def seed_loop_supervisor_fixture(project_root: Path) -> None:
             "last_heartbeat_at": "2026-07-09T08:00:00Z",
             "last_tick_at": "2026-07-09T08:00:30Z",
             "watch_interval_seconds": 60,
-            "service_summary": {"total": 3, "healthy": 1, "degraded": 1, "unavailable": 1},
+            "service_summary": {"total": 3, "online": 3, "healthy": 1, "degraded": 2, "blocked": 0},
             "run_summary": {
                 "active": 1,
                 "blocked": 1,
@@ -2036,6 +2036,9 @@ def run_loop_supervisor_browser_checks(dashboard_url: str, output_dir: Path, fix
             expect(supervisor_panel).to_contain_text("Supervisor 是项目级运行控制面")
             expect(supervisor_panel).to_contain_text("Auditor 负责判断流程质量")
             expect(supervisor_panel).to_contain_text("Supervisor 负责执行控制动作")
+            expect(supervisor_panel).to_contain_text("在线服务")
+            expect(supervisor_panel).to_contain_text("3 / 3")
+            expect(supervisor_panel).to_contain_text("只表示可达；版本新鲜度单独判断")
 
             run_list = page.get_by_test_id("run-list")
             expect(run_list).to_contain_text("supervisor-autonomous-budget-run")

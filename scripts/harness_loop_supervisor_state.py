@@ -359,11 +359,15 @@ def _existing_started_at(path: Path) -> str | None:
 
 
 def _summarize_services(service_health: Mapping[str, Any]) -> dict[str, int]:
-    summary = {"total": len(service_health), "healthy": 0, "degraded": 0, "blocked": 0}
+    summary = {"total": len(service_health), "online": 0, "healthy": 0, "degraded": 0, "blocked": 0}
     for service in service_health.values():
         status = ""
         if isinstance(service, Mapping):
             status = str(service.get("status", "")).strip().lower()
+            reachable = service.get("reachable") is True
+            tmux_ok = service.get("tmux_session_exists") is not False
+            if reachable and tmux_ok:
+                summary["online"] += 1
         if status in {"healthy", "pass", "ok"}:
             summary["healthy"] += 1
         elif status in {"blocked", "fail", "failed", "down", "unreachable"}:

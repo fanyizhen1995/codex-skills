@@ -63,6 +63,7 @@ try:
         summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
+    from scripts.harness_loop_runtime_lock import acquire_run_lock
 except ModuleNotFoundError:
     from harness_ai_infra_evidence import (  # type: ignore[no-redef]
         check_service_availability,
@@ -114,6 +115,7 @@ except ModuleNotFoundError:
         summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
+    from harness_loop_runtime_lock import acquire_run_lock  # type: ignore[no-redef]
 
 
 def _timestamp() -> str:
@@ -299,6 +301,8 @@ def _baseline_dirty_overlap(parent: dict[str, Any], candidate_paths: list[str]) 
 
 
 def _is_demand_internal_dirty_path(path: str, parent: dict[str, Any], child: dict[str, Any]) -> bool:
+    if path.startswith(".codex/loop-locks/") and path.endswith(".lock"):
+        return True
     parent_run_id = str(parent["run_id"])
     child_run_ids = {str(run_id) for run_id in parent.get("child_run_ids", [])}
     child_run_ids.add(str(child["run_id"]))
@@ -499,7 +503,11 @@ def _safe_positive_or_zero_int(value: Any) -> int:
 
 
 def _audit_steps_since_last_audit(run: Mapping[str, Any]) -> int:
-    return max(0, _audit_progress_count(run) - _audit_last_audited_progress_count(run))
+    state = run.get("_audit_cadence_state")
+    carried = 0
+    if isinstance(state, Mapping):
+        carried = _safe_positive_or_zero_int(state.get("carried_completed_since_last_audit"))
+    return max(0, _audit_progress_count(run) - _audit_last_audited_progress_count(run)) + carried
 
 
 def _audit_cadence_due(run: Mapping[str, Any], *, force: bool) -> bool:
@@ -529,6 +537,7 @@ def _record_audit_cadence_state(repo_root: Path, run: Mapping[str, Any], *, cade
         "unit": str(cadence.get("unit") or "boundary"),
         "interval": int(cadence.get("current_interval") or cadence.get("interval") or 1),
         "last_audited_progress_count": _audit_progress_count(current),
+        "carried_completed_since_last_audit": 0,
         "updated_at": _timestamp(),
     }
     save_run(repo_root, current)
@@ -859,6 +868,7 @@ def _autonomous_planner_prompt(run: dict[str, Any], run_dir: Path) -> str:
             f"Run ID: {run['run_id']}",
             f"Domain: {run['domain']}",
             f"Requirement: {run['requirement']}",
+            f"Semantic parent task: parent-{_semantic_parent_task_number(run)}",
             "",
         ]
     )
@@ -1719,6 +1729,27 @@ def run_loop(
     max_eval_attempts: int,
 ) -> dict[str, str]:
     root = Path(repo_root)
+    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:single:{run_id}"):
+        return _run_loop_locked(
+            root,
+            run_id,
+            planner_driver=planner_driver,
+            generator_driver=generator_driver,
+            evaluator_driver=evaluator_driver,
+            max_eval_attempts=max_eval_attempts,
+        )
+
+
+def _run_loop_locked(
+    repo_root: Path | str,
+    run_id: str,
+    *,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+) -> dict[str, str]:
+    root = Path(repo_root)
     run = load_run(root, run_id)
     if run["phase"] == "preflight":
         raise RuntimeError("run_loop requires confirmed preflight; current phase is preflight")
@@ -2437,6 +2468,29 @@ def run_demand_multi(
     max_children: int,
 ) -> dict[str, str]:
     root = Path(repo_root)
+    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:demand:{run_id}"):
+        return _run_demand_multi_locked(
+            root,
+            run_id,
+            planner_driver=planner_driver,
+            generator_driver=generator_driver,
+            evaluator_driver=evaluator_driver,
+            max_eval_attempts=max_eval_attempts,
+            max_children=max_children,
+        )
+
+
+def _run_demand_multi_locked(
+    repo_root: Path | str,
+    run_id: str,
+    *,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+    max_children: int,
+) -> dict[str, str]:
+    root = Path(repo_root)
     validate_run_id(run_id)
     run = load_run(root, run_id)
     if run.get("run_kind") == "child":
@@ -2798,8 +2852,8 @@ def _run_fake_autonomous_planner(
         "task_id": task_id,
         "policy": "autonomous_knowledge",
         "task_kind": "autonomous_implementation_task",
-        "title": f"Autonomous knowledge task {task_number}",
-        "goal": run["requirement"],
+        "title": f"Autonomous knowledge task {task_number} (parent-{_semantic_parent_task_number(run)})",
+        "goal": f"{run['requirement']} Execute semantic parent-{_semantic_parent_task_number(run)}.",
         "non_goals": [],
         "allowed_paths": allowed_patterns,
         "denylist_paths": denied_patterns,
@@ -3348,6 +3402,7 @@ def _record_generator_attempt_for_task(run: dict[str, Any]) -> None:
 
 
 _AUTONOMOUS_COMPLETED_TASK_IDS_KEY = "_autonomous_completed_task_ids"
+_AUTONOMOUS_COMPLETED_REMEDIATION_TASK_IDS_KEY = "_autonomous_completed_remediation_task_ids"
 
 
 def _completed_autonomous_task_ids(run: Mapping[str, Any]) -> list[str]:
@@ -3379,8 +3434,29 @@ def _completed_autonomous_task_count(run: Mapping[str, Any]) -> int:
     return len(_completed_autonomous_task_ids(run))
 
 
+def _completed_autonomous_remediation_task_ids(run: Mapping[str, Any]) -> list[str]:
+    values = run.get(_AUTONOMOUS_COMPLETED_REMEDIATION_TASK_IDS_KEY)
+    if not isinstance(values, list):
+        return []
+    return list(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+
+
+def _autonomous_budget_task_count(run: Mapping[str, Any]) -> int:
+    return _completed_autonomous_task_count(run) + len(_completed_autonomous_remediation_task_ids(run))
+
+
 def _next_autonomous_task_number(run: Mapping[str, Any]) -> int:
     return _completed_autonomous_task_count(run) + 1
+
+
+def _semantic_parent_task_number(run: Mapping[str, Any]) -> int:
+    value = run.get("semantic_parent_task_next")
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    counter = run.get("parent_task_counter")
+    if isinstance(counter, int) and not isinstance(counter, bool) and counter >= 0:
+        return counter + 1
+    return _next_autonomous_task_number(run)
 
 
 def _record_completed_autonomous_task(run: dict[str, Any]) -> None:
@@ -3390,7 +3466,21 @@ def _record_completed_autonomous_task(run: dict[str, Any]) -> None:
     task_ids = _completed_autonomous_task_ids(run)
     if task_id not in task_ids:
         task_ids.append(task_id)
+        counter = run.get("parent_task_counter")
+        if isinstance(counter, int) and not isinstance(counter, bool) and counter >= 0:
+            run["parent_task_counter"] = counter + 1
+            run["semantic_parent_task_next"] = counter + 2
     run[_AUTONOMOUS_COMPLETED_TASK_IDS_KEY] = task_ids
+
+
+def _record_completed_autonomous_remediation_task(run: dict[str, Any]) -> None:
+    task_id = str(run.get("task_id", "")).strip()
+    if not task_id:
+        return
+    task_ids = _completed_autonomous_remediation_task_ids(run)
+    if task_id not in task_ids:
+        task_ids.append(task_id)
+    run[_AUTONOMOUS_COMPLETED_REMEDIATION_TASK_IDS_KEY] = task_ids
 
 
 def _run_fake_autonomous_evaluator(
@@ -3760,7 +3850,210 @@ def _commit_autonomous_changes(
         generator_result["commit"] = commit_sha
         write_json_file(run_dir / "generator-result.json", generator_result)
 
+    commit_sha = str(generator_result.get("commit") or "").strip()
+    if commit_sha:
+        push_result = _push_autonomous_commit(repo_root, load_run(repo_root, run["run_id"]), commit_sha)
+        if push_result["status"] == "fail":
+            _stop_run(
+                repo_root,
+                load_run(repo_root, run["run_id"]),
+                phase="stopped_blocked",
+                next_action="retry_autonomous_push",
+                last_result="blocked",
+            )
+            return False
+        _publish_supervisor_freshness_target(
+            repo_root,
+            load_run(repo_root, run["run_id"]),
+            generator_result,
+            commit_sha,
+        )
     return _finish_autonomous_cleanup(repo_root, run["run_id"])
+
+
+def _publish_supervisor_freshness_target(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+    commit_sha: str,
+) -> dict[str, Any]:
+    run_id = str(run["run_id"])
+    task_id = str(run.get("task_id") or "")
+    target_id = f"{run_id}:{task_id}:{commit_sha[:12]}"
+    evidence_names = ("crawler-workbench-freshness", "search-api-visibility", "frontend-visibility")
+    evidence_records: list[dict[str, Any]] = []
+    evidence_paths: list[str] = []
+    trusted_state = run.get("trusted_live_evidence_state")
+    trusted_state = trusted_state if isinstance(trusted_state, Mapping) else {}
+    for name in evidence_names:
+        relative = f".codex/loop-runs/{run_id}/trusted-live-evidence/{name}.json"
+        path = repo_root / relative
+        evidence_paths.append(relative)
+        if path.exists():
+            try:
+                payload = read_json_file(path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                payload = {"status": "invalid"}
+        else:
+            payload = {"status": "missing"}
+        trusted = trusted_state.get(name)
+        trusted = trusted if isinstance(trusted, Mapping) else {}
+        trusted_path = str(trusted.get("artifact_path") or "")
+        trusted_created_by = str(trusted.get("created_by") or "")
+        trusted_sha256 = str(trusted.get("sha256") or "")
+        actual_sha256 = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else ""
+        payload_run_id = str(payload.get("run_id") or "")
+        payload_task_id = str(payload.get("task_id") or "")
+        trusted_match = (
+            trusted_created_by == _AUTONOMOUS_COMMIT_CREATED_BY
+            and trusted_path == f"trusted-live-evidence/{name}.json"
+            and trusted_sha256 == actual_sha256
+            and payload_run_id == run_id
+            and payload_task_id == task_id
+            and bool(str(payload.get("captured_at") or ""))
+        )
+        evidence_records.append(
+            {
+                "evidence_id": name,
+                "status": str(payload.get("status") or "missing") if trusted_match else "untrusted",
+            }
+        )
+    status = "pass" if all(item["status"] == "pass" for item in evidence_records) else "fail"
+    changed_paths = [str(path) for path in generator_result.get("changed_paths", []) if isinstance(path, str)]
+    wiki_paths = sorted(path for path in changed_paths if "/wiki/" in path and path.endswith(".md"))
+    search_terms = sorted({Path(path).stem.replace("-", " ") for path in wiki_paths})
+    payload = {
+        "schema_version": 1,
+        "target_id": target_id,
+        "source_run_id": run_id,
+        "source_task_id": task_id,
+        "target_commit": commit_sha,
+        "domain": str(run.get("domain") or ""),
+        "wiki_paths": wiki_paths,
+        "search_terms": search_terms,
+        "expected_frontend_text": search_terms,
+        "api_checks": [
+            {"kind": "crawler", "status": evidence_records[0]["status"]},
+            {"kind": "search", "status": evidence_records[1]["status"]},
+            {"kind": "wiki-page", "status": evidence_records[0]["status"]},
+        ],
+        "frontend_checks": [{"page": "knowledge-workbench", "status": evidence_records[2]["status"]}],
+        "evidence": evidence_records,
+        "evidence_paths": evidence_paths,
+        "status": status,
+        "verified_at": _timestamp(),
+        "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+    }
+    targets_path = repo_root / ".codex" / "supervisor" / "freshness-targets.jsonl"
+    targets_path.parent.mkdir(parents=True, exist_ok=True)
+    existing: list[dict[str, Any]] = []
+    if targets_path.exists():
+        for line in targets_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                item = json.loads(line)
+                if isinstance(item, dict):
+                    existing.append(item)
+    if not any(item.get("target_id") == target_id for item in existing):
+        with targets_path.open("a", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True)
+            handle.write("\n")
+    return payload
+
+
+def _push_autonomous_commit(repo_root: Path, run: Mapping[str, Any], commit_sha: str) -> dict[str, Any]:
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    branch = str(run.get("branch") or "main")
+    result = {
+        "schema_version": 1,
+        "status": "not_configured",
+        "remote": "origin",
+        "branch": branch,
+        "commit": commit_sha,
+        "error": "",
+        "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+        "attempted_at": _timestamp(),
+    }
+    if branch != "main":
+        result["status"] = "skipped"
+        result["error"] = f"automatic push is restricted to main; current branch is {branch}"
+        write_json_file(run_dir / "push-result.json", result)
+        return result
+    try:
+        remote_check = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["status"] = "fail"
+        result["error"] = f"origin lookup failed: {exc}"
+        write_json_file(run_dir / "push-result.json", result)
+        return result
+    if remote_check.returncode != 0:
+        result["status"] = "fail"
+        result["error"] = "origin remote is not configured"
+        write_json_file(run_dir / "push-result.json", result)
+        return result
+    try:
+        pushed = subprocess.run(
+            ["git", "push", "origin", "main"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["status"] = "fail"
+        result["error"] = f"git push failed: {exc}"
+        write_json_file(run_dir / "push-result.json", result)
+        return result
+    if pushed.returncode != 0:
+        result["status"] = "fail"
+        result["error"] = (pushed.stderr or pushed.stdout or "git push failed").strip()
+        write_json_file(run_dir / "push-result.json", result)
+        return result
+    try:
+        remote_ref = subprocess.run(
+            ["git", "ls-remote", "origin", "refs/heads/main"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["status"] = "fail"
+        result["error"] = f"remote verification failed: {exc}"
+        write_json_file(run_dir / "push-result.json", result)
+        return result
+    remote_commit = remote_ref.stdout.split(maxsplit=1)[0] if remote_ref.returncode == 0 and remote_ref.stdout.strip() else ""
+    if remote_commit != commit_sha:
+        result["status"] = "fail"
+        result["error"] = f"origin/main verification mismatch: expected {commit_sha}, got {remote_commit or 'missing'}"
+    else:
+        result["status"] = "pass"
+        result["remote_commit"] = remote_commit
+    write_json_file(run_dir / "push-result.json", result)
+    return result
+
+
+def _resume_autonomous_push_block(repo_root: Path, run: dict[str, Any]) -> bool:
+    if run.get("phase") != "stopped_blocked" or run.get("next_action") != "retry_autonomous_push":
+        return False
+    state = run.get(_AUTONOMOUS_COMMIT_STATE_KEY)
+    if not isinstance(state, Mapping) or not str(state.get("commit") or ""):
+        return False
+    commit_sha = str(state["commit"])
+    result = _push_autonomous_commit(repo_root, run, commit_sha)
+    if result["status"] not in {"pass", "skipped"}:
+        return False
+    generator_result = read_json_file(run_dir_for(repo_root, str(run["run_id"])) / "generator-result.json")
+    _publish_supervisor_freshness_target(repo_root, run, generator_result, commit_sha)
+    return _finish_autonomous_cleanup(repo_root, str(run["run_id"]))
 
 
 def _materialize_embedded_required_evidence_manifest(
@@ -5025,7 +5318,10 @@ def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
     remediation = run.get("_audit_remediation")
     remediation_task_id = str(remediation.get("planned_remediation_task", "")) if isinstance(remediation, Mapping) else ""
     is_audit_remediation_task = remediation_task_id and remediation_task_id == str(run.get("task_id", ""))
-    _record_completed_autonomous_task(run)
+    if is_audit_remediation_task:
+        _record_completed_autonomous_remediation_task(run)
+    else:
+        _record_completed_autonomous_task(run)
     save_run(repo_root, run)
     if is_audit_remediation_task:
         _write_audit_remediation_pass_report(
@@ -5116,6 +5412,8 @@ def _parse_porcelain_paths(line: str) -> list[str]:
 def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> bool:
     return (
         path.startswith(f".codex/loop-runs/{run_id}/")
+        or path.startswith(".codex/loop-locks/")
+        or path == ".codex/supervisor/freshness-targets.jsonl"
         or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
         or path in _autonomous_runtime_artifact_paths(run_id)
     )
@@ -5206,6 +5504,28 @@ def run_autonomous(
     max_tasks: int,
 ) -> dict[str, str]:
     root = Path(repo_root)
+    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:autonomous:{run_id}"):
+        return _run_autonomous_locked(
+            root,
+            run_id,
+            planner_driver=planner_driver,
+            generator_driver=generator_driver,
+            evaluator_driver=evaluator_driver,
+            max_eval_attempts=max_eval_attempts,
+            max_tasks=max_tasks,
+        )
+
+
+def _run_autonomous_locked(
+    repo_root: Path | str,
+    run_id: str,
+    planner_driver: str,
+    generator_driver: str,
+    evaluator_driver: str,
+    max_eval_attempts: int,
+    max_tasks: int,
+) -> dict[str, str]:
+    root = Path(repo_root)
     validate_run_id(run_id)
     if planner_driver not in {"fake", "codex-exec"}:
         raise ValueError(f"unsupported autonomous planner driver: {planner_driver}")
@@ -5221,7 +5541,7 @@ def run_autonomous(
     if evaluator_driver not in {"fake", "codex-exec"}:
         raise ValueError(f"unsupported autonomous evaluator driver: {evaluator_driver}")
 
-    tasks_completed = _completed_autonomous_task_count(load_run(root, run_id))
+    tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
     while True:
         run = load_run(root, run_id)
         if run["policy"] != "autonomous_knowledge":
@@ -5234,6 +5554,9 @@ def run_autonomous(
                 return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_audit_remediation_planner", last_result="blocked")
             continue
         if run["phase"] == "stopped_blocked":
+            if _resume_autonomous_push_block(root, run):
+                tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
+                continue
             if _resume_autonomous_dirty_path_block(root, run):
                 continue
             if _resume_autonomous_required_evidence_block(root, run):
@@ -5318,7 +5641,7 @@ def run_autonomous(
             validate_generator_result_payload(generator_result)
             if not _commit_autonomous_changes(root, run, generator_result):
                 return status_for_run(root, run_id)
-            tasks_completed = _completed_autonomous_task_count(load_run(root, run_id))
+            tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
 
 
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
@@ -5463,33 +5786,40 @@ def main(argv: list[str] | None = None) -> int:
             confirm=args.confirm,
         )
     elif args.command == "confirm-preflight":
-        payload = confirm_preflight(repo_root=args.repo_root, run_id=args.run_id)
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:confirm-preflight"):
+            payload = confirm_preflight(repo_root=args.repo_root, run_id=args.run_id)
     elif args.command == "plan":
-        run_planner(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-        payload = load_run(args.repo_root, args.run_id)
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:plan"):
+            run_planner(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
+            payload = load_run(args.repo_root, args.run_id)
     elif args.command == "generate":
-        run_generator(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-        payload = load_run(args.repo_root, args.run_id)
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:generate"):
+            run_generator(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
+            payload = load_run(args.repo_root, args.run_id)
     elif args.command == "evaluate":
-        run_evaluator(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            driver=args.driver,
-            max_attempts=args.max_attempts,
-        )
-        payload = load_run(args.repo_root, args.run_id)
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:evaluate"):
+            run_evaluator(
+                repo_root=args.repo_root,
+                run_id=args.run_id,
+                driver=args.driver,
+                max_attempts=args.max_attempts,
+            )
+            payload = load_run(args.repo_root, args.run_id)
     elif args.command == "run-auditor":
-        report_path = run_auditor(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-        payload = {
-            **status_for_run(repo_root=args.repo_root, run_id=args.run_id),
-            "audit_report_path": str(Path(report_path).resolve().relative_to(Path(args.repo_root).resolve())),
-        }
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:run-auditor"):
+            report_path = run_auditor(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
+            payload = {
+                **status_for_run(repo_root=args.repo_root, run_id=args.run_id),
+                "audit_report_path": str(Path(report_path).resolve().relative_to(Path(args.repo_root).resolve())),
+            }
     elif args.command == "artifact-hygiene":
-        run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
-        payload = load_run(args.repo_root, args.run_id)
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:artifact-hygiene"):
+            run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
+            payload = load_run(args.repo_root, args.run_id)
     elif args.command == "cleanup":
-        run_cleanup(repo_root=args.repo_root, run_id=args.run_id)
-        payload = load_run(args.repo_root, args.run_id)
+        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:cleanup"):
+            run_cleanup(repo_root=args.repo_root, run_id=args.run_id)
+            payload = load_run(args.repo_root, args.run_id)
     elif args.command == "run":
         payload = run_loop(
             repo_root=args.repo_root,

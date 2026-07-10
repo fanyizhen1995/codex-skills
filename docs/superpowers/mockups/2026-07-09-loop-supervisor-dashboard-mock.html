@@ -577,7 +577,7 @@
               </article>
               <article class="flow-step active">
                 <h3>执行控制动作</h3>
-                <p>调用自动恢复、重启 tmux、创建自主续跑计划或停止自动重试。</p>
+                <p>Supervisor 只创建预算停止后的新 continuation、重启 tmux 或停止自动重试；已有 run 由 auto-resume 独占执行。</p>
                 <span class="pill good">待触发</span>
               </article>
               <article class="flow-step">
@@ -600,9 +600,9 @@
                   <li class="list-item">
                     <div class="row">
                       <span class="row-title">Crawler Backend</span>
-                      <span class="pill good">在线 · 最新</span>
+                      <span class="pill good">在线 · 代码最新</span>
                     </div>
-                    <span class="row-detail">runtime: `.codex/service-runtime/crawler-backend.json` · pid=12345 · cwd/backend · git_head=79b0608 · port=8765</span>
+                    <span class="row-detail">runtime: `.codex/service-runtime/crawler-backend.json` · pid=12345 · code_fingerprint 匹配 · wiki-only commit 不影响代码新鲜度 · port=8765</span>
                   </li>
                   <li class="list-item">
                     <div class="row">
@@ -623,7 +623,7 @@
                       <span class="row-title">loop-auto-resume</span>
                       <span class="pill good">在线</span>
                   </div>
-                  <span class="row-detail">tmux session 存活；作为 Supervisor 的低层恢复执行器复用</span>
+                  <span class="row-detail">tmux session 存活；独占执行已有 actionable run，Supervisor 不调用其 resume_once</span>
                 </li>
               </ul>
             </div>
@@ -633,7 +633,7 @@
               <div class="decision-log">
                 <div class="decision">
                   <span class="decision-time">13:42:18</span>
-                  <span class="decision-text">服务健康检查通过：backend、frontend、dashboard、auto-resume 均在线，版本与 `origin/main` 一致。</span>
+                  <span class="decision-text">服务可达检查通过：backend、frontend、dashboard、auto-resume 均在线；各服务代码指纹另行判断。</span>
                 </div>
                 <div class="decision">
                   <span class="decision-time">13:41:04</span>
@@ -742,7 +742,7 @@
                     <span class="row-title">待处理决策</span>
                     <span class="pill good">0</span>
                   </div>
-                  <span class="row-detail">多条决策会分别写入独立记录，不会互相覆盖。</span>
+                  <span class="row-detail">暂无待处理决策。历史 worktree 决策只出现在历史列表，不能成为当前全局决策。</span>
                 </li>
                 <li class="list-item">
                   <div class="row">

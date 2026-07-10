@@ -570,3 +570,45 @@ For the real project:
 ## Open Questions
 
 No open product questions remain for the first implementation plan. The first build should implement the mock-visible contract above with fixture-backed tests before enabling long-running watch mode on real services.
+
+## 2026-07-10 Runtime Hardening Amendment
+
+This amendment is binding for `loop-runtime-continuation-hardening-01` and resolves six production gaps found while continuing the AI infra autonomous loop.
+
+### Execution Ownership
+
+- `loop-auto-resume` is the only component allowed to execute an existing actionable run through Planner, Generator, Evaluator, audit remediation, cleanup, commit, and push.
+- Supervisor must not call `resume_once()` or run a Planner/Generator/Evaluator driver. It observes existing runs and exclusively owns idempotent creation of a new continuation for eligible `autonomous_knowledge` `stopped_budget` runs.
+- Every run execution must hold a non-blocking per-run lock under `.codex/loop-locks/<run-id>.lock`. A second executor records `locked_by_other_executor` and skips the run; it must not run concurrently.
+- The lock is enforced by the orchestrator execution entrypoints and by mutating phase CLI commands, so direct CLI use cannot race loop-auto-resume. Lock files are harness runtime artifacts and are excluded from orchestrator and Auditor dirty-path findings.
+- Supervisor continuation creation must be active outside `--dry-run`, atomic, and idempotent. A `created` plan must point to a real confirmed preflight `run.json`; `planned` is only valid in dry-run mode.
+- Continuation planning holds the source-run lock; creation also holds the target-run lock. A new target is first written as non-actionable `preflight`, receives all inheritance fields, and only then becomes `planning`. An interrupted preflight with zero attempts is recoverable on the next Supervisor tick.
+
+### Continuation State Inheritance
+
+- A continuation persists `previous_run_id`, `parent_task_counter`, and `semantic_parent_task_next`. For the current source run, parent-17 is complete and the next semantic task is parent-18.
+- Auditor cadence is inherited across run boundaries. The continuation stores `completed_since_last_audit`; the current source run carries one completion after the parent-16 audit. One new completed parent therefore triggers the two-parent audit.
+- The run-local task number may restart at one, but prompts, gap proofs, coverage state, Dashboard summaries, and audit cadence must use the inherited semantic parent boundary.
+- Each completed ordinary autonomous task advances `parent_task_counter` and `semantic_parent_task_next`. Audit-remediation tasks use a separate completed-remediation ledger: they consume invocation budget but do not advance semantic parent numbering or the two-parent audit cadence.
+
+### Service And Data Freshness
+
+- `service_summary.online` counts endpoint reachability and required tmux presence. A reachable service remains online even when its version is stale or unavailable.
+- Version freshness is a separate state based on a service-specific code/config fingerprint, not repository `HEAD`. Wiki-only commits must not mark crawler or Dashboard code stale.
+- Endpoint/tmux reachability does not change code freshness. An offline service may be `不可达` while its recorded code fingerprint remains `最新`.
+- Runtime metadata records both startup Git SHA for provenance and the service fingerprint used for freshness comparison.
+- After a successful autonomous main-branch push and remote-SHA verification, the orchestrator publishes one target-specific record to `.codex/supervisor/freshness-targets.jsonl`. Evidence must match the current run ID/task ID, captured timestamp, orchestrator provenance path, and actual SHA-256. Repeated publication for the same target/commit is idempotent.
+
+### Decisions, Push, And Dashboard
+
+- `supervisor-state.last_decision` is selected from current actionable decisions for the root project. Historical worktree and terminal observations stay in decision history but cannot become the global headline.
+- When no open decision exists, the Dashboard headline and control flow display `暂无待处理决策`; historical records remain visible in the decision log with run ID and repo root.
+- Supervisor archives an open run-scoped decision when all affected runs no longer classify as needing user input. Project-scoped decisions with no affected run are never auto-archived.
+- Autonomous commits on `main` automatically run `git push origin main`. The orchestrator writes `push-result.json` with remote, branch, commit, status, and error.
+- A missing `origin`, push failure, timeout, or remote SHA mismatch on `main` stops at retryable `stopped_blocked / retry_autonomous_push`; auto-resume retries without recreating the commit or rerunning Generator. Non-main fixture repositories record `skipped` because automatic push is restricted to `main`.
+
+### Acceptance Additions
+
+- Unit tests must prove execution lock exclusion, no Supervisor call into auto-resume, real continuation creation, parent-18 inheritance, carried Auditor cadence, online/version separation, service-fingerprint behavior, freshness publication idempotency, current-decision selection, push success, and retry after push failure.
+- Browser evaluation must prove `在线服务` is reachability-based, version freshness is separate, no stale historical decision is presented as current, and zero open decisions is explicit.
+- Runtime acceptance requires the real crawler backend/frontend, Loop Dashboard, loop-auto-resume, and active Supervisor online, followed by four consecutively completed AI infra semantic parent tasks with the expected two-parent Auditor boundary and no manual phase advancement.

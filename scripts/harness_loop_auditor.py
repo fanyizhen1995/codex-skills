@@ -470,6 +470,8 @@ def _unclassified_dirty_paths(repo_root: Path, run: Mapping[str, Any]) -> list[s
             continue
         if path.startswith(".codex/loop-runs/"):
             continue
+        if path.startswith(".codex/loop-locks/") and path.endswith(".lock"):
+            continue
         paths.append(path)
     return sorted(paths)
 

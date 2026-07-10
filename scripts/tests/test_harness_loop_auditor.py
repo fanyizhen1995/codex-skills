@@ -242,6 +242,26 @@ class HarnessLoopAuditorTests(unittest.TestCase):
             self.assertEqual(summary["unclassified_dirty_paths"], 0)
             self.assertEqual(payload["created_by"], "harness_loop_orchestrator")
 
+    def test_compute_deterministic_signals_ignores_runtime_loop_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="locked-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            lock_path = repo_root / ".codex" / "loop-locks" / "locked-run.lock"
+            lock_path.parent.mkdir(parents=True)
+            lock_path.write_text('{"owner":"test"}\n', encoding="utf-8")
+
+            payload = compute_deterministic_signals(repo_root, run)
+
+            self.assertEqual(payload["summary"]["unclassified_dirty_paths"], 0)
+
     def test_compute_deterministic_signals_groups_structured_evaluator_findings_by_stable_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

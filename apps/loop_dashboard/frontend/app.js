@@ -592,14 +592,14 @@ function renderSupervisorMetrics(bundle) {
   const version = supervisorVersionSummary(services);
   const freshness = supervisorFreshnessSummary(services);
   const totalServices = numberOrNull(serviceSummary.total);
-  const healthyServices = numberOrNull(serviceSummary.healthy);
+  const onlineServices = numberOrNull(serviceSummary.online);
   const continuationCandidates = numberOrNull(runSummary.continuation_candidates);
 
   const grid = el("div", "supervisor-metrics");
   grid.append(
     supervisorMetric(
       "在线服务",
-      totalServices === null || totalServices === 0 || healthyServices === null ? "不可用" : `${healthyServices} / ${totalServices}`,
+      totalServices === null || totalServices === 0 || onlineServices === null ? "不可用" : `${onlineServices} / ${totalServices}`,
       totalServices === null || totalServices === 0 ? "暂无服务汇总" : "只表示可达；版本新鲜度单独判断",
     ),
     supervisorMetric(
@@ -649,9 +649,9 @@ function renderSupervisorControlFlow(bundle) {
     },
     {
       title: "执行控制动作",
-      detail: lastDecision ? supervisorDecisionDetail(lastDecision) : "暂无最近决策",
-      status: lastDecision ? supervisorDecisionStatus(lastDecision) : "unavailable",
-      badge: lastDecision ? supervisorDecisionBadge(lastDecision) : "暂无数据",
+      detail: lastDecision ? supervisorDecisionDetail(lastDecision) : "暂无待处理决策",
+      status: lastDecision ? supervisorDecisionStatus(lastDecision) : openCount === 0 ? "healthy" : "unavailable",
+      badge: lastDecision ? supervisorDecisionBadge(lastDecision) : openCount === 0 ? "无需用户决策" : "暂无数据",
     },
     {
       title: "消费 Auditor",
@@ -997,9 +997,13 @@ function supervisorDecisionAvailable(decision) {
 }
 
 function currentSupervisorDecision(bundle) {
-  const decisions = supervisorDecisions(bundle).filter(supervisorDecisionAvailable);
-  if (decisions.length) {
-    return decisions[decisions.length - 1];
+  const required = objectValue(bundle.required);
+  const openDecisions = arrayValue(required.decisions).filter(supervisorDecisionAvailable);
+  if (openDecisions.length) {
+    return openDecisions[openDecisions.length - 1];
+  }
+  if (numberOrNull(required.open_count) === 0) {
+    return null;
   }
   const snapshotDecision = objectValue(supervisorSnapshot(bundle).last_decision);
   return supervisorDecisionAvailable(snapshotDecision) ? snapshotDecision : null;

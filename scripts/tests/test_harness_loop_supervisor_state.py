@@ -38,6 +38,35 @@ def test_supervisor_dir_uses_codex_supervisor_path(tmp_path):
     assert supervisor_dir(tmp_path) == tmp_path / ".codex" / "supervisor"
 
 
+def test_service_summary_counts_online_separately_from_version_health(tmp_path):
+    state = build_supervisor_state(
+        tmp_path,
+        mode="once",
+        service_health={
+            "crawler-backend": {
+                "status": "degraded",
+                "reachable": True,
+                "tmux_session_exists": True,
+                "running_version": {"freshness": "stale"},
+            },
+            "loop-auto-resume": {
+                "status": "healthy",
+                "reachable": True,
+                "tmux_session_exists": True,
+                "running_version": {"freshness": "fresh"},
+            },
+        },
+        run_summary={"active": 0, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+        failure_summary={"open_failure_keys": 0},
+        last_decision=None,
+        watch_interval_seconds=30,
+    )
+
+    assert state["service_summary"]["online"] == 2
+    assert state["service_summary"]["healthy"] == 1
+    assert state["service_summary"]["degraded"] == 1
+
+
 def test_utc_now_iso_uses_utc_z_suffix():
     timestamp = utc_now_iso()
 
@@ -300,6 +329,6 @@ def test_build_supervisor_state_persists_current_snapshot(tmp_path):
     assert state["last_tick_at"].endswith("Z")
     assert state["mode"] == "watch"
     assert state["watch_interval_seconds"] == 60
-    assert state["service_summary"] == {"total": 1, "healthy": 1, "degraded": 0, "blocked": 0}
+    assert state["service_summary"] == {"total": 1, "online": 0, "healthy": 1, "degraded": 0, "blocked": 0}
     assert state["failure_summary"]["max_consecutive_failures"] == 3
     assert state["last_decision"] is None

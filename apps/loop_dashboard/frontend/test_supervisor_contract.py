@@ -111,13 +111,16 @@ def test_control_flow_requires_rich_supervisor_decision_before_available_state()
     assert "currentSupervisorDecision(bundle)" in function_block("renderSupervisorControlFlow")
     assert 'lastDecision ? lastDecision.action || "available" : "unavailable"' not in APP_JS
     assert "nonEmptyObject(snapshot.last_decision) || decisions[0] || null" not in APP_JS
+    assert '"暂无待处理决策"' in function_block("renderSupervisorControlFlow")
 
 
-def test_current_supervisor_decision_prefers_latest_chronological_decision():
+def test_current_supervisor_decision_prefers_open_decision_not_historical_log():
     current_decision = function_block("currentSupervisorDecision")
 
-    assert "decisions[decisions.length - 1]" in current_decision
-    assert "return decisions[0]" not in current_decision
+    assert "bundle.required" in current_decision
+    assert "required.decisions" in current_decision
+    assert "numberOrNull(required.open_count) === 0" in current_decision
+    assert "decisions[decisions.length - 1]" not in current_decision
 
 
 def test_decision_log_visible_text_uses_translated_classification_fallback():

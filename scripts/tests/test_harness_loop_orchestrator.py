@@ -288,6 +288,164 @@ def seed_open_must_fix_audit(repo_root: Path, run_id: str) -> None:
 
 
 class HarnessLoopOrchestratorTests(unittest.TestCase):
+    def test_audit_cadence_carries_completed_parent_across_continuation(self) -> None:
+        run = {
+            "policy": "autonomous_knowledge",
+            "run_kind": "single",
+            "_autonomous_completed_task_ids": ["continuation-task-1"],
+            "audit_cadence": {"unit": "parent_task", "mode": "fixed_interval", "interval": 2},
+            "_audit_cadence_state": {
+                "last_audited_progress_count": 0,
+                "carried_completed_since_last_audit": 1,
+            },
+        }
+
+        self.assertEqual(harness_loop_orchestrator._audit_steps_since_last_audit(run), 2)
+        self.assertTrue(harness_loop_orchestrator._audit_cadence_due(run, force=False))
+
+    def test_publish_freshness_target_is_idempotent_and_binds_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "freshness-run"
+            run_dir = run_dir_for(repo_root, run_id)
+            evidence_dir = run_dir / "trusted-live-evidence"
+            evidence_dir.mkdir(parents=True)
+            for name in ("crawler-workbench-freshness", "frontend-visibility", "search-api-visibility"):
+                write_json_file(
+                    evidence_dir / f"{name}.json",
+                    {
+                        "status": "pass",
+                        "run_id": run_id,
+                        "task_id": "freshness-run-task-1",
+                        "captured_at": "2026-07-10T00:00:00Z",
+                        "summary": f"{name} passed",
+                    },
+                )
+            run = {
+                "run_id": run_id,
+                "task_id": "freshness-run-task-1",
+                "domain": "ai_infra",
+                "trusted_live_evidence_state": {
+                    name: {
+                        "artifact_path": f"trusted-live-evidence/{name}.json",
+                        "sha256": hashlib.sha256((evidence_dir / f"{name}.json").read_bytes()).hexdigest(),
+                        "created_by": "harness_loop_orchestrator",
+                    }
+                    for name in ("crawler-workbench-freshness", "frontend-visibility", "search-api-visibility")
+                },
+            }
+            generator = {
+                "changed_paths": [
+                    "personal-wiki/domains/ai_infra/wiki/references/example.md",
+                    "personal-wiki/domains/ai_infra/raw/crawler/example.md",
+                ]
+            }
+
+            first = harness_loop_orchestrator._publish_supervisor_freshness_target(
+                repo_root, run, generator, "a" * 40
+            )
+            second = harness_loop_orchestrator._publish_supervisor_freshness_target(
+                repo_root, run, generator, "a" * 40
+            )
+
+            targets = (repo_root / ".codex" / "supervisor" / "freshness-targets.jsonl").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            self.assertEqual(first["target_commit"], "a" * 40)
+            self.assertEqual(first["status"], "pass")
+            self.assertEqual(first["wiki_paths"], ["personal-wiki/domains/ai_infra/wiki/references/example.md"])
+            self.assertEqual(second["target_id"], first["target_id"])
+            self.assertEqual(len(targets), 1)
+
+    def test_push_autonomous_commit_pushes_origin_main_and_records_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo_root = root / "repo"
+            remote = root / "origin.git"
+            repo_root.mkdir()
+            init_git_repo(repo_root)
+            subprocess.run(["git", "branch", "-M", "main"], cwd=repo_root, check=True, capture_output=True)
+            subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+            subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo_root, check=True)
+            run_id = "push-run"
+            run_dir_for(repo_root, run_id).mkdir(parents=True)
+            note = repo_root / "note.md"
+            note.write_text("push me\n", encoding="utf-8")
+            subprocess.run(["git", "add", "note.md"], cwd=repo_root, check=True)
+            subprocess.run(["git", "commit", "-m", "test: push"], cwd=repo_root, check=True, capture_output=True)
+            commit_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, text=True, capture_output=True
+            ).stdout.strip()
+
+            result = harness_loop_orchestrator._push_autonomous_commit(
+                repo_root, {"run_id": run_id, "branch": "main"}, commit_sha
+            )
+
+            self.assertEqual(result["status"], "pass")
+            self.assertEqual(result["remote"], "origin")
+            self.assertEqual(result["branch"], "main")
+            self.assertEqual(result["commit"], commit_sha)
+            persisted = read_json_file(run_dir_for(repo_root, run_id) / "push-result.json")
+            self.assertEqual(persisted["status"], "pass")
+            remote_head = subprocess.run(
+                ["git", "--git-dir", str(remote), "rev-parse", "refs/heads/main"],
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            self.assertEqual(remote_head, commit_sha)
+
+    def test_push_autonomous_main_commit_without_origin_is_retryable_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            subprocess.run(["git", "branch", "-M", "main"], cwd=repo_root, check=True, capture_output=True)
+            run_id = "push-without-origin"
+            run_dir_for(repo_root, run_id).mkdir(parents=True)
+            commit_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, text=True, capture_output=True
+            ).stdout.strip()
+
+            result = harness_loop_orchestrator._push_autonomous_commit(
+                repo_root, {"run_id": run_id, "branch": "main"}, commit_sha
+            )
+
+            self.assertEqual(result["status"], "fail")
+            self.assertIn("origin remote is not configured", result["error"])
+
+    def test_publish_freshness_target_rejects_untrusted_pass_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "untrusted-freshness-run"
+            evidence_dir = run_dir_for(repo_root, run_id) / "trusted-live-evidence"
+            evidence_dir.mkdir(parents=True)
+            for name in ("crawler-workbench-freshness", "search-api-visibility", "frontend-visibility"):
+                write_json_file(evidence_dir / f"{name}.json", {"status": "pass"})
+
+            target = harness_loop_orchestrator._publish_supervisor_freshness_target(
+                repo_root,
+                {"run_id": run_id, "task_id": "task-1", "domain": "ai_infra"},
+                {"changed_paths": ["personal-wiki/domains/ai_infra/wiki/references/example.md"]},
+                "b" * 40,
+            )
+
+            self.assertEqual(target["status"], "fail")
+            self.assertEqual({item["status"] for item in target["evidence"]}, {"untrusted"})
+
+    def test_completed_continuation_task_advances_semantic_parent_counter(self) -> None:
+        run = {
+            "task_id": "continuation-task-1",
+            "parent_task_counter": 17,
+            "semantic_parent_task_next": 18,
+            "_autonomous_completed_task_ids": [],
+        }
+
+        harness_loop_orchestrator._record_completed_autonomous_task(run)
+
+        self.assertEqual(run["parent_task_counter"], 18)
+        self.assertEqual(run["semantic_parent_task_next"], 19)
+        self.assertEqual(harness_loop_orchestrator._semantic_parent_task_number(run), 19)
+
     REQUIRED_EVIDENCE_STABLE_IDS = {
         "confirmed ai_infra autonomous expansion preflight": "confirmed-preflight",
         "policy_file and expanded limits recorded in run.json": "policy-run-limits",
@@ -1165,7 +1323,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "pass")
             self.assertTrue(run.get("_audit_remediation"))
             self.assertEqual(run["_audit_remediation"]["status"], "resolved")
-            self.assertEqual(run["_autonomous_completed_task_ids"], ["audit-remediate-run-audit-remediation-001"])
+            self.assertEqual(run.get("_autonomous_completed_task_ids", []), [])
+            self.assertEqual(
+                run["_autonomous_completed_remediation_task_ids"],
+                ["audit-remediate-run-audit-remediation-001"],
+            )
             report = read_json_file(run_dir_for(repo_root, "audit-remediate-run") / "audit-reports" / "audit-002.json")
             self.assertEqual(report["verdict"], "pass")
             self.assertEqual(report["direction_control"]["action"], "resume_after_audit_remediation")

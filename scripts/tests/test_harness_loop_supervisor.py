@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -51,6 +52,7 @@ def seed_service_runtime(
                 "origin_main": git_head,
                 "started_at": "2026-07-09T00:00:00Z",
                 "config_fingerprint": "sha256:test",
+                "code_fingerprint": "sha256:test",
             },
             indent=2,
         )
@@ -154,6 +156,7 @@ def patch_service_checks(monkeypatch: pytest.MonkeyPatch, *, git_head: str = "ab
     monkeypatch.setattr("scripts.harness_loop_supervisor._tmux_has_session", lambda session: (True, "exists"))
     monkeypatch.setattr("scripts.harness_loop_supervisor._pid_exists", lambda pid: True)
     monkeypatch.setattr("scripts.harness_loop_supervisor._git_head", lambda cwd: git_head)
+    monkeypatch.setattr("scripts.harness_loop_supervisor._service_code_fingerprint", lambda root, service: "sha256:test")
 
 
 def test_once_cli_writes_state_and_exits_zero(tmp_path):
@@ -204,6 +207,9 @@ def test_watch_mode_can_stop_after_max_ticks(tmp_path):
 
 def test_write_service_runtime_metadata_records_current_process_and_git_head(tmp_path, monkeypatch):
     monkeypatch.setattr("scripts.harness_loop_supervisor._git_head", lambda cwd: "abc123")
+    code_path = tmp_path / "apps" / "loop_dashboard" / "backend" / "loop_dashboard" / "main.py"
+    code_path.parent.mkdir(parents=True)
+    code_path.write_text("APP = 'fixture'\n", encoding="utf-8")
 
     metadata = write_service_runtime_metadata(
         tmp_path,
@@ -244,7 +250,10 @@ def test_write_service_runtime_cli_writes_metadata(tmp_path):
         text=True,
     )
     (tmp_path / "README.md").write_text("runtime metadata fixture\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    code_path = tmp_path / "apps" / "loop_dashboard" / "backend" / "loop_dashboard" / "main.py"
+    code_path.parent.mkdir(parents=True)
+    code_path.write_text("APP = 'fixture'\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md", str(code_path.relative_to(tmp_path))], cwd=tmp_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     subprocess.run(
         ["git", "commit", "-m", "test fixture"],
         cwd=tmp_path,
@@ -354,7 +363,7 @@ def test_existing_planned_continuation_is_reused_when_global_stop_opens(tmp_path
     config = SupervisorConfig(project_root=tmp_path, dry_run=True)
 
     run_supervisor_once(config)
-    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "needs-human")
+    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "unsupported_state")
     open_user_decision(
         tmp_path,
         reason="unsupported_state",
@@ -501,16 +510,16 @@ def test_malformed_freshness_target_is_reported_as_failed_not_green(tmp_path, mo
     assert "malformed" in health["data_freshness"]["evidence"]
 
 
-def test_git_command_failure_is_explicit_service_error(tmp_path, monkeypatch):
+def test_service_fingerprint_failure_is_explicit_service_error(tmp_path, monkeypatch):
     seed_service_runtime(tmp_path, "loop-dashboard", port=8766, git_head="abc123", tmux_session="loop-dashboard")
     monkeypatch.setattr("scripts.harness_loop_supervisor._check_http_endpoint", lambda endpoint, timeout: (True, "ok"))
     monkeypatch.setattr("scripts.harness_loop_supervisor._tmux_has_session", lambda session: (True, "exists"))
     monkeypatch.setattr("scripts.harness_loop_supervisor._pid_exists", lambda pid: True)
 
-    def fail_git_head(cwd: Path) -> str:
-        raise RuntimeError("git command failed: rev-parse HEAD")
+    def fail_service_fingerprint(project_root: Path, service_name: str) -> str:
+        raise RuntimeError("service code files are unreadable")
 
-    monkeypatch.setattr("scripts.harness_loop_supervisor._git_head", fail_git_head)
+    monkeypatch.setattr("scripts.harness_loop_supervisor._service_code_fingerprint", fail_service_fingerprint)
     service = ServiceConfig(
         service="loop-dashboard",
         kind="http_and_tmux",
@@ -523,8 +532,8 @@ def test_git_command_failure_is_explicit_service_error(tmp_path, monkeypatch):
 
     assert health["status"] == "degraded"
     assert health["running_version"]["matches_expected"] is False
-    assert "git command failed: rev-parse HEAD" in health["last_error"]
-    assert "git command failed: rev-parse HEAD" in health["running_version"]["evidence"]
+    assert "service code fingerprint failed: service code files are unreadable" in health["last_error"]
+    assert "service code fingerprint failed: service code files are unreadable" in health["running_version"]["evidence"]
 
 
 def test_service_restart_failures_open_user_decision_after_retry_ceiling(tmp_path, monkeypatch):
@@ -628,7 +637,7 @@ def test_started_restart_records_failure_when_followup_health_stays_degraded(tmp
     assert len(attempts) == 2
 
 
-def test_dry_run_passes_dry_run_to_auto_resume(tmp_path, monkeypatch):
+def test_supervisor_never_executes_existing_actionable_run(tmp_path, monkeypatch):
     seed_run(
         tmp_path,
         "audit-stuck",
@@ -638,27 +647,15 @@ def test_dry_run_passes_dry_run_to_auto_resume(tmp_path, monkeypatch):
         last_result="blocked",
     )
     patch_service_checks(monkeypatch)
-    calls = []
+    def forbidden_resume_once(**kwargs):
+        raise AssertionError(f"Supervisor must not execute existing runs: {kwargs}")
 
-    def fake_resume_once(**kwargs):
-        calls.append(kwargs)
-        return {
-            "project_root": str(kwargs["project_root"]),
-            "candidate_count": 1,
-            "resumed_count": 0,
-            "dry_run_count": 1,
-            "error_count": 0,
-            "resumed": [{"run_id": "audit-stuck", "status": "dry_run"}],
-            "errors": [],
-        }
-
-    monkeypatch.setattr("scripts.harness_loop_supervisor.auto_resume.resume_once", fake_resume_once)
+    monkeypatch.setattr("scripts.harness_loop_supervisor.auto_resume.resume_once", forbidden_resume_once)
 
     result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
 
-    assert calls
-    assert calls[0]["dry_run"] is True
-    assert result["auto_resume"]["dry_run_count"] == 1
+    assert result["run_summary"]["blocked"] == 1
+    assert "auto_resume" not in result
 
 
 def test_active_autonomous_run_counts_active_not_blocked_while_resumable(tmp_path, monkeypatch):
@@ -671,28 +668,175 @@ def test_active_autonomous_run_counts_active_not_blocked_while_resumable(tmp_pat
         last_result="none",
     )
     monkeypatch.setattr("scripts.harness_loop_supervisor._check_all_services", lambda config: [])
-    calls = []
-
-    def fake_resume_once(**kwargs):
-        calls.append(kwargs)
-        return {
-            "project_root": str(kwargs["project_root"]),
-            "candidate_count": 1,
-            "resumed_count": 0,
-            "dry_run_count": 1,
-            "error_count": 0,
-            "resumed": [{"run_id": "planning-run", "status": "dry_run"}],
-            "errors": [],
-        }
-
-    monkeypatch.setattr("scripts.harness_loop_supervisor.auto_resume.resume_once", fake_resume_once)
+    monkeypatch.setattr(
+        "scripts.harness_loop_supervisor.auto_resume.resume_once",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("Supervisor must not call auto-resume")),
+    )
 
     result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
 
-    assert calls
     assert result["run_summary"]["active"] == 1
     assert result["run_summary"]["blocked"] == 0
     assert result["status"] == "healthy"
+
+
+def test_non_dry_run_creates_confirmed_continuation_with_inherited_parent_and_audit_state(tmp_path, monkeypatch):
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "codex@example.invalid"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Codex"], cwd=tmp_path, check=True)
+    (tmp_path / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "fixture"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    policy_target = tmp_path / AI_INFRA_POLICY_FILE
+    policy_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REPO_ROOT / AI_INFRA_POLICY_FILE, policy_target)
+    seed_stopped_budget_autonomous_run(tmp_path, "source-run", parent_counter=17, git_head="abc123")
+    run_path = tmp_path / ".codex" / "loop-runs" / "source-run" / "run.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run.update(
+        {
+            "requirement": "Continue AI infra expansion",
+            "constraints": ["avoid duplicates"],
+            "parent_task_counter": 17,
+            "_autonomous_completed_task_ids": ["task-1", "task-2", "task-3"],
+            "_audit_cadence_state": {"interval": 2, "last_audited_progress_count": 2},
+            "autonomous_commit_state": {
+                "status": "committed",
+                "commit": "final-parent-17-commit",
+                "created_by": "harness_loop_orchestrator",
+                "changed_paths": ["personal-wiki/domains/ai_infra/wiki/references/example.md"],
+            },
+        }
+    )
+    run.pop("commit", None)
+    run_path.write_text(json.dumps(run, indent=2) + "\n", encoding="utf-8")
+    patch_service_checks(monkeypatch, git_head=subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True, capture_output=True, text=True
+    ).stdout.strip())
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=False))
+
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    assert len(plans) == 1
+    assert plans[0]["status"] == "created"
+    assert plans[0]["parent_task_counter"] == 17
+    assert plans[0]["semantic_parent_task_next"] == 18
+    assert plans[0]["previous_commit"] == "final-parent-17-commit"
+    assert plans[0]["audit_cadence_state"]["completed_since_last_audit"] == 1
+    continuation = json.loads(
+        (tmp_path / ".codex" / "loop-runs" / plans[0]["next_run_id"] / "run.json").read_text(encoding="utf-8")
+    )
+    assert continuation["phase"] == "planning"
+    assert continuation["previous_run_id"] == "source-run"
+    assert continuation["parent_task_counter"] == 17
+    assert continuation["semantic_parent_task_next"] == 18
+    assert continuation["_audit_cadence_state"]["carried_completed_since_last_audit"] == 1
+    assert result["run_summary"]["continuation_candidates"] == 1
+
+
+def test_service_code_fingerprint_ignores_unrelated_repo_head_change(tmp_path, monkeypatch):
+    runtime_path = seed_service_runtime(
+        tmp_path,
+        "loop-dashboard",
+        port=8766,
+        git_head="startup-head",
+        tmux_session="loop-dashboard",
+    )
+    runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+    runtime["code_fingerprint"] = "sha256:dashboard-code"
+    runtime_path.write_text(json.dumps(runtime, indent=2) + "\n", encoding="utf-8")
+    patch_service_checks(monkeypatch, git_head="new-wiki-only-head")
+    monkeypatch.setattr(
+        "scripts.harness_loop_supervisor._service_code_fingerprint",
+        lambda project_root, service_name: "sha256:dashboard-code",
+    )
+
+    health = check_service_health(
+        SupervisorConfig(project_root=tmp_path),
+        ServiceConfig(
+            service="loop-dashboard",
+            kind="http_and_tmux",
+            expected_endpoint="http://127.0.0.1:8766/api/health",
+            tmux_session="loop-dashboard",
+            port=8766,
+        ),
+    )
+
+    assert health["reachable"] is True
+    assert health["running_version"]["matches_expected"] is True
+    assert health["running_version"]["freshness"] == "fresh"
+    assert health["running_version"]["git_head"] == "startup-head"
+
+
+def test_service_version_stays_fresh_when_endpoint_is_offline(tmp_path, monkeypatch):
+    seed_service_runtime(
+        tmp_path,
+        "loop-dashboard",
+        port=8766,
+        git_head="startup-head",
+        tmux_session="loop-dashboard",
+    )
+    monkeypatch.setattr("scripts.harness_loop_supervisor._check_http_endpoint", lambda endpoint, timeout: (False, "offline"))
+    monkeypatch.setattr("scripts.harness_loop_supervisor._tmux_has_session", lambda session: (False, "missing"))
+    monkeypatch.setattr("scripts.harness_loop_supervisor._service_code_fingerprint", lambda root, service: "sha256:test")
+
+    health = check_service_health(
+        SupervisorConfig(project_root=tmp_path),
+        ServiceConfig(
+            service="loop-dashboard",
+            kind="http_and_tmux",
+            expected_endpoint="http://127.0.0.1:8766/api/health",
+            tmux_session="loop-dashboard",
+            port=8766,
+        ),
+    )
+
+    assert health["status"] == "degraded"
+    assert health["reachable"] is False
+    assert health["running_version"]["freshness"] == "fresh"
+    assert health["running_version"]["matches_expected"] is True
+
+
+def test_global_last_decision_excludes_terminal_historical_worktree_decision(tmp_path, monkeypatch):
+    seed_run(tmp_path, "root-terminal", phase="stopped_no_action", next_action="none", last_result="pass")
+    worktree = tmp_path / ".worktrees" / "historical"
+    seed_run(
+        worktree,
+        "historical-human-merge",
+        policy="demand_development",
+        phase="passed_waiting_human_merge",
+        next_action="await_human_merge_confirmation",
+        last_result="pass",
+    )
+    monkeypatch.setattr("scripts.harness_loop_supervisor._check_all_services", lambda config: [])
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    assert result["failure_summary"]["open_failure_keys"] == 0
+    assert result["last_decision"] is None
+
+
+def test_supervisor_archives_open_decision_after_affected_run_recovers(tmp_path, monkeypatch):
+    seed_run(tmp_path, "recovered-run", phase="planning", next_action="run_autonomous_planner")
+    failure_key = make_failure_key("unsupported_state", "recovered-run", "run-state", "old-state")
+    decision = open_user_decision(
+        tmp_path,
+        reason="unsupported_state",
+        failure_key=failure_key,
+        summary="Historical state required review.",
+        required_user_decision="Review the run.",
+        affected_runs=["recovered-run"],
+        attempts=[],
+    )
+    monkeypatch.setattr("scripts.harness_loop_supervisor._check_all_services", lambda config: [])
+
+    result = run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=True))
+
+    decision_path = tmp_path / ".codex" / "supervisor" / "needs-user-decisions" / f"{decision['decision_id']}.json"
+    persisted = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert persisted["status"] == "archived"
+    assert result["failure_summary"]["open_failure_keys"] == 0
+    assert result["last_decision"] is None
 
 
 def test_demand_development_human_merge_is_not_continued(tmp_path, monkeypatch):
@@ -729,6 +873,30 @@ def test_discover_run_records_includes_worktree_runs(tmp_path):
 
     assert [record.run_id for record in records] == ["root-run", "worktree-run"]
     assert records[1].repo_root == worktree_root
+
+
+def test_non_dry_continuation_for_worktree_is_created_in_source_worktree(tmp_path, monkeypatch):
+    worktree_root = tmp_path / ".worktrees" / "source-worktree"
+    worktree_root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-b", "main"], cwd=worktree_root, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "codex@example.invalid"], cwd=worktree_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Codex"], cwd=worktree_root, check=True)
+    (worktree_root / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=worktree_root, check=True)
+    subprocess.run(["git", "commit", "-m", "fixture"], cwd=worktree_root, check=True, capture_output=True, text=True)
+    policy_target = worktree_root / AI_INFRA_POLICY_FILE
+    policy_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REPO_ROOT / AI_INFRA_POLICY_FILE, policy_target)
+    seed_stopped_budget_autonomous_run(worktree_root, "worktree-budget", parent_counter=17)
+    monkeypatch.setattr("scripts.harness_loop_supervisor._check_all_services", lambda config: [])
+
+    run_supervisor_once(SupervisorConfig(project_root=tmp_path, dry_run=False, include_worktrees=True))
+
+    plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
+    target = plans[0]["next_run_id"]
+    assert plans[0]["status"] == "created"
+    assert (worktree_root / ".codex" / "loop-runs" / target / "run.json").exists()
+    assert not (tmp_path / ".codex" / "loop-runs" / target / "run.json").exists()
 
 
 def test_unsupported_phase_opens_user_decision(tmp_path, monkeypatch):
@@ -870,7 +1038,8 @@ def test_stopped_budget_auditor_should_fix_records_control_input_without_continu
 
 def test_stopped_budget_blocks_continuation_when_open_user_decision_exists(tmp_path, monkeypatch):
     seed_stopped_budget_autonomous_run(tmp_path, "blocked-by-global-stop")
-    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "needs-human")
+    seed_run(tmp_path, "existing-run", phase="mystery", next_action="none")
+    failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "unsupported_state")
     open_user_decision(
         tmp_path,
         reason="unsupported_state",
@@ -889,21 +1058,22 @@ def test_stopped_budget_blocks_continuation_when_open_user_decision_exists(tmp_p
     decision_files = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
     assert result["status"] == "blocked"
     assert result["run_summary"]["continuation_candidates"] == 0
-    assert result["run_summary"]["needs_user_decision"] == 1
+    assert result["run_summary"]["needs_user_decision"] == 2
     assert len(decision_files) == 1
     assert len(plans) == 1
     assert plans[0]["status"] == "blocked"
     assert plans[0]["global_stop_result"]["status"] in {"blocked", "stop"}
     assert plans[0]["global_stop_result"]["checked_conditions"][0]["condition"] == "open_user_decisions"
-    assert decisions[-1]["run_id"] == "blocked-by-global-stop"
-    assert decisions[-1]["action"] == "request_user_decision"
-    assert decisions[-1]["reason"] == "global_stop_open_user_decision"
+    blocked_decision = next(item for item in decisions if item["run_id"] == "blocked-by-global-stop")
+    assert blocked_decision["action"] == "request_user_decision"
+    assert blocked_decision["reason"] == "global_stop_open_user_decision"
 
 
 def test_existing_blocked_continuation_plan_becomes_planned_without_duplicate_after_global_stop_resolves(
     tmp_path, monkeypatch
 ):
     seed_stopped_budget_autonomous_run(tmp_path, "blocked-then-clear", parent_counter=14)
+    seed_run(tmp_path, "existing-run", phase="mystery", next_action="none")
     failure_key = make_failure_key("unsupported_state", "existing-run", "run-state", "needs-human")
     decision = open_user_decision(
         tmp_path,
@@ -919,14 +1089,15 @@ def test_existing_blocked_continuation_plan_becomes_planned_without_duplicate_af
 
     first = run_supervisor_once(config)
     decision_path = tmp_path / ".codex" / "supervisor" / "needs-user-decisions" / f"{decision['decision_id']}.json"
-    persisted_decision = json.loads(decision_path.read_text(encoding="utf-8"))
-    persisted_decision["status"] = "closed"
-    decision_path.write_text(json.dumps(persisted_decision, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    existing_run_path = tmp_path / ".codex" / "loop-runs" / "existing-run" / "run.json"
+    existing_run = json.loads(existing_run_path.read_text(encoding="utf-8"))
+    existing_run.update({"phase": "stopped_no_action", "next_action": "none", "last_result": "pass"})
+    existing_run_path.write_text(json.dumps(existing_run, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     second = run_supervisor_once(config)
 
     plans = read_jsonl(tmp_path / ".codex" / "supervisor" / "continuation-plans.jsonl")
     idempotency_keys = [plan["idempotency_key"] for plan in plans]
-    assert first["run_summary"]["needs_user_decision"] == 1
+    assert first["run_summary"]["needs_user_decision"] == 2
     assert second["run_summary"]["continuation_candidates"] == 1
     assert len(plans) == 1
     assert idempotency_keys == ["autonomous_knowledge:ai_infra:blocked-then-clear:parent-14:abc123"]

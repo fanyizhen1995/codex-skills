@@ -12,13 +12,19 @@ from typing import Any, Iterable
 try:
     from scripts.harness_loop_contracts import read_json_file
     from scripts.harness_loop_orchestrator import run_autonomous, run_demand_multi
+    from scripts.harness_loop_runtime_lock import RunLockBusy
 except ImportError:  # pragma: no cover - script execution from scripts/
     from harness_loop_contracts import read_json_file  # type: ignore[no-redef]
     from harness_loop_orchestrator import run_autonomous, run_demand_multi  # type: ignore[no-redef]
+    from harness_loop_runtime_lock import RunLockBusy  # type: ignore[no-redef]
 
 
 ACTIONABLE_PHASES = {"audit_blocked", "stopped_blocked"}
-ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS = {"inspect_autonomous_dirty_paths", "inspect_required_evidence"}
+ACTIONABLE_STOPPED_BLOCKED_NEXT_ACTIONS = {
+    "inspect_autonomous_dirty_paths",
+    "inspect_required_evidence",
+    "retry_autonomous_push",
+}
 ACTIONABLE_AUTONOMOUS_RUNNING_PHASES = {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}
 
 
@@ -140,6 +146,7 @@ def resume_once(
     candidates = discover_actionable_runs(root, include_worktrees=include_worktrees)
     resumed: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
+    locked: list[dict[str, Any]] = []
     for candidate in candidates:
         if candidate.get("status") == "invalid":
             errors.append(candidate)
@@ -159,6 +166,14 @@ def resume_once(
                     max_tasks=max_tasks,
                 )
             )
+        except RunLockBusy as exc:
+            locked.append(
+                {
+                    **candidate,
+                    "status": "locked_by_other_executor",
+                    "current_owner": exc.current_owner,
+                }
+            )
         except Exception as exc:
             errors.append({**candidate, "status": "error", "error": str(exc)})
     return {
@@ -166,8 +181,10 @@ def resume_once(
         "candidate_count": len(candidates),
         "resumed_count": len([item for item in resumed if item.get("status") == "resumed"]),
         "dry_run_count": len([item for item in resumed if item.get("status") == "dry_run"]),
+        "locked_count": len(locked),
         "error_count": len(errors),
         "resumed": resumed,
+        "locked": locked,
         "errors": errors,
     }
 
