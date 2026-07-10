@@ -5413,7 +5413,7 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
     return (
         path.startswith(f".codex/loop-runs/{run_id}/")
         or path.startswith(".codex/loop-locks/")
-        or path == ".codex/supervisor/freshness-targets.jsonl"
+        or path.startswith(".codex/supervisor/")
         or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
         or path in _autonomous_runtime_artifact_paths(run_id)
     )

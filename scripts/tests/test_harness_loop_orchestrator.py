@@ -1489,6 +1489,33 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(runtime_log, dirty_result["ignored_paths"])
             self.assertNotIn(runtime_log, dirty_result["unexpected_paths"])
 
+    def test_check_autonomous_dirty_paths_ignores_supervisor_runtime_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            decision_path = (
+                repo_root
+                / ".codex"
+                / "supervisor"
+                / "needs-user-decisions"
+                / "unsupported-state-demo-run.json"
+            )
+            decision_path.parent.mkdir(parents=True)
+            decision_path.write_text('{"status":"archived"}\n', encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(repo_root, run, [])
+
+            relative_path = decision_path.relative_to(repo_root).as_posix()
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertIn(relative_path, dirty_result["ignored_paths"])
+            self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
+
     def test_autonomous_dirty_path_block_reenters_cleanup_when_only_runtime_log_is_dirty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
