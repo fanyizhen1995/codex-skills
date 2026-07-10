@@ -46,6 +46,16 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260709.json
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635323711Z-github-com-sgl-project-sglang-pull-29417-4d9f99faf8.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324473Z-github-com-sgl-project-sglang-pull-30339-8987f90099.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635325259Z-github-com-sgl-project-sglang-pull-30461-9a411df85a.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635336384Z-github-com-sgl-project-sglang-pull-30557-ff69e46da6.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635337375Z-github-com-sgl-project-sglang-pull-30602-8e7e034492.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635338342Z-github-com-sgl-project-sglang-pull-30606-4a8e373dfc.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635335677Z-github-com-sgl-project-sglang-pull-30615-04ac9ae8e3.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635321867Z-github-com-sgl-project-sglang-pull-30645-a58d0745b2.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324761Z-github-com-sgl-project-sglang-pull-30653-b1a3bf7bc0.md
 updated: 2026-07-10
 aliases:
   - sgl-project/sglang closed issues
@@ -84,6 +94,8 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | Scheduled crawler refresh composition | 19 issues, 173 pull requests, including 122 merged pull requests |
 | Scheduled crawler July 8 capture | 97 Markdown page snapshots captured 2026-07-08 |
 | Scheduled crawler July 8 composition | 14 issues, 83 pull requests, including 55 merged pull requests and 28 closed-unmerged pull requests |
+| Scheduled crawler July 9 capture | 102 Markdown page snapshots captured 2026-07-09 |
+| Scheduled crawler July 9 composition | 6 issues, 96 pull requests, including 69 merged pull requests and 27 closed-unmerged pull requests; 98 new identities and 4 overlaps |
 
 Raw files:
 
@@ -99,6 +111,7 @@ Raw files:
 - [Crawler supplement manifest](../../raw/crawler/sglang-github-closed-issues-prs/manifest.json)
 - [Scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
 - [Scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
+- [Scheduled crawler supplement manifest, 2026-07-09](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260709.json)
 
 # Capture Notes
 
@@ -113,6 +126,8 @@ The scheduled crawler supplement manifest for 2026-07-01 through 2026-07-04 reco
 The 2026-07-05 through 2026-07-07 scheduled crawler refresh records 192 additional page snapshots: 19 issues and 173 pull requests, including 122 merged pull requests. It is still page-level evidence only. Use it to find recent SGLang operational leads, but do not merge it into the API corpus counts or treat it as joined comment/review-comment evidence. Its highest-count labels are `run-ci`, `deepseek`, `documentation`, `diffusion`, `jit-kernel`, `run-ci-extra`, `npu`, `quant`, `bypass-fastfail`, `inactive`, `blackwell`, `amd`, and `hicache`. [raw](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 
 The 2026-07-08 scheduled crawler supplement adds 97 page snapshots under the same page-level boundary: 14 issues and 83 pull requests, including 55 page-visible merged PRs and 28 closed-unmerged PRs. Use this batch as a bounded discovery supplement for inference-runtime, PD disaggregation, cache/storage, and observability signals after the API corpus cutoff. Do not merge these pages into API corpus counts, infer joined comments or review comments, or treat closed-unmerged PRs as shipped fixes.
+
+The 2026-07-09 scheduled crawler supplement adds 102 page snapshots: 6 issues and 96 pull requests, including 69 page-visible merged PRs and 27 closed-unmerged PRs. Identity comparison finds 98 new items and four repeated pull requests (#2, #9754, #22416, and #27988). The repeated captures remain raw evidence but are not counted as new knowledge. The batch is still page-level evidence without joined comments or review comments.
 
 # Operational Signals
 
@@ -154,6 +169,16 @@ Selected 2026-07-08 page-level leads now promoted into [Inference Runtime Infras
 | #29834 | Prefill-unreachable decode abort crash | Merged PR snapshot fixes a scheduler crash when the prefill bootstrap server is unreachable: the abort path set `kv_receiver` to `None` while the same `DecodeRequest` still had a `pending_reqs` reference, so the next `_resolve_pending_reqs` could dereference `.abort` on `None`. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md) | Page-level merged PR with unit-test claims; not a full production postmortem. |
 | #29716 | HiCacheFile metadata cache | Merged PR snapshot adds optional client-side positive metadata caching for HiCacheFile storage to avoid repeated directory traversal and metadata-server bottlenecks under large cache-file counts; the source records TTL, startup scan, write backfill, eviction invalidation, unit tests, and a Lustre benchmark context with 157,195 cache files. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md) | Benchmark table is source context only, not a local result, SLO, ranking, or general storage benchmark. |
 | #30255 | DSV4 sparse prefill Triton recompilation | Merged PR snapshot changes DeepSeek-V4 sparse prefill metadata capacity and sparse combiner `top_k` from Triton compile-time constants to runtime scalars to avoid synchronous recompilation stalls when context lengths change. The source includes AgentX and kernel benchmark tables plus GSM8K accuracy context. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md) | Source benchmark context is bounded to the stated setup; do not promote it as a local baseline, MLCommons result, product ranking, SLO, or production guarantee. |
+
+Selected 2026-07-09 merged page-level leads now promoted into [Inference Runtime Infrastructure](inference-runtime-infrastructure.md):
+
+| Item | Surface | Operational signal | Caveat |
+| --- | --- | --- | --- |
+| #29417, #30339, #30461 | DeepSeek-V4 unified KV and SWA lifecycle | #29417 enables L2/L3 HiCache for compressed C4/C128 state while re-prefilling the unstored SWA tail; #30339 fixes stale per-request SWA ring data after radix-prefix reuse; #30461 registers draft NextN SWA state for disaggregated EAGLE/MTP transfer. [#29417](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635323711Z-github-com-sgl-project-sglang-pull-29417-4d9f99faf8.md) [#30339](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324473Z-github-com-sgl-project-sglang-pull-30339-8987f90099.md) [#30461](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635325259Z-github-com-sgl-project-sglang-pull-30461-9a411df85a.md) | Page-visible merged PR evidence; source accuracy and performance tables stay bounded to their stated setups. |
+| #30602 | Multimodal shared-memory exhaustion | Reserves tmpfs pages with `posix_fallocate` so `/dev/shm` exhaustion becomes a catchable allocation failure and falls back to inline transport instead of a SIGBUS server crash. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635337375Z-github-com-sgl-project-sglang-pull-30602-8e7e034492.md) | The page reports repeated CI stress runs, not a production postmortem or universal capacity threshold. |
+| #30645 | Sparse top-k index validity | Fixes top-k v2 tie overflow and FP16 infinity-bin handling that could emit `-1` indices consumed by FA3 sparse decode, with source-reported H200 sanitizer and adversarial-distribution checks. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635321867Z-github-com-sgl-project-sglang-pull-30645-a58d0745b2.md) | Source-owned validation only; no local H200 reproduction was run. |
+| #30557, #30606, #30653 | Runtime coordination and compatibility | #30557 avoids HIP IPC registration of graph-capture VMM buffers under the ROCm memory saver; #30606 replaces a racy fan-out waiter queue with a FIFO `asyncio.Lock`; #30653 repairs merge-order breakage after parallel helper retirement. [#30557](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635336384Z-github-com-sgl-project-sglang-pull-30557-ff69e46da6.md) [#30606](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635338342Z-github-com-sgl-project-sglang-pull-30606-4a8e373dfc.md) [#30653](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324761Z-github-com-sgl-project-sglang-pull-30653-b1a3bf7bc0.md) | Narrow merged fixes; they do not establish broader runtime availability. |
+| #30615 | Speculative-decoding evaluation | Adds fixed-prompt controls and per-request speculative accept-length collection to serving/evaluation tooling. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635335677Z-github-com-sgl-project-sglang-pull-30615-04ac9ae8e3.md) | Instrumentation capability only; no local benchmark or acceptance target is inferred. |
 
 # Retrieval Notes
 
@@ -215,3 +240,13 @@ High-discussion examples in the captured corpus include:
 - [SGLang PR #29834 prefill-unreachable decode abort crash](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797422Z-github-com-sgl-project-sglang-pull-29834-c59e7a335d.md)
 - [SGLang PR #29716 HiCacheFile metadata cache](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md)
 - [SGLang PR #30255 DSV4 sparse prefill Triton recompilation](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633800329Z-github-com-sgl-project-sglang-pull-30255-d5016bf405.md)
+- [SGLang scheduled crawler supplement manifest, 2026-07-09](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260709.json)
+- [SGLang PR #29417 unified-KV HiCache](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635323711Z-github-com-sgl-project-sglang-pull-29417-4d9f99faf8.md)
+- [SGLang PR #30339 stale SWA ring fix](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324473Z-github-com-sgl-project-sglang-pull-30339-8987f90099.md)
+- [SGLang PR #30461 disaggregated draft SWA transfer](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635325259Z-github-com-sgl-project-sglang-pull-30461-9a411df85a.md)
+- [SGLang PR #30557 ROCm graph-capture all-gather fix](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635336384Z-github-com-sgl-project-sglang-pull-30557-ff69e46da6.md)
+- [SGLang PR #30602 shared-memory exhaustion fallback](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635337375Z-github-com-sgl-project-sglang-pull-30602-8e7e034492.md)
+- [SGLang PR #30606 fan-out concurrency fix](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635338342Z-github-com-sgl-project-sglang-pull-30606-4a8e373dfc.md)
+- [SGLang PR #30615 speculative accept-length metrics](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635335677Z-github-com-sgl-project-sglang-pull-30615-04ac9ae8e3.md)
+- [SGLang PR #30645 sparse top-k index fix](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635321867Z-github-com-sgl-project-sglang-pull-30645-a58d0745b2.md)
+- [SGLang PR #30653 retired parallel accessor migration](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324761Z-github-com-sgl-project-sglang-pull-30653-b1a3bf7bc0.md)

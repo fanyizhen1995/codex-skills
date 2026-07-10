@@ -91,6 +91,7 @@
   ],
   "domains/ai_infra/wiki/references/sglang-github-closed-issues-prs": [
     "domains/ai_infra/wiki/concepts/nvidia-green-context",
-    "domains/ai_infra/wiki/projects/sglang"
+    "domains/ai_infra/wiki/projects/sglang",
+    "domains/ai_infra/wiki/references/ai-infra-coverage-map"
   ]
 }
