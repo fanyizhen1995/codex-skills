@@ -1,0 +1,158 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-18",
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007",
+  "run_local_task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1",
+  "status": "pass",
+  "created_at": "2026-07-10T04:42:56Z",
+  "summary": "Promoted only the source-visible NVIDIA BlueField-4 DPU network_bandwidth=800 Gb/s field from the existing local BlueField platform capture. BlueField-3 remains unchanged at 400 Gb/s, and BlueField-4 STX, CMX/context-memory storage, storage, cybersecurity, threat-detection, benchmark, production-operation, service-SLO, ecosystem, memory, host-interface, and compute wording remains curated boundary evidence only.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/sources/source-registry.yaml",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Rebuilt ai_infra wiki index."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "summary": "Regenerated ai_infra backlinks JSON."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-accelerators",
+      "status": "pass",
+      "summary": "No accelerator catalog validation issues."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No ai_infra domain validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json",
+      "status": "pass",
+      "summary": "Parent-18 gap proof parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1-gap-proof.json",
+      "status": "pass",
+      "summary": "Run-local gap proof parses as JSON."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-18'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "summary": "Parent-18 gap proof satisfies the harness gap-proof contract."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "summary": "Run-local gap proof satisfies the harness gap-proof contract."
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "summary": "coverage-map and loop-state payloads satisfy harness contracts."
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-002-continuation-007/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "summary": "planner-output.json satisfies the planner output contract."
+    },
+    {
+      "command": "rg -n \"BlueField-4|BlueField-3|800Gb/s|400Gb/s|NVIDIA CMX|Context Memory Storage|BlueField-4 STX|network_bandwidth|nvidia-bluefield-4|nvidia-bluefield-3\" ...",
+      "status": "pass",
+      "summary": "Boundary search found BlueField-4 only in the new SKU/observation/resolved network_bandwidth row, curated boundary sections, coverage-map, loop-state, and the reused raw source."
+    },
+    {
+      "command": "BlueField boundary parser comparing worktree to HEAD",
+      "status": "pass",
+      "summary": "BlueField-3 SKU, observation, and resolved spec match HEAD. BlueField-4 resolved fields contain only network_bandwidth=800 Gb/s."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "summary": "No whitespace errors in ai_infra diffs."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed ai_infra additions and new files",
+      "status": "pass",
+      "summary": "No credential assignment, Authorization header, bearer token, password, secret, or private-key patterns were found. An initial broader scan produced benign existing wiki text matches and was replaced with an addition-focused scan."
+    },
+    {
+      "command": "autonomous scope check for changed ai_infra paths against planner-output.json",
+      "status": "pass",
+      "summary": "All 15 ai_infra changed/untracked paths before the verification manifest were within the planner allowlist and outside the denylist."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "summary": "No backend, frontend, dashboard, harness code, package, or dependency files changed; code and supply-chain test suites are not applicable."
+    },
+    {
+      "command": "delegated trusted live evidence manifest",
+      "status": "delegated",
+      "summary": "Live service availability, crawler workbench freshness, search API visibility, frontend visibility, and loop dashboard freshness are intentionally delegated to orchestrator-owned trusted-live-evidence artifacts. No localhost probes or long-lived services were started by this generator."
+    },
+    {
+      "command": "commit-result and push-result",
+      "status": "delegated",
+      "summary": "No git commit or push was run by the generator; the orchestrator is responsible for committing and pushing after gates pass."
+    }
+  ],
+  "delegated_live_evidence_ids": [
+    "service-availability",
+    "crawler-workbench-freshness",
+    "search-api-visibility",
+    "frontend-visibility",
+    "loop-dashboard-freshness"
+  ],
+  "not_applicable": [
+    {
+      "gate": "Domain Channels evidence",
+      "reason": "No crawler source subscriptions or Domain Channels changed."
+    },
+    {
+      "gate": "link probe or blocked/auth evidence",
+      "reason": "No new external sources were fetched; the task reused an existing local raw capture."
+    },
+    {
+      "gate": "code tests",
+      "reason": "No crawler/backend/frontend/dashboard/harness code changed."
+    },
+    {
+      "gate": "supply-chain result",
+      "reason": "No dependency or package files changed."
+    },
+    {
+      "gate": "fresh no-action evidence",
+      "reason": "The task produced ai_infra knowledge/data changes and did not stop as no-action."
+    }
+  ],
+  "commit": ""
+}

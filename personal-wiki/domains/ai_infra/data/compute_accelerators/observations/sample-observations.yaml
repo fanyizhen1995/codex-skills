@@ -194,6 +194,19 @@ observations:
     is_inferred: false
     confidence: medium
     notes: Represents a high-level official product capability; exact card SKUs can vary.
+  - observation_id: obs-bluefield-4-network-bandwidth
+    sku_id: nvidia-bluefield-4-dpu
+    field: network_bandwidth
+    value: 800
+    unit: Gb/s
+    source_id: nvidia-bluefield-4-platform-page
+    source_rank: S1
+    captured_at: "2026-06-27"
+    source_locator: "NVIDIA BlueField platform page; BlueField-4 DPU portfolio entry"
+    is_official: true
+    is_inferred: false
+    confidence: medium
+    notes: Source states BlueField-4 DPU is an 800Gb/s infrastructure platform for gigascale AI factories; other BlueField-4, STX, CMX, storage, cybersecurity, and ecosystem wording remains curated boundary evidence.
   - observation_id: obs-resnics-stargate-n1025-form-factor
     sku_id: resnics-stargate-n1025
     field: form_factor

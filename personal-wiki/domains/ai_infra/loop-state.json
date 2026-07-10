@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-09T18:10:18Z",
+  "last_scan_at": "2026-07-10T04:28:36Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -795,6 +795,29 @@
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md",
         "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.ingest-plan.md",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-17-verification.json"
+      ]
+    },
+    {
+      "id": "compute-accelerator-continuation-nvidia-bluefield-4-dpu-fields",
+      "title": "Resolved NVIDIA BlueField-4 DPU network-bandwidth field",
+      "source": "local wiki/raw NVIDIA BlueField platform capture",
+      "status": "known",
+      "updated_at": "2026-07-10T04:28:36Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+        "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/sources/source-registry.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+        "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-verification.json"
       ]
     }
   ],

@@ -44,6 +44,15 @@ sources:
     trust_policy: official_vendor_dpu
     crawl_policy: snapshot_and_candidate_extract
     notes: Official NVIDIA DPU page for BlueField-3 networking and offload positioning.
+  - source_id: nvidia-bluefield-4-platform-page
+    name: NVIDIA BlueField-4 DPU platform page
+    url: https://www.nvidia.com/en-us/networking/products/data-processing-unit/
+    source_rank: S1
+    publisher: NVIDIA
+    source_type: product_page
+    trust_policy: official_vendor_dpu
+    crawl_policy: snapshot_and_candidate_extract
+    notes: Official NVIDIA BlueField platform page with a distinct BlueField-4 DPU portfolio entry and 800Gb/s infrastructure-platform wording.
   - source_id: amd-alveo-v80-product-page
     name: AMD Alveo V80 compute accelerator product page
     url: https://www.amd.com/en/products/accelerators/alveo/v80.html

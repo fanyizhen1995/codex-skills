@@ -44,6 +44,15 @@ skus:
     form_factor: PCIe card or integrated DPU
     release_status: released
     source_refs: [nvidia-bluefield-3-product-page]
+  - sku_id: nvidia-bluefield-4-dpu
+    vendor_id: nvidia
+    family_id: nvidia-bluefield
+    canonical_name: NVIDIA BlueField-4 DPU
+    aliases: [BlueField-4, BF4]
+    scope: dpu
+    form_factor: infrastructure DPU platform
+    release_status: announced
+    source_refs: [nvidia-bluefield-4-platform-page]
   - sku_id: resnics-stargate-n1025
     vendor_id: resnics
     family_id: resnics-stargate

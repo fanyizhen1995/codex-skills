@@ -37,6 +37,7 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
   - ../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md
+  - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/crawler/compute-accelerators-yusur-k2-pro/20260628T060700357328Z-www-yusur-tech-dpu-k2-pro-c4119da6b0.md
   - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
@@ -57,6 +58,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
 ---
 
 # Summary
@@ -183,6 +185,17 @@ network/storage, hot-plug, live migration, hot upgrade, cloud-disk boot, memory,
 host interface, power, benchmark, production-operation, and service-SLO claims
 remain boundary evidence outside resolved catalog fields. [Yunxiao raw](../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md)
 
+Continuation parent 18 promotes a bounded NVIDIA BlueField-4 DPU row from the
+existing local BlueField platform capture. The catalog resolves only
+`network_bandwidth=800 Gb/s` from the source-visible BlueField-4 DPU portfolio
+wording that calls it an `800Gb/s infrastructure platform`. BlueField-4 STX,
+Vera CPU, NVIDIA CMX, context-memory storage, cybersecurity, threat-detection,
+power-efficiency, rapid data access, high-performance inference, AI Factory
+Validated Design, ecosystem, benchmark, production-operation, service-SLO,
+storage throughput, host-interface, memory, and compute wording remain curated
+boundary evidence rather than structured catalog fields. The pre-existing
+BlueField-3 row remains unchanged at 400 Gb/s. [BlueField raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
+
 Continuation parent 17 promotes the existing AWS Trainium2 Trn2 cloud offering
 row only for source-visible aggregate accelerator memory. The prior row already
 resolved `cloud_accelerator_count=16`; it now also resolves
@@ -249,6 +262,8 @@ python personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate-acceler
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
 - ../../raw/crawler/compute-accelerators-jaguarmicro-yunxiao-dpu/20260628T060651455844Z-www-jaguarmicro-com-n4-html-87a5670154.md
 - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
+- ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x4/20260628T060443305596Z-www-cambricon-com-index-php-56612de611.md
 - ../../raw/crawler/compute-accelerators-cambricon-mlu370-x8/20260628T060443731999Z-www-cambricon-com-index-php-da315093d5.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-r200/20260628T060651804777Z-www-kunlunxin-com-product-274-html-d12bf3953a.md

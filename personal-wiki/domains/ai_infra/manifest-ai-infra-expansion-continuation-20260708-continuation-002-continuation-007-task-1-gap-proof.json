@@ -1,0 +1,106 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1",
+  "layer": "hardware-accelerator",
+  "candidate": {
+    "title": "NVIDIA BlueField-4 DPU network-bandwidth catalog promotion",
+    "source_type": "hardware",
+    "identity_key": "hardware:nvidia:bluefield-4-dpu"
+  },
+  "identity_keys": [
+    {
+      "title": "NVIDIA BlueField-4 DPU",
+      "source_type": "hardware",
+      "identity_key": "hardware:nvidia:bluefield-4-dpu"
+    },
+    {
+      "title": "NVIDIA BlueField-3 DPU",
+      "source_type": "hardware",
+      "identity_key": "hardware:nvidia:bluefield-3-dpu",
+      "boundary": "pre-existing duplicate-boundary row only; not modified except comparison text"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Existing local NVIDIA BlueField platform capture found and reused: raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md. No new external fetch was needed.",
+    "wiki_search": "Existing curated pages mentioned NVIDIA BlueField-3 as a 400 Gb/s infrastructure compute platform and used BlueField DPU wording as adjacent security/storage context. Before this run-local task, no curated page represented a distinct structured BlueField-4 DPU catalog row.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Compute Accelerator Spec Catalog, Compute Accelerator Parameter Comparison, Network Storage Cluster Infrastructure, Security Governance Cost Infrastructure, and AI Infra Coverage Map. No standalone BlueField page was needed.",
+    "structured_catalog_scan": "Before this run-local task, data/compute_accelerators/skus/sample-skus.yaml had nvidia-bluefield-3-dpu only, observations/sample-observations.yaml had obs-bluefield-3-network-bandwidth only, and resolved/sample-resolved-specs.yaml resolved nvidia-bluefield-3-dpu network_bandwidth=400 Gb/s only. No nvidia-bluefield-4-dpu SKU, observation, or resolved spec row existed.",
+    "prior_manifest_scan": "Parent-1 through parent-17 and continuation task manifests promoted Corigine, SGLang supplements, Yusur, H200, Kubernetes/Kueue/Volcano, AWS/Lambda evidence, Resnics N2025, NVIDIA confidential inference, Asterfusion, Kunlunxin R200/R200-8F, Iluvatar Tiangai, MetaX C-series/C600, Huawei Atlas 300I A2, JaguarMicro Yunxiao DPU, July 8/9 SGLang batches, and AWS Trn2 aggregate memory. They did not promote NVIDIA BlueField-4 DPU structured catalog facts."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "data/compute_accelerators/skus/sample-skus.yaml",
+      "result": "Pre-existing BlueField row was nvidia-bluefield-3-dpu only. This task adds nvidia-bluefield-4-dpu as a distinct DPU SKU and leaves nvidia-bluefield-3-dpu unchanged."
+    },
+    {
+      "target": "data/compute_accelerators/observations/sample-observations.yaml",
+      "result": "Pre-existing BlueField observation was obs-bluefield-3-network-bandwidth with value 400 Gb/s. This task adds obs-bluefield-4-network-bandwidth with value 800 Gb/s and does not edit the BlueField-3 observation."
+    },
+    {
+      "target": "data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+      "result": "Pre-existing BlueField resolved spec was nvidia-bluefield-3-dpu network_bandwidth=400 Gb/s. This task adds nvidia-bluefield-4-dpu network_bandwidth=800 Gb/s and does not edit the BlueField-3 resolved field."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "BlueField-4 appears as a separate DPU row. BlueField-4 STX, CMX/context-memory storage, storage throughput, cybersecurity, threat-detection, benchmark, production-operation, service-SLO, ecosystem, memory, host-interface, and compute text is explicitly boundary-only."
+    },
+    {
+      "target": "wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "BlueField-4/CMX/STX is recorded only as AI-factory networking, context-tier, storage, and security adjacency. It is not promoted as protocol-level storage-fabric behavior, storage benchmark, production operation, or SLO evidence."
+    },
+    {
+      "target": "wiki/references/security-governance-cost-infrastructure.md",
+      "result": "BlueField-4 security wording is recorded only as platform-boundary context; no tenant-policy correctness, threat-detection performance, compliance, incident-readiness, or service-SLO claim is promoted."
+    },
+    {
+      "target": "coverage-map.json and loop-state.json",
+      "result": "This run-local task records BlueField-4 evidence while preserving the committed July 9 SGLang batch and parent-17 AWS Trn2 evidence as current duplicate-boundary state."
+    }
+  ],
+  "gap_reason": "The local NVIDIA BlueField platform capture has a source-visible, product-specific BlueField-4 DPU portfolio entry stating that NVIDIA BlueField-4 is an 800Gb/s infrastructure platform for gigascale AI factories. The structured catalog previously represented only NVIDIA BlueField-3 DPU network_bandwidth=400 Gb/s and had no BlueField-4 DPU SKU, observation, or resolved row. The safe schema-supported promotion is therefore only BlueField-4 DPU network_bandwidth=800 Gb/s.",
+  "promoted_fields": [
+    {
+      "sku_id": "nvidia-bluefield-4-dpu",
+      "fields": {
+        "network_bandwidth": "800 Gb/s"
+      },
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md"
+    }
+  ],
+  "schema_boundary": [
+    {
+      "source_value": "The page states that NVIDIA BlueField-4 DPU is an 800Gb/s infrastructure platform for gigascale AI factories.",
+      "boundary": "The catalog resolves only the schema-supported DPU network_bandwidth field as 800 Gb/s."
+    },
+    {
+      "source_value": "The page states BlueField-4 delivers six times the compute of its predecessor and has accelerations for networking, data storage, and cybersecurity.",
+      "boundary": "No compute throughput, storage throughput, memory, host-interface, power, or cybersecurity performance field is resolved because the local page does not expose schema-supported product-bound values for those fields."
+    },
+    {
+      "source_value": "The page discusses BlueField-4 STX, Vera CPU, NVIDIA CMX context-memory storage, zero-trust file access, 1,000x faster threat detection, AI Factory Validated Design, ecosystem, rapid data access, high-performance inference, NVMe-oF, GPUDirect Storage, block/file/object storage, and runtime security.",
+      "boundary": "These items remain curated boundary evidence only. They are not structured catalog facts, protocol-level storage-fabric proof, benchmark results, production-operation evidence, SLO evidence, validated-design completion proof, or product ranking."
+    }
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/sources/source-registry.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/skus/sample-skus.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/observations/sample-observations.yaml",
+    "personal-wiki/domains/ai_infra/data/compute_accelerators/resolved/sample-resolved-specs.yaml",
+    "personal-wiki/domains/ai_infra/wiki/projects/compute-accelerator-spec-catalog.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-18-verification.json"
+  ],
+  "non_promoted_boundaries": [
+    "No BlueField-3 structured row was changed.",
+    "No BlueField-4 STX, Vera CPU, CMX/context-memory storage, storage throughput, NVMe-oF, GPUDirect Storage, block/file/object storage, rapid data access, high-performance inference, cybersecurity, threat-detection, zero-trust file access, validated-design, ecosystem, benchmark, production-operation, service-SLO, power-efficiency, memory, host-interface, or compute field was promoted.",
+    "No SGLang July 9 scheduled crawler batch, AWS Trn2, JaguarMicro, Atlas 300I A2, MetaX, Iluvatar, Kunlunxin, Asterfusion, Yusur, Resnics, Corigine, Cambricon, H200, Kubernetes/Kueue/Volcano, data/RAG, KServe, MLCommons, or incident/postmortem rows were modified except duplicate-boundary context."
+  ]
+}

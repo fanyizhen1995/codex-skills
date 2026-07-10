@@ -129,6 +129,16 @@ resolved_specs:
         confidence: medium
         conflict_status: clean
         updated_at: "2026-06-27"
+  - sku_id: nvidia-bluefield-4-dpu
+    resolved_fields:
+      network_bandwidth:
+        value: 800
+        unit: Gb/s
+        source_observation_id: obs-bluefield-4-network-bandwidth
+        resolved_by: rule
+        confidence: medium
+        conflict_status: clean
+        updated_at: "2026-07-10"
   - sku_id: resnics-stargate-n1025
     resolved_fields:
       form_factor:

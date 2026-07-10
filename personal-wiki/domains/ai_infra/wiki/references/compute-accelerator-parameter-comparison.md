@@ -96,6 +96,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-12-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-14-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
 ---
 
 # Summary
@@ -214,8 +215,9 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   planning, not as direct single-card substitutes. [AWS Trn2](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md),
   [Atlas 800T A3](../../raw/crawler/compute-accelerators-huawei-atlas-800t-a3/20260628T060648300656Z-e-huawei-com-cn-products-computing-ascend-atlas-800t-a3-4a689659c8.md),
   [R480-X8](../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md)
-- DPU/SmartNIC records are not FLOPS peers. NVIDIA BlueField-3, Asterfusion
-  Helium, Resnics Stargate, Yusur K2-Pro, Yusur SWIFT-2200N Pro, and Corigine
+- DPU/SmartNIC records are not FLOPS peers. NVIDIA BlueField-3, NVIDIA
+  BlueField-4, Asterfusion Helium, Resnics Stargate, Yusur K2-Pro, Yusur
+  SWIFT-2200N Pro, and Corigine
   Agilio are better compared by line rate, packet/storage offload, PCIe
   generation, memory, IOPS, and latency. The structured catalog now resolves
   Corigine Agilio CX 2x25GbE SmartNIC for form factor, aggregate 50 Gb/s
@@ -227,6 +229,12 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
   bandwidth, split-pool DDR4 memory capacity, `PCIe Gen4 x8`, and 150 W power
   while leaving SR-IOV, RDMA, P4 table, protocol, storage-offload, benchmark,
   and production-operation values as comparison-only boundary evidence.
+  Continuation parent 18 adds only BlueField-4 DPU `network_bandwidth=800 Gb/s`
+  from the source-stated `800Gb/s infrastructure platform` portfolio entry;
+  BlueField-4 STX, CMX/context-memory storage, cybersecurity, threat-detection,
+  benchmark, production-operation, service-SLO, ecosystem, storage throughput,
+  memory, host-interface, and compute text stays out of structured catalog
+  fields.
   [BlueField-3](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md),
   [Asterfusion Helium](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260628T060438266386Z-asterfusion-com-product-helium-dpu-121181ec67.md),
   [Resnics Stargate-N2025](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md),
@@ -244,6 +252,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Intel Gaudi 3 HL-338 | AI ASIC / PCIe card | 128 GB memory | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | NXP i.MX 95 eIQ Neutron NPU | integrated SoC NPU | integrated SoC NPU form factor | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
 | NVIDIA BlueField-3 DPU | DPU | 400 Gb/s network bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml) |
+| NVIDIA BlueField-4 DPU | DPU | 800 Gb/s network bandwidth | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md) |
 | AWS Trainium2 Trn2 offering | cloud AI ASIC offering | 16 accelerators and 1536 GB aggregate accelerator memory per `trn2.48xlarge` / `trn2u.48xlarge` offering | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) |
 | Google Cloud TPU v5p offering | cloud TPU offering | cloud offering form factor | [observations](../../data/compute_accelerators/observations/sample-observations.yaml) |
 | AMD Alveo V80 | FPGA / PCIe card | no resolved parameter yet | [SKUs](../../data/compute_accelerators/skus/sample-skus.yaml) |
@@ -322,6 +331,7 @@ The July 6 tracked baseline is a refresh of existing compute accelerator source 
 | Record | Form | Network / offload parameters | Memory / host interface / power | Citation |
 | --- | --- | --- | --- | --- |
 | NVIDIA BlueField-3 DPU | infrastructure compute DPU | 400 Gb/s infrastructure compute platform; line-rate software-defined networking, storage, and cybersecurity | detailed SKU memory/power not captured in local page | [raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md) |
+| NVIDIA BlueField-4 DPU | infrastructure DPU platform | 800 Gb/s infrastructure platform for gigascale AI factories; source also positions BlueField-4 around networking, data storage, and cybersecurity acceleration, but only network bandwidth is resolved | BlueField-4 STX, Vera CPU, CMX context-memory storage, storage throughput, cybersecurity/threat-detection, power, memory, host interface, compute, benchmark, production-operation, service-SLO, and ecosystem text are boundary evidence only | [resolved specs](../../data/compute_accelerators/resolved/sample-resolved-specs.yaml), [raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md) |
 | Asterfusion CX102S-DPU | 1U open intelligent gateway with 1 or 2 DPU modules | 16 x 1GE RJ45 and 2 x 10GE SFP+; 72 Gb/s switching capacity; internal 2 x 10G links between DPU and switch chip are gateway-level evidence, not resolved DPU network_bandwidth | DPU modules use quad-core ARMv8 Cortex-A72 CPU and 8 GB DDR4 memory; only the module form factor and 8 GB DDR4 memory are resolved | [raw](../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md) |
 | Asterfusion Helium DPU | PCIe DPU SmartNIC | 4 x 25GE SFP28 or 2 x 100GE QSFP28 variants; up to 100 Gb/s mixed-service processing is resolved as source-stated network processing capability; NFV comparison lists 60G processing as boundary evidence | PCIe x8 Gen3.0/4.0; 24-core ARM processor; memory expandable to 64 GB; NFV comparison row lists 60 W card power | [raw](../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md) |
 | Corigine Agilio CX 2x25GbE SmartNIC | SmartNIC | 2 x 25GbE ports; SFP+ 10GbE / SFP28 25GbE | 2 GB DDR3 onboard memory; PCIe Base 3.0 compatible with 1.1/2.0 | [raw](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md) |
@@ -367,8 +377,8 @@ memory generation, memory bandwidth, host-interface, and benchmark observations
 only if future official tables expose those fields.
 
 DPU and SmartNIC records have a separate comparison axis. NVIDIA BlueField-3,
-Yusur K2-Pro, Yusur SWIFT-2200N Pro, Asterfusion Helium, Resnics Stargate, and
-Corigine Agilio are infrastructure accelerators where network bandwidth,
+NVIDIA BlueField-4, Yusur K2-Pro, Yusur SWIFT-2200N Pro, Asterfusion Helium,
+Resnics Stargate, and Corigine Agilio are infrastructure accelerators where network bandwidth,
 programmable packet processing, storage offload, IOPS, and latency matter more
 than tensor FLOPS.
 R10 task 3 promotes a bounded Resnics slice into structured facts:
@@ -403,6 +413,12 @@ tunnel protocol list, virtio acceleration, elastic storage/network, security,
 QoS, hot-migration, hot-upgrade, memory, host-interface, power, benchmark, and
 production-operation text remains boundary evidence rather than resolved
 catalog, protocol-level storage-fabric, benchmark, operations, or SLO proof.
+Continuation parent 18 adds NVIDIA BlueField-4 DPU as the next bounded
+BlueField row with only 800 Gb/s network bandwidth resolved from the local
+platform capture. The same capture's STX, CMX/context-memory storage,
+cybersecurity, threat-detection, validated-design, ecosystem, benchmark,
+production-operation, and service-SLO wording remains comparison or boundary
+evidence rather than resolved catalog or storage-fabric proof.
 Remaining DPU/SmartNIC rows likewise stay raw-only until a future task promotes
 their exact product or variant boundaries.
 
@@ -433,6 +449,7 @@ their exact product or variant boundaries.
 - ../../raw/crawler/compute-accelerators-kunlunxin-r480-x8/20260628T060652154506Z-www-kunlunxin-com-product-272-html-89686dc880.md
 - ../../raw/crawler/compute-accelerators-kunlunxin-rg800/20260628T060652551492Z-www-kunlunxin-com-product-2842-html-6c65e115a3.md
 - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
+- ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
 - ../../manifest-ai-infra-expansion-2026-07-07-r9-task-2-gap-proof.json
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-2-gap-proof.json
 - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json

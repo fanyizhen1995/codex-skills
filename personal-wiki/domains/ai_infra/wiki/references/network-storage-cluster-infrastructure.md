@@ -32,6 +32,7 @@ source_refs:
   - ../../raw/crawler/nccl-technical-blog/20260626T015704299278Z-developer-nvidia-com-blog-oci-accelerates-hpc-ai-and-database-using-roce-and-nvidia-connec-904a22fed4.md
   - ../../raw/crawler/nccl-technical-blog/20260626T015704299596Z-developer-nvidia-com-blog-turbocharging-ai-workloads-with-nvidia-spectrum-x-networking-pla-752fd3e399.md
   - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
+  - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n1025/20260628T060657022930Z-www-resnics-com-product-stargate-n1025-dpu-8584bb028f.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md
   - ../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md
@@ -47,6 +48,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-7-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
   - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
   - ../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md
@@ -85,6 +87,15 @@ The local AWS Trainium2 capture is adjacent EFA evidence because it records EFAv
 
 Existing local NVIDIA technical-blog evidence remains the strongest fabric operations corpus. It covers Spectrum-X telemetry, BGP Prefix Independent Convergence, RoCE congestion behavior, ECN/DC-QCN design, NIC Fusion, SHARP in-network collective offload, and NCCL RAS. That evidence is valid for NVIDIA/Spectrum-X/RoCE cluster fabric claims, but it does not close EFA, Lustre, WEKA, Ceph, or generic storage gaps. [wiki](nccl-technical-blog-network-observability.md)
 
+The local BlueField platform capture adds a bounded AI-factory DPU platform
+signal: BlueField-4 DPU is described as an 800Gb/s infrastructure platform for
+gigascale AI factories, and the same page positions BlueField with Spectrum-X
+and CMX context-memory storage for long-context, multi-turn, and agentic
+inference. Use this as product-boundary evidence for DPU-assisted AI networking
+and context-tier adjacency. It is not proof of a storage benchmark,
+production-operation loop, service SLO, storage throughput, fabric topology, or
+complete CMX deployment. [raw](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
+
 The AWS Parallel Computing Service monitoring capture adds an operations-dashboard view of cluster fabric and storage surfaces. Its Managed Grafana dashboards include Jobs, Nodes, GPUs, Slurm, Amazon FSx for Lustre, Logs, Partitions, and EFA, and the architecture sends Slurm, EFA, Node, and DCGM exporter metrics to Amazon Managed Service for Prometheus while pulling instance details from CloudWatch Logs. This is dashboard and observability coverage for cluster operators, not evidence of a production incident response loop, fabric SLO, or product/provider benchmark result. [raw](../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md)
 
 # Shared And Parallel Storage
@@ -122,6 +133,13 @@ CX102S resolves a DPU module inside a 1U gateway with 8 GB DDR4 module memory.
 Continuation parent 15 adds JaguarMicro Yunxiao DPU as a structured product
 signal for aggregate 50 Gb/s Ethernet bandwidth from its 2 x 25G announcement
 text.
+Continuation parent 18 adds NVIDIA BlueField-4 DPU as a structured product
+signal for only 800 Gb/s network bandwidth. The same platform page mentions
+BlueField-4 STX, CMX context-memory storage, accelerated storage for AI,
+NVMe-oF, GPUDirect Storage, block/file/object support, rapid data access, and
+high-performance inference, but those are retained here as boundary context and
+not generalized into catalog storage fields, protocol-level storage-fabric
+behavior, benchmark results, operations evidence, or SLO claims.
 
 N2025 SR-IOV, RDMA, P4/session/protocol, storage-offload, line-rate,
 low-latency, benchmark, and production-operation text remains product-page
@@ -194,6 +212,7 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - blocked-source evidence showing exact MLCommons measured-result artifacts were not available from local corpus or bounded shell probes in r9 task 3;
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
 - local DPU/SmartNIC/NVMe-oF product captures only for product-specific storage or offload signals.
+- NVIDIA BlueField-4 DPU and CMX/STX context only as product-boundary evidence for AI-factory networking/storage/security adjacency, not as benchmark or production-operation proof.
 
 Do not use this page to claim complete production incident readiness, product-specific benchmark leadership, or full non-NVIDIA fabric operations. Those remain future gaps.
 
@@ -210,6 +229,8 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [NCCL Technical Blog Network Observability](nccl-technical-blog-network-observability.md)
 - [Compute Accelerator Parameter Comparison](compute-accelerator-parameter-comparison.md)
 - [AWS Trainium2 raw capture](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)
+- [NVIDIA BlueField platform raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
+- [Continuation parent-18 NVIDIA BlueField-4 gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json)
 - [Resnics Stargate-N2025 raw capture](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md)
 - [Resnics Stargate-S1100 raw capture](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md)
 - [Corigine Agilio CX raw capture](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md)

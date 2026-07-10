@@ -83,6 +83,8 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
   - ../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json
+  - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
   - ../../raw/crawler/compute-accelerators-nvidia-h200/20260705T041039962650Z-www-nvidia-com-en-us-data-center-h200-a464325a64.md
   - ../../raw/crawler/compute-accelerators-biren-106b/20260628T060440806592Z-www-birentech-com-product-hardware-106b-8e22110248.md
   - ../../raw/crawler/compute-accelerators-biren-106m/20260628T060441121627Z-www-birentech-com-product-hardware-106m-bc272ef5f1.md
@@ -220,6 +222,8 @@ Parent 15 promotes a bounded JaguarMicro Yunxiao DPU product row from the existi
 
 Parent 17 promotes the existing AWS Trainium2 Trn2 cloud offering row only for source-visible aggregate accelerator memory. The catalog already resolved `cloud_accelerator_count=16`; it now resolves `aggregate_memory=1536 GB` for `trn2.48xlarge` and `trn2u.48xlarge` from the source-stated 1.5 TB accelerator memory. UltraServer 6 TB memory, 64 Trainium2 chips, 83.2 FP8 PFLOPS, 185 TBps total memory bandwidth, 12.8 Tbps EFAv3, NeuronLink, local NVMe storage, availability, price-performance, energy-efficiency, service-integration, testimonial, benchmark, SLO, and production-operation wording remain raw comparison or boundary evidence outside structured fields.
 
+Parent 18 promotes a bounded NVIDIA BlueField-4 DPU row from the existing local BlueField platform capture. The structured catalog resolves only `network_bandwidth=800 Gb/s` from the source-visible BlueField-4 DPU `800Gb/s infrastructure platform` wording. BlueField-4 STX, Vera CPU, NVIDIA CMX/context-memory storage, accelerated storage, NVMe-oF, GPUDirect Storage, cybersecurity, threat-detection, AI Factory Validated Design, ecosystem, benchmark, production-operation, service-SLO, storage throughput, host-interface, memory, and compute wording remain curated boundary evidence outside structured fields. The pre-existing NVIDIA BlueField-3 row remains unchanged at 400 Gb/s.
+
 # Layer Status
 
 | Layer | Current local coverage | Next gap |
@@ -274,6 +278,8 @@ Use [coverage-map.json](../../coverage-map.json) for planner/evaluator decisions
 - [Continuation parent-15 JaguarMicro Yunxiao DPU gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json)
 - [AWS Trainium2 Trn2 raw capture](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)
 - [Continuation parent-17 AWS Trn2 aggregate memory gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-17-gap-proof.json)
+- [NVIDIA BlueField platform raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
+- [Continuation parent-18 NVIDIA BlueField-4 gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json)
 - [Corigine Agilio CX product brief capture](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md)
 - [Continuation parent-1 Corigine gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json)
 - [Resnics Stargate-N2025 product capture](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md)
