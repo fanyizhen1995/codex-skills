@@ -1544,6 +1544,155 @@ def test_v12_worktree_projection_migration_backfills_root_for_outbox(
     assert reopened.get_action(actions[0].action_id).status == "completed"
 
 
+def test_v12_arbitrary_projection_prefix_remains_unregistered(
+    tmp_path: Path,
+) -> None:
+    unregistered = tmp_path / "arbitrary" / "prefix"
+    store = migrated_store(tmp_path, MutableClock(NOW))
+    record_parent_completion(
+        store,
+        "lineage-unregistered",
+        run_id="unregistered-run",
+        parent=1,
+        execution_root=unregistered,
+    )
+    store._connection.execute("ALTER TABLE runs DROP COLUMN repo_relative_root")
+    store._connection.execute("PRAGMA user_version=12")
+    store._connection.commit()
+    store.close()
+
+    reopened = SupervisorStore.open(tmp_path, clock=MutableClock(NOW))
+    reopened.migrate()
+
+    assert reopened.get_run("unregistered-run")["repo_relative_root"] == "."
+    assert current_review_safety_checks(reopened)["fresh_global_safety_signals"] == [
+        {"run_id": "unregistered-run", "signal": "repo_corruption"}
+    ]
+
+
+def _seed_v13_pending_review_target(
+    tmp_path: Path,
+    *,
+    mode: str,
+) -> tuple[SupervisorStore, ActionRequest]:
+    store = migrated_store(tmp_path, MutableClock(NOW))
+    record_parent_completion(store, "lineage-v13", run_id="v13-run", parent=1)
+    run_path = tmp_path / ".codex" / "loop-runs" / "v13-run" / "run.json"
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    review = validate_review_payload(
+        valid_review_payload(
+            review_id="review-v13-target",
+            decision="refocus",
+            affected_run_ids=["v13-run"],
+        ),
+        allowed_run_ids=["v13-run"],
+        reviewed_runs={
+            "v13-run": {
+                "revision": payload["state_revision"],
+                "state_fingerprint": _state_fingerprint(payload),
+            }
+        },
+    )
+    source = ActionRequest(
+        action_id="v13-reviewer-source",
+        run_id="v13-run",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="stopped_budget",
+        action_type=ActionType.RUN_REVIEWER,
+        idempotency_key="v13-reviewer-source",
+        queue_owner=ActionOwner.REVIEWER,
+        task_id="review:v13",
+        next_action="supervisor_reviewer",
+        payload={"triggering_lineages": ["lineage-v13"]},
+    )
+    store.enqueue_action(source)
+    request, target, _root, _path = reviewer_outbox_module._prepare_target(
+        store,
+        review,
+        "v13-run",
+    )
+    store.record_review(
+        review_id=review.review_id,
+        trigger="v13-migration-fixture",
+        status="review_applying",
+        decision=review.decision.value,
+        summary=review.summary,
+        accepted_review=reviewer_module._persisted_review(review),
+        source_action_id=source.action_id,
+    )
+    store.prepare_review_application(
+        review_id=review.review_id,
+        decision=review.decision.value,
+        targets=[(request, target)],
+    )
+    if mode == "post_write":
+        updated = reviewer_outbox_module._updated_payload(payload, review, target)
+        updated["state_revision"] = 2
+        run_path.write_text(json.dumps(updated) + "\n", encoding="utf-8")
+    elif mode == "tampered":
+        payload["requirement"] = "Tampered legacy pre-write state."
+        run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    elif mode == "ambiguous":
+        run = store.get_run("v13-run")
+        summary = dict(run["summary"])
+        summary["artifact_refs"] = list(summary["artifact_refs"]) * 2
+        store._connection.execute(
+            "UPDATE runs SET summary_json = ? WHERE run_id = ?",
+            (json.dumps(summary), "v13-run"),
+        )
+    elif mode != "pre_write":
+        raise ValueError(mode)
+    store._connection.execute(
+        "ALTER TABLE review_application_targets "
+        "DROP COLUMN expected_post_write_fingerprint"
+    )
+    store._connection.execute("PRAGMA user_version=13")
+    store._connection.commit()
+    store.close()
+    return SupervisorStore.open(tmp_path, clock=MutableClock(NOW)), source
+
+
+def test_v13_prewrite_target_migration_derives_post_write_fingerprint(
+    tmp_path: Path,
+) -> None:
+    reopened, source = _seed_v13_pending_review_target(tmp_path, mode="pre_write")
+    reopened.migrate()
+
+    target = reopened.review_application_targets("review-v13-target")[0]
+    assert target["expected_post_write_fingerprint"].startswith("sha256:")
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v13-safe-migration",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("safe v13 recovery must not invoke a new LLM")
+        ),
+    )
+
+    assert result is not None and result.status == "review_complete"
+    assert reopened.get_action(source.action_id).status == "completed"
+
+
+@pytest.mark.parametrize("mode", ["post_write", "tampered", "ambiguous"])
+def test_v13_non_prewrite_target_migration_blocks_llm_reinvocation(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    reopened, _source = _seed_v13_pending_review_target(tmp_path, mode=mode)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id=f"reviewer-v13-{mode}-migration",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("blocked v13 recovery must not invoke a new LLM")
+        ),
+    )
+
+    assert result is None
+    assert reopened.fetch_all("reviews")[0]["status"] == "review_migration_blocked"
+
+
 def test_reconciled_worktree_root_is_required_for_reviewer_outbox(
     tmp_path: Path,
 ) -> None:

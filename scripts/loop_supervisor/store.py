@@ -563,6 +563,7 @@ class SupervisorStore:
             self._ensure_action_execution_root()
             self._ensure_action_ownership()
             self._ensure_review_resume_state()
+            self._migrate_v13_review_target_post_write_fingerprints()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
             self._ensure_action_idempotency_aliases()
@@ -674,6 +675,9 @@ class SupervisorStore:
                     root = validate_repo_relative_root(root)
                     if root == ".":
                         continue
+                    root_parts = PurePosixPath(root).parts
+                    if root_parts[:1] != (".worktrees",) or len(root_parts) != 2:
+                        continue
                     path = self.project_root.joinpath(*relative.parts)
                     payload = json.loads(
                         validate_owned_regular_file(
@@ -714,6 +718,160 @@ class SupervisorStore:
                 "ALTER TABLE review_application_targets "
                 "ADD COLUMN expected_post_write_fingerprint TEXT NOT NULL DEFAULT ''"
             )
+
+    def _migrate_v13_review_target_post_write_fingerprints(self) -> None:
+        """Anchor only exact pre-write v13 applications; block every other legacy state."""
+        from .reconciler import _state_fingerprint, _state_revision
+        from .reviewer import validate_review_payload
+
+        reviews = self._connection.execute(
+            "SELECT * FROM reviews WHERE status = 'review_applying'"
+        ).fetchall()
+        for review_row in reviews:
+            review_id = str(review_row["review_id"])
+            targets = self._connection.execute(
+                """
+                SELECT * FROM review_application_targets
+                WHERE review_id = ? ORDER BY run_id
+                """,
+                (review_id,),
+            ).fetchall()
+            if not targets or not any(
+                not str(target["expected_post_write_fingerprint"]) for target in targets
+            ):
+                continue
+            try:
+                accepted = json.loads(str(review_row["accepted_review_json"]))
+                if not isinstance(accepted, dict):
+                    raise ValueError("accepted review must be an object")
+                reviewed_runs = accepted.get("reviewed_runs")
+                candidate = dict(accepted)
+                candidate.pop("reviewed_runs", None)
+                review = validate_review_payload(
+                    candidate,
+                    reviewed_runs=reviewed_runs,
+                )
+                if (
+                    review.review_id != review_id
+                    or review.decision.value != str(review_row["decision"])
+                    or set(review.affected_run_ids)
+                    != {str(target["run_id"]) for target in targets}
+                ):
+                    raise ValueError("accepted review does not match legacy targets")
+                source = self._connection.execute(
+                    "SELECT * FROM actions WHERE action_id = ?",
+                    (str(review_row["source_action_id"]),),
+                ).fetchone()
+                if source is None or str(source["action_type"]) != "run_reviewer":
+                    raise ValueError("legacy review lacks a Reviewer source action")
+                derived: list[tuple[str, str]] = []
+                for target in targets:
+                    if str(target["expected_post_write_fingerprint"]):
+                        continue
+                    action = self._connection.execute(
+                        "SELECT * FROM actions WHERE action_id = ?",
+                        (str(target["action_id"]),),
+                    ).fetchone()
+                    run = self._connection.execute(
+                        "SELECT * FROM runs WHERE run_id = ?",
+                        (str(target["run_id"]),),
+                    ).fetchone()
+                    if (
+                        action is None
+                        or run is None
+                        or str(action["queue_owner"]) != ActionOwner.SUPERVISOR.value
+                        or str(action["run_id"]) != str(target["run_id"])
+                        or int(action["run_revision"]) != int(target["expected_revision"])
+                        or str(action["repo_relative_root"])
+                        != str(run["repo_relative_root"])
+                        or int(run["revision"]) != int(target["expected_revision"])
+                        or str(run["state_fingerprint"])
+                        != str(target["expected_fingerprint"])
+                    ):
+                        raise ValueError("legacy target identity is not immutable")
+                    payload = self._validated_legacy_target_payload(run)
+                    if (
+                        _state_revision(payload) != int(target["expected_revision"])
+                        or _state_fingerprint(payload)
+                        != str(target["expected_fingerprint"])
+                    ):
+                        raise ValueError("legacy target is not exact pre-write state")
+                    updated = dict(payload)
+                    directives = list(updated.get("reviewer_directives") or [])
+                    directive = {
+                        "review_id": review.review_id,
+                        "decision": review.decision.value,
+                        "summary": review.summary,
+                        "evidence_refs": list(review.evidence_refs),
+                    }
+                    if directive not in directives:
+                        directives.append(directive)
+                    updated["reviewer_directives"] = directives
+                    updated["phase"] = str(target["target_phase"])
+                    updated["next_action"] = str(target["target_next_action"])
+                    updated["last_result"] = str(target["target_last_result"])
+                    updated["state_revision"] = int(target["expected_revision"]) + 1
+                    derived.append((str(target["run_id"]), _state_fingerprint(updated)))
+                for run_id, fingerprint in derived:
+                    self._connection.execute(
+                        """
+                        UPDATE review_application_targets
+                        SET expected_post_write_fingerprint = ?, updated_at = ?
+                        WHERE review_id = ? AND run_id = ?
+                          AND expected_post_write_fingerprint = ''
+                        """,
+                        (fingerprint, self._now_text(), review_id, run_id),
+                    )
+            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                self._connection.execute(
+                    """
+                    UPDATE reviews
+                    SET status = 'review_migration_blocked', summary = ?, updated_at = ?
+                    WHERE review_id = ? AND status = 'review_applying'
+                    """,
+                    (
+                        "v13 review target lacks immutable pre-write state; "
+                        "operator resolution is required",
+                        self._now_text(),
+                        review_id,
+                    ),
+                )
+
+    def _validated_legacy_target_payload(self, run: sqlite3.Row) -> dict[str, Any]:
+        summary = json.loads(str(run["summary_json"]))
+        if not isinstance(summary, dict):
+            raise ValueError("legacy run projection summary is invalid")
+        root = validate_repo_relative_root(str(run["repo_relative_root"]))
+        expected_parts = (
+            *PurePosixPath(root).parts,
+            ".codex",
+            "loop-runs",
+            str(run["run_id"]),
+            "run.json",
+        )
+        refs = summary.get("artifact_refs", [])
+        candidates = [
+            ref
+            for ref in refs
+            if isinstance(ref, str)
+            and not PurePosixPath(ref).is_absolute()
+            and PurePosixPath(ref).as_posix() == ref
+            and tuple(PurePosixPath(ref).parts) == expected_parts
+        ]
+        if len(candidates) != 1:
+            raise ValueError("legacy run projection lacks one canonical artifact")
+        path = self.project_root.joinpath(*PurePosixPath(candidates[0]).parts)
+        payload = json.loads(
+            validate_owned_regular_file(
+                self.project_root,
+                path,
+                "legacy review target",
+            ).read_text(encoding="utf-8")
+        )
+        if not isinstance(payload, dict) or payload.get("run_id") != run["run_id"]:
+            raise ValueError("legacy review target run id mismatch")
+        validate_run_payload(payload)
+        return payload
 
     def _ensure_action_execution_root(self) -> None:
         columns = {
