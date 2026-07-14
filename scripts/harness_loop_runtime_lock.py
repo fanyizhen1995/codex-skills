@@ -42,6 +42,10 @@ class RunLockToken(dict[str, object]):
         self._guard = _RUN_LOCK_TOKEN_GUARD
         self._active = True
 
+    @property
+    def repo_root(self) -> Path:
+        return self._repo_root
+
 
 def run_lock_path(repo_root: Path, run_id: str) -> Path:
     _validate_run_id(run_id)

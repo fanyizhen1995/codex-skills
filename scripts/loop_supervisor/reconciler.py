@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, replace
 import errno
 import fcntl
@@ -574,12 +574,14 @@ def reconcile_once(
     if store.project_root != root:
         raise ValueError("store project root does not match reconciliation root")
     with _project_reconcile_lock(root):
-        return _reconcile_once_locked(
-            root,
-            store,
-            shadow=shadow,
-            include_worktrees=include_worktrees,
-        )
+        with ExitStack() as run_locks:
+            return _reconcile_once_locked(
+                root,
+                store,
+                shadow=shadow,
+                include_worktrees=include_worktrees,
+                run_locks=run_locks,
+            )
 
 
 def _secure_reread_run(project_root: Path, record: RunRecord) -> RunRecord:
@@ -658,6 +660,7 @@ def _reconcile_once_locked(
     *,
     shadow: bool,
     include_worktrees: bool,
+    run_locks: ExitStack,
 ) -> ReconcileResult:
     open_decisions_by_id = {
         str(item["decision_id"]): item
@@ -667,28 +670,39 @@ def _reconcile_once_locked(
     records = discover_run_records(root, include_worktrees=include_worktrees)
     valid_records: list[RunRecord] = []
     decisions: list[dict[str, Any]] = []
+    tokens_by_run: dict[str, RunLockToken] = {}
 
-    for index, record in enumerate(records):
+    ordered_records = sorted(
+        enumerate(records),
+        key=lambda item: (
+            str(item[1].repo_root.resolve()),
+            item[1].directory_run_id,
+        ),
+    )
+    for index, record in ordered_records:
         if not record.valid and (
             record.ownership_failure or not record.directory_run_id
         ):
             _record_invalid_run_decision(store, record, decisions)
             continue
         try:
-            with acquire_run_lock(
-                record.repo_root,
-                record.directory_run_id,
-                owner="reconciler:project-run",
-                blocking=True,
-            ) as token:
-                if record.run_id != record.directory_run_id:
-                    record = replace(record, run_id=record.directory_run_id)
-                record = _secure_reread_run(root, record)
-                records[index] = record
-                if not record.valid:
-                    _record_invalid_run_decision(store, record, decisions)
-                    continue
-                projected = _project_run(root, store, record, token=token)
+            token = run_locks.enter_context(
+                acquire_run_lock(
+                    record.repo_root,
+                    record.directory_run_id,
+                    owner="reconciler:project-run",
+                    blocking=True,
+                )
+            )
+            if record.run_id != record.directory_run_id:
+                record = replace(record, run_id=record.directory_run_id)
+            record = _secure_reread_run(root, record)
+            records[index] = record
+            if not record.valid:
+                _record_invalid_run_decision(store, record, decisions)
+                continue
+            projected = _project_run(root, store, record, token=token)
+            tokens_by_run[projected.run_id] = token
         except (OSError, TypeError, ValueError) as exc:
             failure_key = _failure_key("run", record.run_id, str(exc))
             _record_failure_once(
@@ -838,7 +852,12 @@ def _reconcile_once_locked(
                 and record.run_id in child_sources
             ):
                 continue
-            store.enqueue_action(action)
+            record = next(item for item in valid_records if item.run_id == record.run_id)
+            store.enqueue_action(
+                action,
+                expected_run_fingerprint=_state_fingerprint(record.payload),
+                run_lock_token=tokens_by_run[record.run_id],
+            )
             queued.append(action)
 
     return ReconcileResult(

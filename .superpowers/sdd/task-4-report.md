@@ -62,6 +62,14 @@ The dispatcher rejects `ask_user` and terminal `no_op`. Executor source and runt
 - GREEN: completion or lease-loss failure writes `worker-completion-failure-<action-id>.json` recovery evidence and returns `lease_lost`; it cannot report success silently.
 - GREEN: both concurrency directions pass: Reconciler blocks through Worker finalize+completion, and Worker blocks while Reconciler projects the run. The tests verify completed action status, file/projected revision `+1`, one next action, and no decision or lease loss.
 
+## Critical Locked-Enqueue Fix
+
+- RED: Reconciler released the run lock after projection, then reused `record.payload` for decision and enqueue. A real Planner Worker could finish in that window and the stale enqueue would reopen its completed old action.
+- GREEN: Reconciler now acquires concrete run locks in deterministic order under the project reconcile lock and retains every lock through secure reread, projection/upsert, decision evaluation, desired-action recomputation, and enqueue. Enqueue uses the fresh locked payload fingerprint and active matching token.
+- GREEN: advancing a Store run projection atomically marks only older-revision `pending` actions `cancelled`; leased actions are preserved. The shared run lock ensures a live Worker completes or records lease loss before Reconciler can advance that run.
+- GREEN: a completed action reopens only when enqueue receives an active matching run-lock token and the locked snapshot fingerprint still equals the Store projection fingerprint. Unlocked duplicate enqueue remains completed.
+- GREEN: the reverse concurrency test pauses Reconciler after projection at enqueue, proves the real Planner Worker waits, then verifies one completed old action/attempt, file and Store at revision 1 `generating`, exactly one pending revision-1 Generator action, and no old pending action.
+
 ## Worker And Recovery Evidence
 
 - `worker_once()` leases at most one action and leaves the next queued action pending.
@@ -90,7 +98,7 @@ python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_executors.py scr
 16 passed in 0.69s
 
 python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v
-Ran 202 tests in 10.879s - OK
+Ran 202 tests in 10.912s - OK
 
 python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_registry.py scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_supervisor.py
 72 passed in 2.99s
@@ -99,7 +107,7 @@ python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_executors.py scr
 19 passed in 0.95s
 
 python3 -m pytest -q scripts/tests/test_harness_loop_supervisor*.py
-222 passed in 9.14s
+224 passed in 9.15s
 
 for i in $(seq 1 10); do python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock scripts/tests/test_harness_loop_supervisor_worker.py::test_worker_waits_when_reconciler_holds_same_run_lock || exit 1; done
 20 concurrency tests passed across 10 consecutive rounds
@@ -123,5 +131,6 @@ Scoped commit message: `feat(harness): execute supervisor actions through worker
 - Resolved: the two Critical Task 1/4 registry concerns are covered by exact transition rules, Executor import guards, Worker integration, and commit-to-PUSH reconciliation tests.
 - Resolved: the two Critical real-chain concerns are covered by the four-action autonomous integration test, Worker revision CAS, and demand cleanup regression.
 - Resolved: the Critical finalize/completion race is covered by a shared blocking run-lock token, locked atomic save, bidirectional concurrency tests, and recoverable completion-failure evidence.
+- Resolved: the Critical stale decision/enqueue race is covered by lock retention through enqueue, pending supersession, locked fingerprint reopen defense, and the real reverse concurrency test.
 - Remaining scope is unchanged: Task 5 and Task 6 own full recovery and Reviewer policy.
 - No service or live-run restart was required; no live `.codex/loop-runs` or wiki content was modified.

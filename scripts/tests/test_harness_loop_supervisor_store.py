@@ -9,6 +9,7 @@ import threading
 
 import pytest
 
+from scripts.harness_loop_runtime_lock import acquire_run_lock
 from scripts.loop_supervisor.models import (
     ActionRequest,
     ActionResult,
@@ -183,6 +184,7 @@ def project_run(
     *,
     revision: int,
     phase: str = "planning",
+    state_fingerprint: str = "",
 ) -> None:
     store.upsert_run_projection(
         {
@@ -190,6 +192,7 @@ def project_run(
             "revision": revision,
             "policy": "autonomous_knowledge",
             "phase": phase,
+            "state_fingerprint": state_fingerprint,
         }
     )
 
@@ -1195,9 +1198,11 @@ def test_identical_same_revision_projection_updates_only_last_seen(tmp_path):
 
 def test_pending_action_for_old_run_revision_is_never_leased(tmp_path):
     store = migrated_store(tmp_path)
-    project_run(store, "run-1", revision=5)
-    store.enqueue_action(action_request("run-1", revision=4))
+    project_run(store, "run-1", revision=4)
+    old = store.enqueue_action(action_request("run-1", revision=4))
+    project_run(store, "run-1", revision=5, phase="generating")
 
+    assert store.get_action(old.action_id).status == "cancelled"
     assert (
         store.lease_next_action(
             "worker-a", lease_seconds=120, heartbeat_stale_seconds=60
@@ -1206,11 +1211,25 @@ def test_pending_action_for_old_run_revision_is_never_leased(tmp_path):
     )
 
 
+def test_run_revision_advance_does_not_cancel_leased_action(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=4)
+    action = store.enqueue_action(action_request("run-1", revision=4))
+    leased = store.lease_next_action(
+        "worker-a", lease_seconds=120, heartbeat_stale_seconds=60
+    )
+    assert leased is not None
+
+    project_run(store, "run-1", revision=5, phase="generating")
+
+    assert store.get_action(action.action_id).status == "leased"
+
+
 def test_completed_action_reopens_when_run_has_not_advanced_and_preserves_evidence(
     tmp_path,
 ):
     store = migrated_store(tmp_path)
-    project_run(store, "run-1", revision=1)
+    project_run(store, "run-1", revision=1, state_fingerprint="fingerprint-1")
     request = action_request(
         "run-1", revision=1, payload={"input_ref": "artifacts/planner-input.json"}
     )
@@ -1226,11 +1245,34 @@ def test_completed_action_reopens_when_run_has_not_advanced_and_preserves_eviden
         ),
     )
 
-    reopened = store.enqueue_action(action_request("run-1", revision=1))
+    with acquire_run_lock(
+        tmp_path, "run-1", owner="test:reopen", blocking=True
+    ) as token:
+        reopened = store.enqueue_action(
+            action_request("run-1", revision=1),
+            expected_run_fingerprint="fingerprint-1",
+            run_lock_token=token,
+        )
 
     assert reopened.status == "pending"
     assert reopened.payload == {"input_ref": "artifacts/planner-input.json"}
     assert reopened.artifacts == ["artifacts/planner-result.json"]
+
+
+def test_completed_action_does_not_reopen_without_locked_snapshot(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1, state_fingerprint="fingerprint-1")
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+    store.complete_action(
+        action.action_id,
+        "worker-a",
+        ActionResult(result_class=ActionResultClass.SUCCESS, summary="done"),
+    )
+
+    duplicate = store.enqueue_action(action_request("run-1", revision=1))
+
+    assert duplicate.status == "completed"
 
 
 def test_completed_action_reopen_rejects_incoming_identity_impersonation(tmp_path):

@@ -18,6 +18,7 @@ from threading import RLock
 from typing import Any, Iterator
 from uuid import uuid4
 
+from scripts.harness_loop_runtime_lock import RunLockToken, validate_run_lock_token
 from scripts.loop_supervisor.models import (
     ActionRequest,
     ActionResult,
@@ -701,6 +702,8 @@ class SupervisorStore:
         priority: int = 100,
         recovery_tier: int = 0,
         artifact_paths: tuple[str, ...] | list[str] = (),
+        expected_run_fingerprint: str = "",
+        run_lock_token: RunLockToken | None = None,
     ) -> ActionRecord:
         if not isinstance(request, ActionRequest):
             raise TypeError("request must be an ActionRequest")
@@ -708,6 +711,13 @@ class SupervisorStore:
             raise TypeError("priority must be an int")
         if not isinstance(recovery_tier, int) or recovery_tier < 0:
             raise ValueError("recovery_tier must be a non-negative int")
+        if not isinstance(expected_run_fingerprint, str):
+            raise TypeError("expected_run_fingerprint must be a string")
+        locked_snapshot = run_lock_token is not None
+        if run_lock_token is not None:
+            validate_run_lock_token(
+                run_lock_token, run_lock_token.repo_root, request.run_id
+            )
         payload = request.payload_for_storage()
         self._validate_payload(payload)
         artifacts = self._validate_artifact_paths(artifact_paths)
@@ -780,14 +790,18 @@ class SupervisorStore:
                     ),
                 )
                 run = self._connection.execute(
-                    "SELECT revision, phase FROM runs WHERE run_id = ?",
+                    "SELECT revision, phase, state_fingerprint FROM runs WHERE run_id = ?",
                     (existing["run_id"],),
                 ).fetchone()
                 reopen = (
                     existing["status"] == "completed"
+                    and locked_snapshot
+                    and bool(expected_run_fingerprint)
                     and run is not None
                     and int(run["revision"]) == int(existing["run_revision"])
                     and str(run["phase"]) == str(existing["phase"])
+                    and str(run["state_fingerprint"])
+                    == expected_run_fingerprint
                 )
                 stored_payload_json = (
                     str(existing["payload_json"])
@@ -1291,6 +1305,16 @@ class SupervisorStore:
                             now,
                             run_id,
                         ),
+                    )
+                    self._connection.execute(
+                        """
+                        UPDATE actions
+                        SET status = 'cancelled', lease_owner = '',
+                            lease_expires_at = '', lease_heartbeat_at = '',
+                            updated_at = ?
+                        WHERE run_id = ? AND run_revision < ? AND status = 'pending'
+                        """,
+                        (now, run_id, revision),
                     )
             row = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)

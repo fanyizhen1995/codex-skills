@@ -447,22 +447,26 @@ def test_worker_waits_when_reconciler_holds_same_run_lock(
         )
     assert action is not None
 
-    reconcile_inside_projection = threading.Event()
+    reconcile_before_enqueue = threading.Event()
     release_reconciler = threading.Event()
     handler_entered = threading.Event()
-    original_project = reconciler_module._project_run
+    original_enqueue = SupervisorStore.enqueue_action
+    original_planner = legacy.run_planner
 
-    def blocked_project(*args: object, **kwargs: object):
-        reconcile_inside_projection.set()
-        assert release_reconciler.wait(timeout=3)
-        return original_project(*args, **kwargs)
+    def blocked_enqueue(
+        self: SupervisorStore, request: ActionRequest, *args: object, **kwargs: object
+    ):
+        if request.run_id == "reconciler-first":
+            reconcile_before_enqueue.set()
+            assert release_reconciler.wait(timeout=3)
+        return original_enqueue(self, request, *args, **kwargs)
 
-    monkeypatch.setattr(reconciler_module, "_project_run", blocked_project)
-    monkeypatch.setattr(
-        worker,
-        "execute_action",
-        lambda _request, _root: (handler_entered.set(), _success())[1],
-    )
+    def observed_planner(*args: object, **kwargs: object):
+        handler_entered.set()
+        return original_planner(*args, **kwargs)
+
+    monkeypatch.setattr(SupervisorStore, "enqueue_action", blocked_enqueue)
+    monkeypatch.setattr(legacy, "run_planner", observed_planner)
     reconcile_result: list[object] = []
     worker_result: list[object] = []
 
@@ -475,7 +479,7 @@ def test_worker_waits_when_reconciler_holds_same_run_lock(
 
     reconcile_thread = threading.Thread(target=reconcile_in_thread)
     reconcile_thread.start()
-    assert reconcile_inside_projection.wait(timeout=2)
+    assert reconcile_before_enqueue.wait(timeout=2)
     worker_thread = threading.Thread(
         target=lambda: worker_result.append(
             worker.worker_once(tmp_path, "reconciler-first-worker")
@@ -493,6 +497,39 @@ def test_worker_waits_when_reconciler_holds_same_run_lock(
     assert not worker_thread.is_alive()
     assert handler_entered.is_set()
     assert worker_result[0].status == "completed"
+
+    monkeypatch.setattr(SupervisorStore, "enqueue_action", original_enqueue)
+    with SupervisorStore.open(tmp_path) as final_store:
+        final_store.migrate()
+        final_reconcile = reconcile_once(
+            tmp_path, final_store, include_worktrees=False
+        )
+        file_state = legacy.load_run(tmp_path, "reconciler-first")
+        projected = final_store.get_run("reconciler-first")
+        old_action_status = final_store.get_action(action.action_id).status
+        actions = [
+            row
+            for row in final_store.fetch_all("actions")
+            if row["run_id"] == "reconciler-first"
+        ]
+        attempts = [
+            row
+            for row in final_store.fetch_all("action_attempts")
+            if row["action_id"] == action.action_id
+        ]
+
+    assert final_reconcile.open_user_decisions == []
+    assert old_action_status == "completed"
+    assert file_state["state_revision"] == projected["revision"] == 1
+    assert file_state["phase"] == projected["phase"] == "generating"
+    pending = [row for row in actions if row["status"] == "pending"]
+    assert len(pending) == 1
+    assert pending[0]["run_revision"] == 1
+    assert pending[0]["action_type"] == ActionType.RUN_GENERATOR.value
+    assert not any(
+        row["status"] == "pending" and row["run_revision"] == 0 for row in actions
+    )
+    assert len(attempts) == 1
 
 
 def test_worker_heartbeat_renews_worker_and_action_lease(
