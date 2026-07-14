@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -14,12 +15,13 @@ from scripts.harness_loop_supervisor_state import (
     supervisor_dir,
     utc_now_iso,
 )
+from scripts.loop_supervisor.reconciler import atomic_save_run
 
 
 def test_failure_key_normalizes_and_rejects_unknown_category():
-    assert make_failure_key("service_down", "Project Root", "Crawler Backend", "Connection refused!") == (
-        "service_down:project-root:crawler-backend:connection-refused"
-    )
+    assert make_failure_key(
+        "service_down", "Project Root", "Crawler Backend", "Connection refused!"
+    ) == ("service_down:project-root:crawler-backend:connection-refused")
     with pytest.raises(ValueError):
         make_failure_key("other", "project", "service", "error")
 
@@ -56,7 +58,12 @@ def test_service_summary_counts_online_separately_from_version_health(tmp_path):
                 "running_version": {"freshness": "fresh"},
             },
         },
-        run_summary={"active": 0, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+        run_summary={
+            "active": 0,
+            "blocked": 0,
+            "continuation_candidates": 0,
+            "needs_user_decision": 0,
+        },
         failure_summary={"open_failure_keys": 0},
         last_decision=None,
         watch_interval_seconds=30,
@@ -91,11 +98,18 @@ def test_open_user_decision_writes_open_decision_payload(tmp_path):
         attempts=[{"summary": "fail 1"}],
     )
 
-    decision_files = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
-    decision_events = read_jsonl(tmp_path / ".codex" / "supervisor" / "user-decisions.jsonl")
+    decision_files = sorted(
+        (tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json")
+    )
+    decision_events = read_jsonl(
+        tmp_path / ".codex" / "supervisor" / "user-decisions.jsonl"
+    )
 
     assert len(decision_files) == 1
-    assert decision_files[0].name == "service_down-project-crawler-backend-connection-refused.json"
+    assert (
+        decision_files[0].name
+        == "service_down-project-crawler-backend-connection-refused.json"
+    )
     assert json.loads(decision_files[0].read_text(encoding="utf-8")) == decision
     assert decision["status"] == "open"
     assert decision["reason"] == "too_many_failures"
@@ -103,7 +117,9 @@ def test_open_user_decision_writes_open_decision_payload(tmp_path):
 
 
 def test_recovery_attempt_counter_opens_user_decision_on_third_failure(tmp_path):
-    key = make_failure_key("service_down", "project", "crawler-backend", "connection_refused")
+    key = make_failure_key(
+        "service_down", "project", "crawler-backend", "connection_refused"
+    )
     for index in range(3):
         attempt = record_recovery_attempt(
             tmp_path,
@@ -119,14 +135,18 @@ def test_recovery_attempt_counter_opens_user_decision_on_third_failure(tmp_path)
     assert attempt["consecutive_failure_count"] == 3
     assert attempt["max_consecutive_failures"] == 3
     assert attempt["attempt_id"] == "recovery-000003"
-    decisions = sorted((tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json"))
+    decisions = sorted(
+        (tmp_path / ".codex" / "supervisor" / "needs-user-decisions").glob("*.json")
+    )
     assert len(decisions) == 1
     decision = json.loads(decisions[0].read_text(encoding="utf-8"))
     assert decision["reason"] == "retry_ceiling_exceeded"
 
 
 def test_recovery_attempt_counter_groups_by_run_id_or_project(tmp_path):
-    key = make_failure_key("service_down", "project", "crawler-backend", "connection_refused")
+    key = make_failure_key(
+        "service_down", "project", "crawler-backend", "connection_refused"
+    )
     record_recovery_attempt(
         tmp_path,
         RecoveryAttemptInput(
@@ -167,7 +187,9 @@ def test_recovery_attempt_counter_groups_by_run_id_or_project(tmp_path):
 
 
 def test_recovery_attempt_counter_resets_on_success_for_same_run(tmp_path):
-    key = make_failure_key("service_down", "project", "crawler-backend", "connection_refused")
+    key = make_failure_key(
+        "service_down", "project", "crawler-backend", "connection_refused"
+    )
     for status in ("fail", "pass"):
         record_recovery_attempt(
             tmp_path,
@@ -280,12 +302,22 @@ def test_state_writers_reject_unnormalized_failure_key_segments(tmp_path):
             "run_summary.needs_user_decision",
         ),
         (
-            {"active": 0, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+            {
+                "active": 0,
+                "blocked": 0,
+                "continuation_candidates": 0,
+                "needs_user_decision": 0,
+            },
             {},
             "failure_summary.open_failure_keys",
         ),
         (
-            {"active": 0, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+            {
+                "active": 0,
+                "blocked": 0,
+                "continuation_candidates": 0,
+                "needs_user_decision": 0,
+            },
             {"open_failure_keys": "zero"},
             "failure_summary.open_failure_keys",
         ),
@@ -313,7 +345,12 @@ def test_build_supervisor_state_persists_current_snapshot(tmp_path):
         tmp_path,
         mode="watch",
         service_health={"crawler_backend": {"status": "healthy"}},
-        run_summary={"active": 1, "blocked": 0, "continuation_candidates": 0, "needs_user_decision": 0},
+        run_summary={
+            "active": 1,
+            "blocked": 0,
+            "continuation_candidates": 0,
+            "needs_user_decision": 0,
+        },
         failure_summary={"open_failure_keys": 0},
         last_decision=None,
         watch_interval_seconds=60,
@@ -329,6 +366,87 @@ def test_build_supervisor_state_persists_current_snapshot(tmp_path):
     assert state["last_tick_at"].endswith("Z")
     assert state["mode"] == "watch"
     assert state["watch_interval_seconds"] == 60
-    assert state["service_summary"] == {"total": 1, "online": 0, "healthy": 1, "degraded": 0, "blocked": 0}
+    assert state["service_summary"] == {
+        "total": 1,
+        "online": 0,
+        "healthy": 1,
+        "degraded": 0,
+        "blocked": 0,
+    }
     assert state["failure_summary"]["max_consecutive_failures"] == 3
     assert state["last_decision"] is None
+
+
+def test_atomic_save_run_increments_revision_once_and_replaces_sibling_tempfile(
+    tmp_path, monkeypatch
+):
+    run_dir = tmp_path / ".codex" / "loop-runs" / "atomic-run"
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.json"
+    run_path.write_text(
+        json.dumps(
+            {
+                "run_id": "atomic-run",
+                "policy": "autonomous_knowledge",
+                "phase": "planning",
+                "state_revision": 3,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    replace_calls = []
+    fsync_calls = []
+    real_replace = os.replace
+    real_fsync = os.fsync
+
+    def observed_replace(source, target):
+        replace_calls.append((source, target))
+        return real_replace(source, target)
+
+    def observed_fsync(fd):
+        fsync_calls.append(fd)
+        return real_fsync(fd)
+
+    monkeypatch.setattr(
+        "scripts.loop_supervisor.reconciler.os.replace", observed_replace
+    )
+    monkeypatch.setattr("scripts.loop_supervisor.reconciler.os.fsync", observed_fsync)
+
+    saved = atomic_save_run(
+        tmp_path,
+        {
+            "run_id": "atomic-run",
+            "policy": "autonomous_knowledge",
+            "phase": "generating",
+        },
+        expected_revision=3,
+    )
+
+    assert saved["state_revision"] == 4
+    assert json.loads(run_path.read_text(encoding="utf-8"))["state_revision"] == 4
+    assert len(replace_calls) == 1
+    assert os.fspath(replace_calls[0][1]) == os.fspath(run_path)
+    assert os.path.dirname(os.fspath(replace_calls[0][0])) == os.fspath(run_dir)
+    assert len(fsync_calls) == 2
+    assert not list(run_dir.glob(".run.json.*.tmp"))
+
+
+def test_atomic_save_run_rejects_stale_expected_revision_without_writing(tmp_path):
+    run_dir = tmp_path / ".codex" / "loop-runs" / "stale-run"
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.json"
+    original = {
+        "run_id": "stale-run",
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "state_revision": 5,
+    }
+    run_path.write_text(json.dumps(original) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="stale run revision"):
+        atomic_save_run(
+            tmp_path, {**original, "phase": "generating"}, expected_revision=4
+        )
+
+    assert json.loads(run_path.read_text(encoding="utf-8")) == original

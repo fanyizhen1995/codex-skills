@@ -1,75 +1,29 @@
 #!/usr/bin/env python3
-"""Project-level runtime supervisor for loop services and runs."""
+"""Compatibility CLI wrapper for the unified SQLite Loop Supervisor."""
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import hashlib
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
+import sys
 import time
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Mapping
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
-
-try:
-    from scripts import harness_loop_auto_resume as auto_resume
-    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, save_run
-    from scripts.harness_loop_runtime_lock import RunLockBusy, acquire_run_lock
-    from scripts.harness_loop_supervisor_state import (
-        RecoveryAttemptInput,
-        append_jsonl,
-        archived_user_decision,
-        build_supervisor_state,
-        make_failure_key,
-        open_user_decision,
-        read_jsonl,
-        record_recovery_attempt,
-        supervisor_dir,
-        utc_now_iso,
-    )
-except ImportError:  # pragma: no cover - direct script execution from scripts/
-    import harness_loop_auto_resume as auto_resume  # type: ignore[no-redef]
-    from harness_loop_orchestrator import create_preflight_run, load_run, save_run  # type: ignore[no-redef]
-    from harness_loop_runtime_lock import RunLockBusy, acquire_run_lock  # type: ignore[no-redef]
-    from harness_loop_supervisor_state import (  # type: ignore[no-redef]
-        RecoveryAttemptInput,
-        append_jsonl,
-        archived_user_decision,
-        build_supervisor_state,
-        make_failure_key,
-        open_user_decision,
-        read_jsonl,
-        record_recovery_attempt,
-        supervisor_dir,
-        utc_now_iso,
-    )
 
 
-SUPPORTED_STOPPED_BLOCKED_NEXT_ACTIONS = {
-    "inspect_autonomous_dirty_paths",
-    "inspect_required_evidence",
-    "retry_autonomous_push",
-}
-ACTIONABLE_PHASES = {"audit_blocked", "stopped_blocked"}
-AUTONOMOUS_ACTIVE_PHASES = {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}
-DEMAND_ACTIVE_PHASES = {
-    "preflight",
-    "planned",
-    "generating",
-    "verifying",
-    "evaluating",
-    "repair_needed",
-    "artifact_hygiene",
-    "cleanup",
-    "audit_pending",
-    "auditing",
-    "child_running",
-}
+if __package__ in {None, ""}:  # Keep ``python scripts/...`` compatible.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.harness_loop_supervisor_state import build_supervisor_state, utc_now_iso
+from scripts.loop_supervisor.reconciler import reconcile_once
+from scripts.loop_supervisor.store import SupervisorStore
+
+
 ALLOWED_RESTART_SESSIONS = {
     "personal-wiki-crawler-backend": (
         "cd {project_root}/personal-wiki/apps/crawler_workbench/backend && "
@@ -78,7 +32,8 @@ ALLOWED_RESTART_SESSIONS = {
     ),
     "personal-wiki-crawler-frontend": (
         "cd {project_root}/personal-wiki/apps/crawler_workbench/frontend && "
-        "if ! command -v npm >/dev/null 2>&1 && [ -s \"$HOME/.nvm/nvm.sh\" ]; then . \"$HOME/.nvm/nvm.sh\"; fi && "
+        'if ! command -v npm >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; '
+        'then . "$HOME/.nvm/nvm.sh"; fi && '
         "npm run dev -- --host 0.0.0.0 --port 5173"
     ),
     "loop-dashboard": (
@@ -90,37 +45,6 @@ ALLOWED_RESTART_SESSIONS = {
         "--project-root {project_root} --watch --interval-seconds 30"
     ),
 }
-DEFAULT_SERVICES = (
-    {
-        "service": "crawler-backend",
-        "kind": "http_and_tmux",
-        "expected_endpoint": "http://127.0.0.1:8765/api/health",
-        "tmux_session": "personal-wiki-crawler-backend",
-        "port": 8765,
-    },
-    {
-        "service": "crawler-frontend",
-        "kind": "http_and_tmux",
-        "expected_endpoint": "http://127.0.0.1:5173/",
-        "tmux_session": "personal-wiki-crawler-frontend",
-        "port": 5173,
-    },
-    {
-        "service": "loop-dashboard",
-        "kind": "http_and_tmux",
-        "expected_endpoint": "http://127.0.0.1:8766/api/health",
-        "tmux_session": "loop-dashboard",
-        "port": 8766,
-    },
-    {
-        "service": "loop-auto-resume",
-        "kind": "tmux",
-        "expected_endpoint": "",
-        "tmux_session": "loop-auto-resume",
-        "port": None,
-    },
-)
-MISSING_FRESHNESS_TARGET_LABEL = "暂无 freshness target"
 SERVICE_CODE_PATHS = {
     "crawler-backend": (
         "personal-wiki/apps/crawler_workbench/backend/crawler_workbench",
@@ -158,366 +82,51 @@ class SupervisorConfig:
     create_continuations: bool = True
 
 
-@dataclass(frozen=True)
-class ServiceConfig:
-    service: str
-    kind: str
-    expected_endpoint: str = ""
-    tmux_session: str = ""
-    port: int | None = None
-    timeout_seconds: float = 1.0
-
-
-@dataclass(frozen=True)
-class RunRecord:
-    run_id: str
-    repo_root: Path
-    run_json_path: Path
-    payload: dict[str, Any]
-    valid: bool = True
-    error: str = ""
-
-
 def run_supervisor_once(config: SupervisorConfig) -> dict[str, Any]:
-    root = Path(config.project_root)
-    sup_dir = supervisor_dir(root)
-    sup_dir.mkdir(parents=True, exist_ok=True)
-    _touch_required_streams(sup_dir)
-    append_jsonl(sup_dir / "events.jsonl", _event("tick_started", "Supervisor tick started.", config))
+    """Open the SQLite store and run one bounded reconciliation tick."""
+    root = Path(config.project_root).resolve()
+    with SupervisorStore.open(root) as store:
+        store.migrate()
+        reconciled = reconcile_once(root, store, shadow=config.dry_run)
+        open_decisions = [
+            row
+            for row in store.fetch_all("user_decisions")
+            if row.get("status") == "open"
+        ]
+        open_failures = [
+            row
+            for row in store.fetch_all("failures")
+            if row.get("resolution") == "open"
+        ]
 
-    service_health = _check_all_services(config)
-    _write_json(
-        sup_dir / "service-health.json",
-        {"schema_version": 1, "checked_at": utc_now_iso(), "services": service_health},
+    continuation_count = sum(
+        action.action_type.value == "create_continuation"
+        for action in reconciled.queued_actions
     )
-
-    run_records = discover_run_records(root, include_worktrees=config.include_worktrees)
-    _archive_stale_user_decisions(root, run_records)
-    descendants_by_parent: dict[tuple[str, str], list[RunRecord]] = {}
-    for candidate in run_records:
-        previous_run_id = str(candidate.payload.get("previous_run_id") or "") if candidate.valid else ""
-        if previous_run_id:
-            key = (str(candidate.repo_root.resolve()), previous_run_id)
-            descendants_by_parent.setdefault(key, []).append(candidate)
-    decisions: list[dict[str, Any]] = []
-    continuation_candidates = 0
-    active = 0
-    blocked = 0
-    needs_user_decision = 0
-
-    for record in run_records:
-        if not record.valid:
-            append_jsonl(
-                sup_dir / "events.jsonl",
-                {
-                    **_event("invalid_run_json", "Invalid run.json encountered.", config),
-                    "run_id": record.run_id,
-                    "run_json": str(record.run_json_path),
-                    "error": record.error,
-                },
-            )
-            classification = _invalid_run_classification(record)
-        else:
-            classification = classify_run(record)
-
-        descendant_key = (str(record.repo_root.resolve()), record.run_id)
-        descendants = descendants_by_parent.get(descendant_key, [])
-        if classification["classification"] == "continuation_candidate" and descendants:
-            classification = {
-                **classification,
-                "classification": "terminal",
-                "action": "observe",
-                "reason": "continuation_superseded_by_descendant",
-                "evidence_paths": [
-                    *classification.get("evidence_paths", []),
-                    *[_relative_to_repo(record.repo_root, item.run_json_path) for item in descendants],
-                ],
-            }
-        if classification["classification"] == "continuation_candidate" and config.create_continuations:
-            plan = plan_continuation(config, record, classification=classification)
-            classification = _classification_with_continuation_plan(classification, plan)
-        classification = _classification_with_archived_user_decision(config, record, classification)
-
-        decision = _record_run_decision(config, record, classification)
-        decisions.append(decision)
-        if _counts_as_continuation_candidate(classification):
-            continuation_candidates += 1
-        elif _counts_as_active(classification):
-            active += 1
-        elif classification["classification"] in {"actionable_resume", "blocked"}:
-            blocked += 1
-        elif classification["classification"] == "needs_user_decision":
-            needs_user_decision += 1
-            if classification.get("reason") != "global_stop_open_user_decision":
-                _open_classification_user_decision(config, record, classification)
-        elif classification["classification"] == "awaiting_human_merge":
-            decision["requires_human_confirmation"] = True
-
-    restart_results = _maybe_restart_services(config, service_health)
-    open_failure_keys = _count_open_user_decisions(root)
     run_summary = {
-        "active": active,
-        "blocked": blocked,
-        "continuation_candidates": continuation_candidates,
-        "needs_user_decision": needs_user_decision,
+        "active": len(reconciled.queued_actions) - continuation_count,
+        "blocked": sum(row.get("scope") == "global" for row in open_decisions),
+        "continuation_candidates": continuation_count,
+        "needs_user_decision": len(open_decisions),
     }
-    failure_summary = {"open_failure_keys": open_failure_keys}
-    service_health_by_name = {item["service"]: item for item in service_health}
-    last_decision = _current_actionable_decision(decisions, root)
     state = build_supervisor_state(
         root,
         mode=config.mode,
-        service_health=service_health_by_name,
+        service_health={},
         run_summary=run_summary,
-        failure_summary=failure_summary,
-        last_decision=last_decision,
+        failure_summary={"open_failure_keys": len(open_failures)},
+        last_decision=(
+            dict(reconciled.open_user_decisions[-1])
+            if reconciled.open_user_decisions
+            else None
+        ),
         watch_interval_seconds=config.watch_interval_seconds,
     )
-    append_jsonl(
-        sup_dir / "events.jsonl",
-        {
-            **_event("tick_completed", "Supervisor tick completed.", config),
-            "status": state["status"],
-            "run_summary": run_summary,
-            "service_summary": state["service_summary"],
-        },
-    )
-    return {
-        **state,
-        "service_health_path": str(sup_dir / "service-health.json"),
-        "run_records": len(run_records),
-        "restart_results": restart_results,
-    }
-
-
-def discover_run_records(project_root: Path, include_worktrees: bool = True) -> list[RunRecord]:
-    root = Path(project_root)
-    records: list[RunRecord] = []
-    for run_json_path in _run_json_paths(root, include_worktrees=include_worktrees):
-        repo_root = _repo_root_for_run_json(root, run_json_path)
-        try:
-            payload = _read_json(run_json_path)
-            run_id = str(payload.get("run_id") or run_json_path.parent.name)
-            records.append(RunRecord(run_id=run_id, repo_root=repo_root, run_json_path=run_json_path, payload=payload))
-        except Exception as exc:
-            records.append(
-                RunRecord(
-                    run_id=run_json_path.parent.name,
-                    repo_root=repo_root,
-                    run_json_path=run_json_path,
-                    payload={},
-                    valid=False,
-                    error=str(exc),
-                )
-            )
-    return records
-
-
-def classify_run(run_record: RunRecord, auditor_summary: dict[str, Any] | None = None) -> dict[str, Any]:
-    if not run_record.valid:
-        return _invalid_run_classification(run_record)
-
-    run = run_record.payload
-    auditor_summary = auditor_summary if auditor_summary is not None else _latest_auditor_summary(run_record)
-    policy = str(run.get("policy") or "")
-    phase = str(run.get("phase") or "")
-    next_action = str(run.get("next_action") or "")
-    auditor_verdict = str((auditor_summary or {}).get("verdict") or "").strip().lower()
-    evidence_paths = [_relative_to_repo(run_record.repo_root, run_record.run_json_path)]
-    audit_path = (auditor_summary or {}).get("_artifact_path")
-    if isinstance(audit_path, str) and audit_path:
-        evidence_paths.append(audit_path)
-    base = {
-        "run_id": run_record.run_id,
-        "run_policy": policy,
-        "phase": phase,
-        "next_action": next_action,
-        "auditor_verdict": auditor_verdict or "unavailable",
-        "evidence_paths": evidence_paths,
-    }
-
-    if auditor_verdict == "stop":
-        return {
-            **base,
-            "classification": "needs_user_decision",
-            "action": "request_user_decision",
-            "reason": "auditor_stop",
-        }
-    auditor_control = _classify_auditor_control(base, auditor_verdict, phase)
-    if auditor_control is not None:
-        return auditor_control
-    if _has_unsafe_secret_signal(run):
-        return {
-            **base,
-            "classification": "needs_user_decision",
-            "action": "request_user_decision",
-            "reason": "unsafe_secret",
-        }
-    if policy == "autonomous_knowledge":
-        return _classify_autonomous_run(base, phase, next_action)
-    if policy == "demand_development":
-        return _classify_demand_run(base, phase, next_action)
-    return {
-        **base,
-        "classification": "needs_user_decision",
-        "action": "request_user_decision",
-        "reason": "unsupported_state",
-    }
-
-
-def check_service_health(config: SupervisorConfig, service: ServiceConfig) -> dict[str, Any]:
-    root = Path(config.project_root)
-    now = utc_now_iso()
-    errors: list[str] = []
-    reachable = True
-    if "http" in service.kind:
-        reachable, message = _check_http_endpoint(service.expected_endpoint, service.timeout_seconds)
-        if not reachable:
-            errors.append(message)
-    tmux_ok = True
-    if "tmux" in service.kind:
-        tmux_ok, message = _tmux_has_session(service.tmux_session)
-        if not tmux_ok:
-            errors.append(message)
-
-    runtime_path = root / ".codex" / "service-runtime" / f"{service.service}.json"
-    running_version = _check_running_version(root, service, runtime_path, reachable=reachable, tmux_ok=tmux_ok)
-    if not running_version["matches_expected"]:
-        errors.append(str(running_version["evidence"]))
-    data_freshness = _service_data_freshness(root, service)
-    if data_freshness.get("status") == "fail":
-        errors.append(str(data_freshness.get("evidence") or "data freshness failed"))
-
-    status = "healthy" if not errors else "degraded"
-    return {
-        "service": service.service,
-        "kind": service.kind,
-        "expected_endpoint": service.expected_endpoint,
-        "tmux_session": service.tmux_session,
-        "status": status,
-        "reachable": reachable,
-        "tmux_session_exists": tmux_ok,
-        "running_version": running_version,
-        "data_freshness": data_freshness,
-        "last_checked_at": now,
-        "last_restart_at": "",
-        "last_error": "; ".join(_unique_strings(errors)),
-    }
-
-
-def plan_continuation(
-    config: SupervisorConfig,
-    run_record: RunRecord,
-    *,
-    classification: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    root = Path(run_record.repo_root)
-    try:
-        with acquire_run_lock(
-            root,
-            run_record.run_id,
-            owner=f"loop-supervisor-continuation:{os.getpid()}",
-        ):
-            return _plan_continuation_locked(config, run_record, classification=classification)
-    except RunLockBusy as exc:
-        raise RuntimeError(
-            f"continuation source run is locked by {exc.current_owner or 'another executor'}"
-        ) from exc
-
-
-def _plan_continuation_locked(
-    config: SupervisorConfig,
-    run_record: RunRecord,
-    *,
-    classification: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    if not run_record.valid:
-        raise ValueError(f"cannot plan continuation for invalid run: {run_record.run_id}")
-    classification = classification or classify_run(run_record)
-    if classification.get("classification") != "continuation_candidate":
-        raise ValueError(f"run is not an autonomous continuation candidate: {run_record.run_id}")
-
-    root = Path(config.project_root)
-    plans_path = supervisor_dir(root) / "continuation-plans.jsonl"
-    run = run_record.payload
-    parent_counter = _parent_counter(run)
-    previous_commit = _previous_commit(run_record)
-    idempotency_key = (
-        f"autonomous_knowledge:{run.get('domain') or 'unknown'}:"
-        f"{run_record.run_id}:parent-{parent_counter}:{previous_commit}"
-    )
-    existing_plans = read_jsonl(plans_path)
-    for index, existing in enumerate(existing_plans):
-        if existing.get("idempotency_key") == idempotency_key and existing.get("status") in {"planned", "created"}:
-            if existing.get("status") == "planned" and not config.dry_run and config.create_continuations:
-                created = _create_continuation_run(config, run_record, dict(existing))
-                existing_plans[index] = created
-                _write_jsonl_records(plans_path, existing_plans)
-                return created
-            existing_plan = dict(existing)
-            existing_plan["_existing_plan"] = True
-            return existing_plan
-
-    global_stop_result = _global_stop_result(root)
-    existing_blocked_index = next(
-        (
-            index
-            for index, existing in enumerate(existing_plans)
-            if existing.get("idempotency_key") == idempotency_key and existing.get("status") == "blocked"
-        ),
-        None,
-    )
-    if existing_blocked_index is not None and global_stop_result["status"] == "continue":
-        updated_plan = dict(existing_plans[existing_blocked_index])
-        updated_plan["status"] = "planned" if config.create_continuations else "skipped"
-        updated_plan["global_stop_result"] = dict(global_stop_result)
-        if not config.dry_run and config.create_continuations:
-            updated_plan = _create_continuation_run(config, run_record, updated_plan)
-        existing_plans[existing_blocked_index] = updated_plan
-        _write_jsonl_records(plans_path, existing_plans)
-        return updated_plan
-
-    if global_stop_result["status"] != "continue":
-        if existing_blocked_index is not None:
-            return existing_plans[existing_blocked_index]
-        plan = _continuation_plan_payload(
-            config,
-            run_record,
-            idempotency_key=idempotency_key,
-            previous_commit=previous_commit,
-            parent_counter=parent_counter,
-            sequence=len(existing_plans) + 1,
-            status="blocked",
-            global_stop_result=global_stop_result,
-        )
-        append_jsonl(plans_path, plan)
-        return plan
-
-    for existing in existing_plans:
-        if existing.get("idempotency_key") == idempotency_key and existing.get("status") in {"planned", "created"}:
-            return existing
-
-    plan = _continuation_plan_payload(
-        config,
-        run_record,
-        idempotency_key=idempotency_key,
-        previous_commit=previous_commit,
-        parent_counter=parent_counter,
-        sequence=len(existing_plans) + 1,
-        status="planned" if config.create_continuations else "skipped",
-        global_stop_result=global_stop_result,
-    )
-    append_jsonl(plans_path, plan)
-    if not config.dry_run and config.create_continuations and plan["status"] == "planned":
-        created = _create_continuation_run(config, run_record, plan)
-        plans = read_jsonl(plans_path)
-        plans[-1] = created
-        _write_jsonl_records(plans_path, plans)
-        return created
-    return plan
+    return {**state, **reconciled.as_dict(), "run_summary": run_summary}
 
 
 def restart_service(config: SupervisorConfig, tmux_session: str) -> dict[str, Any]:
+    """Retain the allowlisted one-shot restart compatibility command."""
     if tmux_session not in ALLOWED_RESTART_SESSIONS:
         raise ValueError(f"service restart session is not allowlisted: {tmux_session}")
     if config.dry_run:
@@ -527,12 +136,22 @@ def restart_service(config: SupervisorConfig, tmux_session: str) -> dict[str, An
             "summary": "restart skipped because supervisor is in dry-run mode",
         }
     if not config.restart_services:
-        return {"session": tmux_session, "status": "skipped", "summary": "service restart disabled"}
+        return {
+            "session": tmux_session,
+            "status": "skipped",
+            "summary": "service restart disabled",
+        }
 
-    command = ALLOWED_RESTART_SESSIONS[tmux_session].format(project_root=Path(config.project_root))
+    command = ALLOWED_RESTART_SESSIONS[tmux_session].format(
+        project_root=Path(config.project_root)
+    )
     existing, _ = _tmux_has_session(tmux_session)
     if existing:
-        return {"session": tmux_session, "status": "skipped", "summary": "tmux session already exists"}
+        return {
+            "session": tmux_session,
+            "status": "skipped",
+            "summary": "tmux session already exists",
+        }
     result = subprocess.run(
         ["tmux", "new-session", "-d", "-s", tmux_session, command],
         cwd=Path(config.project_root),
@@ -542,8 +161,14 @@ def restart_service(config: SupervisorConfig, tmux_session: str) -> dict[str, An
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"tmux restart failed for {tmux_session}: {result.stderr or result.stdout}")
-    return {"session": tmux_session, "status": "started", "summary": "tmux session started from allowlist"}
+        raise RuntimeError(
+            f"tmux restart failed for {tmux_session}: {result.stderr or result.stdout}"
+        )
+    return {
+        "session": tmux_session,
+        "status": "started",
+        "summary": "tmux session started from allowlist",
+    }
 
 
 def write_service_runtime_metadata(
@@ -557,16 +182,18 @@ def write_service_runtime_metadata(
     cwd: Path | None = None,
     pid: int | None = None,
 ) -> dict[str, Any]:
+    """Retain service startup metadata used by the existing launch commands."""
     root = Path(project_root)
     service_cwd = Path(cwd) if cwd is not None else root
-    runtime_path = root / ".codex" / "service-runtime" / f"{_safe_slug(service_name)}.json"
+    runtime_path = (
+        root / ".codex" / "service-runtime" / f"{_safe_slug(service_name)}.json"
+    )
     git_head = _git_head(service_cwd)
-    runtime_pid = int(pid if pid is not None else os.getpid())
     metadata = {
         "schema_version": 1,
         "service": service_name,
         "tmux_session": tmux_session,
-        "pid": runtime_pid,
+        "pid": int(pid if pid is not None else os.getpid()),
         "cwd": str(service_cwd),
         "command": command,
         "host": host,
@@ -590,691 +217,6 @@ def write_service_runtime_metadata(
     return metadata
 
 
-def _classification_with_continuation_plan(
-    classification: Mapping[str, Any],
-    plan: Mapping[str, Any],
-) -> dict[str, Any]:
-    updated = dict(classification)
-    updated["continuation_plan_id"] = plan.get("plan_id")
-    updated["continuation_plan_status"] = plan.get("status")
-    if "global_stop_result" in plan:
-        updated["global_stop_result"] = plan.get("global_stop_result")
-
-    status = str(plan.get("status") or "")
-    if status == "created":
-        updated["action"] = "observe"
-        updated["reason"] = "continuation_already_created"
-    elif status == "planned" and plan.get("_existing_plan"):
-        updated["action"] = "observe"
-        updated["reason"] = "continuation_already_planned"
-    elif status == "blocked":
-        global_stop_result = plan.get("global_stop_result") if isinstance(plan.get("global_stop_result"), Mapping) else {}
-        updated["classification"] = "needs_user_decision"
-        updated["action"] = "request_user_decision"
-        updated["reason"] = str(global_stop_result.get("reason") or "global_stop_blocked")
-    elif status == "skipped":
-        updated["action"] = "observe"
-        updated["reason"] = "continuation_skipped"
-    return updated
-
-
-def _counts_as_continuation_candidate(classification: Mapping[str, Any]) -> bool:
-    if classification.get("classification") != "continuation_candidate":
-        return False
-    plan_status = str(classification.get("continuation_plan_status") or "")
-    return not plan_status or plan_status in {"planned", "created"}
-
-
-def _counts_as_active(classification: Mapping[str, Any]) -> bool:
-    if classification.get("classification") == "active":
-        return True
-    return (
-        classification.get("classification") == "actionable_resume"
-        and classification.get("reason") == "active_autonomous_phase"
-    )
-
-
-def _continuation_plan_payload(
-    config: SupervisorConfig,
-    run_record: RunRecord,
-    *,
-    idempotency_key: str,
-    previous_commit: str,
-    parent_counter: int,
-    sequence: int,
-    status: str,
-    global_stop_result: Mapping[str, Any],
-) -> dict[str, Any]:
-    project_root = Path(config.project_root)
-    target_root = Path(run_record.repo_root)
-    run = run_record.payload
-    next_run_id = f"{run_record.run_id}-continuation-{sequence:03d}"
-    return {
-        "schema_version": 1,
-        "plan_id": f"continuation-{_safe_slug(run_record.run_id)}-{sequence:03d}",
-        "idempotency_key": idempotency_key,
-        "previous_run_id": run_record.run_id,
-        "next_run_id": next_run_id,
-        "domain": str(run.get("domain") or ""),
-        "policy_file": str(run.get("policy_file") or ""),
-        "previous_phase": str(run.get("phase") or ""),
-        "previous_task_id": str(run.get("task_id") or ""),
-        "previous_commit": previous_commit,
-        "parent_task_counter": parent_counter,
-        "semantic_parent_task_next": parent_counter + 1,
-        "audit_cadence_state": {
-            "unit": "parent_task",
-            "interval": _audit_interval(run),
-            "completed_since_last_audit": _completed_since_last_audit(run),
-        },
-        "global_stop_result": dict(global_stop_result),
-        "status": status,
-        "created_run_path": _relative_to_repo(
-            project_root,
-            target_root / ".codex" / "loop-runs" / next_run_id / "run.json",
-        ),
-        "created_at": utc_now_iso(),
-        "dry_run": config.dry_run,
-    }
-
-
-def _classify_autonomous_run(base: dict[str, Any], phase: str, next_action: str) -> dict[str, Any]:
-    if phase in AUTONOMOUS_ACTIVE_PHASES:
-        return {**base, "classification": "actionable_resume", "action": "resume", "reason": "active_autonomous_phase"}
-    if phase == "audit_blocked":
-        return {**base, "classification": "actionable_resume", "action": "resume", "reason": "audit_blocked"}
-    if phase == "stopped_blocked":
-        if next_action in SUPPORTED_STOPPED_BLOCKED_NEXT_ACTIONS:
-            return {
-                **base,
-                "classification": "actionable_resume",
-                "action": "resume",
-                "reason": "supported_stopped_blocked",
-            }
-        return {
-            **base,
-            "classification": "needs_user_decision",
-            "action": "request_user_decision",
-            "reason": "unsupported_state",
-        }
-    if phase == "stopped_budget":
-        return {
-            **base,
-            "classification": "continuation_candidate",
-            "action": "create_continuation",
-            "reason": "autonomous_budget_stop",
-        }
-    if phase in {"stopped_no_action", "audit_passed", "committed"}:
-        return {**base, "classification": "terminal", "action": "observe", "reason": "terminal_no_action"}
-    return {
-        **base,
-        "classification": "needs_user_decision",
-        "action": "request_user_decision",
-        "reason": "unsupported_state",
-    }
-
-
-def _classify_auditor_control(base: dict[str, Any], auditor_verdict: str, phase: str) -> dict[str, Any] | None:
-    if auditor_verdict == "must_fix":
-        if phase == "audit_blocked":
-            return {**base, "classification": "actionable_resume", "action": "resume", "reason": "auditor_must_fix"}
-        return {
-            **base,
-            "classification": "needs_user_decision",
-            "action": "request_user_decision",
-            "reason": "auditor_must_fix",
-        }
-    if auditor_verdict == "refocus":
-        return {
-            **base,
-            "classification": "needs_user_decision",
-            "action": "request_user_decision",
-            "reason": "auditor_refocus",
-        }
-    if auditor_verdict == "should_fix":
-        return {**base, "classification": "auditor_control", "action": "observe", "reason": "auditor_should_fix"}
-    return None
-
-
-def _classify_demand_run(base: dict[str, Any], phase: str, next_action: str) -> dict[str, Any]:
-    if phase in DEMAND_ACTIVE_PHASES:
-        return {**base, "classification": "active", "action": "observe", "reason": "active_demand_phase"}
-    if phase == "audit_blocked":
-        return {**base, "classification": "actionable_resume", "action": "resume", "reason": "audit_blocked"}
-    if phase == "stopped_blocked" and next_action in SUPPORTED_STOPPED_BLOCKED_NEXT_ACTIONS:
-        return {
-            **base,
-            "classification": "actionable_resume",
-            "action": "resume",
-            "reason": "supported_stopped_blocked",
-        }
-    if phase == "passed_waiting_human_merge":
-        return {
-            **base,
-            "classification": "awaiting_human_merge",
-            "action": "await_human_merge",
-            "reason": "human_merge_required",
-        }
-    if phase in {"stopped_no_action", "audit_passed", "committed"}:
-        return {**base, "classification": "terminal", "action": "observe", "reason": "terminal_no_action"}
-    return {
-        **base,
-        "classification": "needs_user_decision",
-        "action": "request_user_decision",
-        "reason": "unsupported_state",
-    }
-
-
-def _record_run_decision(
-    config: SupervisorConfig,
-    record: RunRecord,
-    classification: Mapping[str, Any],
-) -> dict[str, Any]:
-    decisions_path = supervisor_dir(config.project_root) / "run-decisions.jsonl"
-    existing_count = len(read_jsonl(decisions_path))
-    decision = {
-        "schema_version": 1,
-        "decision_id": f"supervisor-{existing_count + 1:06d}",
-        "run_id": record.run_id,
-        "repo_root": str(record.repo_root),
-        "run_policy": classification.get("run_policy", ""),
-        "phase": classification.get("phase", ""),
-        "next_action": classification.get("next_action", ""),
-        "classification": classification.get("classification", ""),
-        "action": classification.get("action", ""),
-        "reason": classification.get("reason", ""),
-        "auditor_verdict": classification.get("auditor_verdict", "unavailable"),
-        "created_at": utc_now_iso(),
-        "evidence_paths": list(classification.get("evidence_paths", [])),
-        "dry_run": config.dry_run,
-    }
-    for optional_key in ("continuation_plan_id", "continuation_plan_status", "global_stop_result"):
-        if optional_key in classification:
-            decision[optional_key] = classification[optional_key]
-    append_jsonl(decisions_path, decision)
-    return decision
-
-
-def _open_classification_user_decision(
-    config: SupervisorConfig,
-    record: RunRecord,
-    classification: Mapping[str, Any],
-) -> dict[str, Any]:
-    payload = _classification_user_decision_payload(record, classification)
-    return open_user_decision(
-        config.project_root,
-        reason=payload["reason"],
-        failure_key=payload["failure_key"],
-        summary=payload["summary"],
-        required_user_decision=payload["required_user_decision"],
-        affected_runs=[record.run_id],
-        attempts=[],
-    )
-
-
-def _classification_with_archived_user_decision(
-    config: SupervisorConfig,
-    record: RunRecord,
-    classification: Mapping[str, Any],
-) -> dict[str, Any]:
-    if classification.get("classification") != "needs_user_decision":
-        return dict(classification)
-    if classification.get("reason") == "global_stop_open_user_decision":
-        return dict(classification)
-    payload = _classification_user_decision_payload(record, classification)
-    archived = archived_user_decision(config.project_root, payload["failure_key"])
-    if archived is None:
-        return dict(classification)
-    return {
-        **dict(classification),
-        "classification": "terminal",
-        "action": "observe",
-        "reason": "archived_user_decision",
-        "archived_failure_key": payload["failure_key"],
-        "archived_decision_id": archived.get("decision_id", ""),
-    }
-
-
-def _classification_user_decision_payload(record: RunRecord, classification: Mapping[str, Any]) -> dict[str, str]:
-    reason = str(classification.get("reason") or "unsupported_state")
-    if reason == "auditor_stop":
-        failure_key = make_failure_key("auditor_stop", record.run_id, "latest-audit", "stop")
-        summary = f"Auditor requested stop for run {record.run_id}."
-        required = "Review the auditor stop conclusion and choose whether to stop or continue manually."
-    elif reason in {"auditor_must_fix", "auditor_refocus"}:
-        failure_key = make_failure_key("audit_blocked", record.run_id, "latest-audit", reason)
-        summary = f"Auditor control input requires operator review for run {record.run_id}: {reason}."
-        required = "Review the Auditor control input and choose the next operational action."
-    elif reason == "unsafe_secret":
-        failure_key = make_failure_key("unsafe_secret", record.run_id, "run-artifacts", "secret-signal")
-        summary = f"Unsafe secret signal found for run {record.run_id}."
-        required = "Inspect artifacts for secrets before any automatic continuation."
-    else:
-        failure_key = make_failure_key("unsupported_state", record.run_id, "run-state", reason)
-        summary = f"Run {record.run_id} is in an unsupported supervisor state."
-        required = "Inspect the run state and choose the next operational action."
-    return {
-        "reason": reason,
-        "failure_key": failure_key,
-        "summary": summary,
-        "required_user_decision": required,
-    }
-
-
-def _invalid_run_classification(record: RunRecord) -> dict[str, Any]:
-    return {
-        "run_id": record.run_id,
-        "run_policy": "invalid",
-        "phase": "invalid",
-        "next_action": "",
-        "auditor_verdict": "unavailable",
-        "classification": "needs_user_decision",
-        "action": "request_user_decision",
-        "reason": "unsupported_state",
-        "evidence_paths": [_relative_to_repo(record.repo_root, record.run_json_path)],
-    }
-
-
-def _check_all_services(config: SupervisorConfig) -> list[dict[str, Any]]:
-    services = [ServiceConfig(**item) for item in DEFAULT_SERVICES]
-    return [check_service_health(config, service) for service in services]
-
-
-def _service_data_freshness(project_root: Path, service: ServiceConfig) -> dict[str, Any]:
-    targets_path = supervisor_dir(project_root) / "freshness-targets.jsonl"
-    if not targets_path.exists():
-        return {
-            "status": "not_applicable",
-            "status_label": MISSING_FRESHNESS_TARGET_LABEL,
-            "target_id": "",
-            "checks": [],
-            "evidence": f"{MISSING_FRESHNESS_TARGET_LABEL}: freshness target missing",
-        }
-
-    try:
-        targets = _read_freshness_targets(targets_path)
-    except ValueError as exc:
-        return {
-            "status": "fail",
-            "status_label": _freshness_status_label("fail"),
-            "target_id": "",
-            "checks": [],
-            "evidence": f"freshness target artifact malformed: {exc}",
-        }
-
-    matching: list[dict[str, Any]] = []
-    for target in targets:
-        checks = _freshness_checks_for_service(target, service)
-        if not checks:
-            continue
-        status = str(target.get("status") or "not_applicable")
-        if status not in {"pass", "fail", "not_applicable"}:
-            status = "fail"
-        matching.append(
-            {
-                "status": status,
-                "status_label": _freshness_status_label(status),
-                "target_id": str(target.get("target_id") or ""),
-                "source_run_id": str(target.get("source_run_id") or ""),
-                "target_commit": str(target.get("target_commit") or ""),
-                "domain": str(target.get("domain") or ""),
-                "checks": checks,
-                "verified_at": str(target.get("verified_at") or ""),
-                "evidence": "freshness target read from .codex/supervisor/freshness-targets.jsonl",
-            }
-        )
-
-    if not matching:
-        return {
-            "status": "not_applicable",
-            "status_label": MISSING_FRESHNESS_TARGET_LABEL,
-            "target_id": "",
-            "checks": [],
-            "evidence": f"{MISSING_FRESHNESS_TARGET_LABEL}: no freshness target applies to this service",
-        }
-    return matching[-1]
-
-
-def _freshness_status_label(status: str) -> str:
-    if status == "pass":
-        return "通过"
-    if status == "fail":
-        return "失败"
-    return MISSING_FRESHNESS_TARGET_LABEL
-
-
-def _read_freshness_targets(path: Path) -> list[dict[str, Any]]:
-    targets: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            if not line.strip():
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"{path}:{line_number}: {exc.msg}") from exc
-            if not isinstance(payload, dict):
-                raise ValueError(f"{path}:{line_number}: target must be a JSON object")
-            targets.append(payload)
-    return targets
-
-
-def _write_jsonl_records(path: Path, records: list[Mapping[str, Any]]) -> None:
-    json_path = Path(path)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = json_path.with_suffix(json_path.suffix + f".tmp-{os.getpid()}")
-    with temporary_path.open("w", encoding="utf-8") as handle:
-        for record in records:
-            json.dump(dict(record), handle, sort_keys=True)
-            handle.write("\n")
-        handle.flush()
-        os.fsync(handle.fileno())
-    temporary_path.replace(json_path)
-
-
-def _freshness_checks_for_service(target: Mapping[str, Any], service: ServiceConfig) -> list[str]:
-    checks: list[str] = []
-    if service.service == "crawler-backend":
-        api_checks = target.get("api_checks")
-        if isinstance(api_checks, list):
-            for item in api_checks:
-                if isinstance(item, Mapping):
-                    kind = str(item.get("kind") or "").strip()
-                    if kind:
-                        checks.append(kind)
-        if not checks and target.get("wiki_paths"):
-            checks.append("wiki-page")
-        if not checks and target.get("search_terms"):
-            checks.append("search")
-    elif service.service == "crawler-frontend":
-        frontend_checks = target.get("frontend_checks")
-        if isinstance(frontend_checks, list) and frontend_checks:
-            checks.append("frontend-visible")
-        elif target.get("expected_frontend_text"):
-            checks.append("frontend-visible")
-    return _unique_strings(checks)
-
-
-def _check_running_version(
-    project_root: Path,
-    service: ServiceConfig,
-    runtime_path: Path,
-    *,
-    reachable: bool,
-    tmux_ok: bool,
-) -> dict[str, Any]:
-    rel_path = _relative_to_repo(project_root, runtime_path)
-    if not runtime_path.exists():
-        return {
-            "git_head": "",
-            "origin_main": "",
-            "matches_expected": False,
-            "freshness": "unavailable",
-            "runtime_metadata_path": rel_path,
-            "evidence": "runtime metadata missing; version freshness unavailable",
-        }
-
-    errors: list[str] = []
-    try:
-        metadata = _read_json(runtime_path)
-    except Exception as exc:
-        return {
-            "git_head": "",
-            "origin_main": "",
-            "matches_expected": False,
-            "freshness": "unavailable",
-            "runtime_metadata_path": rel_path,
-            "evidence": f"runtime metadata invalid: {exc}",
-        }
-
-    git_head = str(metadata.get("git_head") or "")
-    origin_main = str(metadata.get("origin_main") or "")
-    if service.port is not None and metadata.get("port") != service.port:
-        errors.append(f"runtime port mismatch: expected {service.port}, got {metadata.get('port')}")
-    if service.tmux_session and metadata.get("tmux_session") != service.tmux_session:
-        errors.append(
-            f"runtime tmux session mismatch: expected {service.tmux_session}, got {metadata.get('tmux_session')}"
-        )
-    cwd_path = Path(str(metadata.get("cwd") or project_root))
-    if not _is_under(cwd_path, project_root):
-        errors.append(f"runtime cwd is outside project root: {cwd_path}")
-    runtime_code_fingerprint = str(metadata.get("code_fingerprint") or "")
-    try:
-        expected_code_fingerprint = _service_code_fingerprint(project_root, service.service)
-    except (OSError, RuntimeError) as exc:
-        expected_code_fingerprint = ""
-        errors.append(f"service code fingerprint failed: {exc}")
-    if not runtime_code_fingerprint:
-        errors.append("runtime code fingerprint missing")
-    elif expected_code_fingerprint and runtime_code_fingerprint != expected_code_fingerprint:
-        errors.append("service code fingerprint mismatch")
-    matches_expected = not errors
-    return {
-        "git_head": git_head,
-        "origin_main": origin_main,
-        "code_fingerprint": runtime_code_fingerprint,
-        "expected_code_fingerprint": expected_code_fingerprint,
-        "matches_expected": matches_expected,
-        "freshness": "fresh" if matches_expected else "stale",
-        "runtime_metadata_path": rel_path,
-        "evidence": "runtime metadata matches expected version" if matches_expected else "; ".join(errors),
-    }
-
-
-def _latest_auditor_summary(run_record: RunRecord) -> dict[str, Any] | None:
-    audit_dir = run_record.run_json_path.parent / "audit-reports"
-    if not audit_dir.is_dir():
-        return None
-    candidates = [path for path in audit_dir.glob("audit-*.json") if path.is_file()]
-    if not candidates:
-        return None
-    latest_path = max(candidates, key=lambda path: (_audit_number(path), path.stat().st_mtime_ns, path.name))
-    try:
-        payload = _read_json(latest_path)
-    except Exception:
-        return None
-    payload["_artifact_path"] = _relative_to_repo(run_record.repo_root, latest_path)
-    return payload
-
-
-def _global_stop_result(project_root: Path) -> dict[str, Any]:
-    open_decisions = _open_user_decision_records(project_root)
-    condition: dict[str, Any] = {
-        "condition": "open_user_decisions",
-        "status": "continue",
-        "count": 0,
-        "evidence_paths": [],
-    }
-    if open_decisions:
-        condition = {
-            **condition,
-            "status": "stop",
-            "count": len(open_decisions),
-            "evidence_paths": [item["path"] for item in open_decisions],
-        }
-        return {
-            "status": "blocked",
-            "reason": "global_stop_open_user_decision",
-            "checked_conditions": [condition],
-        }
-    return {
-        "status": "continue",
-        "reason": "none",
-        "checked_conditions": [condition],
-    }
-
-
-def _open_user_decision_records(project_root: Path) -> list[dict[str, Any]]:
-    decisions_dir = supervisor_dir(project_root) / "needs-user-decisions"
-    if not decisions_dir.exists():
-        return []
-    records: list[dict[str, Any]] = []
-    for path in sorted(decisions_dir.glob("*.json")):
-        try:
-            payload = _read_json(path)
-        except Exception:
-            continue
-        if payload.get("status") == "open":
-            records.append({"path": _relative_to_repo(project_root, path), "payload": payload})
-    return records
-
-
-def _archive_stale_user_decisions(project_root: Path, run_records: list[RunRecord]) -> list[str]:
-    classifications_by_run: dict[str, list[dict[str, Any]]] = {}
-    for record in run_records:
-        classification = classify_run(record) if record.valid else _invalid_run_classification(record)
-        classifications_by_run.setdefault(record.run_id, []).append(classification)
-
-    archived_ids: list[str] = []
-    for record in _open_user_decision_records(project_root):
-        payload = record["payload"]
-        affected_runs = payload.get("affected_runs")
-        if not isinstance(affected_runs, list) or not affected_runs:
-            continue
-        still_requires_decision = False
-        for run_id in (str(value) for value in affected_runs if str(value)):
-            classifications = classifications_by_run.get(run_id, [])
-            if any(item.get("classification") == "needs_user_decision" for item in classifications):
-                still_requires_decision = True
-                break
-        if still_requires_decision:
-            continue
-        decision_path = project_root / record["path"]
-        updated = {
-            **payload,
-            "status": "archived",
-            "archived_at": utc_now_iso(),
-            "archived_reason": "affected runs no longer require a user decision",
-        }
-        _write_json(decision_path, updated)
-        append_jsonl(supervisor_dir(project_root) / "archived-user-decisions.jsonl", updated)
-        archived_ids.append(str(updated.get("decision_id") or ""))
-    return archived_ids
-
-
-def _maybe_restart_services(config: SupervisorConfig, service_health: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if config.dry_run or not config.restart_services:
-        return []
-    results: list[dict[str, Any]] = []
-    for service in service_health:
-        if service.get("status") == "healthy":
-            continue
-        session = str(service.get("tmux_session") or "")
-        if not session:
-            continue
-        try:
-            restart_result = restart_service(config, session)
-            if restart_result.get("status") == "started":
-                verification = check_service_health(config, _service_config_from_health(service))
-                restart_result = {
-                    **restart_result,
-                    "service": str(service.get("service") or session),
-                    "verification_status": verification.get("status", "degraded"),
-                    "verification": verification,
-                }
-                recovery_status = "pass" if verification.get("status") == "healthy" else "fail"
-                failure_key = make_failure_key(
-                    "service_down",
-                    "project",
-                    str(service.get("service") or session),
-                    "restart_failed",
-                )
-                recovery_attempt = record_recovery_attempt(
-                    config.project_root,
-                    RecoveryAttemptInput(
-                        failure_key=failure_key,
-                        run_id="",
-                        action="restart_service",
-                        status=recovery_status,
-                        summary=(
-                            f"service_recovered: Automatic restart restored service {service.get('service') or session}."
-                            if recovery_status == "pass"
-                            else (
-                                "service_unrecoverable: Automatic restart started tmux but follow-up health "
-                                f"remained {verification.get('status', 'degraded')}: {verification.get('last_error', '')}"
-                            )
-                        ),
-                        evidence_paths=[str(verification.get("running_version", {}).get("runtime_metadata_path") or "")],
-                    ),
-                )
-                restart_result["recovery_attempt"] = recovery_attempt
-            results.append(restart_result)
-        except Exception as exc:
-            service_name = str(service.get("service") or session)
-            failure_key = make_failure_key("service_down", "project", service_name, "restart_failed")
-            result = {
-                "session": session,
-                "service": service_name,
-                "status": "error",
-                "error": str(exc),
-                "failure_key": failure_key,
-            }
-            recovery_attempt = record_recovery_attempt(
-                config.project_root,
-                RecoveryAttemptInput(
-                    failure_key=failure_key,
-                    run_id="",
-                    action="restart_service",
-                    status="fail",
-                    summary=f"service_unrecoverable: Automatic restart failed for service {service_name}: {exc}",
-                    evidence_paths=[],
-                ),
-            )
-            result["recovery_attempt"] = recovery_attempt
-            results.append(result)
-    return results
-
-
-def _service_config_from_health(service: Mapping[str, Any]) -> ServiceConfig:
-    port_value = service.get("port")
-    if port_value is None:
-        endpoint = str(service.get("expected_endpoint") or "")
-        match = re.search(r":(\d+)(?:/|$)", endpoint)
-        port_value = int(match.group(1)) if match else None
-    return ServiceConfig(
-        service=str(service.get("service") or ""),
-        kind=str(service.get("kind") or "http_and_tmux"),
-        expected_endpoint=str(service.get("expected_endpoint") or ""),
-        tmux_session=str(service.get("tmux_session") or ""),
-        port=port_value if isinstance(port_value, int) else None,
-    )
-
-
-def _run_json_paths(project_root: Path, *, include_worktrees: bool) -> list[Path]:
-    paths = sorted((project_root / ".codex" / "loop-runs").glob("*/run.json"))
-    if include_worktrees:
-        worktrees_root = project_root / ".worktrees"
-        if worktrees_root.exists():
-            for worktree in sorted(worktrees_root.iterdir()):
-                if worktree.is_dir() and not worktree.is_symlink():
-                    paths.extend(sorted((worktree / ".codex" / "loop-runs").glob("*/run.json")))
-    return paths
-
-
-def _repo_root_for_run_json(project_root: Path, run_json_path: Path) -> Path:
-    parts = run_json_path.resolve().parts
-    for index in range(len(parts) - 2):
-        if parts[index] == ".codex" and parts[index + 1] == "loop-runs":
-            return Path(*parts[:index])
-    return project_root
-
-
-def _check_http_endpoint(endpoint: str, timeout_seconds: float) -> tuple[bool, str]:
-    if not endpoint:
-        return False, "endpoint not configured"
-    try:
-        request = Request(endpoint, method="GET")
-        with urlopen(request, timeout=timeout_seconds) as response:  # nosec B310 - local configured health URL.
-            status = int(getattr(response, "status", 200))
-        if status >= 400:
-            return False, f"endpoint returned HTTP {status}: {endpoint}"
-        return True, "endpoint reachable"
-    except HTTPError as exc:
-        return False, f"endpoint returned HTTP {exc.code}: {endpoint}"
-    except (OSError, URLError) as exc:
-        return False, f"endpoint unreachable: {endpoint}: {exc}"
-
-
 def _tmux_has_session(session: str) -> tuple[bool, str]:
     if not session:
         return False, "tmux session not configured"
@@ -1292,17 +234,9 @@ def _tmux_has_session(session: str) -> tuple[bool, str]:
         return False, f"tmux has-session timed out for {session}"
     if result.returncode == 0:
         return True, "tmux session exists"
-    return False, f"tmux session missing: {session}: {result.stderr or result.stdout}".strip()
-
-
-def _pid_exists(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return False, (
+        f"tmux session missing: {session}: {result.stderr or result.stdout}"
+    ).strip()
 
 
 def _git_head(cwd: Path) -> str:
@@ -1325,150 +259,10 @@ def _git_head(cwd: Path) -> str:
     return result.stdout.strip()
 
 
-def _previous_commit(record: RunRecord) -> str:
-    run = record.payload
-    for key in ("commit", "git_head", "head"):
-        value = run.get(key)
-        if isinstance(value, str) and value:
-            return value
-    commit_state = run.get("autonomous_commit_state")
-    if isinstance(commit_state, Mapping):
-        value = commit_state.get("commit")
-        if isinstance(value, str) and value:
-            return value
-    identity = {
-        "run_id": record.run_id,
-        "task_id": str(run.get("task_id") or ""),
-        "phase": str(run.get("phase") or ""),
-        "domain": str(run.get("domain") or ""),
-        "policy_file": str(run.get("policy_file") or ""),
-    }
-    digest = hashlib.sha256(json.dumps(identity, sort_keys=True).encode("utf-8")).hexdigest()[:12]
-    return f"run-identity-{digest}"
-
-
-def _parent_counter(run: Mapping[str, Any]) -> int:
-    candidates = [run.get("parent_task_counter"), run.get("task_id"), run.get("run_id")]
-    for candidate in candidates:
-        if isinstance(candidate, int) and candidate >= 0:
-            return candidate
-        if isinstance(candidate, str):
-            match = re.search(r"parent-(\d+)", candidate)
-            if match:
-                return int(match.group(1))
-    return 0
-
-
-def _audit_interval(run: Mapping[str, Any]) -> int:
-    cadence = run.get("audit_cadence")
-    if isinstance(cadence, Mapping):
-        value = cadence.get("interval")
-        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
-            return value
-    return 2
-
-
-def _completed_since_last_audit(run: Mapping[str, Any]) -> int:
-    completed = run.get("_autonomous_completed_task_ids")
-    completed_count = len(completed) if isinstance(completed, list) else 0
-    state = run.get("_audit_cadence_state")
-    last_audited = 0
-    carried = 0
-    if isinstance(state, Mapping):
-        value = state.get("last_audited_progress_count")
-        if isinstance(value, int) and not isinstance(value, bool):
-            last_audited = max(0, value)
-        carry_value = state.get("carried_completed_since_last_audit")
-        if isinstance(carry_value, int) and not isinstance(carry_value, bool):
-            carried = max(0, carry_value)
-    return max(0, completed_count - last_audited) + carried
-
-
-def _create_continuation_run(
-    config: SupervisorConfig,
-    source_record: RunRecord,
-    plan: Mapping[str, Any],
-) -> dict[str, Any]:
-    root = Path(source_record.repo_root)
-    next_run_id = str(plan["next_run_id"])
-    target_path = root / ".codex" / "loop-runs" / next_run_id / "run.json"
-    source = source_record.payload
-    semantic_next = int(plan["semantic_parent_task_next"])
-    try:
-        with acquire_run_lock(root, next_run_id, owner=f"loop-supervisor-create:{os.getpid()}"):
-            if target_path.exists():
-                current = load_run(root, next_run_id)
-                previous_run_id = str(current.get("previous_run_id") or "")
-                if previous_run_id and previous_run_id != source_record.run_id:
-                    raise RuntimeError(f"continuation target already belongs to another source run: {next_run_id}")
-                if previous_run_id == source_record.run_id:
-                    return {**dict(plan), "status": "created", "dry_run": False}
-                attempts = current.get("attempts")
-                attempt_values = attempts.values() if isinstance(attempts, Mapping) else []
-                if current.get("phase") not in {"preflight", "planning"} or any(int(value or 0) for value in attempt_values):
-                    raise RuntimeError(f"incomplete continuation target has already started: {next_run_id}")
-            else:
-                requirement = (
-                    f"{str(source.get('requirement') or '').strip()} "
-                    f"Continue from {source_record.run_id}; the next semantic parent task is parent-{semantic_next}."
-                ).strip()
-                create_preflight_run(
-                    repo_root=root,
-                    mode="autonomous-knowledge",
-                    requirement=requirement,
-                    run_id=next_run_id,
-                    domain=str(source.get("domain") or ""),
-                    constraints=[str(item) for item in source.get("constraints", []) if isinstance(item, str)],
-                    stop_conditions=[str(item) for item in source.get("stop_conditions", []) if isinstance(item, str)],
-                    policy_file=str(source.get("policy_file") or ""),
-                    confirm=False,
-                )
-                current = load_run(root, next_run_id)
-            carried = int(plan["audit_cadence_state"]["completed_since_last_audit"])
-            current.update(
-                {
-                    "phase": "planning",
-                    "next_action": "run_autonomous_planner",
-                    "last_result": "none",
-                    "previous_run_id": source_record.run_id,
-                    "previous_commit": str(plan.get("previous_commit") or ""),
-                    "continuation_plan_id": str(plan.get("plan_id") or ""),
-                    "parent_task_counter": int(plan["parent_task_counter"]),
-                    "semantic_parent_task_next": semantic_next,
-                    "_audit_cadence_state": {
-                        "unit": "parent_task",
-                        "interval": int(plan["audit_cadence_state"]["interval"]),
-                        "last_audited_progress_count": 0,
-                        "carried_completed_since_last_audit": carried,
-                        "updated_at": utc_now_iso(),
-                    },
-                }
-            )
-            save_run(root, current)
-    except RunLockBusy as exc:
-        raise RuntimeError(f"continuation target run is locked by {exc.current_owner or 'another executor'}") from exc
-    return {**dict(plan), "status": "created", "dry_run": False, "created_at": utc_now_iso()}
-
-
-def _current_actionable_decision(decisions: list[Mapping[str, Any]], project_root: Path) -> dict[str, Any] | None:
-    root = str(project_root.resolve())
-    actionable_actions = {"create_continuation", "request_user_decision", "restart_service", "stop"}
-    for decision in reversed(decisions):
-        repo_root = str(decision.get("repo_root") or "")
-        try:
-            same_root = str(Path(repo_root).resolve()) == root
-        except OSError:
-            same_root = False
-        if same_root and str(decision.get("action") or "") in actionable_actions:
-            return dict(decision)
-    return None
-
-
 def _service_code_fingerprint(project_root: Path, service_name: str) -> str:
     paths = SERVICE_CODE_PATHS.get(service_name)
     if not paths:
         raise RuntimeError(f"service code paths are not configured: {service_name}")
-    digest = hashlib.sha256()
     files: list[Path] = []
     for relative in paths:
         path = Path(project_root) / relative
@@ -1479,103 +273,27 @@ def _service_code_fingerprint(project_root: Path, service_name: str) -> str:
                 candidate
                 for candidate in path.rglob("*")
                 if candidate.is_file()
-                and not any(part in {"node_modules", "dist", "build", "__pycache__", ".pytest_cache"} for part in candidate.parts)
+                and not any(
+                    part
+                    in {
+                        "node_modules",
+                        "dist",
+                        "build",
+                        "__pycache__",
+                        ".pytest_cache",
+                    }
+                    for part in candidate.parts
+                )
             )
     if not files:
         raise RuntimeError(f"service code files are missing: {service_name}")
+    digest = hashlib.sha256()
     for path in sorted(files):
         digest.update(str(path.relative_to(project_root)).encode("utf-8"))
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return f"sha256:{digest.hexdigest()}"
-
-
-def _audit_number(path: Path) -> int:
-    match = re.match(r"^audit-(\d+)$", path.stem)
-    if not match:
-        return 0
-    return int(match.group(1))
-
-
-def _has_unsafe_secret_signal(run: Mapping[str, Any]) -> bool:
-    for key in ("unsafe_secret_detected", "secret_detected"):
-        if run.get(key) is True:
-            return True
-    signals = run.get("supervisor_signals")
-    if isinstance(signals, Mapping):
-        return bool(signals.get("unsafe_secret"))
-    return False
-
-
-def _count_open_user_decisions(project_root: Path) -> int:
-    return len(_open_user_decision_records(project_root))
-
-
-def _event(event: str, summary: str, config: SupervisorConfig) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "event": event,
-        "created_at": utc_now_iso(),
-        "project_root": str(config.project_root),
-        "mode": config.mode,
-        "dry_run": config.dry_run,
-        "summary": summary,
-    }
-
-
-def _empty_auto_resume_result(project_root: Path) -> dict[str, Any]:
-    return {
-        "project_root": str(project_root),
-        "candidate_count": 0,
-        "resumed_count": 0,
-        "dry_run_count": 0,
-        "error_count": 0,
-        "resumed": [],
-        "errors": [],
-    }
-
-
-def _touch_required_streams(supervisor_root: Path) -> None:
-    supervisor_root.mkdir(parents=True, exist_ok=True)
-    for name in ("events.jsonl", "run-decisions.jsonl", "continuation-plans.jsonl", "recovery-attempts.jsonl"):
-        (supervisor_root / name).touch(exist_ok=True)
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    with Path(path).open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-    if not isinstance(payload, dict):
-        raise ValueError(f"JSON payload must be an object: {path}")
-    return payload
-
-
-def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with Path(path).open("w", encoding="utf-8") as handle:
-        json.dump(dict(payload), handle, indent=2, sort_keys=True)
-        handle.write("\n")
-
-
-def _relative_to_repo(repo_root: Path, path: Path) -> str:
-    try:
-        return str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
-    except ValueError:
-        return str(path)
-
-
-def _is_under(path: Path, root: Path) -> bool:
-    try:
-        Path(path).resolve().relative_to(Path(root).resolve())
-    except ValueError:
-        return False
-    return True
-
-
-def _safe_slug(value: str) -> str:
-    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value).strip())
-    normalized = re.sub(r"-+", "-", normalized).strip("-")
-    return normalized or "unknown"
 
 
 def _service_config_fingerprint(
@@ -1599,15 +317,24 @@ def _service_config_fingerprint(
     return f"sha256:{hashlib.sha256(encoded.encode('utf-8')).hexdigest()}"
 
 
-def _unique_strings(values: list[str]) -> list[str]:
-    unique: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        if value in seen:
-            continue
-        seen.add(value)
-        unique.append(value)
-    return unique
+def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(dict(payload), handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+def _relative_to_repo(repo_root: Path, path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(repo_root.resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _safe_slug(value: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value).strip())
+    normalized = re.sub(r"-+", "-", normalized).strip("-")
+    return normalized or "unknown"
 
 
 def _print_json(payload: Mapping[str, Any]) -> None:
@@ -1615,7 +342,9 @@ def _print_json(payload: Mapping[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the Loop Supervisor once or in watch mode.")
+    parser = argparse.ArgumentParser(
+        description="Run the SQLite Loop Supervisor once or in watch mode."
+    )
     parser.add_argument("--project-root", default=".")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--once", action="store_true")
@@ -1624,8 +353,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-seconds", type=int, default=30)
     parser.add_argument("--max-ticks", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--include-worktrees", dest="include_worktrees", action="store_true", default=True)
-    parser.add_argument("--no-include-worktrees", dest="include_worktrees", action="store_false")
+    parser.add_argument(
+        "--include-worktrees",
+        dest="include_worktrees",
+        action="store_true",
+        default=True,
+    )
+    parser.add_argument(
+        "--no-include-worktrees", dest="include_worktrees", action="store_false"
+    )
     parser.add_argument("--restart-services", action="store_true")
     parser.add_argument("--no-create-continuations", action="store_true")
     parser.add_argument("--service-command", default="")
@@ -1641,7 +377,9 @@ def main(argv: list[str] | None = None) -> int:
         if not args.service_command:
             parser.error("--write-service-runtime requires --service-command")
         if args.service_pid is None or args.service_pid <= 0:
-            parser.error("--write-service-runtime requires --service-pid for the long-running service process")
+            parser.error(
+                "--write-service-runtime requires --service-pid for the long-running service process"
+            )
         metadata = write_service_runtime_metadata(
             project_root,
             service_name=args.write_service_runtime,
@@ -1667,8 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     tick = 0
     while True:
         tick += 1
-        result = run_supervisor_once(config)
-        _print_json(result)
+        _print_json(run_supervisor_once(config))
         if not args.watch or (args.max_ticks and tick >= args.max_ticks):
             return 0
         time.sleep(max(args.interval_seconds, 1))
