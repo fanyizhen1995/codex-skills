@@ -150,7 +150,14 @@ class HarnessLoopAutoResumeTests(unittest.TestCase):
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
             self.assertEqual(run["last_result"], "pass")
             self.assertEqual(run["_audit_remediation"]["status"], "resolved")
-            self.assertTrue((run_dir_for(worktree_root, "audit-stuck") / "audit-reports" / "audit-002.json").exists())
+            self.assertFalse(
+                (run_dir_for(worktree_root, "audit-stuck") / "audit-reports" / "audit-002.json").exists()
+            )
+            remediation = read_json_file(
+                run_dir_for(worktree_root, "audit-stuck")
+                / "audit-remediation-result.json"
+            )
+            self.assertEqual(remediation["new_audit_report"], "")
 
     def test_resume_once_dry_run_finds_autonomous_dirty_path_blocked_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

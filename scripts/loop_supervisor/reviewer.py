@@ -21,6 +21,7 @@ from scripts.harness_loop_agents import run_codex_prompt, validate_owned_regular
 from scripts.harness_loop_contracts import validate_run_id
 
 from .models import (
+    ActionOwner,
     ActionRequest,
     ActionResult,
     ActionResultClass,
@@ -30,8 +31,11 @@ from .models import (
     ReviewerExecutionResult,
     SupervisorReview,
 )
-from .registry import review_transition_for, reviewer_schedule_transition
-from .store import SupervisorStore
+from .registry import reviewer_schedule_transition
+from .reviewer_runtime import ActionLeaseGuard
+from .reviewer_safety import ReviewSafetyGate, evaluate_review_safety_gate
+from .reviewer_outbox import ApplicationCutpoint, apply_review_outbox
+from .store import LeaseError, SupervisorStore
 
 
 ALLOWED_REVIEW_DECISIONS = frozenset(decision.value for decision in ReviewDecision)
@@ -125,14 +129,15 @@ def schedule_due_reviews(
         lineages = sorted(item.lineage_id for item in group)
         positions = {item.lineage_id: item.cadence_position for item in group}
         due_at = min(item.due_at for item in group)
+        not_before = due_at + REVIEW_COALESCE_WINDOW
         representative = min(group, key=lambda item: item.lineage_id).representative_run
         pending = _pending_review_for_window(store, due_at)
         if pending is not None:
-            pending_payload = _json_object(pending.get("payload_json"))
+            pending_payload = _json_object(pending.get("payload"))
             lineages = sorted(
                 set(lineages) | set(_string_list(pending_payload.get("triggering_lineages")))
             )
-            pending_positions = pending_payload.get("cadence_positions")
+            pending_positions = pending.get("positions")
             if isinstance(pending_positions, Mapping):
                 positions.update(
                     {
@@ -143,8 +148,9 @@ def schedule_due_reviews(
                         and not isinstance(value, bool)
                     }
                 )
-            pending_due_at = _coerce_datetime(str(pending_payload.get("due_at") or ""))
+            pending_due_at = _coerce_datetime(str(pending.get("due_at") or ""))
             due_at = min(due_at, pending_due_at)
+            not_before = _coerce_datetime(str(pending.get("not_before") or ""))
             representative = store.get_run(str(pending["run_id"]))
         rule = reviewer_schedule_transition()
         identity = {
@@ -152,9 +158,17 @@ def schedule_due_reviews(
             "triggering_lineages": lineages,
             "cadence_positions": positions,
         }
+        reservation_id = (
+            str(pending["reservation_id"])
+            if pending is not None
+            else "review-reservation-"
+            + hashlib.sha256(_canonical_json(identity)).hexdigest()[:24]
+        )
         payload = {
             **identity,
             "due_at": due_at.isoformat(),
+            "not_before": not_before.isoformat(),
+            "reservation_id": reservation_id,
             "mutates_git": rule.mutates_git,
             "worker_executable": rule.worker_executable,
         }
@@ -167,12 +181,18 @@ def schedule_due_reviews(
                 phase=str(pending["phase"]),
                 action_type=rule.action_type,
                 idempotency_key=str(pending["idempotency_key"]),
+                queue_owner=ActionOwner.REVIEWER,
+                not_before=not_before.isoformat(),
                 repo_relative_root=str(pending["repo_relative_root"]),
                 task_id=str(pending["task_id"]),
                 next_action="supervisor_reviewer",
                 payload=payload,
             )
-            store.update_pending_action(request)
+            store.coalesce_review_reservation(
+                request,
+                reservation_id=reservation_id,
+                lineage_positions=positions,
+            )
         else:
             digest = hashlib.sha256(_canonical_json(identity)).hexdigest()
             request = ActionRequest(
@@ -183,12 +203,21 @@ def schedule_due_reviews(
                 phase=str(representative["phase"]),
                 action_type=rule.action_type,
                 idempotency_key=f"review-cadence:{digest}",
+                queue_owner=ActionOwner.REVIEWER,
+                not_before=not_before.isoformat(),
                 repo_relative_root=".",
                 task_id=f"review:{digest[:24]}",
                 next_action="supervisor_reviewer",
                 payload=payload,
             )
-            store.enqueue_action(request, priority=25)
+            store.reserve_review_action(
+                request,
+                reservation_id=reservation_id,
+                lineage_positions=positions,
+                due_at=due_at,
+                not_before=not_before,
+                priority=25,
+            )
         requests.append(request)
     return requests
 
@@ -198,17 +227,12 @@ def _pending_review_for_window(
     due_at: datetime,
 ) -> Mapping[str, Any] | None:
     candidates: list[tuple[datetime, Mapping[str, Any]]] = []
-    for row in store.fetch_all("actions"):
-        if (
-            row.get("action_type") != ActionType.RUN_REVIEWER.value
-            or row.get("status") != "pending"
-        ):
-            continue
-        payload = _json_object(row.get("payload_json"))
+    for row in store.pending_review_reservations():
+        payload = _json_object(row.get("payload"))
         if payload.get("trigger") != "regular_cadence":
             continue
         try:
-            pending_due_at = _coerce_datetime(str(payload.get("due_at") or ""))
+            pending_due_at = _coerce_datetime(str(row.get("due_at") or ""))
         except (TypeError, ValueError):
             continue
         if abs(due_at - pending_due_at) <= REVIEW_COALESCE_WINDOW:
@@ -236,9 +260,10 @@ def build_review_evidence(
     completions = _semantic_parent_completions(runs, run_payloads)
     reviewed_positions = _reviewed_cadence_positions(store)
     cadence_positions = {lineage: len(completions.get(lineage, ())) for lineage in lineages}
-    skill_snapshot = _build_skill_snapshot(root, run_payloads)
+    skill_snapshot = _build_skill_snapshot(root, run_payloads, store)
     agent_summaries = _agent_evaluator_summaries(root, run_payloads)
     generated_at = store.format_time(store.current_time())
+    from .reconciler import _state_fingerprint
 
     objective_constraints = []
     for row in sorted(runs, key=lambda item: str(item.get("run_id") or "")):
@@ -253,6 +278,9 @@ def build_review_evidence(
                 "stop_conditions": _string_list(payload.get("stop_conditions")),
                 "policy": str(row.get("policy") or ""),
                 "phase": str(row.get("phase") or ""),
+                "revision": int(row.get("revision") or 0),
+                "state_fingerprint": str(row.get("state_fingerprint") or "")
+                or _state_fingerprint(payload),
             }
         )
 
@@ -321,11 +349,6 @@ def build_review_evidence(
         evidence_hashes=evidence_hashes,
         bundle_hash=f"sha256:{hashlib.sha256(_canonical_json(bundle_body)).hexdigest()}",
     )
-    store.record_skill_snapshot(
-        skill_snapshot,
-        snapshot_id=f"skill-snapshot-{bundle.bundle_hash.removeprefix('sha256:')[:24]}",
-        created_at=generated_at,
-    )
     return bundle
 
 
@@ -335,6 +358,8 @@ def validate_review_payload(
     expected_evidence_hashes: Sequence[str] | None = None,
     allowed_run_ids: Sequence[str] | None = None,
     allowed_skill_paths: Sequence[str] | None = None,
+    reviewed_runs: Mapping[str, Mapping[str, Any]] | None = None,
+    existing_findings: Sequence[Mapping[str, Any]] | None = None,
 ) -> SupervisorReview:
     """Validate one untrusted Reviewer candidate before Supervisor accepts it."""
     if not isinstance(payload, Mapping):
@@ -363,6 +388,22 @@ def validate_review_payload(
         unknown = set(affected) - set(allowed_run_ids)
         if unknown:
             raise ValueError(f"review references unknown affected runs: {sorted(unknown)}")
+    reviewed = dict(reviewed_runs or {})
+    if reviewed and not set(affected) <= set(reviewed):
+        raise ValueError("reviewed_runs must cover every affected run")
+    for run_id, state in reviewed.items():
+        if not isinstance(state, Mapping):
+            raise TypeError("reviewed run state must be an object")
+        revision = state.get("revision")
+        fingerprint = state.get("state_fingerprint")
+        if (
+            not isinstance(revision, int)
+            or isinstance(revision, bool)
+            or revision < 0
+            or not isinstance(fingerprint, str)
+            or not _HASH_REF.fullmatch(fingerprint)
+        ):
+            raise ValueError(f"reviewed run state is invalid: {run_id}")
 
     summary = _required_string(payload.get("summary"), "summary")
     if len(summary) > 4_096:
@@ -376,6 +417,7 @@ def validate_review_payload(
         payload.get("findings"),
         expected,
         allowed_run_ids=set(allowed_run_ids or ()),
+        existing_findings=tuple(existing_findings or ()),
     )
     governance = _validated_skill_governance(
         payload.get("skill_governance"),
@@ -396,208 +438,75 @@ def validate_review_payload(
         findings=findings,
         skill_governance=governance,
         next_review_after_parent_tasks=REVIEW_INTERVAL_PARENTS,
+        reviewed_runs=reviewed,
     )
 
 
 def apply_review_decision(
     store: SupervisorStore,
     review: SupervisorReview,
+    *,
+    lease_checkpoint: Callable[[], None] | None = None,
+    application_cutpoint: ApplicationCutpoint | None = None,
 ) -> list[ActionRequest]:
     """Apply a validated decision through registry-owned Supervisor actions."""
     if not isinstance(review, SupervisorReview):
         raise TypeError("review must be a SupervisorReview")
-    runs = {
-        str(row["run_id"]): store.get_run(str(row["run_id"]))
-        for row in store.fetch_all("runs")
-    }
-    unknown = set(review.affected_run_ids) - set(runs)
-    if unknown:
-        raise ValueError(f"review references unknown affected runs: {sorted(unknown)}")
-    rule = review_transition_for(review.decision)
-    if review.decision is ReviewDecision.CONTINUE:
-        return []
-
-    actions: list[ActionRequest] = []
-    for run_id in review.affected_run_ids:
-        run = runs[run_id]
-        execution_root, run_path, run_payload = _review_target_run(store, run)
-        identity = {
-            "review_id": review.review_id,
-            "run_id": run_id,
-            "run_revision": int(run["revision"]),
-            "decision": review.decision.value,
-        }
-        digest = hashlib.sha256(_canonical_json(identity)).hexdigest()
-        request = ActionRequest(
-            action_id=f"action-review-decision-{digest[:16]}",
-            run_id=run_id,
-            run_revision=int(run["revision"]),
-            policy=str(run["policy"]),
-            phase=str(run["phase"]),
-            action_type=rule.action_type,
-            idempotency_key=f"review-decision:{digest}",
-            repo_relative_root=execution_root.relative_to(store.project_root).as_posix()
-            or ".",
-            task_id=f"review:{review.review_id}:{run_id}",
-            next_action=review.decision.value,
-            payload={
-                "review_id": review.review_id,
-                "review_decision": review.decision.value,
-                "review_summary": review.summary,
-                "evidence_refs": list(review.evidence_refs),
-                "mutates_git": rule.mutates_git,
-                "worker_executable": rule.worker_executable,
-            },
-        )
-        if review.decision is ReviewDecision.ASK_USER:
-            store.open_user_decision(
-                scope="run",
-                run_id=run_id,
-                failure_key=f"review:{review.review_id}:{run_id}",
-                summary=review.summary,
-                required_decision="Resolve the Reviewer question for this run.",
-            )
-        else:
-            store.enqueue_action(request, priority=20)
-            _apply_supervisor_review_action(
-                store,
-                request=request,
-                review=review,
-                execution_root=execution_root,
-                run_path=run_path,
-                run_payload=run_payload,
-            )
-        actions.append(request)
-    return actions
-
-
-def _review_target_run(
-    store: SupervisorStore,
-    run: Mapping[str, Any],
-) -> tuple[Path, Path, dict[str, Any]]:
-    summary = run.get("summary")
-    refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
-    run_ref = next(
-        (
-            value
-            for value in refs
-            if isinstance(value, str) and value.endswith("/run.json")
-        ),
-        "",
+    checkpoint = lease_checkpoint or (lambda: None)
+    return apply_review_outbox(
+        store,
+        review,
+        lease_checkpoint=checkpoint,
+        application_cutpoint=application_cutpoint,
     )
-    if not run_ref:
-        raise ValueError(f"run projection lacks run.json evidence: {run['run_id']}")
-    path = store.project_root.joinpath(*PurePosixPath(run_ref).parts)
-    safe = validate_owned_regular_file(store.project_root, path, "Reviewer target run")
-    payload = json.loads(safe.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise TypeError("Reviewer target run must be an object")
-    execution_root = safe.parents[3]
-    execution_root.resolve().relative_to(store.project_root)
-    return execution_root, safe, payload
-
-
-def _apply_supervisor_review_action(
-    store: SupervisorStore,
-    *,
-    request: ActionRequest,
-    review: SupervisorReview,
-    execution_root: Path,
-    run_path: Path,
-    run_payload: dict[str, Any],
-) -> None:
-    owner = f"supervisor-reviewer-decision-{review.review_id}"
-    claimed = store.claim_pending_action(request.action_id, owner, lease_seconds=60)
-    if claimed is None:
-        raise RuntimeError(f"Reviewer decision action could not be claimed: {request.action_id}")
-    from .reconciler import _state_fingerprint, atomic_save_run
-
-    original_fingerprint = _state_fingerprint(run_payload)
-    revision = run_payload.get("state_revision", 0)
-    if not isinstance(revision, int) or isinstance(revision, bool):
-        raise ValueError("Reviewer target state_revision must be an int")
-    directives = run_payload.setdefault("reviewer_directives", [])
-    if not isinstance(directives, list):
-        raise ValueError("reviewer_directives must be a list")
-    directive = {
-        "review_id": review.review_id,
-        "decision": review.decision.value,
-        "summary": review.summary,
-        "evidence_refs": list(review.evidence_refs),
-    }
-    if directive not in directives:
-        directives.append(directive)
-    if review.decision is ReviewDecision.STOP_RUN:
-        run_payload["phase"] = "stopped_by_reviewer"
-        run_payload["next_action"] = "none"
-        run_payload["last_result"] = "blocked"
-    else:
-        phase, next_action = _review_planner_transition(run_payload)
-        run_payload["phase"] = phase
-        run_payload["next_action"] = next_action
-        run_payload["last_result"] = "none"
-
-    saved = atomic_save_run(
-        execution_root,
-        request.run_id,
-        run_payload,
-        expected_revision=revision,
-        expected_fingerprint=original_fingerprint,
-    )
-    artifact = run_path.relative_to(execution_root).as_posix()
-    store.complete_action(
-        request.action_id,
-        owner,
-        ActionResult(
-            result_class=ActionResultClass.SUCCESS,
-            summary=f"applied Reviewer {review.decision.value} decision",
-            artifact_paths=(artifact,),
-            checkpoint=f"review-decision:{review.decision.value}",
-        ),
-    )
-    if int(saved["state_revision"]) != revision + 1:
-        raise RuntimeError("Reviewer decision did not advance the run revision")
-
-
-def _review_planner_transition(run: Mapping[str, Any]) -> tuple[str, str]:
-    if run.get("run_kind") == "child":
-        raise ValueError("Reviewer refocus and remediation must target a parent or single run")
-    if run.get("policy") == "autonomous_knowledge":
-        return "planning", "run_autonomous_planner"
-    if run.get("run_kind") == "parent":
-        return "planning", "run_parent_planner"
-    return "planned", "run_planner"
 
 
 def run_reviewer(
     context: ReviewerContext,
     *,
     driver: Callable[..., Mapping[str, Any]] = run_codex_prompt,
+    lease_checkpoint: Callable[[], None] | None = None,
 ) -> ReviewerExecutionResult:
     """Run one real read-only Codex Reviewer and accept only validated JSON."""
     if not isinstance(context, ReviewerContext):
         raise TypeError("context must be a ReviewerContext")
     store = context.store
-    bundle = build_review_evidence(
-        context.project_root,
-        store,
-        context.triggering_lineages,
-    )
+    checkpoint = lease_checkpoint or (lambda: None)
     timestamp = store.current_time().strftime("%Y%m%dT%H%M%SZ")
     review_id = f"review-{timestamp}-{uuid4().hex[:12]}"
     review_dir = context.project_root / ".codex" / "supervisor" / "reviews" / review_id
-    review_dir.mkdir(parents=True, exist_ok=True)
     evidence_path = review_dir / f"{review_id}-evidence.json"
     prompt_path = review_dir / f"{review_id}-prompt.md"
     candidate_path = review_dir / f"{review_id}-candidate.json"
     accepted_path = review_dir / f"{review_id}.json"
-    _write_json_atomic(evidence_path, bundle.as_dict())
-    prompt_path.write_text(_review_prompt(review_id, evidence_path), encoding="utf-8")
-    candidate_path.unlink(missing_ok=True)
-    evidence_ref = evidence_path.relative_to(context.project_root).as_posix()
-    trigger = _review_trigger(bundle)
+    evidence_ref = ""
+    trigger = _canonical_json(
+        {
+            "kind": "project_global",
+            "triggering_lineages": list(context.triggering_lineages),
+        }
+    ).decode("utf-8")
+    gate: ReviewSafetyGate | None = None
+    accepted_review = False
 
     try:
+        checkpoint()
+        gate = evaluate_review_safety_gate(store)
+        checkpoint()
+        bundle = build_review_evidence(
+            context.project_root,
+            store,
+            context.triggering_lineages,
+        )
+        checkpoint()
+        review_dir.mkdir(parents=True, exist_ok=True)
+        _write_json_atomic(evidence_path, bundle.as_dict())
+        evidence_ref = evidence_path.relative_to(context.project_root).as_posix()
+        trigger = _review_trigger(bundle, gate)
+        checkpoint()
+        prompt_path.write_text(_review_prompt(review_id, evidence_path), encoding="utf-8")
+        candidate_path.unlink(missing_ok=True)
+        checkpoint()
         attempt = driver(
             role="supervisor_reviewer",
             run_id=review_id,
@@ -611,6 +520,7 @@ def run_reviewer(
         if not isinstance(attempt, Mapping) or attempt.get("status") != "pass":
             status = str(attempt.get("status") if isinstance(attempt, Mapping) else "invalid_driver_result")
             raise RuntimeError(f"Reviewer execution did not pass: {status}")
+        checkpoint()
         candidate = _read_owned_json(review_dir, candidate_path)
         review = validate_review_payload(
             candidate,
@@ -620,29 +530,48 @@ def run_reviewer(
                 str(item["path"])
                 for item in bundle.evidence["skill_governance"]["inventory"]
             ),
+            reviewed_runs={
+                str(item["run_id"]): {
+                    "revision": int(item["revision"]),
+                    "state_fingerprint": str(item["state_fingerprint"]),
+                }
+                for item in bundle.evidence["objective_constraints"]
+            },
+            existing_findings=tuple(
+                _decoded_store_rows(store, "review_findings")
+            ),
         )
         if review.review_id != review_id:
             raise ValueError("Reviewer candidate review_id does not match invocation")
+        checkpoint()
         _write_json_atomic(accepted_path, candidate)
         accepted_ref = accepted_path.relative_to(context.project_root).as_posix()
         skill_snapshot = bundle.as_dict()["evidence"]["skill_governance"]
         skill_snapshot["reviewer_recommendations"] = json.loads(
             json.dumps(candidate["skill_governance"])
         )
+        checkpoint()
         store.record_skill_snapshot(
             skill_snapshot,
             snapshot_id=f"skill-snapshot-{review.review_id}",
         )
+        checkpoint()
         store.record_review(
             review_id=review.review_id,
             trigger=trigger,
-            status="review_complete",
+            status="review_applying",
             decision=review.decision.value,
             summary=review.summary,
             evidence_refs=[evidence_ref, accepted_ref],
             findings=review.findings,
         )
-        actions = apply_review_decision(store, review)
+        accepted_review = True
+        checkpoint()
+        actions = apply_review_decision(
+            store,
+            review,
+            lease_checkpoint=checkpoint,
+        )
         return ReviewerExecutionResult(
             status="review_complete",
             blocks_safe_runs=False,
@@ -652,17 +581,22 @@ def run_reviewer(
             evidence_path=evidence_ref,
             accepted_review_path=accepted_ref,
         )
+    except LeaseError:
+        raise
     except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+        if accepted_review:
+            raise
+        checkpoint()
         store.record_review(
             review_id=review_id,
             trigger=trigger,
             status="review_degraded",
             summary=str(exc)[:4_096],
-            evidence_refs=[evidence_ref],
+            evidence_refs=[evidence_ref] if evidence_ref else [],
         )
         return ReviewerExecutionResult(
             status="review_degraded",
-            blocks_safe_runs=not context.deterministic_safety_gates_pass,
+            blocks_safe_runs=not (gate is not None and gate.passed),
             review_id=review_id,
             evidence_path=evidence_ref,
             error=str(exc),
@@ -675,12 +609,14 @@ def run_queued_reviewer(
     reviewer_id: str,
     driver: Callable[..., Mapping[str, Any]] = run_codex_prompt,
     timeout_seconds: int = REVIEW_TIMEOUT_SECONDS,
+    heartbeat_seconds: float = 30.0,
 ) -> ReviewerExecutionResult | None:
     """Lease and execute one Reviewer action outside the ordinary Worker."""
     action = store.lease_next_action(
         reviewer_id,
         lease_seconds=timeout_seconds + 60,
         allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
     )
     if action is None:
         return None
@@ -688,29 +624,31 @@ def run_queued_reviewer(
     if not isinstance(lineages, list) or not lineages:
         run = store.get_run(action.run_id)
         lineages = [str(run.get("loop_lineage_id") or action.run_id)]
-    deterministic_safety_gates_pass = not any(
-        row.get("status") == "open" and row.get("scope") == "global"
-        for row in store.fetch_all("user_decisions")
-    )
-    result = run_reviewer(
-        ReviewerContext(
-            project_root=store.project_root,
-            store=store,
-            triggering_lineages=tuple(str(value) for value in lineages),
-            deterministic_safety_gates_pass=deterministic_safety_gates_pass,
-            timeout_seconds=timeout_seconds,
-        ),
-        driver=driver,
-    )
-    artifacts = tuple(
-        value
-        for value in (result.evidence_path, result.accepted_review_path)
-        if value
-    )
-    store.complete_action(
-        action.action_id,
-        reviewer_id,
-        ActionResult(
+    lease_seconds = timeout_seconds + 60
+    with ActionLeaseGuard(
+        store,
+        action_id=action.action_id,
+        owner_id=reviewer_id,
+        lease_seconds=lease_seconds,
+        heartbeat_seconds=heartbeat_seconds,
+    ) as guard:
+        result = run_reviewer(
+            ReviewerContext(
+                project_root=store.project_root,
+                store=store,
+                triggering_lineages=tuple(str(value) for value in lineages),
+                timeout_seconds=timeout_seconds,
+            ),
+            driver=driver,
+            lease_checkpoint=guard.checkpoint,
+        )
+        artifacts = tuple(
+            value
+            for value in (result.evidence_path, result.accepted_review_path)
+            if value
+        )
+        guard.checkpoint()
+        completion = ActionResult(
             result_class=(
                 ActionResultClass.SUCCESS
                 if not result.blocks_safe_runs
@@ -727,8 +665,24 @@ def run_queued_reviewer(
             error_class="" if not result.blocks_safe_runs else "deterministic_safety_gate",
             artifact_paths=artifacts,
             checkpoint="supervisor-reviewer",
-        ),
-    )
+        )
+        reservation_id = str(action.payload.get("reservation_id") or "")
+        if reservation_id and result.status != "review_complete":
+            guard.checkpoint()
+            store.release_review_reservation(
+                reservation_id,
+                reason=f"{result.status}: {result.review_id}",
+            )
+        elif reservation_id:
+            store.complete_reviewer_action(
+                action.action_id,
+                reviewer_id,
+                completion,
+                reservation_id=reservation_id,
+                review_id=result.review_id,
+            )
+        else:
+            store.complete_action(action.action_id, reviewer_id, completion)
     return result
 
 
@@ -865,16 +819,13 @@ def _completion_ids(payload: Mapping[str, Any]) -> list[str]:
 
 
 def _reviewed_cadence_positions(store: SupervisorStore) -> dict[str, int]:
-    positions: dict[str, int] = {}
-    for row in store.fetch_all("actions"):
-        if row.get("action_type") != ActionType.RUN_REVIEWER.value:
-            continue
-        payload = _json_object(row.get("payload_json"))
-        _merge_positions(positions, payload.get("cadence_positions"))
-    for row in store.fetch_all("reviews"):
-        trigger = _json_object(row.get("trigger"))
-        _merge_positions(positions, trigger.get("cadence_positions"))
-    return positions
+    return {
+        lineage_id: max(
+            int(row.get("reviewed_position") or 0),
+            int(row.get("reserved_position") or 0),
+        )
+        for lineage_id, row in store.review_cadence_positions().items()
+    }
 
 
 def _merge_positions(target: dict[str, int], value: object) -> None:
@@ -1039,6 +990,7 @@ def _prior_finding_evidence(root: Path, store: SupervisorStore) -> dict[str, Any
 def _build_skill_snapshot(
     root: Path,
     run_payloads: Mapping[str, Mapping[str, Any]],
+    store: SupervisorStore,
 ) -> dict[str, Any]:
     roots = _declared_skill_roots(root, run_payloads.values())
     inventory: list[dict[str, Any]] = []
@@ -1061,42 +1013,39 @@ def _build_skill_snapshot(
                 }
             )
     inventory.sort(key=lambda item: (item["normalized_purpose"], item["path"]))
-    by_name = {str(item["name"]).lower(): item for item in inventory}
     by_path = {str(item["path"]): item for item in inventory}
     usage: dict[str, dict[str, Any]] = {}
-    for run_id, payload in run_payloads.items():
-        run_dir = _payload_run_dir(root, run_id, payload)
-        if not run_dir.is_dir() or run_dir.is_symlink():
+    for invocation in store.fetch_all("skill_invocations"):
+        skill_path = str(invocation.get("skill_path") or "")
+        skill = by_path.get(skill_path)
+        if skill is None:
             continue
-        for path in sorted(run_dir.rglob("*.json")):
-            try:
-                result = _read_owned_json(run_dir, path)
-            except (OSError, TypeError, ValueError, json.JSONDecodeError):
-                continue
-            if not _is_structured_execution_evidence(path, result):
-                continue
-            for item in _structured_skill_usage(result):
-                skill = None
-                path_value = str(item.get("path") or "")
-                name_value = str(item.get("name") or "").lower()
-                if path_value:
-                    skill = by_path.get(_normalize_relative_path(path_value))
-                if skill is None and name_value:
-                    skill = by_name.get(name_value)
-                if skill is None:
-                    continue
-                skill_path = str(skill["path"])
-                current = usage.setdefault(
-                    skill_path,
-                    {
-                        "name": skill["name"],
-                        "path": skill_path,
-                        "evidence_refs": [],
-                    },
-                )
-                evidence_ref = path.resolve().relative_to(root).as_posix()
-                if evidence_ref not in current["evidence_refs"]:
-                    current["evidence_refs"].append(evidence_ref)
+        artifact_ref = str(invocation.get("artifact_path") or "")
+        try:
+            artifact = validate_owned_regular_file(
+                root,
+                root.joinpath(*PurePosixPath(artifact_ref).parts),
+                "Skill invocation evidence",
+            )
+        except (OSError, TypeError, ValueError):
+            continue
+        artifact_hash = f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}"
+        if artifact_hash != invocation.get("artifact_sha256"):
+            continue
+        current = usage.setdefault(
+            skill_path,
+            {
+                "name": skill["name"],
+                "path": skill_path,
+                "evidence_refs": [],
+                "invocation_ids": [],
+            },
+        )
+        if artifact_ref not in current["evidence_refs"]:
+            current["evidence_refs"].append(artifact_ref)
+        invocation_id = str(invocation.get("invocation_id") or "")
+        if invocation_id and invocation_id not in current["invocation_ids"]:
+            current["invocation_ids"].append(invocation_id)
 
     purpose_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for skill in inventory:
@@ -1125,7 +1074,7 @@ def _build_skill_snapshot(
         "used_skills": len(usage),
         "candidate_process_skills": sorted(candidate_process_skills),
         "duplicate_groups": duplicate_groups,
-        "usage_proof": "structured_execution_evidence_only",
+        "usage_proof": "supervisor_recorded_invocation_evidence_only",
     }
 
 
@@ -1255,6 +1204,7 @@ def _validated_findings(
     expected_hashes: set[str],
     *,
     allowed_run_ids: set[str],
+    existing_findings: Sequence[Mapping[str, Any]],
 ) -> tuple[Mapping[str, Any], ...]:
     if not isinstance(value, list):
         raise TypeError("findings must be a list")
@@ -1272,6 +1222,11 @@ def _validated_findings(
         "affected_run_ids",
     }
     required_keys = set(allowed_keys)
+    existing_by_key = {
+        str(item.get("finding_key") or ""): item
+        for item in existing_findings
+        if str(item.get("finding_key") or "")
+    }
     for raw in value:
         if not isinstance(raw, Mapping):
             raise TypeError("each finding must be an object")
@@ -1292,6 +1247,22 @@ def _validated_findings(
         status = str(raw.get("status") or "")
         if status not in _FINDING_STATUSES:
             raise ValueError("finding status is not allowed")
+        previous = existing_by_key.get(finding_key)
+        if previous is None and status != "open":
+            raise ValueError("new findings must enter lifecycle as open")
+        if previous is not None:
+            if str(previous.get("finding_id") or "") != finding_id:
+                raise ValueError("finding_key must retain stable identity")
+            previous_status = str(previous.get("status") or "")
+            allowed_transitions = {
+                "open": {"open", "closed", "accepted_risk"},
+                "closed": {"closed"},
+                "accepted_risk": {"accepted_risk"},
+            }
+            if status not in allowed_transitions.get(previous_status, set()):
+                raise ValueError(
+                    f"finding lifecycle transition is not allowed: {previous_status}->{status}"
+                )
         severity = str(raw.get("severity") or "")
         if severity not in _FINDING_SEVERITIES:
             raise ValueError("finding severity is not allowed")
@@ -1305,6 +1276,20 @@ def _validated_findings(
         )
         if status == "closed" and not closure_refs:
             raise ValueError("closed finding requires closure evidence")
+        if status == "closed" and previous is not None:
+            previous_evidence = set(
+                _json_list(previous.get("evidence_json", previous.get("evidence", [])))
+            )
+            previous_closure = set(
+                _json_list(
+                    previous.get(
+                        "closure_evidence_json",
+                        previous.get("closure_evidence", []),
+                    )
+                )
+            )
+            if not set(closure_refs) - previous_evidence - previous_closure:
+                raise ValueError("closed finding requires fresh closure evidence")
         if expected_hashes and not set((*evidence_refs, *closure_refs)) <= expected_hashes:
             raise ValueError("finding references untrusted evidence hashes")
         affected_run_ids = _validated_run_ids(
@@ -1402,24 +1387,164 @@ def _validated_run_ids(value: object, label: str) -> tuple[str, ...]:
 
 
 def _review_prompt(review_id: str, evidence_path: Path) -> str:
+    hash_schema = {
+        "type": "string",
+        "pattern": r"^sha256:[0-9a-f]{64}$",
+    }
+    run_ids_schema = {
+        "type": "array",
+        "items": {"type": "string", "pattern": r"^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "uniqueItems": True,
+    }
+    evidence_refs_schema = {
+        "type": "array",
+        "items": hash_schema,
+        "minItems": 1,
+        "uniqueItems": True,
+    }
+    finding_keys = [
+        "finding_id",
+        "finding_key",
+        "status",
+        "severity",
+        "summary",
+        "evidence_refs",
+        "closure_evidence_refs",
+        "affected_run_ids",
+    ]
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": sorted(_REVIEW_PAYLOAD_KEYS),
+        "properties": {
+            "schema_version": {"const": 1},
+            "review_id": {"const": review_id},
+            "scope": {"const": "project"},
+            "decision": {"enum": sorted(ALLOWED_REVIEW_DECISIONS)},
+            "affected_run_ids": run_ids_schema,
+            "summary": {"type": "string", "minLength": 1, "maxLength": 4096},
+            "evidence_refs": evidence_refs_schema,
+            "findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": finding_keys,
+                    "properties": {
+                        "finding_id": {"type": "string", "minLength": 1},
+                        "finding_key": {"type": "string", "minLength": 1},
+                        "status": {"enum": sorted(_FINDING_STATUSES)},
+                        "severity": {"enum": sorted(_FINDING_SEVERITIES)},
+                        "summary": {"type": "string", "minLength": 1},
+                        "evidence_refs": evidence_refs_schema,
+                        "closure_evidence_refs": {
+                            "type": "array",
+                            "items": hash_schema,
+                            "uniqueItems": True,
+                        },
+                        "affected_run_ids": run_ids_schema,
+                    },
+                },
+            },
+            "skill_governance": {
+                "type": "array",
+                "items": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "action",
+                                "skill_path",
+                                "reason",
+                                "evidence_refs",
+                            ],
+                            "properties": {
+                                "action": {"enum": ["keep", "delete_candidate"]},
+                                "skill_path": {"type": "string", "minLength": 1},
+                                "reason": {"type": "string", "minLength": 1},
+                                "evidence_refs": evidence_refs_schema,
+                            },
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "action",
+                                "source_paths",
+                                "target_path",
+                                "reason",
+                                "evidence_refs",
+                            ],
+                            "properties": {
+                                "action": {"const": "merge"},
+                                "source_paths": {
+                                    "type": "array",
+                                    "items": {"type": "string", "minLength": 1},
+                                    "minItems": 2,
+                                    "uniqueItems": True,
+                                },
+                                "target_path": {"type": "string", "minLength": 1},
+                                "reason": {"type": "string", "minLength": 1},
+                                "evidence_refs": evidence_refs_schema,
+                            },
+                        },
+                    ]
+                },
+            },
+            "next_review_after_parent_tasks": {"const": REVIEW_INTERVAL_PARENTS},
+        },
+        "allOf": [
+            {
+                "if": {"properties": {"decision": {"not": {"const": "continue"}}}},
+                "then": {"properties": {"affected_run_ids": {"minItems": 1}}},
+            }
+        ],
+    }
+    fixture = {
+        "schema_version": 1,
+        "review_id": review_id,
+        "scope": "project",
+        "decision": "continue",
+        "affected_run_ids": [],
+        "summary": "Project-global evidence supports continuing safe work.",
+        "evidence_refs": ["sha256:" + "a" * 64],
+        "findings": [],
+        "skill_governance": [],
+        "next_review_after_parent_tasks": REVIEW_INTERVAL_PARENTS,
+    }
     return (
         "You are the Supervisor Reviewer. Evaluate the project globally from the attached "
         "trusted evidence bundle. This is a read-only review: do not modify repository files, "
-        "run mutating commands, request permissions, or perform irreversible operations. "
-        "Return exactly one JSON object as your final response; the Supervisor will write and "
-        "validate the candidate file. Allowed decisions are continue, auto_remediate, refocus, "
-        "stop_run, and ask_user. Skill Governance actions are keep, merge, and delete_candidate; "
-        "these are recommendations only. Echo only evidence hashes present in the bundle. "
+        "run mutating commands, request permissions, or perform irreversible operations.\n"
+        "Return exactly one JSON object as your final response. The Supervisor validates it "
+        "against the exact structural schema below and rejects every extra key. Use only run "
+        "IDs, skill paths, and sha256 evidence hashes present in the evidence bundle. Replace "
+        "the fixture evidence hash with one or more actual bundle hashes.\n"
+        "Finding rules: a new finding starts open; retain finding_id for an existing "
+        "finding_key; only open may transition to closed or accepted_risk; closed findings "
+        "require fresh finding-specific closure_evidence_refs. Skill Governance entries are "
+        "recommendations only. Decisions other than continue require affected_run_ids.\n"
         f"Set review_id to {review_id}. Evidence bundle: {evidence_path}\n"
+        "BEGIN_REVIEW_JSON_SCHEMA\n"
+        f"{json.dumps(schema, sort_keys=True, indent=2, ensure_ascii=True)}\n"
+        "END_REVIEW_JSON_SCHEMA\n"
+        "BEGIN_REVIEW_JSON_FIXTURE\n"
+        f"{json.dumps(fixture, sort_keys=True, indent=2, ensure_ascii=True)}\n"
+        "END_REVIEW_JSON_FIXTURE\n"
     )
 
 
-def _review_trigger(bundle: ReviewEvidenceBundle) -> str:
+def _review_trigger(
+    bundle: ReviewEvidenceBundle,
+    gate: ReviewSafetyGate,
+) -> str:
     return _canonical_json(
         {
             "kind": "project_global",
             "triggering_lineages": list(bundle.triggering_lineages),
             "cadence_positions": dict(bundle.cadence_positions),
+            "safety_gate_id": gate.gate_id,
         }
     ).decode("utf-8")
 
@@ -1479,6 +1604,11 @@ def _json_value(value: object) -> Any:
 def _json_object(value: object) -> Mapping[str, Any]:
     parsed = _json_value(value)
     return parsed if isinstance(parsed, Mapping) else {}
+
+
+def _json_list(value: object) -> list[Any]:
+    parsed = _json_value(value)
+    return list(parsed) if isinstance(parsed, (list, tuple)) else []
 
 
 def _canonical_json(value: Any) -> bytes:

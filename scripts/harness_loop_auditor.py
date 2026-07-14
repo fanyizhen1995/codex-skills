@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 from collections import Counter
@@ -174,20 +173,10 @@ def rule_based_audit_report(
 
 
 def write_rule_based_audit_report(repo_root: Path | str, run: Mapping[str, Any], *, cadence: Mapping[str, Any] | None = None) -> Path:
-    root = Path(repo_root)
-    run_id = str(run["run_id"])
-    signal_path = write_deterministic_signals(root, run)
-    signal_payload = read_json_file(signal_path)
-    audit_id = _next_audit_id(root, run_id)
-    report = rule_based_audit_report(
-        run_id=run_id,
-        audit_id=audit_id,
-        signals=signal_payload,
-        signal_artifact_path=signal_path.relative_to(root).as_posix(),
-        signal_artifact_sha256=hashlib.sha256(signal_path.read_bytes()).hexdigest(),
-        cadence=cadence,
+    del repo_root, run, cadence
+    raise RuntimeError(
+        "legacy Auditor report production is disabled; use the Supervisor Reviewer"
     )
-    return write_json_file(run_dir_for(root, run_id) / "audit-reports" / f"{audit_id}.json", report)
 
 
 fake_audit_report = rule_based_audit_report
@@ -463,7 +452,6 @@ def _same_file_modified_consecutively(changed_path_groups: Sequence[Sequence[str
 def _unclassified_dirty_paths(repo_root: Path, run: Mapping[str, Any]) -> list[str]:
     accepted = {str(path) for path in run.get("accepted_changed_paths", [])}
     baseline = _baseline_dirty_paths(run)
-    run_id = str(run.get("run_id", ""))
     paths: list[str] = []
     for path in _git_dirty_paths(repo_root):
         if path in accepted or path in baseline:

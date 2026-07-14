@@ -210,11 +210,17 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
         "failures",
         "reviews",
         "review_findings",
+        "review_reservations",
+        "review_cadence",
+        "review_safety_gates",
+        "review_applications",
+        "review_application_targets",
         "user_decisions",
         "services",
         "workers",
         "freshness_checks",
         "skill_snapshots",
+        "skill_invocations",
         "aggregates",
         "schema_migrations",
         "row_sequences",
@@ -222,7 +228,7 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 9
+    assert store.pragma("user_version") == 10
     assert "state_fingerprint" in {
         row["name"] for row in store._connection.execute("PRAGMA table_info(runs)")
     }
@@ -263,7 +269,7 @@ def test_migrate_adds_state_fingerprint_to_v7_run_projection(tmp_path):
     store = SupervisorStore.open(tmp_path)
     store.migrate()
 
-    assert store.pragma("user_version") == 9
+    assert store.pragma("user_version") == 10
     assert store.get_run("legacy-run")["state_fingerprint"] == ""
 
 
@@ -1726,9 +1732,10 @@ def test_retention_preserves_reviews_with_active_findings_and_compacts_terminal_
 ):
     clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
     store = migrated_store(tmp_path, clock=clock)
-    active_statuses = {"open", "planned", "in_progress", "resolved_pending_audit"}
+    active_statuses = {"open"}
     terminal_statuses = {"closed", "accepted_risk"}
     for status in sorted(active_statuses | terminal_statuses):
+        finding_id = f"finding-{status}"
         store.record_review(
             review_id=f"review-{status}",
             trigger="cadence",
@@ -1737,13 +1744,33 @@ def test_retention_preserves_reviews_with_active_findings_and_compacts_terminal_
             summary=f"review {status}",
             findings=(
                 {
-                    "finding_id": f"finding-{status}",
+                    "finding_id": finding_id,
                     "finding_key": f"key-{status}",
-                    "status": status,
-                    "summary": f"finding {status}",
+                    "status": "open",
+                    "summary": "finding open",
+                    "evidence_refs": [f"sha256:{'a' * 64}"],
                 },
             ),
         )
+        if status in terminal_statuses:
+            store.record_review(
+                review_id=f"review-{status}",
+                trigger="cadence",
+                status="completed",
+                decision="continue",
+                summary=f"review {status}",
+                findings=(
+                    {
+                        "finding_id": finding_id,
+                        "finding_key": f"key-{status}",
+                        "status": status,
+                        "summary": f"finding {status}",
+                        "closure_evidence_refs": (
+                            [f"sha256:{'b' * 64}"] if status == "closed" else []
+                        ),
+                    },
+                ),
+            )
     clock.advance(days=91)
 
     result = store.compact_retention(retention_days=90)
@@ -1763,7 +1790,7 @@ def test_retention_preserves_reviews_with_active_findings_and_compacts_terminal_
             for row in aggregates
             if row["aggregate_kind"] == "review_findings"
         )
-        == 2
+        == 4
     )
 
 
@@ -1776,6 +1803,14 @@ def test_retention_preserves_recent_terminal_finding_and_its_old_review(tmp_path
         status="completed",
         decision="continue",
         summary="initial review",
+        findings=(
+            {
+                "finding_id": "finding-recent",
+                "finding_key": "key-recent",
+                "status": "open",
+                "summary": "risk under review",
+            },
+        ),
     )
     clock.advance(days=90)
     store.record_review(
@@ -1806,9 +1841,7 @@ def test_retention_preserves_recent_terminal_finding_and_its_old_review(tmp_path
 def test_review_finding_status_transitions_update_one_stable_row(tmp_path):
     clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
     store = migrated_store(tmp_path, clock=clock)
-    for index, status in enumerate(
-        ("open", "resolved_pending_audit", "closed"), start=1
-    ):
+    for index, status in enumerate(("open", "open", "closed"), start=1):
         store.record_review(
             review_id="review-lifecycle",
             trigger="cadence",
@@ -1817,10 +1850,14 @@ def test_review_finding_status_transitions_update_one_stable_row(tmp_path):
             summary="finding lifecycle",
             findings=(
                 {
-                    "finding_id": f"finding-version-{index}",
+                    "finding_id": "finding-version-1",
                     "finding_key": "stable-finding-key",
                     "status": status,
                     "summary": f"finding is {status}",
+                    "evidence_refs": [f"sha256:{'a' * 64}"],
+                    "closure_evidence_refs": (
+                        [f"sha256:{'b' * 64}"] if status == "closed" else []
+                    ),
                 },
             ),
         )
@@ -1839,7 +1876,7 @@ def test_review_finding_status_transitions_update_one_stable_row(tmp_path):
 def test_retention_aggregates_finding_occurrence_count_not_row_count(tmp_path):
     clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
     store = migrated_store(tmp_path, clock=clock)
-    for status in ("open", "resolved_pending_audit", "closed"):
+    for status in ("open", "open", "closed"):
         store.record_review(
             review_id="review-occurrences",
             trigger="cadence",
@@ -1848,9 +1885,14 @@ def test_retention_aggregates_finding_occurrence_count_not_row_count(tmp_path):
             summary="finding occurrences",
             findings=(
                 {
+                    "finding_id": "finding-repeated",
                     "finding_key": "repeated-finding",
                     "status": status,
                     "summary": status,
+                    "evidence_refs": [f"sha256:{'a' * 64}"],
+                    "closure_evidence_refs": (
+                        [f"sha256:{'b' * 64}"] if status == "closed" else []
+                    ),
                 },
             ),
         )
@@ -1882,6 +1924,7 @@ def test_retention_uses_finding_last_seen_for_recent_terminal_transition(tmp_pat
         summary="open finding",
         findings=(
             {
+                "finding_id": "finding-recent-lifecycle",
                 "finding_key": "recent-lifecycle",
                 "status": "open",
                 "summary": "open",
@@ -1897,9 +1940,11 @@ def test_retention_uses_finding_last_seen_for_recent_terminal_transition(tmp_pat
         summary="closed today",
         findings=(
             {
+                "finding_id": "finding-recent-lifecycle",
                 "finding_key": "recent-lifecycle",
                 "status": "closed",
                 "summary": "closed",
+                "closure_evidence_refs": [f"sha256:{'b' * 64}"],
             },
         ),
     )
@@ -1982,7 +2027,7 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 9
+    assert store.pragma("user_version") == 10
 
 
 @pytest.mark.parametrize("legacy_version", [3, 4, 5])
@@ -2006,7 +2051,7 @@ def test_legacy_migration_normalizes_timestamps_before_finding_collapse(
         "SELECT value FROM store_metadata WHERE key = 'legacy_naive_timestamp_policy'"
     ).fetchone()[0]
     assert policy == "assume_utc"
-    assert store.pragma("user_version") == 9
+    assert store.pragma("user_version") == 10
 
 
 def test_invalid_legacy_timestamp_rolls_back_schema_version_and_data(tmp_path):

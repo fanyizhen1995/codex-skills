@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -18,15 +19,17 @@ from typing import Any
 
 try:
     from scripts.harness_evaluator_scenarios import load_task_scenarios
+    from scripts.harness_loop_auditor import compute_deterministic_signals, rule_based_audit_report
     from scripts.harness_loop_contracts import run_dir_for, write_json_file
     from scripts.harness_loop_governance import validate_governance_preflight_evidence
-    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_auditor, run_demand_multi, save_run
+    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_demand_multi, save_run
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.harness_evaluator_scenarios import load_task_scenarios
+    from scripts.harness_loop_auditor import compute_deterministic_signals, rule_based_audit_report
     from scripts.harness_loop_contracts import run_dir_for, write_json_file
     from scripts.harness_loop_governance import validate_governance_preflight_evidence
-    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_auditor, run_demand_multi, save_run
+    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_demand_multi, save_run
 
 
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
@@ -1299,21 +1302,31 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
             },
         )
 
-    report_path = run_auditor(project_root, AUDITOR_ENGINE_RUN_ID, driver="fake")
-    report = json.loads(report_path.read_text(encoding="utf-8"))
+    parent = load_run(project_root, AUDITOR_ENGINE_RUN_ID)
+    signals = compute_deterministic_signals(project_root, parent)
+    signal_path = write_json_file(
+        run_dir_for(project_root, AUDITOR_ENGINE_RUN_ID) / "deterministic-signals.json",
+        signals,
+    )
+    report = rule_based_audit_report(
+        run_id=AUDITOR_ENGINE_RUN_ID,
+        audit_id="audit-001",
+        signals=signals,
+        signal_artifact_path=signal_path.relative_to(project_root).as_posix(),
+        signal_artifact_sha256=hashlib.sha256(signal_path.read_bytes()).hexdigest(),
+    )
+    write_json_file(
+        run_dir_for(project_root, AUDITOR_ENGINE_RUN_ID)
+        / "audit-reports"
+        / "audit-001.json",
+        report,
+    )
     if report.get("verdict") != "must_fix":
         raise RuntimeError("auditor engine fixture must produce a must_fix report")
-    status = run_demand_multi(
-        repo_root=project_root,
-        run_id=AUDITOR_ENGINE_RUN_ID,
-        planner_driver="fake",
-        generator_driver="fake",
-        evaluator_driver="fake",
-        max_eval_attempts=2,
-        max_children=3,
-    )
-    if status.get("phase") != "audit_blocked":
-        raise RuntimeError(f"auditor engine fixture expected audit_blocked, got {status.get('phase')}")
+    parent["phase"] = "audit_blocked"
+    parent["next_action"] = "create_audit_remediation_task"
+    parent["last_result"] = "blocked"
+    save_run(project_root, parent)
     status = run_demand_multi(
         repo_root=project_root,
         run_id=AUDITOR_ENGINE_RUN_ID,

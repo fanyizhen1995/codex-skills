@@ -34,7 +34,6 @@ try:
         run_dir_for,
         validate_run_id,
         validate_artifact_hygiene_result_payload,
-        validate_audit_report_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -48,8 +47,6 @@ try:
         latest_audit_report,
         latest_audit_report_path,
         open_must_fix_findings,
-        write_deterministic_signals,
-        write_rule_based_audit_report,
     )
     from scripts.harness_loop_autonomous import (
         check_autonomous_scope,
@@ -95,7 +92,6 @@ except ModuleNotFoundError:
         run_dir_for,
         validate_run_id,
         validate_artifact_hygiene_result_payload,
-        validate_audit_report_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -109,8 +105,6 @@ except ModuleNotFoundError:
         latest_audit_report,
         latest_audit_report_path,
         open_must_fix_findings,
-        write_deterministic_signals,
-        write_rule_based_audit_report,
     )
     from harness_loop_autonomous import (  # type: ignore[no-redef]
         check_autonomous_scope,
@@ -416,61 +410,20 @@ def _audit_progress_exists(run: Mapping[str, Any]) -> bool:
 
 
 def _set_audit_blocked(repo_root: Path, run: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, str]:
-    run["phase"] = "audit_blocked"
-    run["last_result"] = "blocked"
-    run["next_action"] = "create_audit_remediation_task"
-    if run.get("run_kind") == "parent":
-        run = _ensure_parent_fields(run)
-        run["aggregate_acceptance"]["user_decision_required"] = False
-        run["reader_summary"]["current_progress"] = "Auditor 发现 open must_fix，普通 loop 已暂停。"
-        run["reader_summary"]["next_step"] = "创建审计整改子任务。"
-        run["reader_summary"]["decision_needed"] = "不需要"
-    save_run(repo_root, run)
-    append_loop_event(
-        repo_root,
-        run_id=str(run["run_id"]),
-        actor="auditor",
-        event_type="blocked",
-        summary="Audit gate blocked ordinary loop progress on open must_fix finding",
-        details={"finding_ids": [str(finding.get("finding_id", "")) for finding in findings]},
+    del repo_root, run, findings
+    raise RuntimeError(
+        "legacy audit_blocked production is disabled; use the Supervisor Reviewer"
     )
-    return status_for_run(repo_root, str(run["run_id"]))
 
 
 def _apply_audit_gate(repo_root: Path, run: dict[str, Any]) -> dict[str, str] | None:
-    if not _audit_gate_applies(run):
-        return None
-    try:
-        report = latest_audit_report(repo_root, str(run["run_id"]))
-    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
-        append_loop_event(
-            repo_root,
-            run_id=str(run["run_id"]),
-            actor="auditor",
-            event_type="audit_unavailable",
-            summary=f"Audit report unavailable or invalid: {exc}",
-        )
-        return None
-    findings = open_must_fix_findings(report)
-    if not findings:
-        return None
-    return _set_audit_blocked(repo_root, run, findings)
+    del repo_root, run
+    return None
 
 
 def _run_audit_boundary(repo_root: Path, run: dict[str, Any], *, force: bool = False) -> dict[str, str] | None:
-    blocked = _apply_audit_gate(repo_root, run)
-    if blocked is not None:
-        return blocked
-    if not _audit_gate_applies(run):
-        return None
-    if not _audit_cadence_due(run, force=force):
-        return None
-    if _audit_remediation_is_current(run):
-        return None
-    cadence = _audit_report_cadence(run)
-    write_rule_based_audit_report(repo_root, run, cadence=cadence)
-    _record_audit_cadence_state(repo_root, run, cadence=cadence)
-    return _apply_audit_gate(repo_root, load_run(repo_root, str(run["run_id"])))
+    del repo_root, run, force
+    return None
 
 
 def _audit_progress_count(run: Mapping[str, Any]) -> int:
@@ -599,34 +552,6 @@ def _write_audit_remediation_pass_report(
     latest_report = latest_audit_report(repo_root, run_id)
     findings = open_must_fix_findings(latest_report)
     finding_ids = _audit_finding_ids(findings)
-    signal_path = write_deterministic_signals(repo_root, run)
-    signal_payload = read_json_file(signal_path)
-    audit_id = _next_audit_id_for_run(repo_root, run_id)
-    summary = signal_payload.get("summary") if isinstance(signal_payload.get("summary"), Mapping) else {}
-    git_info = signal_payload.get("git") if isinstance(signal_payload.get("git"), Mapping) else {}
-    report = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "audit_id": audit_id,
-        "created_at": _timestamp(),
-        "created_by": "harness_loop_orchestrator",
-        "verdict": "pass",
-        "deterministic_signals": {
-            "artifact_path": signal_path.relative_to(repo_root).as_posix(),
-            "artifact_sha256": hashlib.sha256(signal_path.read_bytes()).hexdigest(),
-            "summary": dict(summary),
-            "git_head_sha": str(git_info.get("head_sha") or ""),
-        },
-        "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
-        "direction_control": {
-            "action": "resume_after_audit_remediation",
-            "reason": f"Audit remediation {remediation_run_id} handled open must_fix findings.",
-            "recommended_next_focus": "return_to_ordinary_loop",
-        },
-        "finding_lifecycle": {"open_findings": [], "closed_findings": _closed_audit_findings(findings)},
-    }
-    validate_audit_report_payload(report)
-    report_path = write_json_file(run_dir_for(repo_root, run_id) / "audit-reports" / f"{audit_id}.json", report)
     run = load_run(repo_root, run_id)
     run["_audit_remediation"] = {
         "status": "resolved",
@@ -638,7 +563,7 @@ def _write_audit_remediation_pass_report(
         "resolved_at": _timestamp(),
     }
     save_run(repo_root, run)
-    write_json_file(
+    result_path = write_json_file(
         run_dir_for(repo_root, run_id) / "audit-remediation-result.json",
         {
             "status": "pass",
@@ -646,19 +571,19 @@ def _write_audit_remediation_pass_report(
             "handled_findings": finding_ids,
             "remediation_run_id": remediation_run_id,
             "remediation_kind": remediation_kind,
-            "new_audit_report": report_path.relative_to(repo_root).as_posix(),
+            "new_audit_report": "",
         },
     )
     append_loop_event(
         repo_root,
         run_id=run_id,
-        actor="auditor",
-        event_type="audit_remediated",
-        summary=f"Audit remediation {remediation_run_id} closed open must_fix findings",
-        details={"finding_ids": finding_ids, "new_audit_id": audit_id},
-        artifact_paths=[report_path.relative_to(repo_root).as_posix()],
+        actor="orchestrator",
+        event_type="legacy_audit_migrated",
+        summary=f"Legacy audit remediation {remediation_run_id} completed migration cleanup",
+        details={"finding_ids": finding_ids},
+        artifact_paths=[result_path.relative_to(repo_root).as_posix()],
     )
-    return report_path
+    return result_path
 
 
 def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -1565,45 +1490,10 @@ def _auditor_prompt(run: Mapping[str, Any], signal_path: Path, output_path: Path
 
 
 def run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
-    root = Path(repo_root)
-    run = load_run(root, run_id)
-    if not _audit_gate_applies(run):
-        raise RuntimeError("run_auditor only supports parent or autonomous runs")
-    if driver == "fake":
-        return write_rule_based_audit_report(root, run)
-    if driver != "codex-exec":
-        raise ValueError(f"unsupported auditor driver: {driver}")
-
-    run_dir = run_dir_for(root, run_id)
-    signal_path = write_deterministic_signals(root, run)
-    audit_id = _next_audit_id_for_run(root, run_id)
-    output_path = run_dir / "audit-reports" / f"{audit_id}.json"
-    prompt_path = run_dir / "auditor-prompt.md"
-    prompt_path.write_text(_auditor_prompt(run, signal_path, output_path), encoding="utf-8")
-    attempt = int(run.get("attempts", {}).get("auditor", 0)) + 1
-    attempt_payload = run_codex_prompt(
-        role="auditor",
-        run_id=run_id,
-        repo_root=root,
-        run_dir=run_dir,
-        prompt_path=prompt_path,
-        output_json_path=output_path,
-        attempt=attempt,
-        timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
+    del repo_root, run_id, driver
+    raise RuntimeError(
+        "legacy Auditor execution is disabled; use the Supervisor Reviewer"
     )
-    run = load_run(root, run_id)
-    attempts = dict(run.get("attempts", {}))
-    attempts["auditor"] = attempt
-    run["attempts"] = attempts
-    save_run(root, run)
-    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
-        status = attempt_payload.get("status") if isinstance(attempt_payload, dict) else type(attempt_payload).__name__
-        raise RuntimeError(f"auditor codex-exec attempt failed with status {status}")
-    payload = read_json_file(output_path)
-    payload["created_by"] = "harness_loop_orchestrator"
-    write_json_file(output_path, payload)
-    validate_audit_report_payload(payload)
-    return output_path
 
 
 def _scenario_command_results_have_logs(run_dir: Path) -> bool:

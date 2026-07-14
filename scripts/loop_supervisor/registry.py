@@ -17,6 +17,7 @@ from .models import (
     ActionType,
     RecoveryStage,
     RecoveryTransitionRule,
+    ReviewApplicationRule,
     ReviewDecision,
     ResultHandling,
     TransitionRule,
@@ -140,6 +141,43 @@ def review_transition_for(decision: ReviewDecision) -> TransitionRule:
     if not isinstance(decision, ReviewDecision):
         raise TypeError("decision must be a ReviewDecision")
     return _REVIEW_DECISION_RULES[decision]
+
+
+def review_application_for(
+    decision: ReviewDecision,
+    *,
+    policy: str,
+    run_kind: str,
+) -> ReviewApplicationRule:
+    """Resolve one validated review decision to its registry-owned target state."""
+    transition = review_transition_for(decision)
+    if decision is ReviewDecision.CONTINUE:
+        return ReviewApplicationRule(transition.action_type, "", "", "", False)
+    if decision is ReviewDecision.ASK_USER:
+        return ReviewApplicationRule(transition.action_type, "", "", "", False)
+    if decision is ReviewDecision.STOP_RUN:
+        return ReviewApplicationRule(
+            transition.action_type,
+            "stopped_by_reviewer",
+            "none",
+            "blocked",
+            True,
+        )
+    if run_kind == "child":
+        raise ValueError("Reviewer refocus and remediation require a parent or single run")
+    if policy == "autonomous_knowledge":
+        phase, next_action = "planning", "run_autonomous_planner"
+    elif run_kind == "parent":
+        phase, next_action = "planning", "run_parent_planner"
+    else:
+        phase, next_action = "planned", "run_planner"
+    return ReviewApplicationRule(
+        transition.action_type,
+        phase,
+        next_action,
+        "none",
+        True,
+    )
 
 
 def reviewer_schedule_transition() -> TransitionRule:

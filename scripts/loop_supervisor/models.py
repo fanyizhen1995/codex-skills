@@ -86,6 +86,12 @@ class ActionStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class ActionOwner(StrEnum):
+    WORKER = "worker"
+    REVIEWER = "reviewer"
+    SUPERVISOR = "supervisor"
+
+
 class ActionResultClass(StrEnum):
     SUCCESS = "success"
     RETRYABLE_FAILURE = "retryable_failure"
@@ -177,6 +183,7 @@ class SupervisorReview:
     findings: tuple[Mapping[str, Any], ...]
     skill_governance: tuple[Mapping[str, Any], ...]
     next_review_after_parent_tasks: int
+    reviewed_runs: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.schema_version != 1:
@@ -197,6 +204,9 @@ class SupervisorReview:
             raise ValueError("evidence_refs must not be empty")
         findings = tuple(_freeze_json_value(item) for item in self.findings)
         governance = tuple(_freeze_json_value(item) for item in self.skill_governance)
+        reviewed_runs = _freeze_json_value(self.reviewed_runs)
+        if not isinstance(reviewed_runs, MappingABC):
+            raise TypeError("reviewed_runs must be a mapping")
         if (
             not isinstance(self.next_review_after_parent_tasks, int)
             or isinstance(self.next_review_after_parent_tasks, bool)
@@ -207,6 +217,7 @@ class SupervisorReview:
         object.__setattr__(self, "evidence_refs", refs)
         object.__setattr__(self, "findings", findings)
         object.__setattr__(self, "skill_governance", governance)
+        object.__setattr__(self, "reviewed_runs", reviewed_runs)
 
 
 @dataclass(frozen=True)
@@ -243,6 +254,8 @@ class ActionRequest:
     phase: str
     action_type: ActionType
     idempotency_key: str
+    queue_owner: ActionOwner = ActionOwner.WORKER
+    not_before: str = ""
     repo_relative_root: str = "."
     task_id: str = ""
     next_action: str = ""
@@ -263,6 +276,9 @@ class ActionRequest:
         if not isinstance(self.action_type, ActionType):
             raise TypeError("action_type must be an ActionType")
         _require_string(self.idempotency_key, "idempotency_key")
+        if not isinstance(self.queue_owner, ActionOwner):
+            raise TypeError("queue_owner must be an ActionOwner")
+        _require_string(self.not_before, "not_before", allow_empty=True)
         object.__setattr__(
             self,
             "repo_relative_root",
@@ -385,3 +401,22 @@ class RecoveryTransitionRule:
         if not isinstance(self.worker_executable, bool):
             raise TypeError("worker_executable must be a bool")
         _require_string(self.strategy, "strategy")
+
+
+@dataclass(frozen=True)
+class ReviewApplicationRule:
+    action_type: ActionType
+    target_phase: str
+    target_next_action: str
+    target_last_result: str
+    mutates_run: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.action_type, ActionType):
+            raise TypeError("action_type must be an ActionType")
+        if self.target_phase and self.target_phase not in ALLOWED_PHASES:
+            raise ValueError("target_phase is not contract allowed")
+        _require_string(self.target_next_action, "target_next_action", allow_empty=True)
+        _require_string(self.target_last_result, "target_last_result", allow_empty=True)
+        if not isinstance(self.mutates_run, bool):
+            raise TypeError("mutates_run must be a bool")

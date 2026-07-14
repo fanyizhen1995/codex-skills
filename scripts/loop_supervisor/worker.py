@@ -34,6 +34,7 @@ from .models import (
     ActionResult,
     ActionResultClass,
     ActionType,
+    ActionOwner,
     RecoveryStage,
 )
 from .reconciler import _state_fingerprint, atomic_save_run_locked
@@ -94,6 +95,8 @@ def _request_from_record(store: SupervisorStore, action: ActionRecord) -> Action
         phase=action.phase,
         action_type=ActionType(action.action_type),
         idempotency_key=action.idempotency_key,
+        queue_owner=ActionOwner(action.queue_owner),
+        not_before=action.not_before,
         repo_relative_root=action.repo_relative_root,
         task_id=str(row.get("task_id") or ""),
         next_action=str(row.get("next_action") or ""),
