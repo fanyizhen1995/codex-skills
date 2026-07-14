@@ -13,8 +13,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
-from typing import Iterator
+from typing import Any, Callable, Iterator, Mapping, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -729,6 +728,142 @@ def _reconcile_demand_parent_children(repo_root: Path, parent: dict[str, Any]) -
     return "ready"
 
 
+def _demand_child_planner_payload(
+    child: Mapping[str, Any], child_task: Mapping[str, Any]
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "task_id": child["task_id"],
+        "policy": "demand_development",
+        "task_kind": "task_contract_only",
+        "title": str(child_task.get("title", "")),
+        "goal": str(child_task.get("description", "")),
+        "non_goals": [],
+        "allowed_paths": list(child_task.get("allowed_paths", [])),
+        "denylist_paths": list(child_task.get("denylist_paths", [])),
+        "verify_commands": list(child_task.get("verify_commands", [])),
+        "evaluator_scenarios_path": "",
+        "stop_conditions": ["passed"],
+        "next_planning_hint": "return to parent planner",
+    }
+    if child_task.get("audit_remediation"):
+        payload["audit_remediation"] = True
+        payload["audit_response"] = dict(child_task.get("audit_response", {}))
+    validate_planner_output_payload(payload)
+    return payload
+
+
+def _demand_child_task_contract(
+    child: Mapping[str, Any], child_task: Mapping[str, Any]
+) -> dict[str, Any]:
+    expected_outcomes = list(child_task.get("done_criteria", [])) or [
+        "Child passes fake evaluator."
+    ]
+    artifact_paths = [
+        str(path)
+        for path in [
+            *list(child_task.get("allowed_paths", [])),
+            *list(child_task.get("artifact_paths", [])),
+        ]
+    ]
+    payload = {
+        "task_id": child["task_id"],
+        "title": str(child_task.get("title", "")),
+        "description": str(child_task.get("description", "")),
+        "verify_commands": list(child_task.get("verify_commands", [])),
+        "scenario_commands": list(child_task.get("scenario_commands", [])),
+        "artifact_paths": artifact_paths,
+        "required_services": [],
+        "evaluator_driver": "harness_auto_gate",
+        "eval_policy": {
+            "task_level_required": True,
+            "task_scope": "local_repo_and_harness",
+        },
+        "allowed_scope": "local_repo_and_harness",
+        "must_simulate": True,
+        "audit_remediation": bool(child_task.get("audit_remediation")),
+        "user_scenarios": [
+            {
+                "scenario_id": f"{child['run_id']}-scenario",
+                "user_goal": str(child_task.get("description", "")),
+                "prerequisites": ["Parent demand multi-task run exists."],
+                "steps": ["Run child generator.", "Run child evaluator."],
+                "expected_outcomes": expected_outcomes,
+                "failure_signals": [
+                    "Child evaluator fails.",
+                    "Changed paths leave allowed scope.",
+                ],
+            }
+        ],
+    }
+    validate_task_contract_payload(payload)
+    return payload
+
+
+def _ensure_deterministic_child_artifact(
+    path: Path,
+    expected: dict[str, Any],
+    validator: Callable[[dict[str, Any]], None],
+) -> None:
+    if path.is_symlink():
+        raise PermissionError(
+            f"existing deterministic child artifact is a symlink: {path.name}"
+        )
+    if not path.exists():
+        validator(expected)
+        write_json_file(path, expected)
+        return
+    actual = read_json_file(path)
+    validator(actual)
+    if actual != expected:
+        raise ValueError(
+            f"existing deterministic child artifact conflicts with expected content: {path.name}"
+        )
+
+
+def _ensure_demand_child_plan_event(
+    repo_root: Path,
+    parent: Mapping[str, Any],
+    child: Mapping[str, Any],
+    child_task: Mapping[str, Any],
+) -> None:
+    expected = {
+        "parent_run_id": str(parent["run_id"]),
+        "child_id": str(child_task.get("child_id", "")),
+        "actor": "planner",
+        "event_type": "plan",
+        "summary": (
+            f"Planner selected child {int(child['child_index'])}: "
+            f"{child_task.get('title', '')}"
+        ),
+    }
+    path = _event_path(repo_root, str(child["run_id"]))
+    matching = 0
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line:
+                continue
+            event = json.loads(line)
+            if event.get("actor") != "planner" or event.get("event_type") != "plan":
+                continue
+            identity = {key: event.get(key) for key in expected}
+            if identity != expected:
+                raise ValueError("existing deterministic child plan event conflicts")
+            matching += 1
+    if matching > 1:
+        raise ValueError("existing deterministic child plan event is duplicated")
+    if matching == 1:
+        return
+    append_loop_event(
+        repo_root,
+        run_id=str(child["run_id"]),
+        parent_run_id=str(parent["run_id"]),
+        child_id=str(child_task.get("child_id", "")),
+        actor="planner",
+        event_type="plan",
+        summary=expected["summary"],
+    )
+
+
 def _create_child_run(
     repo_root: Path,
     parent: dict[str, Any],
@@ -798,84 +933,34 @@ def _create_child_run(
                 "existing deterministic child identity mismatch: "
                 + ", ".join(mismatched)
             )
-        planner = read_json_file(child_dir / "planner-output.json")
-        contract = read_json_file(child_dir / "task-contract.json")
-        validate_planner_output_payload(planner)
-        validate_task_contract_payload(contract)
-        if (
-            planner.get("task_id") != child["task_id"]
-            or contract.get("task_id") != child["task_id"]
-            or list(planner.get("allowed_paths", [])) != child["allowed_paths"]
-            or list(planner.get("denylist_paths", [])) != child["denylist_paths"]
-        ):
-            raise ValueError("existing deterministic child artifact identity mismatch")
+        planner_payload = _demand_child_planner_payload(existing, child_task)
+        task_contract = _demand_child_task_contract(existing, child_task)
+        _ensure_deterministic_child_artifact(
+            child_dir / "planner-output.json",
+            planner_payload,
+            validate_planner_output_payload,
+        )
+        _ensure_deterministic_child_artifact(
+            child_dir / "task-contract.json",
+            task_contract,
+            validate_task_contract_payload,
+        )
+        _ensure_demand_child_plan_event(repo_root, parent, existing, child_task)
         return existing
     save_run(repo_root, child)
-
-    planner_payload = {
-        "task_id": child["task_id"],
-        "policy": "demand_development",
-        "task_kind": "task_contract_only",
-        "title": str(child_task.get("title", "")),
-        "goal": str(child_task.get("description", "")),
-        "non_goals": [],
-        "allowed_paths": list(child_task.get("allowed_paths", [])),
-        "denylist_paths": list(child_task.get("denylist_paths", [])),
-        "verify_commands": list(child_task.get("verify_commands", [])),
-        "evaluator_scenarios_path": "",
-        "stop_conditions": ["passed"],
-        "next_planning_hint": "return to parent planner",
-    }
-    if child_task.get("audit_remediation"):
-        planner_payload["audit_remediation"] = True
-        planner_payload["audit_response"] = dict(child_task.get("audit_response", {}))
-    validate_planner_output_payload(planner_payload)
-    write_json_file(run_dir_for(repo_root, child_run_id) / "planner-output.json", planner_payload)
-
-    expected_outcomes = list(child_task.get("done_criteria", [])) or ["Child passes fake evaluator."]
-    artifact_paths = [
-        str(path)
-        for path in [
-            *list(child_task.get("allowed_paths", [])),
-            *list(child_task.get("artifact_paths", [])),
-        ]
-    ]
-    task_contract = {
-        "task_id": child["task_id"],
-        "title": str(child_task.get("title", "")),
-        "description": str(child_task.get("description", "")),
-        "verify_commands": list(child_task.get("verify_commands", [])),
-        "scenario_commands": list(child_task.get("scenario_commands", [])),
-        "artifact_paths": artifact_paths,
-        "required_services": [],
-        "evaluator_driver": "harness_auto_gate",
-        "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
-        "allowed_scope": "local_repo_and_harness",
-        "must_simulate": True,
-        "audit_remediation": bool(child_task.get("audit_remediation")),
-        "user_scenarios": [
-            {
-                "scenario_id": f"{child_run_id}-scenario",
-                "user_goal": str(child_task.get("description", "")),
-                "prerequisites": ["Parent demand multi-task run exists."],
-                "steps": ["Run child generator.", "Run child evaluator."],
-                "expected_outcomes": expected_outcomes,
-                "failure_signals": ["Child evaluator fails.", "Changed paths leave allowed scope."],
-            }
-        ],
-    }
-    validate_task_contract_payload(task_contract)
-    write_json_file(run_dir_for(repo_root, child_run_id) / "task-contract.json", task_contract)
-
-    append_loop_event(
-        repo_root,
-        run_id=child_run_id,
-        parent_run_id=parent["run_id"],
-        child_id=str(child_task.get("child_id", "")),
-        actor="planner",
-        event_type="plan",
-        summary=f"Planner selected child {child_index}: {child_task.get('title', '')}",
+    planner_payload = _demand_child_planner_payload(child, child_task)
+    task_contract = _demand_child_task_contract(child, child_task)
+    _ensure_deterministic_child_artifact(
+        child_dir / "planner-output.json",
+        planner_payload,
+        validate_planner_output_payload,
     )
+    _ensure_deterministic_child_artifact(
+        child_dir / "task-contract.json",
+        task_contract,
+        validate_task_contract_payload,
+    )
+    _ensure_demand_child_plan_event(repo_root, parent, child, child_task)
     return child
 
 

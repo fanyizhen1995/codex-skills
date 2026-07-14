@@ -398,35 +398,52 @@ def test_demand_parent_child_chain_uses_one_action_per_worker(
     assert final["child_run_ids"] == [child_id]
 
 
-def test_demand_parent_retry_adopts_orphan_child_after_crash(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("cutpoint", ["run", "planner", "all"])
+def test_demand_parent_retry_completes_and_adopts_orphan_child_at_each_cutpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cutpoint: str
 ) -> None:
     from scripts.loop_supervisor import worker
 
     _init_git_repo(tmp_path)
-    _create_demand_parent(tmp_path, "crash-parent")
+    run_id = f"crash-parent-{cutpoint}"
+    _create_demand_parent(tmp_path, run_id)
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
         action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
-            "crash-parent"
+            run_id
         )
     assert action is not None
-    parent_path = tmp_path / ".codex/loop-runs/crash-parent/run.json"
+    parent_path = tmp_path / ".codex/loop-runs" / run_id / "run.json"
     parent_before = parent_path.read_bytes()
     original_create = legacy._create_child_run
+    original_write = legacy.write_json_file
+    child_id = f"{run_id}-child-001"
+    child_dir = tmp_path / ".codex/loop-runs" / child_id
 
     def crash_after_child(*args: object, **kwargs: object):
         original_create(*args, **kwargs)
         raise SystemExit(17)
 
-    monkeypatch.setattr(legacy, "_create_child_run", crash_after_child)
-    with pytest.raises(SystemExit, match="17"):
-        worker.worker_once(tmp_path, "crashing-parent-worker")
+    def crash_after_artifact(path: Path, payload: dict[str, object]):
+        written = original_write(path, payload)
+        if cutpoint == "run" and path == child_dir / "run.json":
+            raise SystemExit(17)
+        if cutpoint == "planner" and path == child_dir / "planner-output.json":
+            raise SystemExit(17)
+        return written
 
-    child_id = "crash-parent-child-001"
-    child_path = tmp_path / ".codex/loop-runs" / child_id / "run.json"
+    if cutpoint == "all":
+        monkeypatch.setattr(legacy, "_create_child_run", crash_after_child)
+    else:
+        monkeypatch.setattr(legacy, "write_json_file", crash_after_artifact)
+    with pytest.raises(SystemExit, match="17"):
+        worker.worker_once(tmp_path, f"crashing-parent-worker-{cutpoint}")
+
+    child_path = child_dir / "run.json"
     child_before = child_path.read_bytes()
     assert parent_path.read_bytes() == parent_before
+    assert (child_dir / "planner-output.json").exists() is (cutpoint != "run")
+    assert (child_dir / "task-contract.json").exists() is (cutpoint == "all")
 
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
@@ -445,18 +462,97 @@ def test_demand_parent_retry_adopts_orphan_child_after_crash(
         )
 
     monkeypatch.setattr(legacy, "_create_child_run", original_create)
-    retried = worker.worker_once(tmp_path, "retry-parent-worker")
+    monkeypatch.setattr(legacy, "write_json_file", original_write)
+    retried = worker.worker_once(tmp_path, f"retry-parent-worker-{cutpoint}")
 
     assert retried.status == "completed"
-    parent = legacy.load_run(tmp_path, "crash-parent")
+    parent = legacy.load_run(tmp_path, run_id)
     assert parent["phase"] == "child_running"
     assert parent["current_child_run_id"] == child_id
     assert parent["child_run_ids"] == [child_id]
     assert child_path.read_bytes() == child_before
+    child = legacy.load_run(tmp_path, child_id)
+    parent_planner = legacy.read_json_file(
+        tmp_path / ".codex/loop-runs" / run_id / "planner-output.json"
+    )
+    child_task = parent_planner["next_child_task"]
+    planner = legacy.read_json_file(child_dir / "planner-output.json")
+    contract = legacy.read_json_file(child_dir / "task-contract.json")
+    assert planner == legacy._demand_child_planner_payload(child, child_task)
+    assert contract == legacy._demand_child_task_contract(child, child_task)
+    plan_events = [
+        json.loads(line)
+        for line in (child_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    assert sum(
+        event["actor"] == "planner" and event["event_type"] == "plan"
+        for event in plan_events
+    ) == 1
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
         converged = reconcile_once(tmp_path, store, include_worktrees=False)
-    assert converged.action_for(child_id).action_type is ActionType.RUN_GENERATOR
+        assert converged.action_for(child_id).action_type is ActionType.RUN_GENERATOR
+        child_result = worker.worker_once(
+            tmp_path, f"child-after-adopt-{cutpoint}"
+        )
+    assert child_result.status == "completed"
+    assert legacy.load_run(tmp_path, child_id)["phase"] == "evaluating"
+
+
+@pytest.mark.parametrize("corruption", ["malformed", "conflict"])
+def test_demand_parent_retry_never_overwrites_invalid_existing_child_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    _init_git_repo(tmp_path)
+    run_id = f"artifact-parent-{corruption}"
+    _create_demand_parent(tmp_path, run_id)
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            run_id
+        )
+    original_write = legacy.write_json_file
+    child_dir = tmp_path / ".codex/loop-runs" / f"{run_id}-child-001"
+
+    def crash_after_planner(path: Path, payload: dict[str, object]):
+        written = original_write(path, payload)
+        if path == child_dir / "planner-output.json":
+            raise SystemExit(19)
+        return written
+
+    monkeypatch.setattr(legacy, "write_json_file", crash_after_planner)
+    with pytest.raises(SystemExit):
+        worker.worker_once(tmp_path, f"artifact-crash-{corruption}")
+
+    planner_path = child_dir / "planner-output.json"
+    if corruption == "malformed":
+        planner_path.write_text("{malformed\n", encoding="utf-8")
+    else:
+        planner = legacy.read_json_file(planner_path)
+        planner["title"] = "conflicting child identity"
+        original_write(planner_path, planner)
+    artifact_before = planner_path.read_bytes()
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        store._connection.execute(
+            """
+            UPDATE actions
+            SET status = 'pending', lease_owner = '', lease_expires_at = '',
+                lease_heartbeat_at = ''
+            WHERE action_id = ?
+            """,
+            (action.action_id,),
+        )
+    monkeypatch.setattr(legacy, "write_json_file", original_write)
+
+    result = worker.worker_once(tmp_path, f"artifact-retry-{corruption}")
+
+    assert result.status == "failed"
+    assert planner_path.read_bytes() == artifact_before
+    assert not (child_dir / "task-contract.json").exists()
 
 
 def test_demand_parent_retry_rejects_orphan_child_identity_mismatch(
