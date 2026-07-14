@@ -5908,6 +5908,14 @@ def run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> Act
     started_at = _timestamp()
     try:
         artifact = run_artifact_hygiene_step(repo_root, request.run_id)
+        run = load_run(repo_root, request.run_id)
+        if (
+            run["policy"] == "autonomous_knowledge"
+            and run["phase"] == "cleanup"
+            and run["next_action"] == "run_cleanup"
+        ):
+            run["next_action"] = "commit_autonomous_changes"
+            save_run(repo_root, run)
         return _bounded_success(
             "artifact hygiene completed",
             started_at=started_at,
@@ -5977,7 +5985,13 @@ def run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
 def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
-        artifact = run_cleanup(repo_root, request.run_id)
+        run = load_run(repo_root, request.run_id)
+        if run["policy"] == "autonomous_knowledge":
+            if not _finish_autonomous_cleanup(repo_root, request.run_id):
+                raise RuntimeError("autonomous cleanup did not complete")
+            artifact = run_dir_for(repo_root, request.run_id) / "cleanup-result.json"
+        else:
+            artifact = run_cleanup(repo_root, request.run_id)
         return _bounded_success(
             "cleanup phase completed",
             started_at=started_at,

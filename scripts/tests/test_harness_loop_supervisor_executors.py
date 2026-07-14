@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-import subprocess
 
 import pytest
 
@@ -14,8 +13,6 @@ from scripts.loop_supervisor.models import (
     ActionType,
 )
 from scripts.loop_supervisor.registry import REGISTRY
-from scripts.loop_supervisor.reconciler import reconcile_once
-from scripts.loop_supervisor.store import SupervisorStore
 
 
 def _request(action_type: ActionType) -> ActionRequest:
@@ -89,82 +86,3 @@ def test_executor_source_does_not_drive_multi_round_entrypoints() -> None:
     assert "run_" + "autonomous(" not in source
     assert "run_" + "demand_multi(" not in source
     assert "run_" + "loop(" not in source
-
-
-def test_bounded_commit_stops_at_committed_and_next_reconcile_queues_push(
-    tmp_path: Path,
-) -> None:
-    from scripts.loop_supervisor.executor import execute_action
-
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "codex@example.invalid"],
-        cwd=tmp_path,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Codex"], cwd=tmp_path, check=True
-    )
-    (tmp_path / "README.md").write_text("fixture\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "test: initial"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    legacy.create_preflight_run(
-        repo_root=tmp_path,
-        mode="autonomous-knowledge",
-        requirement="Expand fixture knowledge",
-        run_id="commit-run",
-        domain="fixture",
-        confirm=True,
-    )
-    changed_relative = "personal-wiki/domains/fixture/raw/source.md"
-    changed_path = tmp_path / changed_relative
-    changed_path.parent.mkdir(parents=True, exist_ok=True)
-    changed_path.write_text("bounded commit evidence\n", encoding="utf-8")
-    run = legacy.load_run(tmp_path, "commit-run")
-    run["phase"] = "cleanup"
-    run["next_action"] = "commit_autonomous_changes"
-    run["task_id"] = "commit-task"
-    legacy.save_run(tmp_path, run)
-    generator_path = tmp_path / ".codex/loop-runs/commit-run/generator-result.json"
-    generator_path.write_text(
-        """{
-  "task_id": "commit-task",
-  "status": "implemented",
-  "changed_paths": ["personal-wiki/domains/fixture/raw/source.md"],
-  "commit": "",
-  "verify_commands": [],
-  "verify_results": [],
-  "artifacts": [],
-  "cleanup_required": false,
-  "notes": "bounded commit fixture"
-}\n""",
-        encoding="utf-8",
-    )
-
-    with SupervisorStore.open(tmp_path) as store:
-        store.migrate()
-        first = reconcile_once(tmp_path, store, include_worktrees=False)
-        commit_action = first.action_for("commit-run")
-        assert commit_action is not None
-        assert commit_action.action_type is ActionType.COMMIT
-
-        result = execute_action(commit_action, tmp_path)
-
-        assert result.result_class is ActionResultClass.SUCCESS
-        committed = legacy.load_run(tmp_path, "commit-run")
-        assert committed["phase"] == "committed"
-        assert committed["next_action"] == "push_autonomous_commit"
-        assert committed["phase"] not in {"passed_waiting_human_merge", "cleanup"}
-
-        second = reconcile_once(tmp_path, store, include_worktrees=False)
-        push_action = second.action_for("commit-run")
-
-    assert push_action is not None
-    assert push_action.action_type is ActionType.PUSH

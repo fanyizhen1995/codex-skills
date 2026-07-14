@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
+import subprocess
 import threading
 import time
 
@@ -28,6 +29,21 @@ def _seed_action(
     action_type: ActionType = ActionType.RUN_PLANNER,
     phase: str = "planning",
 ) -> ActionRequest:
+    run_dir = root / ".codex" / "loop-runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "run.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "policy": "autonomous_knowledge",
+                "phase": phase,
+                "next_action": "run_autonomous_planner",
+                "state_revision": 0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     request = ActionRequest(
         action_id=action_id,
         run_id=run_id,
@@ -55,6 +71,73 @@ def _seed_action(
 
 def _success(summary: str = "bounded action completed") -> ActionResult:
     return ActionResult(ActionResultClass.SUCCESS, summary)
+
+
+def _init_git_repo(root: Path) -> None:
+    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "codex@example.invalid"],
+        cwd=root,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Codex"], cwd=root, check=True
+    )
+    (root / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "README.md"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "test: initial"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _phase_request(
+    run_id: str, phase: str, action_type: ActionType, *, action_id: str
+) -> ActionRequest:
+    return ActionRequest(
+        action_id=action_id,
+        run_id=run_id,
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase=phase,
+        action_type=action_type,
+        idempotency_key=f"key-{action_id}",
+        task_id="autonomous-task-1",
+        payload={"driver": "fake"},
+    )
+
+
+def _reconcile_and_work(
+    root: Path,
+    store: SupervisorStore,
+    *,
+    run_id: str,
+    expected_action: ActionType,
+    worker_id: str,
+) -> str:
+    from scripts.loop_supervisor.worker import worker_once
+
+    reconciled = reconcile_once(root, store, include_worktrees=False)
+    action = reconciled.action_for(run_id)
+    current = legacy.load_run(root, run_id)
+    assert action is not None, (
+        f"expected={expected_action.value} "
+        f"state={current['phase']}/{current['next_action']} "
+        f"actions={[(row['action_type'], row['status']) for row in store.fetch_all('actions')]} "
+        f"records={[(record.valid, record.error) for record in reconciled.run_records]} "
+        f"decisions={reconciled.open_user_decisions}"
+    )
+    assert action.action_type is expected_action
+
+    result = worker_once(root, worker_id)
+
+    assert result.status == "completed"
+    assert result.action_id == action.action_id
+    return result.action_id
 
 
 def test_worker_executes_exactly_one_action(
@@ -111,6 +194,139 @@ def test_confirmed_demand_run_reconciles_and_worker_calls_planner_primitive(
     assert run["next_action"] == "run_generator"
     assert (tmp_path / ".codex/loop-runs/demand-run/planner-output.json").is_file()
     assert not (tmp_path / ".codex/loop-runs/demand-run/generator-result.json").exists()
+
+
+def test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_git_repo(tmp_path)
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="autonomous-knowledge",
+        requirement="Expand fixture knowledge",
+        run_id="autonomous-run",
+        domain="fixture",
+        confirm=True,
+    )
+    run = legacy.load_run(tmp_path, "autonomous-run")
+    run["phase"] = "generating"
+    run["next_action"] = "run_autonomous_generator"
+    run["task_id"] = "autonomous-task-1"
+    legacy.save_run(tmp_path, run)
+
+    generated = legacy.run_bounded_generator(
+        tmp_path,
+        _phase_request(
+            "autonomous-run",
+            "generating",
+            ActionType.RUN_GENERATOR,
+            action_id="setup-generator",
+        ),
+    )
+    evaluated = legacy.run_bounded_evaluator(
+        tmp_path,
+        _phase_request(
+            "autonomous-run",
+            "evaluating",
+            ActionType.RUN_EVALUATOR,
+            action_id="setup-evaluator",
+        ),
+    )
+    assert generated.result_class is ActionResultClass.SUCCESS
+    assert evaluated.result_class is ActionResultClass.SUCCESS
+    assert legacy.load_run(tmp_path, "autonomous-run")["phase"] == "artifact_hygiene"
+
+    commit_calls: list[list[str]] = []
+    push_calls: list[str] = []
+    original_commit = legacy.run_git_commit
+
+    def record_commit(
+        repo_root: Path, changed_paths: list[str], message: str
+    ) -> str:
+        commit_calls.append(list(changed_paths))
+        return original_commit(repo_root, changed_paths, message)
+
+    def fake_push(
+        repo_root: Path, run_payload: dict[str, object], commit_sha: str
+    ) -> dict[str, object]:
+        push_calls.append(commit_sha)
+        result = {
+            "status": "pass",
+            "commit": commit_sha,
+            "remote_commit": commit_sha,
+            "error": "",
+        }
+        legacy.write_json_file(
+            legacy.run_dir_for(repo_root, str(run_payload["run_id"]))
+            / "push-result.json",
+            result,
+        )
+        return result
+
+    monkeypatch.setattr(legacy, "run_git_commit", record_commit)
+    monkeypatch.setattr(legacy, "_push_autonomous_commit", fake_push)
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action_ids = [
+            _reconcile_and_work(
+                tmp_path,
+                store,
+                run_id="autonomous-run",
+                expected_action=action_type,
+                worker_id=f"worker-{index}",
+            )
+            for index, action_type in enumerate(
+                (
+                    ActionType.RUN_ARTIFACT_HYGIENE,
+                    ActionType.COMMIT,
+                    ActionType.PUSH,
+                    ActionType.CLEANUP,
+                ),
+                start=1,
+            )
+        ]
+
+    final = legacy.load_run(tmp_path, "autonomous-run")
+    assert len(action_ids) == len(set(action_ids)) == 4
+    assert len(commit_calls) == 1
+    assert len(push_calls) == 1
+    assert final["phase"] == "planning"
+    assert final["next_action"] == "run_autonomous_planner"
+    assert final["last_result"] == "pass"
+    assert final["phase"] != "passed_waiting_human_merge"
+    assert final["_autonomous_completed_task_ids"] == ["autonomous-task-1"]
+
+
+def test_demand_cleanup_remains_generic_and_waits_for_human_merge(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Clean demand artifacts",
+        run_id="demand-cleanup",
+        confirm=True,
+    )
+    run = legacy.load_run(tmp_path, "demand-cleanup")
+    run["phase"] = "cleanup"
+    run["next_action"] = "run_cleanup"
+    legacy.save_run(tmp_path, run)
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        reconciled = reconcile_once(tmp_path, store, include_worktrees=False)
+        action = reconciled.action_for("demand-cleanup")
+    assert action is not None
+    assert action.action_type is ActionType.CLEANUP
+
+    result = worker_once(tmp_path, "demand-cleanup-worker")
+
+    assert result.status == "completed"
+    final = legacy.load_run(tmp_path, "demand-cleanup")
+    assert final["phase"] == "passed_waiting_human_merge"
+    assert final["next_action"] == "await_human_merge_confirmation"
 
 
 def test_worker_heartbeat_renews_worker_and_action_lease(

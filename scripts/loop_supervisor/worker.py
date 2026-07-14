@@ -16,9 +16,11 @@ from scripts.harness_loop_runtime_lock import (
     acquire_repository_mutation_lock,
     acquire_run_lock,
 )
+from scripts.harness_loop_contracts import read_json_file
 
 from .executor import execute_action
 from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
+from .reconciler import _state_fingerprint, atomic_save_run
 from .registry import transition_for
 from .store import ActionRecord, LeaseError, SupervisorStore
 
@@ -149,6 +151,36 @@ def _write_interruption_evidence(
     return relative.as_posix()
 
 
+def _read_run_state(project_root: Path, run_id: str) -> dict[str, Any]:
+    path = project_root / ".codex" / "loop-runs" / run_id / "run.json"
+    return read_json_file(path)
+
+
+def _finalize_run_revision(
+    project_root: Path,
+    request: ActionRequest,
+    before: dict[str, Any],
+) -> None:
+    after = _read_run_state(project_root, request.run_id)
+    if _state_fingerprint(before) == _state_fingerprint(after):
+        return
+    revision = after.get("state_revision", 0)
+    if revision == request.run_revision:
+        atomic_save_run(
+            project_root,
+            request.run_id,
+            after,
+            expected_revision=request.run_revision,
+            expected_fingerprint=_state_fingerprint(after),
+        )
+        return
+    if revision != request.run_revision + 1:
+        raise ValueError(
+            f"bounded action produced invalid run revision {revision}; "
+            f"expected {request.run_revision + 1}"
+        )
+
+
 def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
     root = Path(project_root).resolve()
     if _stop_requested.is_set():
@@ -188,7 +220,9 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
                                 owner=f"worker:{worker_id}:{request.action_id}",
                             )
                         )
+                    before = _read_run_state(root, request.run_id)
                     result = execute_action(request, root)
+                _finalize_run_revision(root, request, before)
             except Exception as exc:
                 result = _failure_result(exc, action.action_id)
 
