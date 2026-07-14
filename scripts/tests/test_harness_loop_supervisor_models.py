@@ -1,3 +1,6 @@
+import json
+import math
+
 import pytest
 
 from scripts.loop_supervisor.models import (
@@ -61,6 +64,7 @@ def test_action_request_is_immutable_and_carries_transition_identity():
         ("phase", "not_allowed", ValueError),
         ("action_type", "run_planner", TypeError),
         ("action_id", "", ValueError),
+        ("run_id", "../escape", ValueError),
     ],
 )
 def test_action_request_rejects_invalid_execution_fields(field, value, error):
@@ -80,7 +84,7 @@ def test_action_request_rejects_invalid_execution_fields(field, value, error):
 
 
 def test_frozen_models_snapshot_mutable_inputs_recursively():
-    payload = {"nested": {"items": ["before"], "tags": {"before"}}}
+    payload = {"nested": {"items": ["before"], "tags": ["before"]}}
     artifact_paths = ["result.json"]
     allowed_results = [ActionResultClass.SUCCESS]
     handling = {ActionResultClass.SUCCESS: ResultHandling.ADVANCE}
@@ -108,13 +112,13 @@ def test_frozen_models_snapshot_mutable_inputs_recursively():
     )
 
     payload["nested"]["items"].append("after")
-    payload["nested"]["tags"].add("after")
+    payload["nested"]["tags"].append("after")
     artifact_paths.append("other.json")
     allowed_results.append(ActionResultClass.TERMINAL_FAILURE)
     handling[ActionResultClass.SUCCESS] = ResultHandling.NO_OP
 
     assert request.payload["nested"]["items"] == ("before",)
-    assert request.payload["nested"]["tags"] == frozenset({"before"})
+    assert request.payload["nested"]["tags"] == ("before",)
     assert result.artifact_paths == ("result.json",)
     assert rule.allowed_result_classes == frozenset({ActionResultClass.SUCCESS})
     assert rule.result_handling[ActionResultClass.SUCCESS] is ResultHandling.ADVANCE
@@ -124,6 +128,54 @@ def test_frozen_models_snapshot_mutable_inputs_recursively():
         request.payload["nested"]["items"][0] = "changed"  # type: ignore[index]
     with pytest.raises(TypeError):
         rule.result_handling[ActionResultClass.SUCCESS] = ResultHandling.NO_OP  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {1: "non-string-key"},
+        {"bytes": bytearray(b"unsafe")},
+        {"object": object()},
+        {"nan": math.nan},
+        {"infinity": math.inf},
+        {"set": {"unsafe"}},
+    ],
+)
+def test_action_request_rejects_non_json_safe_payload_values(payload):
+    with pytest.raises((TypeError, ValueError)):
+        ActionRequest(
+            action_id="action-1",
+            run_id="run-1",
+            run_revision=1,
+            policy="autonomous_knowledge",
+            phase="planning",
+            action_type=ActionType.RUN_PLANNER,
+            idempotency_key="run-1:1:planning:run_planner",
+            payload=payload,
+        )
+
+
+def test_action_request_payload_for_storage_returns_independent_json_safe_copy():
+    payload = {"nested": {"items": ["before"], "number": 1.5, "none": None}}
+    request = ActionRequest(
+        action_id="action-1",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key="run-1:1:planning:run_planner",
+        payload=payload,
+    )
+
+    payload["nested"]["items"].append("external-change")
+    stored = request.payload_for_storage()
+    stored["nested"]["items"].append("storage-change")
+
+    assert json.loads(json.dumps(stored)) == {
+        "nested": {"items": ["before", "storage-change"], "number": 1.5, "none": None}
+    }
+    assert request.payload["nested"]["items"] == ("before",)
 
 
 def test_transition_rule_requires_boolean_control_flags():

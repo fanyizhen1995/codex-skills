@@ -1,7 +1,7 @@
 import pytest
 
 from scripts.harness_loop_contracts import ALLOWED_PHASES, ALLOWED_POLICIES, SUPERVISOR_TERMINAL_PHASES
-from scripts.loop_supervisor.models import ActionResultClass, ActionType, ResultHandling
+from scripts.loop_supervisor.models import ActionResultClass, ActionType, ResultHandling, TransitionRule
 from scripts.loop_supervisor.registry import ANY_NEXT_ACTION, REGISTRY, transition_for, validate_registry_coverage
 
 
@@ -52,4 +52,47 @@ def test_coverage_rejects_nonterminal_exact_override_for_terminal_phase():
     )
 
     with pytest.raises(ValueError, match="terminal"):
+        validate_registry_coverage(invalid_registry)
+
+
+@pytest.mark.parametrize(
+    ("next_action", "rule"),
+    [
+        (
+            ANY_NEXT_ACTION,
+            TransitionRule(
+                ActionType.NO_OP,
+                True,
+                allowed_result_classes=frozenset({ActionResultClass.SUCCESS}),
+                result_handling={ActionResultClass.SUCCESS: ResultHandling.NO_OP},
+                terminal=True,
+            ),
+        ),
+        (
+            "unexpected",
+            TransitionRule(
+                ActionType.NO_OP,
+                False,
+                allowed_result_classes=frozenset({ActionResultClass.SUCCESS}),
+                result_handling={ActionResultClass.SUCCESS: ResultHandling.NO_OP},
+                terminal=True,
+                user_escalation=True,
+            ),
+        ),
+    ],
+)
+def test_coverage_rejects_noncanonical_terminal_wildcard_and_exact_entries(next_action, rule):
+    invalid_registry = dict(REGISTRY)
+    invalid_registry[("autonomous_knowledge", "passed", next_action)] = rule
+
+    with pytest.raises(ValueError, match="canonical terminal"):
+        validate_registry_coverage(invalid_registry)
+
+
+def test_coverage_requires_canonical_terminal_wildcard_entries():
+    invalid_registry = dict(REGISTRY)
+    wildcard_key = ("autonomous_knowledge", "passed", ANY_NEXT_ACTION)
+    invalid_registry[("autonomous_knowledge", "passed", "unexpected")] = invalid_registry.pop(wildcard_key)
+
+    with pytest.raises(ValueError, match="terminal wildcard"):
         validate_registry_coverage(invalid_registry)

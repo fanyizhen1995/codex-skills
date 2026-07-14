@@ -114,10 +114,30 @@ def validate_registry_coverage(
     if missing:
         raise ValueError(f"registry lacks behavior for allowed phases: {', '.join(missing)}")
 
+    missing_terminal_wildcards = [
+        f"{policy}:{phase}"
+        for policy in sorted(ALLOWED_POLICIES)
+        for phase in sorted(SUPERVISOR_TERMINAL_PHASES)
+        if (policy, phase, ANY_NEXT_ACTION) not in active_registry
+    ]
+    if missing_terminal_wildcards:
+        raise ValueError(
+            f"registry lacks terminal wildcard rules: {', '.join(missing_terminal_wildcards)}"
+        )
+
+    canonical_terminal_handling = {ActionResultClass.SUCCESS: ResultHandling.NO_OP}
     invalid_terminal_rules = [
         f"{policy}:{phase}:{next_action}"
         for (policy, phase, next_action), rule in active_registry.items()
-        if phase in SUPERVISOR_TERMINAL_PHASES and not rule.terminal
+        if phase in SUPERVISOR_TERMINAL_PHASES
+        and not (
+            rule.terminal is True
+            and rule.action_type is ActionType.NO_OP
+            and rule.mutates_git is False
+            and rule.allowed_result_classes == frozenset({ActionResultClass.SUCCESS})
+            and rule.result_handling == canonical_terminal_handling
+            and rule.user_escalation is False
+        )
     ]
     if invalid_terminal_rules:
-        raise ValueError(f"registry lacks terminal behavior for allowed phases: {', '.join(invalid_terminal_rules)}")
+        raise ValueError(f"registry has non-canonical terminal rules: {', '.join(invalid_terminal_rules)}")

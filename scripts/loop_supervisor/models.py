@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from enum import StrEnum
+import math
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from scripts.harness_loop_contracts import ALLOWED_PHASES, normalize_policy_id
+from scripts.harness_loop_contracts import ALLOWED_PHASES, normalize_policy_id, validate_run_id
 
 
 def _require_string(value: object, field_name: str, *, allow_empty: bool = False) -> str:
@@ -19,13 +20,27 @@ def _require_string(value: object, field_name: str, *, allow_empty: bool = False
     return value
 
 
-def _freeze_value(value: Any) -> Any:
+def _freeze_json_value(value: Any) -> Any:
     if isinstance(value, MappingABC):
-        return MappingProxyType({key: _freeze_value(item) for key, item in value.items()})
+        if not all(isinstance(key, str) for key in value):
+            raise TypeError("payload mappings must use string keys")
+        return MappingProxyType({key: _freeze_json_value(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):
-        return tuple(_freeze_value(item) for item in value)
-    if isinstance(value, (set, frozenset)):
-        return frozenset(_freeze_value(item) for item in value)
+        return tuple(_freeze_json_value(item) for item in value)
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        if math.isfinite(value):
+            return value
+        raise ValueError("payload floats must be finite")
+    raise TypeError("payload values must be JSON-safe")
+
+
+def _thaw_json_value(value: Any) -> Any:
+    if isinstance(value, MappingABC):
+        return {key: _thaw_json_value(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_json_value(item) for item in value]
     return value
 
 
@@ -101,6 +116,7 @@ class ActionRequest:
     def __post_init__(self) -> None:
         _require_string(self.action_id, "action_id")
         _require_string(self.run_id, "run_id")
+        validate_run_id(self.run_id)
         if not isinstance(self.run_revision, int) or isinstance(self.run_revision, bool):
             raise TypeError("run_revision must be an int")
         if self.run_revision < 0:
@@ -117,7 +133,11 @@ class ActionRequest:
         if not isinstance(self.payload, MappingABC):
             raise TypeError("payload must be a mapping")
         object.__setattr__(self, "policy", normalize_policy_id(self.policy))
-        object.__setattr__(self, "payload", _freeze_value(self.payload))
+        object.__setattr__(self, "payload", _freeze_json_value(self.payload))
+
+    def payload_for_storage(self) -> dict[str, Any]:
+        """Return an independent JSON-safe payload suitable for SQLite storage."""
+        return _thaw_json_value(self.payload)
 
 
 @dataclass(frozen=True)
