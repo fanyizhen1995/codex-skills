@@ -864,6 +864,47 @@ def _ensure_demand_child_plan_event(
     )
 
 
+_DEMAND_CHILD_ADOPTION_OBSERVATION_FIELDS = frozenset(
+    {
+        "state_revision",
+        "created_at",
+        "generated_at",
+        "heartbeat_at",
+        "last_heartbeat_at",
+        "last_seen_at",
+        "last_tick_at",
+        "observed_at",
+        "updated_at",
+    }
+)
+
+
+def _validate_deterministic_initial_child_state(
+    existing: Mapping[str, Any], expected: Mapping[str, Any]
+) -> None:
+    existing_state = {
+        key: value
+        for key, value in existing.items()
+        if key not in _DEMAND_CHILD_ADOPTION_OBSERVATION_FIELDS
+    }
+    expected_state = {
+        key: value
+        for key, value in expected.items()
+        if key not in _DEMAND_CHILD_ADOPTION_OBSERVATION_FIELDS
+    }
+    if existing_state == expected_state:
+        return
+    conflicting = sorted(
+        key
+        for key in set(existing_state) | set(expected_state)
+        if existing_state.get(key) != expected_state.get(key)
+    )
+    raise PermissionError(
+        "existing deterministic child ownership state mismatch: "
+        + ", ".join(conflicting)
+    )
+
+
 def _create_child_run(
     repo_root: Path,
     parent: dict[str, Any],
@@ -910,29 +951,7 @@ def _create_child_run(
         raise PermissionError(f"existing child run directory is a symlink: {child_run_id}")
     if child_dir.exists():
         existing = load_run(repo_root, child_run_id)
-        identity_fields = (
-            "run_id",
-            "run_kind",
-            "parent_run_id",
-            "child_index",
-            "audit_remediation",
-            "policy",
-            "task_id",
-            "requirement",
-            "constraints",
-            "allowed_paths",
-            "denylist_paths",
-        )
-        mismatched = [
-            field
-            for field in identity_fields
-            if existing.get(field) != child.get(field)
-        ]
-        if mismatched:
-            raise ValueError(
-                "existing deterministic child identity mismatch: "
-                + ", ".join(mismatched)
-            )
+        _validate_deterministic_initial_child_state(existing, child)
         planner_payload = _demand_child_planner_payload(existing, child_task)
         task_contract = _demand_child_task_contract(existing, child_task)
         _ensure_deterministic_child_artifact(

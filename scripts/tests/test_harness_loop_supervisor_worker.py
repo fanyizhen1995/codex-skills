@@ -440,6 +440,10 @@ def test_demand_parent_retry_completes_and_adopts_orphan_child_at_each_cutpoint(
         worker.worker_once(tmp_path, f"crashing-parent-worker-{cutpoint}")
 
     child_path = child_dir / "run.json"
+    if cutpoint == "all":
+        observed_child = legacy.load_run(tmp_path, child_id)
+        observed_child["observed_at"] = "2026-07-15T00:00:00Z"
+        legacy.save_run(tmp_path, observed_child)
     child_before = child_path.read_bytes()
     assert parent_path.read_bytes() == parent_before
     assert (child_dir / "planner-output.json").exists() is (cutpoint != "run")
@@ -598,8 +602,90 @@ def test_demand_parent_retry_rejects_orphan_child_identity_mismatch(
     result = worker.worker_once(tmp_path, "identity-retry-worker")
 
     assert result.status == "failed"
-    assert result.result_class == ActionResultClass.TERMINAL_FAILURE.value
+    assert result.result_class in {
+        ActionResultClass.POLICY_BLOCK.value,
+        ActionResultClass.TERMINAL_FAILURE.value,
+    }
     assert child_path.read_bytes() == tampered
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    ["phase", "next_action", "attempts", "cleanup", "limits", "baseline"],
+)
+def test_demand_parent_retry_rejects_schema_valid_orphan_state_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, conflict: str
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    _init_git_repo(tmp_path)
+    run_id = f"state-parent-{conflict}"
+    _create_demand_parent(tmp_path, run_id)
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            run_id
+        )
+    original_create = legacy._create_child_run
+
+    def crash_after_child(*args: object, **kwargs: object):
+        original_create(*args, **kwargs)
+        raise SystemExit(20)
+
+    monkeypatch.setattr(legacy, "_create_child_run", crash_after_child)
+    with pytest.raises(SystemExit):
+        worker.worker_once(tmp_path, f"state-crash-{conflict}")
+
+    child_id = f"{run_id}-child-001"
+    child_path = tmp_path / ".codex/loop-runs" / child_id / "run.json"
+    child = legacy.load_run(tmp_path, child_id)
+    if conflict == "phase":
+        child["phase"] = "cleanup"
+        child["next_action"] = "run_cleanup"
+    elif conflict == "next_action":
+        child["next_action"] = "repair_child"
+    elif conflict == "attempts":
+        child["attempts"]["generator"] = 1
+    elif conflict == "cleanup":
+        child["cleanup"]["retained_artifacts"] = ["generated/conflict.txt"]
+    elif conflict == "limits":
+        child["limits"]["max_tasks_per_run"] += 1
+    else:
+        child["baseline_dirty_paths"] = ["generated/conflict.txt"]
+    legacy.save_run(tmp_path, child)
+    tampered = child_path.read_bytes()
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        orphan = reconcile_once(tmp_path, store, include_worktrees=False)
+        assert orphan.action_for(child_id) is None
+        store._connection.execute(
+            """
+            UPDATE actions
+            SET status = 'pending', lease_owner = '', lease_expires_at = '',
+                lease_heartbeat_at = ''
+            WHERE action_id = ?
+            """,
+            (action.action_id,),
+        )
+    monkeypatch.setattr(legacy, "_create_child_run", original_create)
+
+    result = worker.worker_once(tmp_path, f"state-retry-{conflict}")
+
+    assert result.status == "failed"
+    assert result.result_class in {
+        ActionResultClass.POLICY_BLOCK.value,
+        ActionResultClass.TERMINAL_FAILURE.value,
+    }
+    assert child_path.read_bytes() == tampered
+    parent = legacy.load_run(tmp_path, run_id)
+    assert parent["phase"] == "planning"
+    assert parent["current_child_run_id"] == ""
+    assert parent["child_run_ids"] == []
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        still_orphan = reconcile_once(tmp_path, store, include_worktrees=False)
+    assert still_orphan.action_for(child_id) is None
 
 
 def test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions(
