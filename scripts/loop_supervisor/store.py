@@ -1004,14 +1004,9 @@ class SupervisorStore:
         self._validate_summary(result.summary)
         self._validate_checkpoint(result.checkpoint)
         artifacts = self._validate_artifact_paths(result.artifact_paths)
-        now = self._now_text()
-        attempt_id = f"attempt-{uuid4().hex}"
-        started_at = self._coerce_time(result.started_at) if result.started_at else now
-        finished_at = (
-            self._coerce_time(result.finished_at) if result.finished_at else now
-        )
         artifact_json = self._json(artifacts)
         with self._immediate_transaction():
+            now = self._time_text(self._now())
             action = self._connection.execute(
                 "SELECT * FROM actions WHERE action_id = ?", (action_id,)
             ).fetchone()
@@ -1036,6 +1031,13 @@ class SupervisorStore:
                 raise LeaseError(
                     f"action does not match current run revision and phase: {action_id}"
                 )
+            attempt_id = f"attempt-{uuid4().hex}"
+            started_at = (
+                self._coerce_time(result.started_at) if result.started_at else now
+            )
+            finished_at = (
+                self._coerce_time(result.finished_at) if result.finished_at else now
+            )
             tier = (
                 int(action["recovery_tier"]) if recovery_tier is None else recovery_tier
             )

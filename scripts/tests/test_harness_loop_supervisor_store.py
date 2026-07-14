@@ -682,6 +682,100 @@ def test_queued_renew_computes_deadline_after_store_lock_is_acquired(tmp_path):
     )
 
 
+def test_queued_completion_rejects_lease_that_expires_while_waiting_for_lock(
+    tmp_path,
+):
+    clock = ObservableClock()
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=30)
+    observed = clock.observe()
+    result: list[object] = []
+    started = threading.Event()
+
+    def complete() -> None:
+        started.set()
+        try:
+            result.append(
+                store.complete_action(
+                    action.action_id,
+                    "worker-a",
+                    ActionResult(
+                        result_class=ActionResultClass.SUCCESS,
+                        summary="must expire",
+                        finished_at="2026-01-01T00:00:10+00:00",
+                    ),
+                )
+            )
+        except BaseException as exc:
+            result.append(exc)
+
+    store._lock.acquire()
+    thread = threading.Thread(target=complete)
+    try:
+        thread.start()
+        assert started.wait(timeout=1)
+        observed_while_queued = observed.wait(timeout=0.2)
+        clock.advance(seconds=31)
+    finally:
+        store._lock.release()
+    thread.join(timeout=5)
+
+    assert observed_while_queued is False
+    assert len(result) == 1
+    assert isinstance(result[0], RuntimeError)
+    assert "live lease" in str(result[0])
+    assert store.count("action_attempts") == 0
+    assert store.get_action(action.action_id).status == "leased"
+
+
+def test_queued_unexpired_completion_uses_lock_time_for_finished_at_fallback(
+    tmp_path,
+):
+    clock = ObservableClock()
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120)
+    observed = clock.observe()
+    result: list[object] = []
+    started = threading.Event()
+
+    def complete() -> None:
+        started.set()
+        try:
+            result.append(
+                store.complete_action(
+                    action.action_id,
+                    "worker-a",
+                    ActionResult(
+                        result_class=ActionResultClass.SUCCESS,
+                        summary="complete after queue",
+                    ),
+                )
+            )
+        except BaseException as exc:
+            result.append(exc)
+
+    store._lock.acquire()
+    thread = threading.Thread(target=complete)
+    try:
+        thread.start()
+        assert started.wait(timeout=1)
+        observed_while_queued = observed.wait(timeout=0.2)
+        clock.advance(seconds=10)
+    finally:
+        store._lock.release()
+    thread.join(timeout=5)
+
+    assert observed_while_queued is False
+    assert len(result) == 1
+    assert result[0].finished_at == "2026-01-01T00:00:10.000000Z"
+    assert store.count("action_attempts") == 1
+    assert store.get_action(action.action_id).status == "completed"
+
+
 def test_worker_heartbeat_upsert_never_moves_backwards(tmp_path):
     clock = FakeClock(datetime(2026, 1, 1, 0, 1, 40, tzinfo=timezone.utc))
     store = migrated_store(tmp_path, clock=clock)
