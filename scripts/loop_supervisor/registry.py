@@ -12,7 +12,14 @@ from scripts.harness_loop_contracts import (
     normalize_policy_id,
 )
 
-from .models import ActionResultClass, ActionType, ResultHandling, TransitionRule
+from .models import (
+    ActionResultClass,
+    ActionType,
+    RecoveryStage,
+    RecoveryTransitionRule,
+    ResultHandling,
+    TransitionRule,
+)
 
 
 ANY_NEXT_ACTION = object()
@@ -31,8 +38,12 @@ _DEFAULT_RULES = {
     "committed": TransitionRule(ActionType.PUSH, True),
     "stopped_budget": TransitionRule(ActionType.CREATE_CONTINUATION, False),
     "stopped_blocked": TransitionRule(ActionType.ASK_USER, False, user_escalation=True),
-    "audit_pending": TransitionRule(ActionType.RUN_REVIEWER, False),
-    "auditing": TransitionRule(ActionType.RUN_REVIEWER, False),
+    "audit_pending": TransitionRule(
+        ActionType.RUN_REVIEWER, False, worker_executable=False
+    ),
+    "auditing": TransitionRule(
+        ActionType.RUN_REVIEWER, False, worker_executable=False
+    ),
     "audit_blocked": TransitionRule(ActionType.RUN_ALTERNATE_RECOVERY, True),
     "child_running": TransitionRule(ActionType.RUN_PLANNER, True),
 }
@@ -40,6 +51,7 @@ _DEFAULT_RULES = {
 _TERMINAL_RULE = TransitionRule(
     ActionType.NO_OP,
     False,
+    worker_executable=False,
     allowed_result_classes=frozenset({ActionResultClass.SUCCESS}),
     result_handling={ActionResultClass.SUCCESS: ResultHandling.NO_OP},
     terminal=True,
@@ -87,6 +99,47 @@ def transition_for(policy: str, phase: str, next_action: str) -> TransitionRule:
     if rule is None:
         raise ValueError(f"no supervisor transition for {normalized_policy}:{phase}:{next_action}")
     return rule
+
+
+def recovery_transition_for(
+    policy: str,
+    phase: str,
+    next_action: str,
+    stage: RecoveryStage,
+) -> RecoveryTransitionRule:
+    """Return the single registry-owned transition for a recovery stage."""
+    if not isinstance(stage, RecoveryStage):
+        raise TypeError("stage must be a RecoveryStage")
+    source = transition_for(policy, phase, next_action)
+    if source.terminal or source.user_escalation:
+        raise ValueError("terminal and user-gated transitions cannot enter recovery")
+    if stage is RecoveryStage.RETRY:
+        return RecoveryTransitionRule(
+            action_type=source.action_type,
+            mutates_git=source.mutates_git,
+            worker_executable=True,
+            strategy="retry_same_action",
+        )
+    if stage is RecoveryStage.ALTERNATE:
+        if source.action_type is ActionType.RUN_GENERATOR:
+            return RecoveryTransitionRule(
+                action_type=ActionType.RECOVER_GENERATOR_RESULT,
+                mutates_git=True,
+                worker_executable=True,
+                strategy="reconstruct_result_envelope",
+            )
+        return RecoveryTransitionRule(
+            action_type=ActionType.RUN_ALTERNATE_RECOVERY,
+            mutates_git=False,
+            worker_executable=True,
+            strategy="replan_excluding_failed_approach",
+        )
+    return RecoveryTransitionRule(
+        action_type=ActionType.RUN_REVIEWER,
+        mutates_git=False,
+        worker_executable=False,
+        strategy="review_recovery_exhaustion",
+    )
 
 
 def validate_registry_coverage(

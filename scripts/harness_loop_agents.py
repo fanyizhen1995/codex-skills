@@ -47,18 +47,26 @@ def _sha256(path: Path) -> str:
 
 def _owned_attempt_path(run_dir: Path, value: object, field_name: str) -> Path:
     path = Path(str(value))
+    if not path.is_absolute():
+        path = run_dir / path
     try:
-        path.resolve().relative_to(run_dir)
-    except (OSError, RuntimeError, ValueError) as exc:
+        relative = path.relative_to(run_dir)
+    except ValueError as exc:
         raise PermissionError(f"attempt {field_name} ownership escapes run directory") from exc
     current = run_dir
-    for part in path.resolve().relative_to(run_dir).parts:
+    for part in relative.parts:
+        if part in {"", ".."}:
+            raise PermissionError(f"attempt {field_name} ownership escapes run directory")
         current = current / part
         if current.is_symlink():
             raise PermissionError(f"attempt {field_name} ownership traverses a symlink")
-    if not path.is_file():
+    try:
+        current.resolve().relative_to(run_dir)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise PermissionError(f"attempt {field_name} ownership escapes run directory") from exc
+    if not current.is_file():
         raise PermissionError(f"attempt {field_name} ownership requires a regular file")
-    return path
+    return current
 
 
 def load_validated_attempt_evidence(

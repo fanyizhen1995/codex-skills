@@ -34,7 +34,7 @@ def test_handler_table_exactly_covers_registry_executable_actions() -> None:
     expected = {
         rule.action_type
         for rule in REGISTRY.values()
-        if not rule.terminal and not rule.user_escalation
+        if not rule.terminal and not rule.user_escalation and rule.worker_executable
     }
 
     assert executable_action_types() == expected

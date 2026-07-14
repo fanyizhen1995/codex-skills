@@ -583,6 +583,38 @@ def test_shared_store_connection_serializes_two_thread_writes(tmp_path):
     assert store.fetch_all("failures")[0]["occurrence_count"] == 200
 
 
+def test_update_failure_resolution_does_not_increment_occurrence_count(tmp_path):
+    store = migrated_store(tmp_path)
+    store.record_failure("episode-1", resolution='{"status":"open"}')
+
+    updated = store.update_failure_resolution(
+        "episode-1", '{"status":"closed"}'
+    )
+
+    assert updated["resolution"] == '{"status":"closed"}'
+    assert updated["occurrence_count"] == 1
+
+
+def test_requeue_failed_action_only_reopens_failed_row(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120)
+    store.complete_action(
+        action.action_id,
+        "worker-a",
+        ActionResult(
+            result_class=ActionResultClass.RETRYABLE_FAILURE,
+            summary="retry",
+            failure_key="retry:run-1",
+        ),
+    )
+
+    assert store.requeue_failed_action(action.action_id, recovery_tier=1) is True
+    assert store.get_action(action.action_id).status == "pending"
+    assert store.requeue_failed_action(action.action_id, recovery_tier=1) is False
+
+
 def test_commit_failure_rolls_back_and_connection_remains_usable(tmp_path):
     store = migrated_store(tmp_path)
     wrapped = CommitFailOnceConnection(store._connection)

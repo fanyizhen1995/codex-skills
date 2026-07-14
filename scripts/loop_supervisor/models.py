@@ -103,6 +103,12 @@ class ResultHandling(StrEnum):
     STOP = "stop"
 
 
+class RecoveryStage(StrEnum):
+    RETRY = "retry"
+    ALTERNATE = "alternate"
+    REVIEWER = "reviewer"
+
+
 class ReviewDecision(StrEnum):
     CONTINUE = "continue"
     AUTO_REMEDIATE = "auto_remediate"
@@ -196,6 +202,7 @@ DEFAULT_RESULT_HANDLING: Mapping[ActionResultClass, ResultHandling] = MappingPro
 class TransitionRule:
     action_type: ActionType
     mutates_git: bool
+    worker_executable: bool = True
     allowed_result_classes: frozenset[ActionResultClass] = frozenset(ActionResultClass)
     result_handling: Mapping[ActionResultClass, ResultHandling] = field(
         default_factory=lambda: DEFAULT_RESULT_HANDLING
@@ -206,7 +213,12 @@ class TransitionRule:
     def __post_init__(self) -> None:
         if not isinstance(self.action_type, ActionType):
             raise TypeError("action_type must be an ActionType")
-        for field_name in ("mutates_git", "terminal", "user_escalation"):
+        for field_name in (
+            "mutates_git",
+            "worker_executable",
+            "terminal",
+            "user_escalation",
+        ):
             if not isinstance(getattr(self, field_name), bool):
                 raise TypeError(f"{field_name} must be a bool")
         try:
@@ -234,3 +246,20 @@ class TransitionRule:
                 raise ValueError("terminal TransitionRule must use no-op or stop handling")
         object.__setattr__(self, "allowed_result_classes", allowed_result_classes)
         object.__setattr__(self, "result_handling", MappingProxyType(result_handling))
+
+
+@dataclass(frozen=True)
+class RecoveryTransitionRule:
+    action_type: ActionType
+    mutates_git: bool
+    worker_executable: bool
+    strategy: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.action_type, ActionType):
+            raise TypeError("action_type must be an ActionType")
+        if not isinstance(self.mutates_git, bool):
+            raise TypeError("mutates_git must be a bool")
+        if not isinstance(self.worker_executable, bool):
+            raise TypeError("worker_executable must be a bool")
+        _require_string(self.strategy, "strategy")

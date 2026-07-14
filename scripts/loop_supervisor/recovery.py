@@ -13,7 +13,10 @@ import re
 import subprocess
 from typing import Any
 
-from scripts.harness_ai_infra_evidence import validate_required_evidence_manifest
+from scripts.harness_ai_infra_evidence import (
+    resolve_manifest_artifact_path,
+    validate_required_evidence_manifest,
+)
 from scripts.harness_loop_agents import load_validated_attempt_evidence
 from scripts.harness_loop_artifacts import _redact_sensitive_text
 from scripts.harness_loop_autonomous import check_autonomous_scope
@@ -26,7 +29,8 @@ from scripts.harness_loop_contracts import (
     validate_scenario_command_result_payload,
 )
 
-from .models import ActionRequest, ActionResultClass, ActionType
+from .models import ActionRequest, ActionResultClass, ActionType, RecoveryStage
+from .registry import recovery_transition_for
 
 
 _ERROR_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -65,6 +69,7 @@ class RecoveryPlan:
     retry_after_seconds: float = 0.0
     retry_at: str = ""
     source_action_id: str = ""
+    stage: RecoveryStage | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +89,7 @@ class PartialArtifactAssessment:
     artifacts: tuple[str, ...] = ()
     artifact_hashes: Mapping[str, str] | None = None
     checks: tuple[str, ...] = ()
+    safety_signal: str = ""
 
 
 def _value(source: object, key: str, default: Any = "") -> Any:
@@ -139,6 +145,38 @@ def _stable_failure_key(
     )
 
 
+def _class_failure_key(
+    run: Mapping[str, Any], action_type: ActionType, error_class: str
+) -> str:
+    return _stable_failure_key(run, action_type, error_class).replace(
+        "recovery:", "recovery-class:", 1
+    )
+
+
+def _episode_identity(run: Mapping[str, Any], action_type: ActionType) -> dict[str, str]:
+    run_id = str(run.get("run_id") or "")
+    return {
+        "lineage_id": str(run.get("loop_lineage_id") or run_id),
+        "run_id": run_id,
+        "task_id": str(run.get("task_id") or ""),
+        "source_action_type": action_type.value,
+    }
+
+
+def _matching_episode_rows(
+    store: Any, run: Mapping[str, Any], action_type: ActionType
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    identity = _episode_identity(run, action_type)
+    matches: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for row in store.fetch_all("failures"):
+        state = _load_episode(row)
+        if state.get("kind") != "episode":
+            continue
+        if all(state.get(key) == value for key, value in identity.items()):
+            matches.append((row, state))
+    return matches
+
+
 def _load_episode(row: Mapping[str, Any] | None) -> dict[str, Any]:
     if row is None:
         return {}
@@ -167,16 +205,16 @@ def _plan_from_state(state: Mapping[str, Any], failure_key: str) -> RecoveryPlan
         retry_after_seconds=float(state.get("retry_after_seconds", 0.0)),
         retry_at=str(state.get("retry_at") or ""),
         source_action_id=str(state.get("source_action_id") or ""),
+        stage=RecoveryStage(str(state["recovery_stage"]))
+        if state.get("recovery_stage")
+        else None,
     )
 
 
 def _write_resolution(store: Any, failure_key: str, state: Mapping[str, Any]) -> None:
-    now = store._now_text()
-    with store._immediate_transaction():
-        store._connection.execute(
-            "UPDATE failures SET resolution = ?, updated_at = ? WHERE failure_key = ?",
-            (json.dumps(dict(state), sort_keys=True), now, failure_key),
-        )
+    store.update_failure_resolution(
+        failure_key, json.dumps(dict(state), sort_keys=True)
+    )
 
 
 def _close_matching_episodes(
@@ -229,13 +267,20 @@ def plan_recovery(
         state = _load_episode(row)
         attempt_id = str(_value(action_result, "attempt_id", ""))
         if state.get("alternate_failure_attempt_id") != attempt_id:
+            transition = recovery_transition_for(
+                str(run.get("policy") or ""),
+                str(run.get("phase") or ""),
+                str(run.get("next_action") or ""),
+                RecoveryStage.REVIEWER,
+            )
             state.update(
                 {
                     "alternate_failure_attempt_id": attempt_id,
                     "alternate_failed": True,
                     "planned_tier": 3,
-                    "planned_action_type": ActionType.RUN_REVIEWER.value,
-                    "strategy": "review_recovery_exhaustion",
+                    "planned_action_type": transition.action_type.value,
+                    "strategy": transition.strategy,
+                    "recovery_stage": RecoveryStage.REVIEWER.value,
                 }
             )
             _write_resolution(store, recovery_failure_key, state)
@@ -248,15 +293,28 @@ def plan_recovery(
         }
     )
     error_class = classification.error_class
-    failure_key = _stable_failure_key(run, action_type, error_class)
-    existing = _failure_row(store, failure_key)
-    state = _load_episode(existing)
+    episodes = _matching_episode_rows(store, run, action_type)
+    open_episode = next(
+        ((row, state) for row, state in episodes if state.get("status") == "open"),
+        None,
+    )
+    if open_episode is None:
+        failure_key = _stable_failure_key(run, action_type, error_class)
+        existing = _failure_row(store, failure_key)
+        state = _load_episode(existing)
+    else:
+        existing, state = open_episode
+        failure_key = str(existing["failure_key"])
     attempt_id = str(_value(action_result, "attempt_id", ""))
     if state.get("status") == "open" and state.get("last_attempt_id") == attempt_id:
         return _plan_from_state(state, failure_key)
 
     new_episode = not state or state.get("status") != "open"
-    episode_number = int(state.get("episode_number", 0)) + (1 if new_episode else 0)
+    prior_episode_number = max(
+        (int(item.get("episode_number", 0)) for _row, item in episodes),
+        default=0,
+    )
+    episode_number = prior_episode_number + 1 if new_episode else int(state["episode_number"])
     episode_attempts = 1 if new_episode else int(state.get("episode_attempts", 0)) + 1
     lifetime_count = int(existing["occurrence_count"]) + 1 if existing else 1
     jitter_value = float((jitter or (lambda: 0.0))())
@@ -265,46 +323,39 @@ def plan_recovery(
     base_delay = _BACKOFF_SECONDS.get(error_class, 10)
     retry_after = float(base_delay * (2 ** max(episode_attempts - 1, 0)))
     retry_after += retry_after * 0.25 * jitter_value
-    retry_at = store._time_text(store._now() + timedelta(seconds=retry_after))
+    retry_at = store.format_time(
+        store.current_time() + timedelta(seconds=retry_after)
+    )
 
     if result_class == ActionResultClass.RECOVERABLE_PARTIAL.value:
         tier = 2
-        planned_action = (
-            ActionType.RECOVER_GENERATOR_RESULT
-            if action_type is ActionType.RUN_GENERATOR
-            else ActionType.RUN_ALTERNATE_RECOVERY
-        )
-        strategy = (
-            "reconstruct_result_envelope"
-            if planned_action is ActionType.RECOVER_GENERATOR_RESULT
-            else "bounded_alternate_recovery"
-        )
+        recovery_stage = RecoveryStage.ALTERNATE
         alternate_used = True
     elif episode_attempts < 3:
         tier = 1
-        planned_action = action_type
-        strategy = "retry_same_action"
+        recovery_stage = RecoveryStage.RETRY
         alternate_used = False
     elif episode_attempts == 3:
         tier = 2
-        planned_action = (
-            ActionType.RECOVER_GENERATOR_RESULT
-            if action_type is ActionType.RUN_GENERATOR
-            else ActionType.RUN_ALTERNATE_RECOVERY
-        )
-        strategy = (
-            "reconstruct_result_envelope"
-            if planned_action is ActionType.RECOVER_GENERATOR_RESULT
-            else "bounded_alternate_recovery"
-        )
+        recovery_stage = RecoveryStage.ALTERNATE
         alternate_used = True
     else:
         tier = 3
-        planned_action = ActionType.RUN_REVIEWER
-        strategy = "review_recovery_exhaustion"
+        recovery_stage = RecoveryStage.REVIEWER
         alternate_used = bool(state.get("alternate_used"))
 
+    transition = recovery_transition_for(
+        str(run.get("policy") or ""),
+        str(run.get("phase") or ""),
+        str(run.get("next_action") or ""),
+        recovery_stage,
+    )
+    planned_action = transition.action_type
+    strategy = transition.strategy
+
     state = {
+        "kind": "episode",
+        **_episode_identity(run, action_type),
         "status": "open",
         "episode_number": episode_number,
         "episode_attempts": episode_attempts,
@@ -316,9 +367,19 @@ def plan_recovery(
         "planned_tier": tier,
         "planned_action_type": planned_action.value,
         "strategy": strategy,
+        "recovery_stage": recovery_stage.value,
         "retry_after_seconds": retry_after,
         "retry_at": retry_at,
+        "current_error_class": error_class,
     }
+    store.record_failure(
+        _class_failure_key(run, action_type, error_class),
+        run_id=str(run.get("run_id") or ""),
+        task_id=str(run.get("task_id") or ""),
+        error_class=error_class,
+        summary=str(_value(action_result, "summary", "")),
+        resolution=json.dumps({"kind": "class_lifetime"}, sort_keys=True),
+    )
     store.record_failure(
         failure_key,
         run_id=str(run.get("run_id") or ""),
@@ -363,6 +424,35 @@ def _read_object(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{path.name} must contain an object")
     return payload
+
+
+def _owned_regular_file(owner_root: Path, path: Path, label: str) -> Path:
+    owner = owner_root.resolve()
+    candidate = path if path.is_absolute() else owner / path
+    try:
+        relative = candidate.relative_to(owner)
+    except ValueError as exc:
+        raise PermissionError(f"{label} is outside its run-owned root") from exc
+    current = owner
+    for part in relative.parts:
+        if part in {"", ".."}:
+            raise PermissionError(f"{label} is outside its run-owned root")
+        current = current / part
+        if current.is_symlink():
+            raise PermissionError(f"{label} traverses a symlink")
+    try:
+        current.resolve().relative_to(owner)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise PermissionError(f"{label} is outside its run-owned root") from exc
+    if not current.exists():
+        raise FileNotFoundError(f"missing {label}: {current}")
+    if not current.is_file():
+        raise PermissionError(f"{label} is not a regular file")
+    return current
+
+
+def _read_owned_object(owner_root: Path, path: Path, label: str) -> dict[str, Any]:
+    return _read_object(_owned_regular_file(owner_root, path, label))
 
 
 def _dirty_path(line: object) -> str:
@@ -414,6 +504,7 @@ def inspect_partial_artifacts(
     attempt_hashes: dict[int, str] = {}
     attempt_stream_hashes: dict[int, Mapping[str, str]] = {}
     recovered_attempts: list[int] = []
+    safety_signals: list[str] = []
 
     try:
         validate_run_payload(dict(run))
@@ -427,12 +518,13 @@ def inspect_partial_artifacts(
         checks.append("run_contract_and_ownership")
     except PermissionError as exc:
         unsafe.append(f"ownership: {exc}")
+        safety_signals.append("repo_corruption")
     except (OSError, TypeError, ValueError) as exc:
         missing.append(f"run_contract: {exc}")
 
     planner_path = run_dir / "planner-output.json"
     try:
-        planner = _read_object(planner_path)
+        planner = _read_owned_object(run_dir, planner_path, "planner output")
         validate_planner_output_payload(planner)
         if planner.get("task_id") != task_id:
             raise PermissionError("planner task ownership does not match run")
@@ -441,6 +533,7 @@ def inspect_partial_artifacts(
         checks.append("planner_contract")
     except PermissionError as exc:
         unsafe.append(f"ownership: {exc}")
+        safety_signals.append("repo_corruption")
     except (OSError, TypeError, ValueError) as exc:
         missing.append(f"planner_contract: {exc}")
 
@@ -459,6 +552,7 @@ def inspect_partial_artifacts(
             artifacts.append(_artifact_reference(root, attempt.path))
     except PermissionError as exc:
         unsafe.append(f"attempt_ownership: {exc}")
+        safety_signals.append("repo_corruption")
     except (OSError, TypeError, ValueError) as exc:
         missing.append(f"attempt_contract: {exc}")
     if not recovered_attempts:
@@ -468,7 +562,7 @@ def inspect_partial_artifacts(
 
     dirty_path = run_dir / "dirty-paths-result.json"
     try:
-        dirty = _read_object(dirty_path)
+        dirty = _read_owned_object(run_dir, dirty_path, "dirty paths manifest")
         declared = tuple(str(item) for item in dirty.get("declared_paths", []))
         actual = tuple(str(item) for item in dirty.get("actual_paths", []))
         if not declared:
@@ -488,6 +582,7 @@ def inspect_partial_artifacts(
     except PermissionError as exc:
         label = "baseline_ownership" if "baseline" in str(exc) else "declared_paths"
         unsafe.append(f"{label}: {exc}")
+        safety_signals.append("user_decision_required")
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         missing.append(f"declared_paths: {exc}")
 
@@ -502,10 +597,13 @@ def inspect_partial_artifacts(
             checks.append("path_scope")
         else:
             unsafe.append(f"path_scope: {'; '.join(scope.findings)}")
+            safety_signals.append("permission_expansion_required")
 
     verification_path = run_dir / "scenario-command-results.json"
     try:
-        verification = _read_object(verification_path)
+        verification = _read_owned_object(
+            run_dir, verification_path, "verification manifest"
+        )
         results = verification.get("results")
         if verification.get("status") != "pass" or not isinstance(results, list) or not results:
             raise ValueError("verification manifest is not passing")
@@ -518,10 +616,11 @@ def inspect_partial_artifacts(
             if result["status"] != "pass" or result["exit_code"] != 0:
                 raise ValueError(f"verification failed: {result['command']}")
             for key in ("stdout_path", "stderr_path"):
-                evidence_path = Path(str(result[key]))
-                evidence_path.resolve().relative_to(root)
-                if evidence_path.is_symlink() or not evidence_path.is_file():
-                    raise PermissionError(f"verification {key} is not trustworthy")
+                _owned_regular_file(
+                    run_dir / "scenario-commands",
+                    Path(str(result[key])),
+                    f"verification {key}",
+                )
             command = str(result["command"])
             observed_commands.append(command)
             summaries.append(f"{command}: pass")
@@ -532,6 +631,7 @@ def inspect_partial_artifacts(
         checks.append("verification_manifest")
     except PermissionError as exc:
         unsafe.append(f"verification_manifest: {exc}")
+        safety_signals.append("repo_corruption")
     except (OSError, TypeError, ValueError) as exc:
         missing.append(f"verification_manifest: {exc}")
 
@@ -539,9 +639,25 @@ def inspect_partial_artifacts(
     manifest_path = run_dir / "required-evidence-manifest.json"
     if required:
         try:
-            manifest = _read_object(manifest_path)
+            manifest = _read_owned_object(
+                run_dir, manifest_path, "required evidence manifest"
+            )
             if manifest.get("run_id") != run_id or manifest.get("task_id") != task_id:
                 raise PermissionError("required evidence ownership does not match run")
+            for item in manifest.get("items", []):
+                if not isinstance(item, Mapping):
+                    continue
+                for artifact in item.get("artifacts", []):
+                    resolved = resolve_manifest_artifact_path(
+                        str(artifact), root, run_dir
+                    )
+                    if resolved is None:
+                        raise PermissionError(
+                            f"required evidence artifact escapes run: {artifact}"
+                        )
+                    _owned_regular_file(
+                        run_dir, resolved, "required evidence artifact"
+                    )
             findings = validate_required_evidence_manifest(
                 required,
                 manifest,
@@ -565,14 +681,16 @@ def inspect_partial_artifacts(
             artifacts.append(_artifact_reference(root, manifest_path))
         except PermissionError as exc:
             unsafe.append(f"required_evidence: {exc}")
+            safety_signals.append("repo_corruption")
         except (OSError, TypeError, ValueError) as exc:
             missing.append(f"required_evidence: {exc}")
 
     hygiene_path = run_dir / "artifact-manifest.json"
     try:
-        hygiene = _read_object(hygiene_path)
+        hygiene = _read_owned_object(run_dir, hygiene_path, "artifact manifest")
         validate_artifact_hygiene_result_payload(hygiene)
         if hygiene.get("status") != "pass" or hygiene.get("redacted_paths") or hygiene.get("omitted_paths"):
+            safety_signals.append("secret_exposure_confirmed")
             raise PermissionError("artifact hygiene did not prove a clean secret scan")
         scanned = {str(item) for item in hygiene["scanned_paths"]}
         hashes = hygiene["original_hashes"]
@@ -583,11 +701,13 @@ def inspect_partial_artifacts(
             expected_hash = str(hashes.get(relative) or "")
             actual_hash = _sha256(current)
             if not expected_hash or expected_hash != actual_hash:
+                safety_signals.append("repo_corruption")
                 raise PermissionError(f"artifact hash changed after secret scan: {relative}")
             _redacted, sensitive_rules = _redact_sensitive_text(
                 current.read_text(encoding="utf-8")
             )
             if sensitive_rules:
+                safety_signals.append("secret_exposure_confirmed")
                 raise PermissionError(
                     f"artifact contains sensitive text rules {sorted(set(sensitive_rules))}: {relative}"
                 )
@@ -610,6 +730,20 @@ def inspect_partial_artifacts(
         status = "recoverable"
         findings = ()
         checks.append("generator_contract")
+    safety_signal = next(
+        (
+            signal
+            for signal in (
+                "secret_exposure_confirmed",
+                "repo_corruption",
+                "permission_expansion_required",
+                "irreversible_operation_required",
+                "user_decision_required",
+            )
+            if signal in safety_signals
+        ),
+        "",
+    )
     return PartialArtifactAssessment(
         status=status,
         run_id=run_id,
@@ -626,6 +760,7 @@ def inspect_partial_artifacts(
         artifacts=tuple(dict.fromkeys(artifacts)),
         artifact_hashes=dict(sorted(artifact_hashes.items())),
         checks=tuple(dict.fromkeys(checks)),
+        safety_signal=safety_signal,
     )
 
 
@@ -735,21 +870,11 @@ def _retry_is_due(store: Any, retry_at: str) -> bool:
     if not retry_at:
         return True
     normalized = retry_at.replace("Z", "+00:00")
-    return store._now() >= datetime.fromisoformat(normalized)
+    return store.current_time() >= datetime.fromisoformat(normalized)
 
 
 def _requeue_failed_action(store: Any, action_id: str, tier: int) -> None:
-    now = store._now_text()
-    with store._immediate_transaction():
-        store._connection.execute(
-            """
-            UPDATE actions
-            SET status = 'pending', recovery_tier = ?, lease_owner = '',
-                lease_expires_at = '', lease_heartbeat_at = '', updated_at = ?
-            WHERE action_id = ? AND status = 'failed'
-            """,
-            (tier, now, action_id),
-        )
+    store.requeue_failed_action(action_id, recovery_tier=tier)
 
 
 def _recovery_request(
@@ -772,6 +897,7 @@ def _recovery_request(
             "recovery_failure_key": plan.failure_key,
             "recovery_episode": plan.episode_number,
             "recovery_tier": plan.tier,
+            "recovery_stage": plan.stage.value if plan.stage is not None else "",
             "recovery_strategy": plan.strategy,
             "recovery_for_action_type": ActionType.RUN_GENERATOR.value
             if plan.action_type is ActionType.RECOVER_GENERATOR_RESULT

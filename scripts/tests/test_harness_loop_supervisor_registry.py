@@ -1,8 +1,20 @@
 import pytest
 
 from scripts.harness_loop_contracts import ALLOWED_PHASES, ALLOWED_POLICIES, SUPERVISOR_TERMINAL_PHASES
-from scripts.loop_supervisor.models import ActionResultClass, ActionType, ResultHandling, TransitionRule
-from scripts.loop_supervisor.registry import ANY_NEXT_ACTION, REGISTRY, transition_for, validate_registry_coverage
+from scripts.loop_supervisor.models import (
+    ActionResultClass,
+    ActionType,
+    RecoveryStage,
+    ResultHandling,
+    TransitionRule,
+)
+from scripts.loop_supervisor.registry import (
+    ANY_NEXT_ACTION,
+    REGISTRY,
+    recovery_transition_for,
+    transition_for,
+    validate_registry_coverage,
+)
 
 
 def test_every_allowed_parent_phase_has_registry_behavior():
@@ -14,6 +26,54 @@ def test_generator_inspection_maps_to_recovery_not_user_decision():
 
     assert rule.action_type is ActionType.RECOVER_GENERATOR_RESULT
     assert rule.user_escalation is False
+
+
+def test_registry_owns_retry_alternate_and_reviewer_recovery_transitions():
+    retry = recovery_transition_for(
+        "autonomous_knowledge",
+        "generating",
+        "run_autonomous_generator",
+        RecoveryStage.RETRY,
+    )
+    generator_alternate = recovery_transition_for(
+        "autonomous_knowledge",
+        "generating",
+        "run_autonomous_generator",
+        RecoveryStage.ALTERNATE,
+    )
+    planner_alternate = recovery_transition_for(
+        "autonomous_knowledge",
+        "planning",
+        "run_autonomous_planner",
+        RecoveryStage.ALTERNATE,
+    )
+    reviewer = recovery_transition_for(
+        "autonomous_knowledge",
+        "generating",
+        "run_autonomous_generator",
+        RecoveryStage.REVIEWER,
+    )
+
+    assert (retry.action_type, retry.mutates_git, retry.worker_executable) == (
+        ActionType.RUN_GENERATOR,
+        True,
+        True,
+    )
+    assert (
+        generator_alternate.action_type,
+        generator_alternate.mutates_git,
+        generator_alternate.worker_executable,
+    ) == (ActionType.RECOVER_GENERATOR_RESULT, True, True)
+    assert (
+        planner_alternate.action_type,
+        planner_alternate.mutates_git,
+        planner_alternate.worker_executable,
+    ) == (ActionType.RUN_ALTERNATE_RECOVERY, False, True)
+    assert (reviewer.action_type, reviewer.mutates_git, reviewer.worker_executable) == (
+        ActionType.RUN_REVIEWER,
+        False,
+        False,
+    )
 
 
 def test_wildcard_next_actions_are_explicit_registry_entries():

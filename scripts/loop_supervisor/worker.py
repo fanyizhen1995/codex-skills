@@ -23,15 +23,21 @@ from scripts.harness_loop_runtime_lock import (
 )
 import scripts.harness_loop_orchestrator as legacy
 
-from .executor import execute_action
+from .executor import execute_action, executable_action_types
 from .failures import (
     BoundedFailure,
     classify_bounded_failure,
     redact_bounded_text as _redact_text,
 )
-from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
+from .models import (
+    ActionRequest,
+    ActionResult,
+    ActionResultClass,
+    ActionType,
+    RecoveryStage,
+)
 from .reconciler import _state_fingerprint, atomic_save_run_locked
-from .registry import transition_for
+from .registry import recovery_transition_for, transition_for
 from .store import ActionRecord, SupervisorStore
 
 
@@ -100,22 +106,25 @@ def _mutates_git(request: ActionRequest) -> bool:
     if rule.action_type is not request.action_type:
         recovery_for = request.payload.get("recovery_for_action_type")
         failure_key = request.payload.get("recovery_failure_key")
-        if (
-            request.action_type
-            in {
-                ActionType.RECOVER_GENERATOR_RESULT,
-                ActionType.RUN_ALTERNATE_RECOVERY,
-                ActionType.RUN_REVIEWER,
-            }
-            and recovery_for == rule.action_type.value
+        try:
+            recovery_stage = RecoveryStage(str(request.payload["recovery_stage"]))
+            recovery_rule = recovery_transition_for(
+                request.policy,
+                request.phase,
+                request.next_action,
+                recovery_stage,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("recovery override is not registry-owned") from exc
+        if not (
+            recovery_for == rule.action_type.value
             and isinstance(failure_key, str)
             and failure_key.startswith("recovery:")
+            and recovery_rule.action_type is request.action_type
+            and recovery_rule.worker_executable
         ):
-            return request.action_type is not ActionType.RUN_REVIEWER and rule.mutates_git
-        raise ValueError(
-            "leased action type does not match current registry transition: "
-            f"{request.action_type.value} != {rule.action_type.value}"
-        )
+            raise ValueError("recovery override does not match registry transition")
+        return recovery_rule.mutates_git
     return rule.mutates_git
 
 
@@ -325,6 +334,9 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
             worker_id,
             lease_seconds=LEASE_SECONDS,
             heartbeat_stale_seconds=HEARTBEAT_STALE_SECONDS,
+            allowed_action_types={
+                action_type.value for action_type in executable_action_types()
+            },
         )
         if action is None:
             return WorkerResult(status="idle")

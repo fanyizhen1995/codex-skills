@@ -929,18 +929,33 @@ class SupervisorStore:
         *,
         lease_seconds: int,
         heartbeat_stale_seconds: int = DEFAULT_HEARTBEAT_STALE_SECONDS,
+        allowed_action_types: set[str] | frozenset[str] | None = None,
     ) -> ActionRecord | None:
         self._validate_lease_input(worker_id, lease_seconds)
         self._validate_heartbeat_stale_seconds(heartbeat_stale_seconds)
+        if allowed_action_types is not None and not all(
+            isinstance(item, str) and item for item in allowed_action_types
+        ):
+            raise ValueError("allowed_action_types must contain non-empty strings")
         with self._immediate_transaction():
             now_value = self._now()
             now = self._time_text(now_value)
+            if allowed_action_types is not None and not allowed_action_types:
+                self._write_worker_heartbeat(worker_id, now)
+                return None
             expires_at = self._time_text(now_value + timedelta(seconds=lease_seconds))
             heartbeat_cutoff = self._time_text(
                 now_value - timedelta(seconds=heartbeat_stale_seconds)
             )
+            action_type_clause = ""
+            select_parameters: list[Any] = [now, heartbeat_cutoff]
+            if allowed_action_types is not None:
+                ordered_types = sorted(allowed_action_types)
+                placeholders = ", ".join("?" for _ in ordered_types)
+                action_type_clause = f"AND a.action_type IN ({placeholders})"
+                select_parameters.extend(ordered_types)
             row = self._connection.execute(
-                """
+                f"""
                 SELECT a.* FROM actions AS a
                 JOIN runs AS r
                   ON r.run_id = a.run_id
@@ -969,10 +984,11 @@ class SupervisorStore:
                       )
                     )
                 )
+                {action_type_clause}
                 ORDER BY a.priority ASC, a.created_at ASC, a.action_id ASC
                 LIMIT 1
                 """,
-                (now, heartbeat_cutoff),
+                select_parameters,
             ).fetchone()
             if row is None:
                 self._write_worker_heartbeat(worker_id, now)
@@ -1440,6 +1456,53 @@ class SupervisorStore:
                 "SELECT * FROM failures WHERE failure_key = ?", (failure_key,)
             ).fetchone()
         return self._decoded_row(row)
+
+    def update_failure_resolution(
+        self, failure_key: str, resolution: str
+    ) -> dict[str, Any]:
+        self._required_text(failure_key, "failure_key")
+        if not isinstance(resolution, str) or not resolution:
+            raise ValueError("resolution must be a non-empty string")
+        now = self._now_text()
+        with self._immediate_transaction():
+            updated = self._connection.execute(
+                """
+                UPDATE failures SET resolution = ?, updated_at = ?
+                WHERE failure_key = ?
+                """,
+                (resolution, now, failure_key),
+            )
+            if updated.rowcount != 1:
+                raise KeyError(failure_key)
+            row = self._connection.execute(
+                "SELECT * FROM failures WHERE failure_key = ?", (failure_key,)
+            ).fetchone()
+        return self._decoded_row(row)
+
+    def requeue_failed_action(self, action_id: str, *, recovery_tier: int) -> bool:
+        self._required_text(action_id, "action_id")
+        if not isinstance(recovery_tier, int) or isinstance(recovery_tier, bool):
+            raise TypeError("recovery_tier must be an int")
+        if recovery_tier < 0:
+            raise ValueError("recovery_tier must be non-negative")
+        now = self._now_text()
+        with self._immediate_transaction():
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'pending', recovery_tier = ?, lease_owner = '',
+                    lease_expires_at = '', lease_heartbeat_at = '', updated_at = ?
+                WHERE action_id = ? AND status = 'failed'
+                """,
+                (recovery_tier, now, action_id),
+            )
+        return updated.rowcount == 1
+
+    def current_time(self) -> datetime:
+        return self._now()
+
+    def format_time(self, value: datetime) -> str:
+        return self._time_text(value)
 
     def open_user_decision(
         self,
