@@ -1009,3 +1009,4 @@ class HarnessLoopContractsTests(unittest.TestCase):
         self.assertTrue(
             harness_loop_contracts.SUPERVISOR_TERMINAL_PHASES <= harness_loop_contracts.ALLOWED_PHASES
         )
+        self.assertNotIn("passed_waiting_human_merge", harness_loop_contracts.SUPERVISOR_TERMINAL_PHASES)

@@ -6,6 +6,7 @@ from .models import (
     ActionResultClass,
     ActionStatus,
     ActionType,
+    ResultHandling,
     ReviewDecision,
     TransitionRule,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "ActionResultClass",
     "ActionStatus",
     "ActionType",
+    "ResultHandling",
     "ReviewDecision",
     "TransitionRule",
     "transition_for",

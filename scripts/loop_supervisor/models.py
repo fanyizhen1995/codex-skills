@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any, Mapping
 
 
 class ActionType(StrEnum):
+    NO_OP = "no_op"
     RUN_PLANNER = "run_planner"
     RUN_GENERATOR = "run_generator"
     RUN_EVALUATOR = "run_evaluator"
@@ -44,6 +46,16 @@ class ActionResultClass(StrEnum):
     TERMINAL_FAILURE = "terminal_failure"
 
 
+class ResultHandling(StrEnum):
+    ADVANCE = "advance"
+    CLASSIFIED_RETRY = "classified_retry"
+    ARTIFACT_RECOVERY = "artifact_recovery"
+    SAFETY_DECISION = "safety_decision"
+    REVIEWER_OR_USER = "reviewer_or_user"
+    NO_OP = "no_op"
+    STOP = "stop"
+
+
 class ReviewDecision(StrEnum):
     CONTINUE = "continue"
     AUTO_REMEDIATE = "auto_remediate"
@@ -77,8 +89,21 @@ class ActionResult:
     finished_at: str = ""
 
     def __post_init__(self) -> None:
+        if not isinstance(self.result_class, ActionResultClass):
+            raise TypeError("result_class must be an ActionResultClass")
         if self.result_class is not ActionResultClass.SUCCESS and not self.failure_key:
             raise ValueError("non-success ActionResult requires failure_key")
+
+
+DEFAULT_RESULT_HANDLING: Mapping[ActionResultClass, ResultHandling] = MappingProxyType(
+    {
+        ActionResultClass.SUCCESS: ResultHandling.ADVANCE,
+        ActionResultClass.RETRYABLE_FAILURE: ResultHandling.CLASSIFIED_RETRY,
+        ActionResultClass.RECOVERABLE_PARTIAL: ResultHandling.ARTIFACT_RECOVERY,
+        ActionResultClass.POLICY_BLOCK: ResultHandling.SAFETY_DECISION,
+        ActionResultClass.TERMINAL_FAILURE: ResultHandling.REVIEWER_OR_USER,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -86,6 +111,26 @@ class TransitionRule:
     action_type: ActionType
     mutates_git: bool
     allowed_result_classes: frozenset[ActionResultClass] = frozenset(ActionResultClass)
-    recovery_policy: str = "classified_retry"
+    result_handling: Mapping[ActionResultClass, ResultHandling] = field(
+        default_factory=lambda: DEFAULT_RESULT_HANDLING
+    )
     terminal: bool = False
     user_escalation: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.action_type, ActionType):
+            raise TypeError("action_type must be an ActionType")
+        if not self.allowed_result_classes or not all(
+            isinstance(result_class, ActionResultClass) for result_class in self.allowed_result_classes
+        ):
+            raise TypeError("allowed_result_classes must contain ActionResultClass values")
+        if set(self.result_handling) != set(self.allowed_result_classes):
+            raise ValueError("result_handling must cover exactly the allowed result classes")
+        if not all(isinstance(handling, ResultHandling) for handling in self.result_handling.values()):
+            raise TypeError("result_handling must contain ResultHandling values")
+        if self.terminal:
+            if self.action_type not in {ActionType.NO_OP, ActionType.STOP_RUN}:
+                raise ValueError("terminal TransitionRule must use a no-op or stop action")
+            terminal_handlings = {ResultHandling.NO_OP, ResultHandling.STOP}
+            if not set(self.result_handling.values()) <= terminal_handlings:
+                raise ValueError("terminal TransitionRule must use no-op or stop handling")

@@ -6,7 +6,9 @@ from scripts.loop_supervisor.models import (
     ActionResultClass,
     ActionStatus,
     ActionType,
+    ResultHandling,
     ReviewDecision,
+    TransitionRule,
 )
 
 
@@ -57,6 +59,22 @@ def test_action_result_accepts_success_without_failure_key():
     result = ActionResult(result_class=ActionResultClass.SUCCESS, summary="complete")
 
     assert result.failure_key == ""
+
+
+def test_action_result_rejects_string_result_class():
+    with pytest.raises(TypeError, match="ActionResultClass"):
+        ActionResult(result_class="success", summary="complete")  # type: ignore[arg-type]
+
+
+def test_transition_rule_routes_each_result_class_to_its_own_default_handling():
+    rule = TransitionRule(ActionType.RUN_GENERATOR, True)
+
+    assert rule.result_handling[ActionResultClass.SUCCESS] is ResultHandling.ADVANCE
+    assert rule.result_handling[ActionResultClass.RETRYABLE_FAILURE] is ResultHandling.CLASSIFIED_RETRY
+    assert rule.result_handling[ActionResultClass.RECOVERABLE_PARTIAL] is ResultHandling.ARTIFACT_RECOVERY
+    assert rule.result_handling[ActionResultClass.POLICY_BLOCK] is ResultHandling.SAFETY_DECISION
+    assert rule.result_handling[ActionResultClass.TERMINAL_FAILURE] is ResultHandling.REVIEWER_OR_USER
+    assert len(set(rule.result_handling.values())) == len(ActionResultClass)
 
 
 def test_status_and_reviewer_decision_use_closed_enums():

@@ -9,7 +9,7 @@ from scripts.harness_loop_contracts import (
     normalize_policy_id,
 )
 
-from .models import ActionType, TransitionRule
+from .models import ActionResultClass, ActionType, ResultHandling, TransitionRule
 
 
 ANY_NEXT_ACTION = object()
@@ -34,11 +34,26 @@ _DEFAULT_RULES = {
     "child_running": TransitionRule(ActionType.RUN_PLANNER, True),
 }
 
+_TERMINAL_RULE = TransitionRule(
+    ActionType.NO_OP,
+    False,
+    allowed_result_classes=frozenset({ActionResultClass.SUCCESS}),
+    result_handling={ActionResultClass.SUCCESS: ResultHandling.NO_OP},
+    terminal=True,
+)
+
 REGISTRY: dict[tuple[str, str, object], TransitionRule] = {
     (policy, phase, ANY_NEXT_ACTION): rule
     for policy in ALLOWED_POLICIES
     for phase, rule in _DEFAULT_RULES.items()
 }
+REGISTRY.update(
+    {
+        (policy, phase, ANY_NEXT_ACTION): _TERMINAL_RULE
+        for policy in ALLOWED_POLICIES
+        for phase in SUPERVISOR_TERMINAL_PHASES
+    }
+)
 REGISTRY.update(
     {
         ("autonomous_knowledge", "planning", "run_autonomous_planner"): TransitionRule(ActionType.RUN_PLANNER, True),
@@ -80,12 +95,20 @@ def validate_registry_coverage() -> None:
     if invalid_entries:
         raise ValueError(f"registry contains unsupported policy or phase: {invalid_entries}")
 
-    required_phases = ALLOWED_PHASES - SUPERVISOR_TERMINAL_PHASES
     missing = [
         f"{policy}:{phase}"
         for policy in sorted(ALLOWED_POLICIES)
-        for phase in sorted(required_phases)
+        for phase in sorted(ALLOWED_PHASES)
         if not any(entry_policy == policy and entry_phase == phase for entry_policy, entry_phase, _ in REGISTRY)
     ]
     if missing:
         raise ValueError(f"registry lacks behavior for allowed phases: {', '.join(missing)}")
+
+    invalid_terminal_rules = [
+        f"{policy}:{phase}"
+        for policy in sorted(ALLOWED_POLICIES)
+        for phase in sorted(SUPERVISOR_TERMINAL_PHASES)
+        if not (rule := REGISTRY.get((policy, phase, ANY_NEXT_ACTION))) or not rule.terminal
+    ]
+    if invalid_terminal_rules:
+        raise ValueError(f"registry lacks terminal behavior for allowed phases: {', '.join(invalid_terminal_rules)}")
