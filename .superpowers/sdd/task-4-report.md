@@ -2,7 +2,7 @@
 
 ## Status
 
-`DONE_WITH_CONCERNS`
+`DONE`
 
 ## RED / GREEN
 
@@ -11,6 +11,7 @@
 - RED: production `run-autonomous` CLI attempted to load a live run instead of returning deprecation status.
 - RED: a simulated `SystemExit(9)` was swallowed and recorded as an action failure instead of leaving a reclaimable lease.
 - RED regression: direct `scripts/harness_loop_phase2_smoke.py` execution could not import the new models dependency.
+- RED critical review: demand `planned/run_planner` resolved to `RUN_GENERATOR`, autonomous `cleanup/commit_autonomous_changes` resolved to non-mutating `CLEANUP`, and `COMMIT` had no Executor handler.
 - GREEN: focused executor, Worker, and lock suite passes 16 tests.
 - GREEN: legacy orchestrator compatibility suite passes 202 tests.
 - GREEN: `py_compile` and `git diff --check` pass.
@@ -24,6 +25,7 @@
 - `run_evaluator`
 - `run_evidence_gate`
 - `run_artifact_hygiene`
+- `commit`
 - `push`
 - `cleanup`
 - `create_continuation`
@@ -32,6 +34,14 @@
 - `run_reviewer`
 
 The dispatcher rejects `ask_user` and terminal `no_op`. Executor source and runtime tests prohibit calls to `run_loop`, `run_autonomous`, and `run_demand_multi`.
+
+## Critical Registry Fix
+
+- Demand `planned/run_planner` now maps exactly to mutating `RUN_PLANNER`; child `planned/run_generator` remains mutating `RUN_GENERATOR`.
+- A confirmed demand preflight is reconciled to `RUN_PLANNER`, and a real Worker invocation creates `planner-output.json` and stops in `generating/run_generator` without invoking Generator.
+- Autonomous `cleanup/commit_autonomous_changes` now maps exactly to mutating `COMMIT`; `cleanup/run_cleanup` remains non-mutating `CLEANUP`.
+- Autonomous `committed/push_autonomous_commit` maps exactly to mutating `PUSH`. Blocked retry/inspection states are not mapped to ordinary cleanup.
+- `COMMIT` dispatches only to `run_bounded_commit`. A successful bounded commit stops at `committed/push_autonomous_commit`; the next Reconciler tick queues `PUSH` and does not jump to cleanup or `passed_waiting_human_merge`.
 
 ## Worker And Recovery Evidence
 
@@ -63,6 +73,12 @@ python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_executors.py scr
 python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v
 Ran 202 tests in 10.646s - OK
 
+python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_registry.py scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_supervisor.py
+68 passed in 2.20s
+
+ruff check scripts/loop_supervisor/registry.py scripts/loop_supervisor/executor.py scripts/loop_supervisor/worker.py scripts/harness_loop_orchestrator.py scripts/tests/test_harness_loop_supervisor_registry.py scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_supervisor.py
+All checks passed
+
 python3 -m py_compile scripts/harness_loop_orchestrator.py scripts/harness_loop_runtime_lock.py scripts/loop_supervisor/executor.py scripts/loop_supervisor/worker.py
 exit 0
 
@@ -76,6 +92,6 @@ Scoped commit message: `feat(harness): execute supervisor actions through worker
 
 ## Concerns
 
-- Task 1 registry maps demand `planned/run_planner` through the wildcard `run_generator`, while the bounded demand Planner requires `planned`. It also maps autonomous `cleanup/commit_autonomous_changes` to non-mutating `cleanup`, so the new bounded `commit` primitive is not currently queue-reachable. These are upstream registry contract mismatches outside the Task 4 file brief and need correction before end-to-end Supervisor cutover.
-- Task 5 and Task 6 still own full recovery and Reviewer policy. Task 4 supplies bounded adapters for the current registry entries but does not add those later policy engines.
+- Resolved: the two Critical Task 1/4 registry concerns are covered by exact transition rules, Executor import guards, Worker integration, and commit-to-PUSH reconciliation tests.
+- Remaining scope is unchanged: Task 5 and Task 6 own full recovery and Reviewer policy.
 - No service or live-run restart was required; no live `.codex/loop-runs` or wiki content was modified.

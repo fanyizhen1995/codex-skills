@@ -62,11 +62,15 @@ _registry.update(
         ("autonomous_knowledge", "planning", "run_autonomous_planner"): TransitionRule(ActionType.RUN_PLANNER, True),
         ("autonomous_knowledge", "generating", "run_autonomous_generator"): TransitionRule(ActionType.RUN_GENERATOR, True),
         ("autonomous_knowledge", "evaluating", "run_autonomous_evaluator"): TransitionRule(ActionType.RUN_EVALUATOR, False),
+        ("autonomous_knowledge", "cleanup", "commit_autonomous_changes"): TransitionRule(ActionType.COMMIT, True),
+        ("autonomous_knowledge", "cleanup", "run_cleanup"): TransitionRule(ActionType.CLEANUP, False),
+        ("autonomous_knowledge", "committed", "push_autonomous_commit"): TransitionRule(ActionType.PUSH, True),
         ("autonomous_knowledge", "stopped_blocked", "inspect_autonomous_generator"): TransitionRule(
             ActionType.RECOVER_GENERATOR_RESULT,
             True,
             user_escalation=False,
         ),
+        ("demand_development", "planned", "run_planner"): TransitionRule(ActionType.RUN_PLANNER, True),
         ("demand_development", "planned", "run_generator"): TransitionRule(ActionType.RUN_GENERATOR, True),
         ("demand_development", "evaluating", "run_evaluator"): TransitionRule(ActionType.RUN_EVALUATOR, False),
     }

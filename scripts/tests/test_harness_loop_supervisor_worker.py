@@ -16,6 +16,8 @@ from scripts.loop_supervisor.models import (
     ActionType,
 )
 from scripts.loop_supervisor.store import SupervisorStore
+from scripts.loop_supervisor.reconciler import reconcile_once
+import scripts.harness_loop_orchestrator as legacy
 
 
 def _seed_action(
@@ -79,6 +81,36 @@ def test_worker_executes_exactly_one_action(
         store.migrate()
         statuses = {row["action_id"]: row["status"] for row in store.fetch_all("actions")}
     assert statuses == {"action-1": "completed", "action-2": "pending"}
+
+
+def test_confirmed_demand_run_reconciles_and_worker_calls_planner_primitive(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Implement one bounded task",
+        run_id="demand-run",
+        confirm=True,
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        reconciled = reconcile_once(tmp_path, store, include_worktrees=False)
+        action = reconciled.action_for("demand-run")
+
+    assert action is not None
+    assert action.action_type is ActionType.RUN_PLANNER
+
+    result = worker_once(tmp_path, "planner-worker")
+
+    assert result.status == "completed"
+    run = legacy.load_run(tmp_path, "demand-run")
+    assert run["phase"] == "generating"
+    assert run["next_action"] == "run_generator"
+    assert (tmp_path / ".codex/loop-runs/demand-run/planner-output.json").is_file()
+    assert not (tmp_path / ".codex/loop-runs/demand-run/generator-result.json").exists()
 
 
 def test_worker_heartbeat_renews_worker_and_action_lease(

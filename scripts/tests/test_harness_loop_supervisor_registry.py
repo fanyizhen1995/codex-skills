@@ -21,6 +21,36 @@ def test_wildcard_next_actions_are_explicit_registry_entries():
     assert transition_for("demand_development", "generating", "run_generator").action_type is ActionType.RUN_GENERATOR
 
 
+def test_demand_planned_routes_planner_and_child_generator_exactly():
+    planner = transition_for("demand_development", "planned", "run_planner")
+    child_generator = transition_for("demand_development", "planned", "run_generator")
+
+    assert planner.action_type is ActionType.RUN_PLANNER
+    assert planner.mutates_git is True
+    assert child_generator.action_type is ActionType.RUN_GENERATOR
+    assert child_generator.mutates_git is True
+
+
+def test_autonomous_commit_cleanup_and_push_are_distinct_exact_actions():
+    commit = transition_for(
+        "autonomous_knowledge", "cleanup", "commit_autonomous_changes"
+    )
+    cleanup = transition_for("autonomous_knowledge", "cleanup", "run_cleanup")
+    push = transition_for(
+        "autonomous_knowledge", "committed", "push_autonomous_commit"
+    )
+
+    assert commit.action_type is ActionType.COMMIT
+    assert commit.mutates_git is True
+    assert cleanup.action_type is ActionType.CLEANUP
+    assert cleanup.mutates_git is False
+    assert push.action_type is ActionType.PUSH
+    assert push.mutates_git is True
+    assert transition_for(
+        "autonomous_knowledge", "stopped_blocked", "retry_autonomous_push"
+    ).action_type is not ActionType.CLEANUP
+
+
 def test_every_allowed_phase_is_represented_in_registry():
     covered_phases = {phase for _, phase, _ in REGISTRY}
 

@@ -28,6 +28,7 @@ BOUNDED_PRIMITIVE_NAMES: Mapping[ActionType, str] = {
     ActionType.RUN_EVALUATOR: "run_bounded_evaluator",
     ActionType.RUN_EVIDENCE_GATE: "run_bounded_evidence_gate",
     ActionType.RUN_ARTIFACT_HYGIENE: "run_bounded_artifact_hygiene",
+    ActionType.COMMIT: "run_bounded_commit",
     ActionType.PUSH: "run_bounded_push",
     ActionType.CLEANUP: "run_bounded_cleanup",
     ActionType.CREATE_CONTINUATION: "run_bounded_continuation",
@@ -65,6 +66,10 @@ def _run_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResu
     return _call_primitive("run_bounded_artifact_hygiene", repo_root, request)
 
 
+def _commit(repo_root: Path, request: ActionRequest) -> ActionResult:
+    return _call_primitive("run_bounded_commit", repo_root, request)
+
+
 def _push(repo_root: Path, request: ActionRequest) -> ActionResult:
     return _call_primitive("run_bounded_push", repo_root, request)
 
@@ -95,6 +100,7 @@ ACTION_HANDLERS: Mapping[ActionType, ActionHandler] = {
     ActionType.RUN_EVALUATOR: _run_evaluator,
     ActionType.RUN_EVIDENCE_GATE: _run_evidence_gate,
     ActionType.RUN_ARTIFACT_HYGIENE: _run_artifact_hygiene,
+    ActionType.COMMIT: _commit,
     ActionType.PUSH: _push,
     ActionType.CLEANUP: _cleanup,
     ActionType.CREATE_CONTINUATION: _create_continuation,
