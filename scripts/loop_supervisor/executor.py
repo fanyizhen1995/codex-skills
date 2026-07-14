@@ -7,7 +7,8 @@ from typing import Callable, Mapping
 
 import scripts.harness_loop_orchestrator as legacy
 
-from .models import ActionRequest, ActionResult, ActionType
+from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
+from .recovery import inspect_partial_artifacts, reconstruct_result_envelope
 from .registry import REGISTRY
 
 
@@ -83,7 +84,34 @@ def _create_continuation(repo_root: Path, request: ActionRequest) -> ActionResul
 
 
 def _recover_generator_result(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_generator_recovery", repo_root, request)
+    if not request.payload.get("recovery_failure_key"):
+        return _call_primitive("run_bounded_generator_recovery", repo_root, request)
+    run = legacy.load_run(repo_root, request.run_id)
+    assessment = inspect_partial_artifacts(repo_root, run, ActionType.RUN_GENERATOR)
+    failure_key = str(request.payload.get("recovery_failure_key") or "")
+    if assessment.status != "recoverable":
+        result_class = (
+            ActionResultClass.POLICY_BLOCK
+            if assessment.status == "unsafe"
+            else ActionResultClass.TERMINAL_FAILURE
+        )
+        return ActionResult(
+            result_class=result_class,
+            summary="; ".join(assessment.missing_checks),
+            failure_key=failure_key or f"recovery:{request.run_id}:partial",
+            error_class=f"partial_artifact_{assessment.status}",
+        )
+    path = reconstruct_result_envelope(repo_root, assessment)
+    run["phase"] = "evaluating"
+    run["next_action"] = "run_autonomous_evaluator"
+    run["last_result"] = "none"
+    legacy.save_run(repo_root, run)
+    return ActionResult(
+        result_class=ActionResultClass.SUCCESS,
+        summary="reconstructed Generator result; independent Evaluator required",
+        artifact_paths=(path.resolve().relative_to(repo_root.resolve()).as_posix(),),
+        checkpoint="generator-recovery:evaluator-required",
+    )
 
 
 def _run_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:

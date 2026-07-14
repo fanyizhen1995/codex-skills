@@ -8,12 +8,83 @@ from unittest import mock
 from scripts.harness_loop_agents import (
     build_codex_exec_command,
     codex_exec_capabilities,
+    load_validated_attempt_evidence,
     run_codex_prompt,
 )
 from scripts.harness_loop_contracts import read_json_file, validate_agent_attempt_payload
 
 
 class HarnessLoopAgentsTests(unittest.TestCase):
+    def test_load_validated_attempt_evidence_hashes_owned_attempt_and_logs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / ".codex" / "loop-runs" / "run-1"
+            run_dir.mkdir(parents=True)
+            stdout_path = run_dir / "generator-attempt-3.stdout.log"
+            stderr_path = run_dir / "generator-attempt-3.stderr.log"
+            stdout_path.write_text("partial\n", encoding="utf-8")
+            stderr_path.write_text("timeout\n", encoding="utf-8")
+            payload = {
+                "run_id": "run-1",
+                "role": "generator",
+                "attempt": 3,
+                "started_at": "2026-07-15T00:00:00Z",
+                "finished_at": "2026-07-15T00:30:00Z",
+                "exit_code": 124,
+                "status": "timeout",
+                "prompt_path": str(run_dir / "generator-prompt.md"),
+                "stdout_path": str(stdout_path),
+                "stderr_path": str(stderr_path),
+                "output_json_path": str(run_dir / "generator-result.json"),
+                "diff_patch_path": "",
+                "verify_log_paths": [],
+            }
+            attempt_path = run_dir / "generator-attempt-3.json"
+            attempt_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+            evidence = load_validated_attempt_evidence(
+                run_dir,
+                role="generator",
+                expected_run_id="run-1",
+            )
+
+            self.assertEqual([item.attempt for item in evidence], [3])
+            self.assertEqual(evidence[0].status, "timeout")
+            self.assertEqual(len(evidence[0].attempt_sha256), 64)
+            self.assertEqual(set(evidence[0].stream_sha256), {"stdout", "stderr"})
+
+    def test_load_validated_attempt_evidence_rejects_log_outside_run_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / ".codex" / "loop-runs" / "run-1"
+            run_dir.mkdir(parents=True)
+            outside = root / "outside.log"
+            outside.write_text("not owned\n", encoding="utf-8")
+            payload = {
+                "run_id": "run-1",
+                "role": "generator",
+                "attempt": 4,
+                "started_at": "2026-07-15T00:00:00Z",
+                "finished_at": "2026-07-15T00:30:00Z",
+                "exit_code": 124,
+                "status": "timeout",
+                "prompt_path": str(run_dir / "generator-prompt.md"),
+                "stdout_path": str(outside),
+                "stderr_path": str(outside),
+                "output_json_path": str(run_dir / "generator-result.json"),
+                "diff_patch_path": "",
+                "verify_log_paths": [],
+            }
+            (run_dir / "generator-attempt-4.json").write_text(
+                json.dumps(payload) + "\n", encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(PermissionError, "ownership"):
+                load_validated_attempt_evidence(
+                    run_dir,
+                    role="generator",
+                    expected_run_id="run-1",
+                )
+
     def test_codex_exec_capabilities_detects_json_and_output_last_message(self) -> None:
         completed = subprocess.CompletedProcess(
             ["codex", "exec", "--help"],

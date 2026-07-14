@@ -26,6 +26,7 @@ from scripts.harness_loop_runtime_lock import (
 )
 
 from .models import ActionRequest, ActionType
+from .recovery import recovery_action_for_run
 from .registry import transition_for
 from .store import SupervisorStore
 
@@ -893,8 +894,12 @@ def _reconcile_once_locked(
             ):
                 continue
             record = next(item for item in valid_records if item.run_id == record.run_id)
+            action = recovery_action_for_run(store, record.payload, action)
+            if action is None:
+                continue
             store.enqueue_action(
                 action,
+                recovery_tier=int(action.payload.get("recovery_tier", 0)),
                 expected_run_fingerprint=_state_fingerprint(record.payload),
                 run_lock_token=tokens_by_run[record.run_id],
             )

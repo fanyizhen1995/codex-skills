@@ -98,6 +98,20 @@ def _request_from_record(store: SupervisorStore, action: ActionRecord) -> Action
 def _mutates_git(request: ActionRequest) -> bool:
     rule = transition_for(request.policy, request.phase, request.next_action)
     if rule.action_type is not request.action_type:
+        recovery_for = request.payload.get("recovery_for_action_type")
+        failure_key = request.payload.get("recovery_failure_key")
+        if (
+            request.action_type
+            in {
+                ActionType.RECOVER_GENERATOR_RESULT,
+                ActionType.RUN_ALTERNATE_RECOVERY,
+                ActionType.RUN_REVIEWER,
+            }
+            and recovery_for == rule.action_type.value
+            and isinstance(failure_key, str)
+            and failure_key.startswith("recovery:")
+        ):
+            return request.action_type is not ActionType.RUN_REVIEWER and rule.mutates_git
         raise ValueError(
             "leased action type does not match current registry transition: "
             f"{request.action_type.value} != {rule.action_type.value}"

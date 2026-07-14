@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import json
+import hashlib
 import os
 import re
 import signal
 import subprocess
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -23,6 +25,76 @@ except ModuleNotFoundError:
 
 def _timestamp() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+@dataclass(frozen=True)
+class AgentAttemptEvidence:
+    attempt: int
+    status: str
+    payload: Mapping[str, Any]
+    path: Path
+    attempt_sha256: str
+    stream_sha256: Mapping[str, str]
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _owned_attempt_path(run_dir: Path, value: object, field_name: str) -> Path:
+    path = Path(str(value))
+    try:
+        path.resolve().relative_to(run_dir)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise PermissionError(f"attempt {field_name} ownership escapes run directory") from exc
+    current = run_dir
+    for part in path.resolve().relative_to(run_dir).parts:
+        current = current / part
+        if current.is_symlink():
+            raise PermissionError(f"attempt {field_name} ownership traverses a symlink")
+    if not path.is_file():
+        raise PermissionError(f"attempt {field_name} ownership requires a regular file")
+    return path
+
+
+def load_validated_attempt_evidence(
+    run_dir: Path,
+    *,
+    role: str,
+    expected_run_id: str,
+) -> tuple[AgentAttemptEvidence, ...]:
+    """Load contract-valid Agent attempts and hash their owned stream evidence."""
+    owner = Path(run_dir).resolve()
+    evidence: list[AgentAttemptEvidence] = []
+    for path in sorted(owner.glob(f"{role}-attempt-*.json")):
+        if path.is_symlink():
+            raise PermissionError("attempt JSON ownership traverses a symlink")
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, dict):
+            raise ValueError(f"attempt payload must be an object: {path}")
+        validate_agent_attempt_payload(payload)
+        if payload["run_id"] != expected_run_id or payload["role"] != role:
+            raise PermissionError("attempt payload ownership does not match run and role")
+        streams = {
+            name: _owned_attempt_path(owner, payload[f"{name}_path"], f"{name}_path")
+            for name in ("stdout", "stderr")
+        }
+        evidence.append(
+            AgentAttemptEvidence(
+                attempt=int(payload["attempt"]),
+                status=str(payload["status"]),
+                payload=payload,
+                path=path,
+                attempt_sha256=_sha256(path),
+                stream_sha256={name: _sha256(stream) for name, stream in streams.items()},
+            )
+        )
+    return tuple(evidence)
 
 
 def codex_exec_capabilities() -> dict[str, bool]:
