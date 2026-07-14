@@ -29,6 +29,26 @@ class FakeClock:
         self.value += timedelta(**kwargs)
 
 
+class CommitFailOnceConnection:
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+        self.fail_commit = True
+        self.rollback_calls = 0
+
+    def __getattr__(self, name):
+        return getattr(self.connection, name)
+
+    def commit(self) -> None:
+        if self.fail_commit:
+            self.fail_commit = False
+            raise sqlite3.OperationalError("injected commit failure")
+        self.connection.commit()
+
+    def rollback(self) -> None:
+        self.rollback_calls += 1
+        self.connection.rollback()
+
+
 def migrated_store(
     tmp_path: Path, *, clock: FakeClock | None = None
 ) -> SupervisorStore:
@@ -87,6 +107,7 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert set(store.table_names()) >= {
         "runs",
         "actions",
+        "action_idempotency_aliases",
         "action_attempts",
         "transitions",
         "failures",
@@ -99,11 +120,12 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
         "skill_snapshots",
         "aggregates",
         "schema_migrations",
+        "row_sequences",
     }
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 4
+    assert store.pragma("user_version") == 6
 
 
 def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
@@ -157,6 +179,29 @@ def test_enqueue_deduplicates_same_canonical_identity_with_different_external_ke
     )
 
     assert second.action_id == first.action_id
+    assert store.count("actions") == 1
+
+
+def test_canonical_dedupe_persists_new_idempotency_key_as_unique_alias(tmp_path):
+    store = migrated_store(tmp_path)
+    first = store.enqueue_action(
+        action_request("run-1", revision=1, idempotency_key="K1")
+    )
+    duplicate = store.enqueue_action(
+        action_request("run-1", revision=1, action_id="action-2", idempotency_key="K2")
+    )
+    assert duplicate.action_id == first.action_id
+
+    with pytest.raises(ValueError, match="idempotency identity conflict"):
+        store.enqueue_action(
+            action_request(
+                "run-2", revision=1, action_id="action-3", idempotency_key="K2"
+            )
+        )
+
+    aliases = store.fetch_all("action_idempotency_aliases")
+    assert {row["idempotency_key"] for row in aliases} == {"K1", "K2"}
+    assert {row["action_id"] for row in aliases} == {first.action_id}
     assert store.count("actions") == 1
 
 
@@ -374,6 +419,45 @@ def test_concurrent_begin_immediate_lease_has_one_winner(tmp_path):
     assert results.count(None) == 1
 
 
+def test_shared_store_connection_serializes_two_thread_writes(tmp_path):
+    store = migrated_store(tmp_path)
+    barrier = threading.Barrier(3)
+    errors: list[BaseException] = []
+
+    def write_failures() -> None:
+        barrier.wait()
+        for _ in range(100):
+            try:
+                store.record_failure("shared-failure", summary="same observation")
+            except BaseException as exc:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=write_failures) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert not any(thread.is_alive() for thread in threads)
+    assert errors == []
+    assert store.fetch_all("failures")[0]["occurrence_count"] == 200
+
+
+def test_commit_failure_rolls_back_and_connection_remains_usable(tmp_path):
+    store = migrated_store(tmp_path)
+    wrapped = CommitFailOnceConnection(store._connection)
+    store._connection = wrapped
+
+    with pytest.raises(sqlite3.OperationalError, match="injected commit failure"):
+        store.record_failure("failed-commit", summary="must roll back")
+
+    assert wrapped.rollback_calls == 1
+    store.record_failure("after-rollback", summary="connection recovered")
+    assert store.count("failures") == 1
+    assert store.fetch_all("failures")[0]["failure_key"] == "after-rollback"
+
+
 def test_renewed_heartbeat_prevents_expiry_reclaim_until_new_deadline(tmp_path):
     clock = FakeClock()
     store = migrated_store(tmp_path, clock=clock)
@@ -422,6 +506,16 @@ def test_expired_lease_can_be_reclaimed_once(tmp_path):
         ).action_id
         == action.action_id
     )
+
+
+def test_lease_next_action_uses_compatible_default_heartbeat_threshold(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+
+    leased = store.lease_next_action("worker-a", lease_seconds=120)
+
+    assert leased.action_id == action.action_id
 
 
 def test_same_worker_cannot_reclaim_expired_lease_while_its_heartbeat_is_fresh(
@@ -824,6 +918,67 @@ def _seed_transitions(
         )
 
 
+def test_external_iso_timestamps_normalize_to_fixed_utc_and_sort_correctly(tmp_path):
+    store = migrated_store(tmp_path)
+    first = store.record_transition(
+        run_id="run-1",
+        from_revision=0,
+        to_revision=1,
+        created_at="2026-01-01T01:00:00+01:00",
+    )
+    second = store.record_transition(
+        run_id="run-2",
+        from_revision=0,
+        to_revision=1,
+        created_at="2026-01-01T00:00:00.5Z",
+    )
+
+    assert first["created_at"] == "2026-01-01T00:00:00.000000Z"
+    assert second["created_at"] == "2026-01-01T00:00:00.500000Z"
+    page = store.list_page("transitions", resource="/api/transitions", page_size=20)
+    assert [item["run_id"] for item in page["items"]] == ["run-2", "run-1"]
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    ["not-a-timestamp", "2026-01-01", "2026-01-01T00:00:00"],
+)
+def test_external_timestamp_rejects_invalid_or_timezone_naive_strings(
+    tmp_path, timestamp
+):
+    store = migrated_store(tmp_path)
+
+    with pytest.raises(ValueError, match="timestamp"):
+        store.record_transition(
+            run_id="run-1",
+            from_revision=0,
+            to_revision=1,
+            created_at=timestamp,
+        )
+
+
+def test_action_result_times_normalize_to_fixed_utc(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+
+    store.complete_action(
+        action.action_id,
+        "worker-a",
+        ActionResult(
+            result_class=ActionResultClass.SUCCESS,
+            summary="done",
+            started_at="2026-01-01T08:00:00+08:00",
+            finished_at="2026-01-01T00:00:01.5Z",
+        ),
+    )
+
+    attempt = store.fetch_all("action_attempts")[0]
+    assert attempt["started_at"] == "2026-01-01T00:00:00.000000Z"
+    assert attempt["finished_at"] == "2026-01-01T00:00:01.500000Z"
+
+
 @pytest.mark.parametrize("page_size", [20, 50, 100])
 def test_list_page_accepts_documented_page_sizes(tmp_path, page_size):
     store = migrated_store(tmp_path)
@@ -953,6 +1108,45 @@ def test_cursor_boundary_is_stable_when_newer_row_is_inserted(tmp_path):
     assert {item["transition_id"] for item in previous["items"]} == first_ids
     assert all(item["run_id"] != "new-run" for item in previous["items"])
     assert all(item["run_id"] != "backdated-run" for item in previous["items"])
+
+
+def test_cursor_sequence_does_not_reuse_deleted_max_membership(tmp_path):
+    store = migrated_store(tmp_path)
+    _seed_transitions(store, 25)
+    first = store.list_page("transitions", resource="/api/transitions", page_size=20)
+    deleted = store._connection.execute(
+        "SELECT transition_id FROM transitions ORDER BY rowid DESC LIMIT 1"
+    ).fetchone()[0]
+    store._connection.execute(
+        "DELETE FROM transitions WHERE transition_id = ?", (deleted,)
+    )
+    store.record_transition(
+        run_id="backdated-after-delete",
+        from_revision=0,
+        to_revision=1,
+        from_phase="planning",
+        to_phase="generating",
+        created_at=datetime(2025, 12, 30, tzinfo=timezone.utc),
+    )
+
+    second = store.list_page(
+        "transitions",
+        resource="/api/transitions",
+        page_size=20,
+        cursor=first["next_cursor"],
+    )
+
+    assert len(second["items"]) == 5
+    assert second["total"] == 25
+    assert all(item["run_id"] != "backdated-after-delete" for item in second["items"])
+    previous = store.list_page(
+        "transitions",
+        resource="/api/transitions",
+        page_size=20,
+        cursor=second["previous_cursor"],
+    )
+    assert previous["total"] == 25
+    assert all(item["run_id"] != "backdated-after-delete" for item in previous["items"])
 
 
 def test_retention_aggregates_rows_older_than_90_days_before_deleting(tmp_path):
@@ -1133,6 +1327,83 @@ def test_review_finding_status_transitions_update_one_stable_row(tmp_path):
     assert findings[0]["last_seen_at"] == "2026-01-01T00:00:20.000000Z"
 
 
+def test_retention_aggregates_finding_occurrence_count_not_row_count(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    for status in ("open", "resolved_pending_audit", "closed"):
+        store.record_review(
+            review_id="review-occurrences",
+            trigger="cadence",
+            status="completed",
+            decision="continue",
+            summary="finding occurrences",
+            findings=(
+                {
+                    "finding_key": "repeated-finding",
+                    "status": status,
+                    "summary": status,
+                },
+            ),
+        )
+        clock.advance(seconds=1)
+    clock.advance(days=91)
+
+    store.compact_retention(retention_days=90)
+
+    aggregates = store.fetch_all("aggregates")
+    assert (
+        sum(
+            row["count"]
+            for row in aggregates
+            if row["aggregate_kind"] == "review_findings"
+            and row["aggregate_key"] == "closed"
+        )
+        == 3
+    )
+
+
+def test_retention_uses_finding_last_seen_for_recent_terminal_transition(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    store.record_review(
+        review_id="review-recent-lifecycle",
+        trigger="cadence",
+        status="completed",
+        decision="continue",
+        summary="open finding",
+        findings=(
+            {
+                "finding_key": "recent-lifecycle",
+                "status": "open",
+                "summary": "open",
+            },
+        ),
+    )
+    clock.advance(days=91)
+    store.record_review(
+        review_id="review-recent-lifecycle",
+        trigger="cadence",
+        status="completed",
+        decision="continue",
+        summary="closed today",
+        findings=(
+            {
+                "finding_key": "recent-lifecycle",
+                "status": "closed",
+                "summary": "closed",
+            },
+        ),
+    )
+    clock.advance(days=2)
+
+    result = store.compact_retention(retention_days=90)
+
+    assert result["review_findings"] == 0
+    assert result["reviews"] == 0
+    assert store.count("review_findings") == 1
+    assert store.count("reviews") == 1
+
+
 def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_path):
     store = migrated_store(tmp_path)
     store.record_review(
@@ -1202,7 +1473,7 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 4
+    assert store.pragma("user_version") == 6
 
 
 def test_retention_does_not_delete_details_if_aggregation_fails(tmp_path):

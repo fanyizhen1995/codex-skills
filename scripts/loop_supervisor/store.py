@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 import re
 import secrets
 import sqlite3
+from threading import RLock
 from typing import Any, Iterator
 from uuid import uuid4
 
@@ -24,7 +25,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -32,6 +33,7 @@ MAX_SUMMARY_BYTES = 8_192
 MAX_ARTIFACT_PATH_CHARS = 1_024
 MAX_CHECKPOINT_CHARS = 512
 MAX_CHECKPOINT_BYTES = 1_024
+DEFAULT_HEARTBEAT_STALE_SECONDS = 120
 SAFE_CHECKPOINT_PATTERN = re.compile(r"\A[A-Za-z0-9.][A-Za-z0-9._:/-]{0,511}\Z")
 INLINE_LOG_BODY_KEYS = frozenset(
     {
@@ -132,6 +134,14 @@ _DDL = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS row_sequences (
+      sequence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      table_name TEXT NOT NULL,
+      row_key TEXT NOT NULL,
+      UNIQUE(table_name, row_key)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS runs (
       run_id TEXT PRIMARY KEY,
       loop_lineage_id TEXT NOT NULL DEFAULT '',
@@ -168,6 +178,14 @@ _DDL = (
       artifact_json TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS action_idempotency_aliases (
+      idempotency_key TEXT PRIMARY KEY,
+      canonical_identity TEXT NOT NULL,
+      action_id TEXT NOT NULL REFERENCES actions(action_id),
+      created_at TEXT NOT NULL
     )
     """,
     "CREATE INDEX IF NOT EXISTS actions_queue_idx ON actions(status, priority, created_at)",
@@ -337,6 +355,7 @@ class SupervisorStore:
         self.db_path = project_root / ".codex" / "supervisor" / "supervisor.db"
         self._connection = connection
         self._clock = clock
+        self._lock = RLock()
 
     @classmethod
     def open(cls, project_root: Path, *, clock: Any | None = None) -> "SupervisorStore":
@@ -356,7 +375,8 @@ class SupervisorStore:
         return cls(root, connection, clock)
 
     def close(self) -> None:
-        self._connection.close()
+        with self._lock:
+            self._connection.close()
 
     def __enter__(self) -> "SupervisorStore":
         return self
@@ -366,14 +386,14 @@ class SupervisorStore:
 
     @contextmanager
     def _immediate_transaction(self) -> Iterator[None]:
-        self._connection.execute("BEGIN IMMEDIATE")
-        try:
-            yield
-        except BaseException:
-            self._connection.rollback()
-            raise
-        else:
-            self._connection.commit()
+        with self._lock:
+            try:
+                self._connection.execute("BEGIN IMMEDIATE")
+                yield
+                self._connection.commit()
+            except BaseException:
+                self._connection.rollback()
+                raise
 
     def migrate(self) -> None:
         now = self._now_text()
@@ -381,7 +401,9 @@ class SupervisorStore:
             for statement in _DDL:
                 self._connection.execute(statement)
             self._ensure_action_canonical_identity()
+            self._ensure_action_idempotency_aliases()
             self._ensure_stable_review_finding_identity()
+            self._ensure_membership_sequences()
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                 (SCHEMA_VERSION, now),
@@ -393,9 +415,10 @@ class SupervisorStore:
             self._connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
     def table_names(self) -> list[str]:
-        rows = self._connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
-        ).fetchall()
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+            ).fetchall()
         return [str(row[0]) for row in rows]
 
     def _ensure_action_canonical_identity(self) -> None:
@@ -436,6 +459,17 @@ class SupervisorStore:
             raise RuntimeError(
                 "cannot migrate duplicate canonical action identities"
             ) from exc
+
+    def _ensure_action_idempotency_aliases(self) -> None:
+        self._connection.execute(
+            """
+            INSERT OR IGNORE INTO action_idempotency_aliases(
+              idempotency_key, canonical_identity, action_id, created_at
+            )
+            SELECT idempotency_key, canonical_identity, action_id, created_at
+            FROM actions
+            """
+        )
 
     def _ensure_stable_review_finding_identity(self) -> None:
         has_stable_unique_key = False
@@ -511,23 +545,46 @@ class SupervisorStore:
             "ALTER TABLE review_findings_v4 RENAME TO review_findings"
         )
 
+    def _ensure_membership_sequences(self) -> None:
+        for table, (primary_key, _timestamp_column) in _TABLE_PAGE_SPECS.items():
+            self._connection.execute(
+                f"""
+                INSERT OR IGNORE INTO row_sequences(table_name, row_key)
+                SELECT ?, CAST({primary_key} AS TEXT) FROM {table} ORDER BY rowid
+                """,
+                (table,),
+            )
+            self._connection.execute(
+                f"""
+                CREATE TRIGGER IF NOT EXISTS row_sequence_{table}_insert
+                AFTER INSERT ON {table}
+                BEGIN
+                  INSERT INTO row_sequences(table_name, row_key)
+                  VALUES ('{table}', CAST(NEW.{primary_key} AS TEXT));
+                END
+                """
+            )
+
     def pragma(self, name: str) -> Any:
         if name not in {"journal_mode", "foreign_keys", "busy_timeout", "user_version"}:
             raise ValueError(f"unsupported pragma: {name}")
-        return self._connection.execute(f"PRAGMA {name}").fetchone()[0]
+        with self._lock:
+            return self._connection.execute(f"PRAGMA {name}").fetchone()[0]
 
     def count(self, table: str) -> int:
         self._require_known_table(table)
-        return int(
-            self._connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        )
+        with self._lock:
+            return int(
+                self._connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            )
 
     def fetch_all(self, table: str) -> list[dict[str, Any]]:
         self._require_known_table(table)
-        return [
-            dict(row)
-            for row in self._connection.execute(f"SELECT * FROM {table}").fetchall()
-        ]
+        with self._lock:
+            return [
+                dict(row)
+                for row in self._connection.execute(f"SELECT * FROM {table}").fetchall()
+            ]
 
     def enqueue_action(
         self,
@@ -559,7 +616,11 @@ class SupervisorStore:
         now = self._now_text()
         with self._immediate_transaction():
             existing_by_key = self._connection.execute(
-                "SELECT * FROM actions WHERE idempotency_key = ?",
+                """
+                SELECT actions.* FROM action_idempotency_aliases AS aliases
+                JOIN actions ON actions.action_id = aliases.action_id
+                WHERE aliases.idempotency_key = ?
+                """,
                 (request.idempotency_key,),
             ).fetchone()
             existing_by_identity = self._connection.execute(
@@ -596,6 +657,20 @@ class SupervisorStore:
                     raise ValueError(
                         "idempotency identity conflict between stored and incoming action"
                     )
+                self._connection.execute(
+                    """
+                    INSERT INTO action_idempotency_aliases(
+                      idempotency_key, canonical_identity, action_id, created_at
+                    ) VALUES (?, ?, ?, ?)
+                    ON CONFLICT(idempotency_key) DO NOTHING
+                    """,
+                    (
+                        request.idempotency_key,
+                        canonical_identity,
+                        existing["action_id"],
+                        now,
+                    ),
+                )
                 run = self._connection.execute(
                     "SELECT revision, phase FROM runs WHERE run_id = ?",
                     (existing["run_id"],),
@@ -675,6 +750,19 @@ class SupervisorStore:
                         now,
                     ),
                 )
+                self._connection.execute(
+                    """
+                    INSERT INTO action_idempotency_aliases(
+                      idempotency_key, canonical_identity, action_id, created_at
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        request.idempotency_key,
+                        canonical_identity,
+                        request.action_id,
+                        now,
+                    ),
+                )
                 row = self._connection.execute(
                     "SELECT * FROM actions WHERE action_id = ?", (request.action_id,)
                 ).fetchone()
@@ -685,7 +773,7 @@ class SupervisorStore:
         worker_id: str,
         *,
         lease_seconds: int,
-        heartbeat_stale_seconds: int,
+        heartbeat_stale_seconds: int = DEFAULT_HEARTBEAT_STALE_SECONDS,
     ) -> ActionRecord | None:
         self._validate_lease_input(worker_id, lease_seconds)
         self._validate_heartbeat_stale_seconds(heartbeat_stale_seconds)
@@ -820,8 +908,10 @@ class SupervisorStore:
         artifacts = self._validate_artifact_paths(result.artifact_paths)
         now = self._now_text()
         attempt_id = f"attempt-{uuid4().hex}"
-        started_at = result.started_at or now
-        finished_at = result.finished_at or now
+        started_at = self._coerce_time(result.started_at) if result.started_at else now
+        finished_at = (
+            self._coerce_time(result.finished_at) if result.finished_at else now
+        )
         artifact_json = self._json(artifacts)
         with self._immediate_transaction():
             action = self._connection.execute(
@@ -908,9 +998,10 @@ class SupervisorStore:
         )
 
     def get_action(self, action_id: str) -> ActionRecord:
-        row = self._connection.execute(
-            "SELECT * FROM actions WHERE action_id = ?", (action_id,)
-        ).fetchone()
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM actions WHERE action_id = ?", (action_id,)
+            ).fetchone()
         if row is None:
             raise KeyError(action_id)
         return self._action_record(row)
@@ -1036,9 +1127,10 @@ class SupervisorStore:
         return self._decoded_row(row)
 
     def get_run(self, run_id: str) -> dict[str, Any]:
-        row = self._connection.execute(
-            "SELECT * FROM runs WHERE run_id = ?", (run_id,)
-        ).fetchone()
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
         if row is None:
             raise KeyError(run_id)
         return self._decoded_row(row)
@@ -1289,6 +1381,24 @@ class SupervisorStore:
         cursor: str | None = None,
         filters: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        with self._lock:
+            return self._list_page_locked(
+                table,
+                resource=resource,
+                page_size=page_size,
+                cursor=cursor,
+                filters=filters,
+            )
+
+    def _list_page_locked(
+        self,
+        table: str,
+        *,
+        resource: str,
+        page_size: int,
+        cursor: str | None,
+        filters: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
         self._required_text(resource, "resource")
         if page_size not in ALLOWED_PAGE_SIZES:
             raise ValueError(f"page_size must be one of {sorted(ALLOWED_PAGE_SIZES)}")
@@ -1332,14 +1442,19 @@ class SupervisorStore:
         else:
             snapshot_sequence = int(
                 self._connection.execute(
-                    f"SELECT COALESCE(MAX(rowid), 0) FROM {table}"
+                    "SELECT COALESCE(MAX(sequence_id), 0) FROM row_sequences"
                 ).fetchone()[0]
             )
             snapshot_where, snapshot_parameters = self._filter_clause(
                 normalized_filters
             )
-            snapshot_where.append("rowid <= ?")
-            snapshot_parameters.append(snapshot_sequence)
+            self._append_membership_condition(
+                snapshot_where,
+                snapshot_parameters,
+                table,
+                primary_key,
+                snapshot_sequence,
+            )
             snapshot_where_sql = (
                 f" WHERE {' AND '.join(snapshot_where)}" if snapshot_where else ""
             )
@@ -1360,8 +1475,9 @@ class SupervisorStore:
         if cursor and boundary is None:
             raise CursorError("cursor boundary is invalid")
         where, parameters = self._filter_clause(normalized_filters)
-        where.append("rowid <= ?")
-        parameters.append(snapshot_sequence)
+        self._append_membership_condition(
+            where, parameters, table, primary_key, snapshot_sequence
+        )
         if snapshot is not None:
             self._append_position_condition(
                 where,
@@ -1393,8 +1509,13 @@ class SupervisorStore:
             selected.reverse()
         items = [self._decoded_row(row) for row in selected]
         base_where, base_parameters = self._filter_clause(normalized_filters)
-        base_where.append("rowid <= ?")
-        base_parameters.append(snapshot_sequence)
+        self._append_membership_condition(
+            base_where,
+            base_parameters,
+            table,
+            primary_key,
+            snapshot_sequence,
+        )
         if snapshot is not None:
             self._append_position_condition(
                 base_where,
@@ -1507,6 +1628,7 @@ class SupervisorStore:
                     )
             eligible_reviews = """
                 reviews.created_at < ?
+                AND reviews.updated_at < ?
                 AND NOT EXISTS (
                   SELECT 1 FROM review_findings AS active_findings
                   WHERE active_findings.review_id = reviews.review_id
@@ -1515,7 +1637,10 @@ class SupervisorStore:
                 AND NOT EXISTS (
                   SELECT 1 FROM review_findings AS recent_findings
                   WHERE recent_findings.review_id = reviews.review_id
-                    AND recent_findings.created_at >= ?
+                    AND (
+                      recent_findings.last_seen_at >= ?
+                      OR recent_findings.updated_at >= ?
+                    )
                 )
             """
             review_groups = self._connection.execute(
@@ -1527,7 +1652,7 @@ class SupervisorStore:
                 WHERE {eligible_reviews}
                 GROUP BY aggregate_day, aggregate_key
                 """,
-                (cutoff, cutoff),
+                (cutoff, cutoff, cutoff, cutoff),
             ).fetchall()
             for group in review_groups:
                 self._upsert_aggregate(
@@ -1539,15 +1664,16 @@ class SupervisorStore:
                 )
             finding_groups = self._connection.execute(
                 f"""
-                SELECT substr(findings.created_at, 1, 10) AS aggregate_day,
+                SELECT substr(findings.last_seen_at, 1, 10) AS aggregate_day,
                        findings.status AS aggregate_key,
-                       COUNT(*) AS aggregate_count
+                       SUM(findings.occurrence_count) AS aggregate_count
                 FROM review_findings AS findings
                 JOIN reviews ON reviews.review_id = findings.review_id
-                WHERE findings.created_at < ? AND {eligible_reviews}
+                WHERE findings.last_seen_at < ? AND findings.updated_at < ?
+                  AND {eligible_reviews}
                 GROUP BY aggregate_day, aggregate_key
                 """,
-                (cutoff, cutoff, cutoff),
+                (cutoff, cutoff, cutoff, cutoff, cutoff, cutoff),
             ).fetchall()
             for group in finding_groups:
                 self._upsert_aggregate(
@@ -1578,15 +1704,16 @@ class SupervisorStore:
             finding_delete = self._connection.execute(
                 f"""
                 DELETE FROM review_findings
-                WHERE created_at < ? AND review_id IN (
+                WHERE last_seen_at < ? AND updated_at < ? AND review_id IN (
                   SELECT reviews.review_id FROM reviews WHERE {eligible_reviews}
                 )
                 """,
-                (cutoff, cutoff, cutoff),
+                (cutoff, cutoff, cutoff, cutoff, cutoff, cutoff),
             )
             deleted["review_findings"] = finding_delete.rowcount
             review_delete = self._connection.execute(
-                f"DELETE FROM reviews WHERE {eligible_reviews}", (cutoff, cutoff)
+                f"DELETE FROM reviews WHERE {eligible_reviews}",
+                (cutoff, cutoff, cutoff, cutoff),
             )
             deleted["reviews"] = review_delete.rowcount
             for table in ("action_attempts", "transitions"):
@@ -1741,8 +1868,9 @@ class SupervisorStore:
         key: str,
     ) -> bool:
         where, parameters = self._filter_clause(filters)
-        where.append("rowid <= ?")
-        parameters.append(snapshot_sequence)
+        self._append_membership_condition(
+            where, parameters, table, primary_key, snapshot_sequence
+        )
         if snapshot is not None:
             self._append_position_condition(
                 where,
@@ -1764,6 +1892,24 @@ class SupervisorStore:
             f"SELECT 1 FROM {table} WHERE {' AND '.join(where)} LIMIT 1", parameters
         ).fetchone()
         return row is not None
+
+    @staticmethod
+    def _append_membership_condition(
+        clauses: list[str],
+        parameters: list[Any],
+        table: str,
+        primary_key: str,
+        snapshot_sequence: int,
+    ) -> None:
+        clauses.append(
+            "EXISTS ("
+            "SELECT 1 FROM row_sequences AS membership "
+            "WHERE membership.table_name = ? "
+            f"AND membership.row_key = CAST({table}.{primary_key} AS TEXT) "
+            "AND membership.sequence_id <= ?"
+            ")"
+        )
+        parameters.extend((table, snapshot_sequence))
 
     @staticmethod
     def _append_position_condition(
@@ -1873,7 +2019,13 @@ class SupervisorStore:
         if value is None:
             return self._now_text()
         if isinstance(value, str):
-            return value
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("timestamp must be valid ISO-8601") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("timestamp string must include a timezone offset")
+            return self._time_text(parsed)
         if isinstance(value, datetime):
             return self._time_text(value)
         raise TypeError("timestamp must be datetime, string, or None")
@@ -2077,5 +2229,7 @@ class SupervisorStore:
             "schema_migrations",
             "store_metadata",
             "workers",
+            "action_idempotency_aliases",
+            "row_sequences",
         }:
             raise ValueError(f"unsupported table: {table}")
