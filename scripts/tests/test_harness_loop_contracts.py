@@ -1000,3 +1000,12 @@ class HarnessLoopContractsTests(unittest.TestCase):
                 "cleanup_retention_days": 7,
             },
         )
+
+    def test_supervisor_terminal_phases_are_allowed_contract_phases(self) -> None:
+        self.assertEqual(
+            harness_loop_contracts.SUPERVISOR_TERMINAL_PHASES,
+            frozenset({"audit_passed", "passed", "stopped_no_action"}),
+        )
+        self.assertTrue(
+            harness_loop_contracts.SUPERVISOR_TERMINAL_PHASES <= harness_loop_contracts.ALLOWED_PHASES
+        )

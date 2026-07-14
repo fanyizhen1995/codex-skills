@@ -50,6 +50,7 @@ PARENT_ONLY_PHASES = frozenset(
 CHILD_ONLY_PHASES = frozenset({"planned", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
 SHARED_PARENT_CHILD_PHASES = frozenset({"repair_needed", "stopped_budget", "stopped_blocked"})
 ALLOWED_PHASES = ALLOWED_PHASES | frozenset({"child_running", "passed"})
+SUPERVISOR_TERMINAL_PHASES = frozenset({"audit_passed", "passed", "stopped_no_action"})
 AI_INFRA_EXPANDED_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
 ALLOWED_TASK_KINDS = frozenset(
     {
