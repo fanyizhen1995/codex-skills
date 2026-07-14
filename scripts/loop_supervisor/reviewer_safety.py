@@ -44,18 +44,33 @@ def evaluate_review_safety_gate(store: SupervisorStore) -> ReviewSafetyGate:
 
 def current_review_safety_checks(store: SupervisorStore) -> dict[str, Any]:
     """Read the canonical global safety state without persisting a gate row."""
-    open_global = [
-        str(row["decision_id"])
-        for row in store.fetch_all("user_decisions")
-        if row.get("status") == "open" and row.get("scope") == "global"
-    ]
-    fresh_signals = _fresh_global_safety_signals(store)
+    errors: list[str] = []
+    try:
+        database_integrity = store.database_integrity_ok()
+    except Exception as exc:
+        database_integrity = False
+        errors.append(f"database integrity check failed: {exc}")
+    try:
+        open_global = [
+            str(row["decision_id"])
+            for row in store.fetch_all("user_decisions")
+            if row.get("status") == "open" and row.get("scope") == "global"
+        ]
+    except Exception as exc:
+        open_global = ["unreadable-global-decision-state"]
+        errors.append(f"global decision check failed: {exc}")
+    try:
+        fresh_signals = _fresh_global_safety_signals(store)
+    except Exception as exc:
+        fresh_signals = [{"run_id": "project", "signal": "repo_corruption"}]
+        errors.append(f"canonical safety check failed: {exc}")
     checks = {
-        "database_integrity": store.database_integrity_ok(),
+        "database_integrity": database_integrity,
         "open_global_decision_ids": sorted(open_global),
         "no_open_global_decisions": not open_global,
         "fresh_global_safety_signals": fresh_signals,
         "no_fresh_global_safety_signals": not fresh_signals,
+        "safety_errors": errors,
     }
     return checks
 
@@ -101,6 +116,7 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
                 "",
             )
         if not run_ref:
+            detected.add((run_id, "repo_corruption"))
             continue
         try:
             path = store.project_root.joinpath(*PurePosixPath(run_ref).parts)

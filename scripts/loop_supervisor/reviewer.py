@@ -637,6 +637,7 @@ def run_reviewer(
     except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
         if accepted_review:
             raise
+        gate = evaluate_review_safety_gate(store)
         checkpoint()
         store.record_review(
             review_id=review_id,
@@ -722,6 +723,9 @@ def run_queued_reviewer(
             for value in (result.evidence_path, result.accepted_review_path)
             if value
         )
+        final_gate = evaluate_review_safety_gate(store)
+        if not final_gate.passed:
+            raise LeaseError("Reviewer safety gate failed during finalization")
         guard.checkpoint()
         completion = ActionResult(
             result_class=(

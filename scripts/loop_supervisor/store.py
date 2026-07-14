@@ -664,6 +664,10 @@ class SupervisorStore:
             str(row["name"])
             for row in self._connection.execute("PRAGMA table_info(reviews)").fetchall()
         }
+        missing_immutable_anchor = (
+            "accepted_review_json" not in columns
+            or "source_action_id" not in columns
+        )
         if "accepted_review_json" not in columns:
             self._connection.execute(
                 "ALTER TABLE reviews "
@@ -674,360 +678,34 @@ class SupervisorStore:
                 "ALTER TABLE reviews "
                 "ADD COLUMN source_action_id TEXT NOT NULL DEFAULT ''"
             )
-        self._migrate_legacy_applying_reviews()
+        if missing_immutable_anchor:
+            self._migrate_legacy_applying_reviews()
 
     def _migrate_legacy_applying_reviews(self) -> None:
+        """Block pre-v11 applying rows that lack persisted immutable acceptance."""
         rows = self._connection.execute(
             """
             SELECT * FROM reviews
             WHERE status = 'review_applying'
               AND accepted_review_json = '{}'
-              AND trigger != 'direct_application'
-              AND evidence_json != '[]'
             ORDER BY created_at, review_id
             """
         ).fetchall()
         for row in rows:
-            source_action_id = ""
-            try:
-                source_action_id = self._legacy_review_source_action(row)
-                accepted_review = self._reconstruct_legacy_accepted_review(row)
-            except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-                self._connection.execute(
-                    """
-                    UPDATE reviews
-                    SET status = 'review_migration_blocked', source_action_id = ?,
-                        summary = ?, updated_at = ?
-                    WHERE review_id = ?
-                    """,
-                    (
-                        source_action_id,
-                        f"legacy applying review requires operator resolution: {exc}"[
-                            :MAX_SUMMARY_CHARS
-                        ],
-                        self._now_text(),
-                        row["review_id"],
-                    ),
-                )
-                if source_action_id:
-                    self._connection.execute(
-                        """
-                        UPDATE actions
-                        SET status = 'migration_blocked', lease_owner = '',
-                            lease_expires_at = '', lease_heartbeat_at = '', updated_at = ?
-                        WHERE action_id = ? AND status IN ('pending', 'leased', 'running')
-                        """,
-                        (self._now_text(), source_action_id),
-                    )
-                continue
             self._connection.execute(
                 """
                 UPDATE reviews
-                SET accepted_review_json = ?, source_action_id = ?, updated_at = ?
+                SET status = 'review_migration_blocked',
+                    summary = ?, updated_at = ?
                 WHERE review_id = ? AND status = 'review_applying'
                 """,
                 (
-                    self._json(accepted_review),
-                    source_action_id,
+                    "pre-v11 applying review has no immutable acceptance anchor; "
+                    "operator resolution is required",
                     self._now_text(),
                     row["review_id"],
                 ),
             )
-
-    def _legacy_review_source_action(self, review: sqlite3.Row) -> str:
-        trigger = self._legacy_review_trigger(review)
-        reservations = self._connection.execute(
-            """
-            SELECT * FROM review_reservations
-            WHERE status = 'reserved'
-            ORDER BY created_at, reservation_id
-            """
-        ).fetchall()
-        matches = [
-            reservation
-            for reservation in reservations
-            if json.loads(str(reservation["lineages_json"]))
-            == trigger["triggering_lineages"]
-            and json.loads(str(reservation["positions_json"]))
-            == trigger["cadence_positions"]
-        ]
-        if len(matches) != 1:
-            raise ValueError(
-                "legacy applying review lacks one matching cadence reservation"
-            )
-        reservation = matches[0]
-        action = self._connection.execute(
-            "SELECT * FROM actions WHERE action_id = ?",
-            (reservation["action_id"],),
-        ).fetchone()
-        if (
-            action is None
-            or str(action["action_type"]) != "run_reviewer"
-            or str(action["queue_owner"]) != ActionOwner.REVIEWER.value
-            or str(action["status"]) not in {"pending", "leased", "running"}
-        ):
-            raise ValueError("legacy review reservation source is not resumable")
-        payload = json.loads(str(action["payload_json"]))
-        if not isinstance(payload, dict) or (
-            payload.get("trigger") != "regular_cadence"
-            or payload.get("reservation_id") != reservation["reservation_id"]
-            or payload.get("triggering_lineages") != trigger["triggering_lineages"]
-            or payload.get("cadence_positions") != trigger["cadence_positions"]
-        ):
-            raise ValueError("legacy review source action identity does not match")
-        return str(action["action_id"])
-
-    def _legacy_review_trigger(self, review: sqlite3.Row) -> dict[str, Any]:
-        trigger = json.loads(str(review["trigger"]))
-        if not isinstance(trigger, dict) or trigger.get("kind") != "project_global":
-            raise ValueError("legacy review trigger is not project-global")
-        lineages = trigger.get("triggering_lineages")
-        positions = trigger.get("cadence_positions")
-        if (
-            not isinstance(lineages, list)
-            or not lineages
-            or not all(isinstance(value, str) and value for value in lineages)
-            or lineages != sorted(set(lineages))
-            or not isinstance(positions, dict)
-            or set(positions) != set(lineages)
-            or not all(
-                isinstance(value, int)
-                and not isinstance(value, bool)
-                and value >= 0
-                for value in positions.values()
-            )
-        ):
-            raise ValueError("legacy review trigger cadence identity is invalid")
-        gate_id = trigger.get("safety_gate_id")
-        gate = self._connection.execute(
-            "SELECT status FROM review_safety_gates WHERE gate_id = ?",
-            (gate_id,),
-        ).fetchone()
-        if not isinstance(gate_id, str) or not gate_id or gate is None or gate["status"] != "pass":
-            raise ValueError("legacy review trigger lacks a passed safety gate")
-        return {
-            "triggering_lineages": lineages,
-            "cadence_positions": positions,
-            "safety_gate_id": gate_id,
-        }
-
-    def _reconstruct_legacy_accepted_review(
-        self, row: sqlite3.Row
-    ) -> dict[str, Any]:
-        evidence_refs = json.loads(str(row["evidence_json"]))
-        validated = self._validate_artifact_paths(
-            evidence_refs, field_name="legacy review evidence"
-        )
-        if len(validated) < 2:
-            raise ValueError("legacy applying review lacks accepted artifact evidence")
-        review_id = str(row["review_id"])
-        expected_root = f".codex/supervisor/reviews/{review_id}"
-        if validated != [
-            f"{expected_root}/{review_id}-evidence.json",
-            f"{expected_root}/{review_id}.json",
-        ]:
-            raise ValueError("legacy applying review artifact identity changed")
-        bundle = self._read_owned_json_artifact(validated[0], "legacy review bundle")
-        candidate = self._read_owned_json_artifact(
-            validated[1], "legacy accepted review"
-        )
-        if str(candidate.get("review_id") or "") != review_id:
-            raise ValueError("legacy accepted review identity changed")
-        trigger = self._legacy_review_trigger(row)
-        evidence_hashes = self._validated_legacy_review_bundle(bundle, trigger)
-        if (
-            candidate.get("decision") != row["decision"]
-            or candidate.get("summary") != row["summary"]
-        ):
-            raise ValueError("legacy accepted review changed persisted identity")
-        if set(candidate.get("evidence_refs") or ()) != set(evidence_hashes.values()):
-            raise ValueError("legacy accepted review evidence set is not complete")
-        targets = self._connection.execute(
-            """
-            SELECT run_id, action_id, expected_revision, expected_fingerprint
-            FROM review_application_targets WHERE review_id = ?
-            ORDER BY run_id
-            """,
-            (row["review_id"],),
-        ).fetchall()
-        reviewed_runs = {
-            str(target["run_id"]): {
-                "revision": int(target["expected_revision"]),
-                "state_fingerprint": str(target["expected_fingerprint"]),
-            }
-            for target in targets
-        }
-        affected_run_ids = candidate.get("affected_run_ids")
-        if (
-            candidate.get("decision") != "continue"
-            and (
-                not isinstance(affected_run_ids, list)
-                or set(affected_run_ids) != set(reviewed_runs)
-            )
-        ):
-            raise ValueError(
-                "legacy applying review lacks revision-bound application targets"
-            )
-        self._validate_legacy_review_application(row, candidate, targets, bundle)
-        governance = bundle.get("evidence", {})
-        skill_governance = (
-            governance.get("skill_governance", {})
-            if isinstance(governance, Mapping)
-            else {}
-        )
-        inventory = (
-            skill_governance.get("inventory", [])
-            if isinstance(skill_governance, Mapping)
-            else []
-        )
-        from .reviewer import _persisted_review, validate_review_payload
-
-        review = validate_review_payload(
-            candidate,
-            expected_evidence_hashes=tuple(str(value) for value in evidence_hashes.values()),
-            allowed_run_ids=tuple(
-                str(item["run_id"])
-                for item in self._connection.execute("SELECT run_id FROM runs").fetchall()
-            ),
-            allowed_skill_paths=tuple(
-                str(item.get("path") or "")
-                for item in inventory
-                if isinstance(item, Mapping) and item.get("path")
-            ),
-            reviewed_runs=reviewed_runs,
-            existing_findings=tuple(
-                dict(item)
-                for item in self._connection.execute(
-                    "SELECT * FROM review_findings"
-                ).fetchall()
-            ),
-        )
-        return _persisted_review(review)
-
-    def _validated_legacy_review_bundle(
-        self,
-        bundle: Mapping[str, Any],
-        trigger: Mapping[str, Any],
-    ) -> dict[str, str]:
-        required = {
-            "schema_version",
-            "generated_at",
-            "triggering_lineages",
-            "cadence_positions",
-            "evidence",
-            "evidence_hashes",
-            "bundle_hash",
-        }
-        if set(bundle) != required or bundle.get("schema_version") != 1:
-            raise ValueError("legacy review bundle shape is invalid")
-        if (
-            bundle.get("triggering_lineages") != trigger["triggering_lineages"]
-            or bundle.get("cadence_positions") != trigger["cadence_positions"]
-        ):
-            raise ValueError("legacy review bundle cadence identity changed")
-        evidence = bundle.get("evidence")
-        evidence_hashes = bundle.get("evidence_hashes")
-        if (
-            not isinstance(evidence, Mapping)
-            or not evidence
-            or not isinstance(evidence_hashes, Mapping)
-            or set(evidence_hashes) != set(evidence)
-        ):
-            raise ValueError("legacy review bundle evidence shape is invalid")
-        from .reviewer import _canonical_json
-
-        computed = {
-            str(name): "sha256:"
-            + hashlib.sha256(
-                _canonical_json({"section": name, "value": value})
-            ).hexdigest()
-            for name, value in evidence.items()
-        }
-        if dict(evidence_hashes) != computed:
-            raise ValueError("legacy review evidence section hash changed")
-        bundle_body = {
-            "triggering_lineages": trigger["triggering_lineages"],
-            "cadence_positions": trigger["cadence_positions"],
-            "evidence_hashes": computed,
-        }
-        expected_bundle_hash = (
-            "sha256:" + hashlib.sha256(_canonical_json(bundle_body)).hexdigest()
-        )
-        if bundle.get("bundle_hash") != expected_bundle_hash:
-            raise ValueError("legacy review bundle hash changed")
-        return computed
-
-    def _validate_legacy_review_application(
-        self,
-        review: sqlite3.Row,
-        candidate: Mapping[str, Any],
-        targets: Sequence[sqlite3.Row],
-        bundle: Mapping[str, Any],
-    ) -> None:
-        review_id = str(review["review_id"])
-        decision = str(candidate.get("decision") or "")
-        application = self._connection.execute(
-            "SELECT * FROM review_applications WHERE review_id = ?",
-            (review_id,),
-        ).fetchone()
-        if decision == "continue":
-            if targets or application is not None:
-                raise ValueError("legacy continue review has unexpected application state")
-            return
-        if (
-            application is None
-            or str(application["decision"]) != decision
-            or int(application["target_count"]) != len(targets)
-        ):
-            raise ValueError("legacy review application identity changed")
-        objective_constraints = bundle["evidence"].get("objective_constraints")
-        if not isinstance(objective_constraints, list):
-            raise ValueError("legacy review objective evidence is missing")
-        objective_by_run = {
-            str(item.get("run_id") or ""): item
-            for item in objective_constraints
-            if isinstance(item, Mapping) and item.get("run_id")
-        }
-        for target in targets:
-            run_id = str(target["run_id"])
-            objective = objective_by_run.get(run_id)
-            if (
-                objective is None
-                or objective.get("revision") != target["expected_revision"]
-                or objective.get("state_fingerprint")
-                != target["expected_fingerprint"]
-            ):
-                raise ValueError("legacy review target is not bound to evidence")
-            action = self._connection.execute(
-                "SELECT * FROM actions WHERE action_id = ?",
-                (target["action_id"],),
-            ).fetchone()
-            payload = (
-                json.loads(str(action["payload_json"])) if action is not None else None
-            )
-            if (
-                action is None
-                or str(action["queue_owner"]) != ActionOwner.SUPERVISOR.value
-                or str(action["run_id"]) != run_id
-                or not isinstance(payload, dict)
-                or payload.get("review_id") != review_id
-                or payload.get("review_decision") != decision
-                or payload.get("expected_revision") != target["expected_revision"]
-                or payload.get("expected_fingerprint")
-                != target["expected_fingerprint"]
-            ):
-                raise ValueError("legacy review target action identity changed")
-
-    def _read_owned_json_artifact(
-        self, relative_path: str, field_name: str
-    ) -> dict[str, Any]:
-        path = self.project_root / relative_path
-        if not path.is_file() or path.is_symlink():
-            raise ValueError(f"{field_name} must be an owned regular file")
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            raise TypeError(f"{field_name} must contain an object")
-        return payload
 
     @staticmethod
     def _normalize_legacy_timestamp(value: object, *, allow_empty: bool) -> str:
@@ -2259,6 +1937,14 @@ class SupervisorStore:
                 SET lease_expires_at = ?, lease_heartbeat_at = ?, updated_at = ?
                 WHERE action_id = ? AND lease_owner = ?
                   AND status IN ('leased', 'running')
+                  AND (
+                    queue_owner = 'worker'
+                    OR NOT EXISTS (
+                      SELECT 1 FROM user_decisions AS decisions
+                      WHERE decisions.status = 'open'
+                        AND decisions.scope = 'global'
+                    )
+                  )
                   AND (
                     queue_owner != 'worker'
                     OR EXISTS (

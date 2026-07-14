@@ -674,6 +674,8 @@ def _seed_v10_applying_review(
     changed_decision: bool = False,
     wrong_source: bool = False,
     reservation: bool = True,
+    self_rehash_evidence: bool = False,
+    evidence_refs: bool = True,
 ) -> tuple[SupervisorStore, str, str]:
     store = migrated_store(tmp_path)
     record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
@@ -719,6 +721,24 @@ def _seed_v10_applying_review(
         bundle_payload["evidence"]["objective_constraints"][0]["constraints"] = [
             "tampered after acceptance"
         ]
+    if self_rehash_evidence:
+        evidence_hashes = {
+            name: "sha256:"
+            + hashlib.sha256(
+                reviewer_module._canonical_json({"section": name, "value": value})
+            ).hexdigest()
+            for name, value in bundle_payload["evidence"].items()
+        }
+        bundle_payload["evidence_hashes"] = evidence_hashes
+        bundle_payload["bundle_hash"] = "sha256:" + hashlib.sha256(
+            reviewer_module._canonical_json(
+                {
+                    "triggering_lineages": bundle_payload["triggering_lineages"],
+                    "cadence_positions": bundle_payload["cadence_positions"],
+                    "evidence_hashes": evidence_hashes,
+                }
+            )
+        ).hexdigest()
     evidence_path.write_text(
         json.dumps(bundle_payload) + "\n", encoding="utf-8"
     )
@@ -726,7 +746,7 @@ def _seed_v10_applying_review(
         review_id=review_id,
         decision="refocus",
         affected_run_ids=["run-1"],
-        evidence_refs=list(bundle.evidence_hashes.values()),
+        evidence_refs=list(bundle_payload["evidence_hashes"].values()),
     )
     if changed_decision:
         candidate["decision"] = "stop_run"
@@ -747,10 +767,14 @@ def _seed_v10_applying_review(
         status="review_applying",
         decision="refocus",
         summary=str(candidate["summary"]),
-        evidence_refs=[
-            evidence_path.relative_to(tmp_path).as_posix(),
-            accepted_path.relative_to(tmp_path).as_posix(),
-        ],
+        evidence_refs=(
+            [
+                evidence_path.relative_to(tmp_path).as_posix(),
+                accepted_path.relative_to(tmp_path).as_posix(),
+            ]
+            if evidence_refs
+            else []
+        ),
     )
     run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
     run_payload = json.loads(run_path.read_text(encoding="utf-8"))
@@ -817,7 +841,7 @@ def _seed_v10_applying_review(
     return store, source.action_id, review_id
 
 
-def test_v10_applying_review_reconstructs_and_resumes_before_new_llm(
+def test_v10_applying_review_blocks_without_immutable_anchor_before_new_llm(
     tmp_path: Path,
 ) -> None:
     _seed_v10_applying_review(tmp_path, accepted_artifact=True)
@@ -833,11 +857,61 @@ def test_v10_applying_review_reconstructs_and_resumes_before_new_llm(
         driver=forbidden_driver,
     )
 
-    assert result is not None and result.status == "review_complete"
+    assert result is None
     review = reopened.fetch_all("reviews")[0]
-    assert review["source_action_id"] == "v10-reviewer-action"
-    assert json.loads(review["accepted_review_json"])["review_id"] == review["review_id"]
-    assert reopened.get_action("v10-reviewer-action").status == "completed"
+    assert review["status"] == "review_migration_blocked"
+    assert review["source_action_id"] == ""
+    assert reopened.get_action("v10-reviewer-action").status == "pending"
+
+
+def test_v10_self_rehashed_evidence_blocks_without_llm_reinvocation(
+    tmp_path: Path,
+) -> None:
+    _seed_v10_applying_review(
+        tmp_path,
+        accepted_artifact=True,
+        tamper_evidence=True,
+        self_rehash_evidence=True,
+    )
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v10-self-rehashed",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("unanchored v10 migration must not invoke an LLM")
+        ),
+    )
+
+    assert result is None
+    review = reopened.fetch_all("reviews")[0]
+    assert review["status"] == "review_migration_blocked"
+    assert review["source_action_id"] == ""
+    assert reopened.get_action("v10-reviewer-action").status == "pending"
+
+
+def test_v10_applying_review_without_evidence_refs_blocks_without_llm(
+    tmp_path: Path,
+) -> None:
+    _seed_v10_applying_review(
+        tmp_path,
+        accepted_artifact=False,
+        evidence_refs=False,
+    )
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v10-empty-evidence",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("unanchored v10 migration must not invoke an LLM")
+        ),
+    )
+
+    assert result is None
+    assert reopened.fetch_all("reviews")[0]["status"] == "review_migration_blocked"
 
 
 def test_v10_applying_review_without_trusted_artifact_blocks_llm_reinvocation(
@@ -858,7 +932,8 @@ def test_v10_applying_review_without_trusted_artifact_blocks_llm_reinvocation(
     assert result is None
     review = reopened.fetch_all("reviews")[0]
     assert review["status"] == "review_migration_blocked"
-    assert reopened.get_action("v10-reviewer-action").status == "migration_blocked"
+    assert review["source_action_id"] == ""
+    assert reopened.get_action("v10-reviewer-action").status == "pending"
 
 
 def test_v10_affected_review_without_revision_targets_blocks_llm_reinvocation(
@@ -883,7 +958,8 @@ def test_v10_affected_review_without_revision_targets_blocks_llm_reinvocation(
     assert result is None
     review = reopened.fetch_all("reviews")[0]
     assert review["status"] == "review_migration_blocked"
-    assert reopened.get_action("v10-reviewer-action").status == "migration_blocked"
+    assert review["source_action_id"] == ""
+    assert reopened.get_action("v10-reviewer-action").status == "pending"
 
 
 @pytest.mark.parametrize(
@@ -1077,6 +1153,35 @@ def test_reviewer_recomputes_global_decisions_after_driver_before_fail_open(
     assert [row["status"] for row in store.fetch_all("review_safety_gates")] == [
         "pass",
         "fail",
+        "fail",
+    ]
+
+
+def test_reviewer_driver_exception_blocks_on_missing_canonical_run_state(
+    tmp_path: Path,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+
+    def driver(**_kwargs: object) -> dict[str, object]:
+        store._connection.execute(
+            "UPDATE runs SET summary_json = ? WHERE run_id = ?",
+            (json.dumps({"summary": "missing canonical state", "artifact_refs": []}), "run-1"),
+        )
+        raise RuntimeError("Reviewer driver crashed")
+
+    result = run_reviewer(
+        ReviewerContext(tmp_path, store, ("lineage-a",)),
+        driver=driver,
+    )
+
+    assert result.status == "review_degraded"
+    assert result.blocks_safe_runs is True
+    gate = store.fetch_all("review_safety_gates")[-1]
+    checks = json.loads(gate["checks_json"])
+    assert gate["status"] == "fail"
+    assert checks["fresh_global_safety_signals"] == [
+        {"run_id": "run-1", "signal": "repo_corruption"}
     ]
 
 
