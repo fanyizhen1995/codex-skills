@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import sqlite3
@@ -11,10 +12,12 @@ import pytest
 
 from scripts.harness_loop_runtime_lock import acquire_run_lock
 from scripts.loop_supervisor.models import (
+    ActionOwner,
     ActionRequest,
     ActionResult,
     ActionResultClass,
     ActionType,
+    SkillInvocationEvidence,
 )
 from scripts.loop_supervisor.store import CursorError, SupervisorStore
 
@@ -228,7 +231,7 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 10
+    assert store.pragma("user_version") == 11
     assert "state_fingerprint" in {
         row["name"] for row in store._connection.execute("PRAGMA table_info(runs)")
     }
@@ -269,7 +272,7 @@ def test_migrate_adds_state_fingerprint_to_v7_run_projection(tmp_path):
     store = SupervisorStore.open(tmp_path)
     store.migrate()
 
-    assert store.pragma("user_version") == 10
+    assert store.pragma("user_version") == 11
     assert store.get_run("legacy-run")["state_fingerprint"] == ""
 
 
@@ -281,6 +284,33 @@ def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
 
     assert store.count("actions") == 1
     assert store.count("schema_migrations") == 1
+
+
+def test_migrate_backfills_legacy_reviewer_actions_to_reviewer_owner(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    request = ActionRequest(
+        action_id="legacy-reviewer-action",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_REVIEWER,
+        idempotency_key="legacy-reviewer-action",
+        queue_owner=ActionOwner.REVIEWER,
+    )
+    store.enqueue_action(request)
+    store._connection.execute(
+        "UPDATE actions SET queue_owner = 'worker' WHERE action_id = ?",
+        (request.action_id,),
+    )
+    store._connection.commit()
+    store.close()
+
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    assert reopened.get_action(request.action_id).queue_owner == ActionOwner.REVIEWER.value
 
 
 def test_enqueue_action_is_idempotent_and_uses_storage_payload(tmp_path, monkeypatch):
@@ -1053,6 +1083,43 @@ def test_complete_action_rolls_back_attempt_when_action_update_fails(tmp_path):
     assert store.get_action(action.action_id).status == "leased"
 
 
+def test_complete_action_rolls_back_forged_skill_invocation_with_attempt(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    artifact = tmp_path / ".codex" / "loop-runs" / "run-1" / "planner-result.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text('{"status":"pass"}\n', encoding="utf-8")
+    skill = tmp_path / "skills" / "alpha" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: alpha\n---\n", encoding="utf-8")
+    artifact_ref = artifact.relative_to(tmp_path).as_posix()
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+
+    with pytest.raises(ValueError, match="hash does not match"):
+        store.complete_action(
+            action.action_id,
+            "worker-a",
+            ActionResult(
+                result_class=ActionResultClass.SUCCESS,
+                summary="forged invocation",
+                artifact_paths=(artifact_ref,),
+                skill_invocations=(
+                    SkillInvocationEvidence(
+                        invocation_id="invocation-forged",
+                        skill_path="skills/alpha/SKILL.md",
+                        artifact_path=artifact_ref,
+                        artifact_sha256=f"sha256:{'0' * 64}",
+                    ),
+                ),
+            ),
+        )
+
+    assert store.count("action_attempts") == 0
+    assert store.count("skill_invocations") == 0
+    assert store.get_action(action.action_id).status == "leased"
+
+
 def test_complete_action_rejects_lease_after_run_revision_advances(tmp_path):
     store = migrated_store(tmp_path)
     project_run(store, "run-1", revision=4)
@@ -1727,6 +1794,128 @@ def test_retention_aggregates_rows_older_than_90_days_before_deleting(tmp_path):
     }
 
 
+def test_retention_aggregates_and_deletes_skill_invocations_before_attempts(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    artifact = tmp_path / ".codex" / "loop-runs" / "run-1" / "planner-result.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text('{"status":"pass"}\n', encoding="utf-8")
+    skill = tmp_path / "skills" / "alpha" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: alpha\n---\n", encoding="utf-8")
+    artifact_ref = artifact.relative_to(tmp_path).as_posix()
+    artifact_hash = f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}"
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+    store.complete_action(
+        action.action_id,
+        "worker-a",
+        ActionResult(
+            result_class=ActionResultClass.SUCCESS,
+            summary="skill-backed success",
+            artifact_paths=(artifact_ref,),
+            skill_invocations=(
+                SkillInvocationEvidence(
+                    invocation_id="invocation-retention",
+                    skill_path="skills/alpha/SKILL.md",
+                    artifact_path=artifact_ref,
+                    artifact_sha256=artifact_hash,
+                ),
+            ),
+        ),
+    )
+    clock.advance(days=91)
+
+    store.compact_retention(retention_days=90)
+
+    assert store.count("skill_invocations") == 0
+    assert store.count("action_attempts") == 0
+    assert sum(
+        row["count"]
+        for row in store.fetch_all("aggregates")
+        if row["aggregate_kind"] == "skill_invocations"
+        and row["aggregate_key"] == "skills/alpha/SKILL.md"
+    ) == 1
+
+
+def test_retention_preserves_incomplete_review_application_and_applied_attempt(
+    tmp_path,
+):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    requests = []
+    targets = []
+    for run_id in ("run-1", "run-2"):
+        project_run(store, run_id, revision=1)
+        request = ActionRequest(
+            action_id=f"review-action-{run_id}",
+            run_id=run_id,
+            run_revision=1,
+            policy="autonomous_knowledge",
+            phase="planning",
+            action_type=ActionType.REFOCUS_RUN,
+            idempotency_key=f"review-action-{run_id}",
+            queue_owner=ActionOwner.SUPERVISOR,
+        )
+        requests.append(request)
+        targets.append(
+            (
+                request,
+                {
+                    "expected_revision": 1,
+                    "expected_fingerprint": f"fingerprint-{run_id}",
+                    "source_phase": "planning",
+                    "target_phase": "planning",
+                    "target_next_action": "run_autonomous_planner",
+                    "target_last_result": "none",
+                },
+            )
+        )
+    store.record_review(
+        review_id="review-incomplete-retention",
+        trigger="cadence",
+        status="review_applying",
+        decision="refocus",
+        summary="application in progress",
+    )
+    store.prepare_review_application(
+        review_id="review-incomplete-retention",
+        decision="refocus",
+        targets=targets,
+    )
+    owner = "supervisor-review-application-retention"
+    claimed = store.claim_pending_action(
+        requests[0].action_id,
+        owner,
+        lease_seconds=120,
+        expected_queue_owner=ActionOwner.SUPERVISOR,
+    )
+    assert claimed is not None
+    store.complete_review_application_target(
+        review_id="review-incomplete-retention",
+        run_id=requests[0].run_id,
+        action_id=requests[0].action_id,
+        owner_id=owner,
+        result=ActionResult(
+            result_class=ActionResultClass.SUCCESS,
+            summary="first target applied",
+        ),
+        applied_revision=2,
+    )
+    clock.advance(days=91)
+
+    result = store.compact_retention(retention_days=90)
+
+    assert result["reviews"] == 0
+    assert store.count("reviews") == 1
+    assert store.count("review_applications") == 1
+    assert store.count("review_application_targets") == 2
+    assert store.count("actions") == 2
+    assert store.count("action_attempts") == 1
+    assert store.fetch_all("review_applications")[0]["status"] == "applying"
+
+
 def test_retention_preserves_reviews_with_active_findings_and_compacts_terminal_ones(
     tmp_path,
 ):
@@ -2027,7 +2216,7 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 10
+    assert store.pragma("user_version") == 11
 
 
 @pytest.mark.parametrize("legacy_version", [3, 4, 5])
@@ -2051,7 +2240,7 @@ def test_legacy_migration_normalizes_timestamps_before_finding_collapse(
         "SELECT value FROM store_metadata WHERE key = 'legacy_naive_timestamp_policy'"
     ).fetchone()[0]
     assert policy == "assume_utc"
-    assert store.pragma("user_version") == 10
+    assert store.pragma("user_version") == 11
 
 
 def test_invalid_legacy_timestamp_rolls_back_schema_version_and_data(tmp_path):

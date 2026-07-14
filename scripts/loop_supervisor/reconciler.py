@@ -29,21 +29,13 @@ from .models import ActionRequest, ActionType
 from .recovery import recovery_action_for_run
 from .registry import transition_for
 from .reviewer import schedule_due_reviews
+from .safety_signals import (
+    GLOBAL_SAFETY_SIGNAL_SUMMARIES,
+    detected_global_safety_signals,
+)
 from .store import SupervisorStore
 
 
-_GLOBAL_DECISION_SIGNALS = {
-    "repo_corruption": "repository corruption prevents trustworthy ownership checks",
-    "permission_expansion_required": "required permission expansion affects the project",
-    "irreversible_operation_required": "irreversible operation requires approval",
-    "explicit_global_stop": "explicit global stop requested",
-}
-_SECRET_SIGNAL_KEYS = {
-    "unsafe_secret",
-    "unsafe_secret_detected",
-    "secret_detected",
-    "secret_exposure_confirmed",
-}
 _STATE_SUMMARY_KEYS = (
     "task_id",
     "next_action",
@@ -1282,21 +1274,10 @@ def _same_projection(existing: Mapping[str, Any], incoming: Mapping[str, Any]) -
 
 
 def _decision_requirement(run: Mapping[str, Any]) -> tuple[str, str, str] | None:
-    for key in _SECRET_SIGNAL_KEYS:
-        if run.get(key) is True:
-            return (
-                "global",
-                "secret_exposure",
-                "Confirmed secret or credential exposure.",
-            )
-    signals = run.get("supervisor_signals")
-    if isinstance(signals, Mapping) and signals.get("unsafe_secret") is True:
-        return "global", "secret_exposure", "Confirmed secret or credential exposure."
-    for key, summary in _GLOBAL_DECISION_SIGNALS.items():
-        if run.get(key) is True or (
-            isinstance(signals, Mapping) and signals.get(key) is True
-        ):
-            return "global", key, summary
+    global_signals = detected_global_safety_signals(run)
+    if global_signals:
+        signal = global_signals[0]
+        return "global", signal, GLOBAL_SAFETY_SIGNAL_SUMMARIES[signal]
     if run.get("user_decision_required") is True:
         return "run", "user_decision_required", "This run requires a user decision."
     return None

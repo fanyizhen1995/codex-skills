@@ -46,9 +46,6 @@ REVIEW_TIMEOUT_SECONDS = 300
 _HASH_REF = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
 _FINDING_STATUSES = frozenset({"open", "closed", "accepted_risk"})
 _FINDING_SEVERITIES = frozenset({"must_fix", "should_fix", "observe"})
-_SKILL_USAGE_KEYS = frozenset(
-    {"skills_used", "skill_usage", "used_skills", "invoked_skills"}
-)
 _SKILL_SCAN_EXCLUDED_DIRS = frozenset(
     {".git", ".codex", ".worktrees", "node_modules", "dist", "build", "__pycache__"}
 )
@@ -75,6 +72,7 @@ class ReviewerContext:
     triggering_lineages: tuple[str, ...]
     deterministic_safety_gates_pass: bool = False
     timeout_seconds: int = REVIEW_TIMEOUT_SECONDS
+    source_action_id: str = ""
 
     def __post_init__(self) -> None:
         root = Path(self.project_root).resolve()
@@ -91,6 +89,8 @@ class ReviewerContext:
             or self.timeout_seconds <= 0
         ):
             raise ValueError("timeout_seconds must be a positive int")
+        if not isinstance(self.source_action_id, str):
+            raise TypeError("source_action_id must be a string")
         object.__setattr__(self, "project_root", root)
         object.__setattr__(self, "triggering_lineages", lineages)
 
@@ -461,6 +461,48 @@ def apply_review_decision(
     )
 
 
+def _persisted_review(review: SupervisorReview) -> dict[str, Any]:
+    return {
+        "schema_version": review.schema_version,
+        "review_id": review.review_id,
+        "scope": review.scope,
+        "decision": review.decision.value,
+        "affected_run_ids": list(review.affected_run_ids),
+        "summary": review.summary,
+        "evidence_refs": list(review.evidence_refs),
+        "findings": _mutable_json(review.findings),
+        "skill_governance": _mutable_json(review.skill_governance),
+        "next_review_after_parent_tasks": review.next_review_after_parent_tasks,
+        "reviewed_runs": _mutable_json(review.reviewed_runs),
+    }
+
+
+def _mutable_json(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _mutable_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_mutable_json(item) for item in value]
+    return value
+
+
+def _review_from_persisted(payload: object) -> SupervisorReview:
+    if not isinstance(payload, Mapping):
+        raise TypeError("persisted accepted review must be an object")
+    return SupervisorReview(
+        schema_version=int(payload["schema_version"]),
+        review_id=str(payload["review_id"]),
+        scope=str(payload["scope"]),
+        decision=ReviewDecision(str(payload["decision"])),
+        affected_run_ids=tuple(_string_list(payload["affected_run_ids"])),
+        summary=str(payload["summary"]),
+        evidence_refs=tuple(_string_list(payload["evidence_refs"])),
+        findings=tuple(payload["findings"]),
+        skill_governance=tuple(payload["skill_governance"]),
+        next_review_after_parent_tasks=int(payload["next_review_after_parent_tasks"]),
+        reviewed_runs=dict(payload["reviewed_runs"]),
+    )
+
+
 def run_reviewer(
     context: ReviewerContext,
     *,
@@ -564,6 +606,8 @@ def run_reviewer(
             summary=review.summary,
             evidence_refs=[evidence_ref, accepted_ref],
             findings=review.findings,
+            accepted_review=_persisted_review(review),
+            source_action_id=context.source_action_id,
         )
         accepted_review = True
         checkpoint()
@@ -593,6 +637,7 @@ def run_reviewer(
             status="review_degraded",
             summary=str(exc)[:4_096],
             evidence_refs=[evidence_ref] if evidence_ref else [],
+            source_action_id=context.source_action_id,
         )
         return ReviewerExecutionResult(
             status="review_degraded",
@@ -632,16 +677,36 @@ def run_queued_reviewer(
         lease_seconds=lease_seconds,
         heartbeat_seconds=heartbeat_seconds,
     ) as guard:
-        result = run_reviewer(
-            ReviewerContext(
-                project_root=store.project_root,
-                store=store,
-                triggering_lineages=tuple(str(value) for value in lineages),
-                timeout_seconds=timeout_seconds,
-            ),
-            driver=driver,
-            lease_checkpoint=guard.checkpoint,
-        )
+        persisted = store.resumable_review_for_action(action.action_id)
+        if persisted is not None:
+            review = _review_from_persisted(persisted["accepted_review"])
+            actions = apply_review_decision(
+                store,
+                review,
+                lease_checkpoint=guard.checkpoint,
+            )
+            evidence_refs = tuple(str(value) for value in persisted["evidence"])
+            result = ReviewerExecutionResult(
+                status="review_complete",
+                blocks_safe_runs=False,
+                review_id=review.review_id,
+                review=review,
+                actions=tuple(actions),
+                evidence_path=evidence_refs[0] if evidence_refs else "",
+                accepted_review_path=evidence_refs[1] if len(evidence_refs) > 1 else "",
+            )
+        else:
+            result = run_reviewer(
+                ReviewerContext(
+                    project_root=store.project_root,
+                    store=store,
+                    triggering_lineages=tuple(str(value) for value in lineages),
+                    timeout_seconds=timeout_seconds,
+                    source_action_id=action.action_id,
+                ),
+                driver=driver,
+                lease_checkpoint=guard.checkpoint,
+            )
         artifacts = tuple(
             value
             for value in (result.evidence_path, result.accepted_review_path)
@@ -741,7 +806,7 @@ def _due_lineage_states(store: SupervisorStore, now: datetime) -> list[_DueLinea
     runs = _decoded_store_rows(store, "runs")
     payloads = _run_payloads(store.project_root, runs)
     completions = _semantic_parent_completions(runs, payloads)
-    reviewed = _reviewed_cadence_positions(store)
+    reviewed = _scheduled_cadence_positions(store)
     by_lineage: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in runs:
         by_lineage[str(row.get("loop_lineage_id") or row.get("run_id") or "")].append(row)
@@ -819,6 +884,13 @@ def _completion_ids(payload: Mapping[str, Any]) -> list[str]:
 
 
 def _reviewed_cadence_positions(store: SupervisorStore) -> dict[str, int]:
+    return {
+        lineage_id: int(row.get("reviewed_position") or 0)
+        for lineage_id, row in store.review_cadence_positions().items()
+    }
+
+
+def _scheduled_cadence_positions(store: SupervisorStore) -> dict[str, int]:
     return {
         lineage_id: max(
             int(row.get("reviewed_position") or 0),
@@ -1139,64 +1211,6 @@ def _skill_frontmatter(path: Path) -> tuple[str, str]:
         if key in {"name", "description"}:
             values[key] = value.strip().strip("\"'")
     return values.get("name", ""), values.get("description", "")
-
-
-def _structured_skill_usage(value: Any) -> list[dict[str, str]]:
-    usage: list[dict[str, str]] = []
-
-    def visit(item: Any) -> None:
-        if isinstance(item, Mapping):
-            for key, nested in item.items():
-                if key in _SKILL_USAGE_KEYS:
-                    collect(nested)
-                elif key in {"execution_evidence", "evidence", "result"}:
-                    visit(nested)
-        elif isinstance(item, list):
-            for nested in item:
-                visit(nested)
-
-    def collect(item: Any) -> None:
-        values = item if isinstance(item, list) else [item]
-        for value_item in values:
-            if isinstance(value_item, str) and value_item:
-                usage.append({"name": value_item, "path": ""})
-            elif isinstance(value_item, Mapping):
-                status = str(value_item.get("status") or "confirmed")
-                if status not in {"confirmed", "used", "pass"}:
-                    continue
-                name = str(value_item.get("name") or value_item.get("skill") or "")
-                path = str(value_item.get("path") or value_item.get("skill_path") or "")
-                if name or path:
-                    usage.append({"name": name, "path": path})
-
-    visit(value)
-    return usage
-
-
-def _is_structured_execution_evidence(
-    path: Path,
-    payload: Mapping[str, Any],
-) -> bool:
-    filename = path.name
-    if filename in {
-        "planner-output.json",
-        "planner-result.json",
-        "generator-result.json",
-        "evaluator-result.json",
-    }:
-        return isinstance(payload.get("status") or payload.get("planner_decision"), str)
-    if re.fullmatch(
-        r"(?:planner|generator|evaluator|supervisor_reviewer)-attempt-\d+\.json",
-        filename,
-    ):
-        return isinstance(payload.get("status"), str) and isinstance(
-            payload.get("attempt"), int
-        )
-    if "trusted-live-evidence" in path.parts:
-        return isinstance(payload.get("status"), str)
-    return payload.get("evidence_type") == "execution" and isinstance(
-        payload.get("status"), str
-    )
 
 
 def _validated_findings(

@@ -302,6 +302,29 @@ class ActionRequest:
 
 
 @dataclass(frozen=True)
+class SkillInvocationEvidence:
+    invocation_id: str
+    skill_path: str
+    artifact_path: str
+    artifact_sha256: str
+
+    def __post_init__(self) -> None:
+        _require_string(self.invocation_id, "invocation_id")
+        for field_name in ("skill_path", "artifact_path"):
+            value = _require_string(getattr(self, field_name), field_name)
+            path = PurePosixPath(value)
+            if (
+                path.is_absolute()
+                or value != path.as_posix()
+                or ".." in path.parts
+                or "\\" in value
+            ):
+                raise ValueError(f"{field_name} must be a safe repo-relative path")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", self.artifact_sha256):
+            raise ValueError("artifact_sha256 must be a lowercase SHA-256 reference")
+
+
+@dataclass(frozen=True)
 class ActionResult:
     result_class: ActionResultClass
     summary: str
@@ -311,6 +334,7 @@ class ActionResult:
     checkpoint: str = ""
     started_at: str = ""
     finished_at: str = ""
+    skill_invocations: tuple[SkillInvocationEvidence, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.result_class, ActionResultClass):
@@ -322,7 +346,21 @@ class ActionResult:
         artifact_paths = tuple(self.artifact_paths)
         if not all(isinstance(path, str) for path in artifact_paths):
             raise TypeError("artifact_paths must contain only strings")
+        if not isinstance(self.skill_invocations, (list, tuple)):
+            raise TypeError("skill_invocations must be a list or tuple")
+        invocations = tuple(self.skill_invocations)
+        if not all(isinstance(item, SkillInvocationEvidence) for item in invocations):
+            raise TypeError("skill_invocations must contain SkillInvocationEvidence values")
+        if invocations and self.result_class is not ActionResultClass.SUCCESS:
+            raise ValueError("only successful ActionResult may record skill invocations")
+        if len({item.invocation_id for item in invocations}) != len(invocations):
+            raise ValueError("skill invocation IDs must be unique")
+        if len({item.skill_path for item in invocations}) != len(invocations):
+            raise ValueError("skill paths must be unique within one action result")
+        if any(item.artifact_path not in artifact_paths for item in invocations):
+            raise ValueError("skill invocation artifacts must be declared result artifacts")
         object.__setattr__(self, "artifact_paths", artifact_paths)
+        object.__setattr__(self, "skill_invocations", invocations)
 
 
 DEFAULT_RESULT_HANDLING: Mapping[ActionResultClass, ResultHandling] = MappingProxyType(

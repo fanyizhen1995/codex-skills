@@ -27,7 +27,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -301,6 +301,8 @@ _DDL = (
       decision TEXT NOT NULL DEFAULT '',
       summary TEXT NOT NULL DEFAULT '',
       evidence_json TEXT NOT NULL DEFAULT '[]',
+      accepted_review_json TEXT NOT NULL DEFAULT '{}',
+      source_action_id TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -553,6 +555,7 @@ class SupervisorStore:
             self._ensure_run_state_fingerprint()
             self._ensure_action_execution_root()
             self._ensure_action_ownership()
+            self._ensure_review_resume_state()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
             self._ensure_action_idempotency_aliases()
@@ -648,9 +651,29 @@ class SupervisorStore:
                 "ALTER TABLE actions ADD COLUMN not_before TEXT NOT NULL DEFAULT ''"
             )
         self._connection.execute(
+            "UPDATE actions SET queue_owner = 'reviewer' "
+            "WHERE action_type = 'run_reviewer' AND queue_owner != 'reviewer'"
+        )
+        self._connection.execute(
             "CREATE INDEX IF NOT EXISTS actions_owner_queue_idx "
             "ON actions(queue_owner, status, not_before, priority, created_at)"
         )
+
+    def _ensure_review_resume_state(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute("PRAGMA table_info(reviews)").fetchall()
+        }
+        if "accepted_review_json" not in columns:
+            self._connection.execute(
+                "ALTER TABLE reviews "
+                "ADD COLUMN accepted_review_json TEXT NOT NULL DEFAULT '{}'"
+            )
+        if "source_action_id" not in columns:
+            self._connection.execute(
+                "ALTER TABLE reviews "
+                "ADD COLUMN source_action_id TEXT NOT NULL DEFAULT ''"
+            )
 
     @staticmethod
     def _normalize_legacy_timestamp(value: object, *, allow_empty: bool) -> str:
@@ -1672,6 +1695,7 @@ class SupervisorStore:
                       OR (
                         decisions.scope = 'run'
                         AND decisions.run_id = a.run_id
+                        AND a.queue_owner != 'reviewer'
                       )
                     )
                 )
@@ -1731,6 +1755,7 @@ class SupervisorStore:
                       OR (
                         decisions.scope = 'run'
                         AND decisions.run_id = actions.run_id
+                        AND actions.queue_owner != 'reviewer'
                       )
                     )
                 ) AND queue_owner IN ({owner_placeholders})
@@ -1999,6 +2024,29 @@ class SupervisorStore:
                     now,
                 ),
             )
+            for invocation in result.skill_invocations:
+                skill_path, invocation_artifact = self._validate_skill_invocation_files(
+                    invocation.skill_path,
+                    invocation.artifact_path,
+                    invocation.artifact_sha256,
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO skill_invocations(
+                      invocation_id, action_id, attempt_id, skill_path,
+                      artifact_path, artifact_sha256, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        invocation.invocation_id,
+                        action_id,
+                        attempt_id,
+                        skill_path,
+                        invocation_artifact,
+                        invocation.artifact_sha256,
+                        now,
+                    ),
+                )
             status = (
                 "completed"
                 if result.result_class is ActionResultClass.SUCCESS
@@ -2430,23 +2478,46 @@ class SupervisorStore:
         summary: str = "",
         evidence_refs: tuple[str, ...] | list[str] = (),
         findings: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]] = (),
+        accepted_review: Mapping[str, Any] | None = None,
+        source_action_id: str = "",
         created_at: datetime | str | None = None,
     ) -> dict[str, Any]:
         self._validate_summary(summary)
         evidence = self._validate_artifact_paths(
             evidence_refs, field_name="evidence_refs"
         )
+        accepted = dict(accepted_review or {})
+        if accepted:
+            self._validate_payload(accepted)
+        if not isinstance(source_action_id, str):
+            raise TypeError("source_action_id must be a string")
         timestamp = self._coerce_time(created_at)
         with self._immediate_transaction():
+            if source_action_id:
+                source = self._connection.execute(
+                    "SELECT action_type FROM actions WHERE action_id = ?",
+                    (source_action_id,),
+                ).fetchone()
+                if source is None or str(source["action_type"]) != "run_reviewer":
+                    raise ValueError("source_action_id must identify a Reviewer action")
             self._connection.execute(
                 """
                 INSERT INTO reviews(
                   review_id, trigger, status, decision, summary, evidence_json,
-                  created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  accepted_review_json, source_action_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(review_id) DO UPDATE SET status = excluded.status,
                   decision = excluded.decision, summary = excluded.summary,
-                  evidence_json = excluded.evidence_json, updated_at = excluded.updated_at
+                  evidence_json = excluded.evidence_json,
+                  accepted_review_json = CASE
+                    WHEN excluded.accepted_review_json = '{}' THEN reviews.accepted_review_json
+                    ELSE excluded.accepted_review_json
+                  END,
+                  source_action_id = CASE
+                    WHEN excluded.source_action_id = '' THEN reviews.source_action_id
+                    ELSE excluded.source_action_id
+                  END,
+                  updated_at = excluded.updated_at
                 """,
                 (
                     review_id,
@@ -2455,6 +2526,8 @@ class SupervisorStore:
                     decision,
                     summary,
                     self._json(evidence),
+                    self._json(accepted),
+                    source_action_id,
                     timestamp,
                     timestamp,
                 ),
@@ -2536,6 +2609,26 @@ class SupervisorStore:
             ).fetchone()
         return self._decoded_row(row)
 
+    def resumable_review_for_action(self, source_action_id: str) -> dict[str, Any] | None:
+        """Return a complete accepted review associated with an unfinished source action."""
+        self._required_text(source_action_id, "source_action_id")
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT reviews.* FROM reviews
+                JOIN actions ON actions.action_id = reviews.source_action_id
+                WHERE reviews.source_action_id = ?
+                  AND reviews.status IN ('review_applying', 'review_complete')
+                  AND reviews.accepted_review_json != '{}'
+                  AND actions.status IN ('pending', 'leased', 'running')
+                ORDER BY reviews.created_at, reviews.review_id
+                """,
+                (source_action_id,),
+            ).fetchall()
+        if len(rows) > 1:
+            raise RuntimeError("Reviewer action has multiple accepted reviews")
+        return self._decoded_row(rows[0]) if rows else None
+
     def set_review_status(self, review_id: str, status: str) -> None:
         self._required_text(review_id, "review_id")
         self._required_text(status, "status")
@@ -2606,20 +2699,11 @@ class SupervisorStore:
         self._required_text(invocation_id, "invocation_id")
         self._required_text(action_id, "action_id")
         self._required_text(attempt_id, "attempt_id")
-        validated_skill = self._validate_artifact_paths(
-            (skill_path,), field_name="skill_path"
-        )[0]
-        validated_artifact = self._validate_artifact_paths(
-            (artifact_path,), field_name="artifact_path"
-        )[0]
-        if not re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_sha256):
-            raise ValueError("artifact_sha256 must be a lowercase SHA-256 reference")
-        artifact = self.project_root / validated_artifact
-        if not artifact.is_file() or artifact.is_symlink():
-            raise ValueError("skill invocation artifact must be an owned regular file")
-        actual_hash = f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}"
-        if actual_hash != artifact_sha256:
-            raise ValueError("skill invocation artifact hash does not match")
+        validated_skill, validated_artifact = self._validate_skill_invocation_files(
+            skill_path,
+            artifact_path,
+            artifact_sha256,
+        )
         now = self._now_text()
         with self._immediate_transaction():
             attempt = self._connection.execute(
@@ -2668,6 +2752,31 @@ class SupervisorStore:
             ):
                 raise ValueError("skill invocation identity changed")
         return dict(row)
+
+    def _validate_skill_invocation_files(
+        self,
+        skill_path: str,
+        artifact_path: str,
+        artifact_sha256: str,
+    ) -> tuple[str, str]:
+        validated_skill = self._validate_artifact_paths(
+            (skill_path,), field_name="skill_path"
+        )[0]
+        validated_artifact = self._validate_artifact_paths(
+            (artifact_path,), field_name="artifact_path"
+        )[0]
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_sha256):
+            raise ValueError("artifact_sha256 must be a lowercase SHA-256 reference")
+        skill = self.project_root / validated_skill
+        if not skill.is_file() or skill.is_symlink():
+            raise ValueError("skill invocation skill must be an owned regular file")
+        artifact = self.project_root / validated_artifact
+        if not artifact.is_file() or artifact.is_symlink():
+            raise ValueError("skill invocation artifact must be an owned regular file")
+        actual_hash = f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}"
+        if actual_hash != artifact_sha256:
+            raise ValueError("skill invocation artifact hash does not match")
+        return validated_skill, validated_artifact
 
     def list_page(
         self,
@@ -2901,10 +3010,23 @@ class SupervisorStore:
         now = self._now_text()
         deleted: dict[str, int] = {}
         with self._immediate_transaction():
-            specs = (
-                ("transitions", "to_phase", "transitions"),
-                ("action_attempts", "result_class", "action_attempts"),
-            )
+            eligible_attempts = """
+                action_attempts.created_at < ?
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM review_application_targets AS retained_targets
+                  JOIN review_applications AS retained_applications
+                    ON retained_applications.review_id = retained_targets.review_id
+                  WHERE retained_targets.action_id = action_attempts.action_id
+                    AND retained_applications.status != 'completed'
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM reviews AS retained_source_reviews
+                  WHERE retained_source_reviews.source_action_id = action_attempts.action_id
+                    AND retained_source_reviews.status = 'review_applying'
+                )
+            """
+            specs = (("transitions", "to_phase", "transitions"),)
             for table, key_column, aggregate_kind in specs:
                 groups = self._connection.execute(
                     f"""
@@ -2923,9 +3045,54 @@ class SupervisorStore:
                         int(group["aggregate_count"]),
                         now,
                     )
+            attempt_groups = self._connection.execute(
+                f"""
+                SELECT substr(action_attempts.created_at, 1, 10) AS aggregate_day,
+                       action_attempts.result_class AS aggregate_key,
+                       COUNT(*) AS aggregate_count
+                FROM action_attempts WHERE {eligible_attempts}
+                GROUP BY aggregate_day, aggregate_key
+                """,
+                (cutoff,),
+            ).fetchall()
+            for group in attempt_groups:
+                self._upsert_aggregate(
+                    str(group["aggregate_day"]),
+                    "action_attempts",
+                    str(group["aggregate_key"]),
+                    int(group["aggregate_count"]),
+                    now,
+                )
+            invocation_groups = self._connection.execute(
+                f"""
+                SELECT substr(skill_invocations.created_at, 1, 10) AS aggregate_day,
+                       skill_invocations.skill_path AS aggregate_key,
+                       COUNT(*) AS aggregate_count
+                FROM skill_invocations
+                JOIN action_attempts
+                  ON action_attempts.attempt_id = skill_invocations.attempt_id
+                WHERE {eligible_attempts}
+                GROUP BY aggregate_day, aggregate_key
+                """,
+                (cutoff,),
+            ).fetchall()
+            for group in invocation_groups:
+                self._upsert_aggregate(
+                    str(group["aggregate_day"]),
+                    "skill_invocations",
+                    str(group["aggregate_key"]),
+                    int(group["aggregate_count"]),
+                    now,
+                )
             eligible_reviews = """
                 reviews.created_at < ?
                 AND reviews.updated_at < ?
+                AND reviews.status != 'review_applying'
+                AND NOT EXISTS (
+                  SELECT 1 FROM review_applications AS incomplete_applications
+                  WHERE incomplete_applications.review_id = reviews.review_id
+                    AND incomplete_applications.status != 'completed'
+                )
                 AND NOT EXISTS (
                   SELECT 1 FROM review_findings AS active_findings
                   WHERE active_findings.review_id = reviews.review_id
@@ -2981,11 +3148,12 @@ class SupervisorStore:
                     now,
                 )
             failure_groups = self._connection.execute(
-                """
-                SELECT substr(created_at, 1, 10) AS aggregate_day,
-                       failure_key AS aggregate_key, COUNT(*) AS aggregate_count
+                f"""
+                SELECT substr(action_attempts.created_at, 1, 10) AS aggregate_day,
+                       action_attempts.failure_key AS aggregate_key,
+                       COUNT(*) AS aggregate_count
                 FROM action_attempts
-                WHERE created_at < ? AND failure_key != ''
+                WHERE {eligible_attempts} AND action_attempts.failure_key != ''
                 GROUP BY aggregate_day, aggregate_key
                 """,
                 (cutoff,),
@@ -3013,11 +3181,24 @@ class SupervisorStore:
                 (cutoff, cutoff, cutoff, cutoff),
             )
             deleted["reviews"] = review_delete.rowcount
-            for table in ("action_attempts", "transitions"):
-                result = self._connection.execute(
-                    f"DELETE FROM {table} WHERE created_at < ?", (cutoff,)
+            self._connection.execute(
+                f"""
+                DELETE FROM skill_invocations WHERE attempt_id IN (
+                  SELECT action_attempts.attempt_id FROM action_attempts
+                  WHERE {eligible_attempts}
                 )
-                deleted[table] = result.rowcount
+                """,
+                (cutoff,),
+            )
+            attempt_delete = self._connection.execute(
+                f"DELETE FROM action_attempts WHERE {eligible_attempts}",
+                (cutoff,),
+            )
+            deleted["action_attempts"] = attempt_delete.rowcount
+            transition_delete = self._connection.execute(
+                "DELETE FROM transitions WHERE created_at < ?", (cutoff,)
+            )
+            deleted["transitions"] = transition_delete.rowcount
         return deleted
 
     def _insert_transition(

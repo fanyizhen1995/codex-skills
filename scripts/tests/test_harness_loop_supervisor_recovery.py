@@ -9,6 +9,7 @@ import subprocess
 import pytest
 
 from scripts.loop_supervisor.models import (
+    ActionOwner,
     ActionRequest,
     ActionResult,
     ActionResultClass,
@@ -776,6 +777,7 @@ def test_non_generator_alternate_performs_registry_declared_bounded_replan(
 
 def test_failed_alternate_queues_reviewer_once_without_user_decision(tmp_path: Path) -> None:
     from scripts.loop_supervisor.executor import ACTION_HANDLERS
+    from scripts.loop_supervisor.reviewer import run_queued_reviewer
     from scripts.loop_supervisor.worker import worker_once
 
     seed_parent22_partial_fixture(tmp_path)
@@ -814,6 +816,7 @@ def test_failed_alternate_queues_reviewer_once_without_user_decision(tmp_path: P
     reviewer_action = reviewer.action_for(PARENT22_RUN_ID)
     assert reviewer_action is not None
     assert reviewer_action.action_type is ActionType.RUN_REVIEWER
+    assert reviewer_action.queue_owner is ActionOwner.REVIEWER
     repeated = reconcile_once(tmp_path, store, include_worktrees=False)
     assert repeated.action_for(PARENT22_RUN_ID).action_id == reviewer_action.action_id
     assert len(
@@ -827,7 +830,23 @@ def test_failed_alternate_queues_reviewer_once_without_user_decision(tmp_path: P
     assert worker_result.status == "idle"
     reviewer_row = store.get_action(reviewer_action.action_id)
     assert reviewer_row.status == "pending"
+    assert reviewer_row.queue_owner == ActionOwner.REVIEWER.value
     assert not any(
         row["action_id"] == reviewer_action.action_id
         for row in store.fetch_all("action_attempts")
     )
+
+    reviewer_result = run_queued_reviewer(
+        store,
+        reviewer_id="task-5-reviewer",
+        driver=lambda **_kwargs: {"status": "timeout", "exit_code": 124},
+    )
+
+    assert reviewer_result is not None
+    assert store.get_action(reviewer_action.action_id).status in {"completed", "failed"}
+    reviewer_attempt = next(
+        row
+        for row in store.fetch_all("action_attempts")
+        if row["action_id"] == reviewer_action.action_id
+    )
+    assert reviewer_attempt["worker_id"] == "task-5-reviewer"

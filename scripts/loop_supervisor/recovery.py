@@ -32,7 +32,13 @@ from scripts.harness_loop_contracts import (
     validate_scenario_command_result_payload,
 )
 
-from .models import ActionRequest, ActionResultClass, ActionType, RecoveryStage
+from .models import (
+    ActionOwner,
+    ActionRequest,
+    ActionResultClass,
+    ActionType,
+    RecoveryStage,
+)
 from .registry import recovery_transition_for
 
 
@@ -871,6 +877,11 @@ def _recovery_request(
         policy=desired.policy,
         phase=desired.phase,
         action_type=plan.action_type,
+        queue_owner=(
+            ActionOwner.REVIEWER
+            if plan.action_type is ActionType.RUN_REVIEWER
+            else desired.queue_owner
+        ),
         idempotency_key=f"recovery:{digest}",
         repo_relative_root=desired.repo_relative_root,
         task_id=desired.task_id,

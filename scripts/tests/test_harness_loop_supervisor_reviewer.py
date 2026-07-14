@@ -21,6 +21,7 @@ from scripts.harness_loop_orchestrator import (
 from scripts.loop_supervisor import reviewer as reviewer_module
 from scripts.loop_supervisor.executor import ACTION_HANDLERS
 from scripts.loop_supervisor.models import (
+    ActionOwner,
     ActionRequest,
     ActionResult,
     ActionResultClass,
@@ -370,6 +371,76 @@ def test_ordinary_worker_lease_cannot_claim_reviewer_owned_action(tmp_path: Path
     assert store.get_action(request.action_id).status == "pending"
 
 
+def test_run_decision_does_not_block_project_global_reviewer_lease(tmp_path: Path) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    request = schedule_due_reviews(store, now=NOW)[0]
+    store.open_user_decision(
+        scope="run",
+        run_id=request.run_id,
+        summary="Only this run needs user input.",
+        failure_key="run-only:block",
+        required_decision="Resolve the run-specific question.",
+    )
+    clock.value = NOW + timedelta(minutes=10)
+
+    leased = store.lease_next_action(
+        "reviewer-run-isolation",
+        lease_seconds=60,
+        allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
+    )
+
+    assert leased is not None
+    assert leased.action_id == request.action_id
+
+
+def test_global_decision_blocks_project_global_reviewer_lease(tmp_path: Path) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    request = schedule_due_reviews(store, now=NOW)[0]
+    store.open_user_decision(
+        scope="global",
+        summary="Project ownership is uncertain.",
+        failure_key="global:block",
+        required_decision="Restore trustworthy project ownership.",
+    )
+    clock.value = NOW + timedelta(minutes=10)
+
+    leased = store.lease_next_action(
+        "reviewer-global-block",
+        lease_seconds=60,
+        allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
+    )
+
+    assert leased is None
+    assert store.get_action(request.action_id).status == "pending"
+
+
+def test_review_evidence_includes_parents_reserved_for_current_review(
+    tmp_path: Path,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    schedule_due_reviews(store, now=NOW)
+
+    bundle = build_review_evidence(tmp_path, store, ["lineage-a"])
+
+    progress = next(
+        item
+        for item in bundle.evidence["parent_progress"]
+        if item["loop_lineage_id"] == "lineage-a"
+    )
+    assert progress["reviewed_position"] == 0
+    assert progress["completed_since_last_review"] == ("parent-1", "parent-2")
+
+
 def test_supervisor_reviewer_codex_command_uses_read_only_sandbox() -> None:
     command = build_codex_exec_command(
         repo_root=Path("/tmp/repo"),
@@ -514,6 +585,86 @@ def test_queued_review_propagates_outbox_failure_without_advancing_cadence(
     assert store.fetch_all("reviews")[0]["status"] == "review_applying"
 
 
+def test_queued_reviewer_resumes_persisted_outbox_after_cold_store_reopen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    for lineage, prefix in (("lineage-a", "run-a"), ("lineage-b", "run-b")):
+        record_parent_completion(store, lineage, run_id=f"{prefix}1", parent=1)
+        record_parent_completion(store, lineage, run_id=f"{prefix}2", parent=2)
+    request = schedule_due_reviews(store, now=NOW)[0]
+    clock.value = NOW + timedelta(minutes=10)
+
+    def first_driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        evidence_path = next(review_dir.glob("review-*-evidence.json"))
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        payload = valid_review_payload(
+            review_id=str(kwargs["run_id"]),
+            decision="refocus",
+            affected_run_ids=["run-a2", "run-b2"],
+            evidence_refs=list(evidence["evidence_hashes"].values()),
+        )
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(payload) + "\n", encoding="utf-8"
+        )
+        return {"status": "pass", "exit_code": 0}
+
+    original_apply = reviewer_module.apply_review_decision
+    cut = []
+
+    def cut_after_first_write(store_arg, review, **kwargs):
+        def cutpoint(stage: str, run_id: str) -> None:
+            if stage == "after_file_write" and not cut:
+                cut.append(run_id)
+                raise RuntimeError("injected cold-restart cutpoint")
+
+        return original_apply(
+            store_arg,
+            review,
+            application_cutpoint=cutpoint,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(reviewer_module, "apply_review_decision", cut_after_first_write)
+    with pytest.raises(RuntimeError, match="cold-restart cutpoint"):
+        run_queued_reviewer(
+            store,
+            reviewer_id="reviewer-before-restart",
+            driver=first_driver,
+            timeout_seconds=1,
+            heartbeat_seconds=0.01,
+        )
+
+    persisted = store.fetch_all("reviews")[0]
+    assert persisted["source_action_id"] == request.action_id
+    assert json.loads(persisted["accepted_review_json"])["review_id"] == persisted["review_id"]
+    store.close()
+    clock.value += timedelta(seconds=121)
+    reopened = SupervisorStore.open(tmp_path, clock=clock)
+    reopened.migrate()
+
+    def forbidden_driver(**_kwargs: object) -> dict[str, object]:
+        raise AssertionError("cold recovery must finish before a new LLM call")
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-after-restart",
+        driver=forbidden_driver,
+        timeout_seconds=1,
+        heartbeat_seconds=0.01,
+    )
+
+    assert result is not None and result.status == "review_complete"
+    assert reopened.get_action(request.action_id).status == "completed"
+    assert reopened.fetch_all("review_applications")[0]["status"] == "completed"
+    assert all(
+        row["status"] == "applied"
+        for row in reopened.fetch_all("review_application_targets")
+    )
+
+
 def test_reviewer_module_exposes_distinct_once_service_path(tmp_path: Path) -> None:
     result = subprocess.run(
         [
@@ -605,6 +756,43 @@ def test_evidence_build_failure_uses_fresh_deterministic_gate(
     assert blocked.blocks_safe_runs is True
     blocked_gate = blocked_store.fetch_all("review_safety_gates")[-1]
     assert blocked_gate["status"] == "fail"
+
+
+@pytest.mark.parametrize(
+    ("signal", "expected_signal"),
+    [
+        ("secret_exposure_confirmed", "secret_exposure"),
+        ("repo_corruption", "repo_corruption"),
+        ("permission_expansion_required", "permission_expansion_required"),
+        ("irreversible_operation_required", "irreversible_operation_required"),
+        ("explicit_global_stop", "explicit_global_stop"),
+    ],
+)
+def test_reviewer_fail_open_gate_reads_fresh_owned_global_safety_signals(
+    tmp_path: Path,
+    signal: str,
+    expected_signal: str,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    payload[signal] = True
+    run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    result = run_reviewer(
+        ReviewerContext(tmp_path, store, ("lineage-a",)),
+        driver=lambda **_kwargs: {"status": "timeout", "exit_code": 124},
+    )
+
+    assert result.status == "review_degraded"
+    assert result.blocks_safe_runs is True
+    assert store.fetch_all("user_decisions") == []
+    gate = store.fetch_all("review_safety_gates")[-1]
+    checks = json.loads(gate["checks_json"])
+    assert checks["fresh_global_safety_signals"] == [
+        {"run_id": "run-1", "signal": expected_signal}
+    ]
 
 
 def test_real_reviewer_path_validates_candidate_and_records_accepted_review(tmp_path: Path) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -16,6 +17,7 @@ from scripts.loop_supervisor.models import (
     ActionResult,
     ActionResultClass,
     ActionType,
+    SkillInvocationEvidence,
 )
 from scripts.loop_supervisor.store import SupervisorStore
 from scripts.loop_supervisor.reconciler import reconcile_once
@@ -236,6 +238,49 @@ def test_worker_executes_exactly_one_action(
         store.migrate()
         statuses = {row["action_id"]: row["status"] for row in store.fetch_all("actions")}
     assert statuses == {"action-1": "completed", "action-2": "pending"}
+
+
+def test_worker_atomically_records_successful_skill_invocations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    request = _seed_action(tmp_path)
+    skill_path = tmp_path / "skills" / "alpha" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text("---\nname: alpha\ndescription: Alpha skill.\n---\n", encoding="utf-8")
+    artifact_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "planner-output.json"
+    artifact_path.write_text('{"status":"pass"}\n', encoding="utf-8")
+    artifact_ref = artifact_path.relative_to(tmp_path).as_posix()
+    artifact_hash = f"sha256:{hashlib.sha256(artifact_path.read_bytes()).hexdigest()}"
+
+    def execute(_request: ActionRequest, _root: Path) -> ActionResult:
+        return ActionResult(
+            ActionResultClass.SUCCESS,
+            "planner used alpha",
+            artifact_paths=(artifact_ref,),
+            skill_invocations=(
+                SkillInvocationEvidence(
+                    invocation_id="invocation-worker-alpha",
+                    skill_path="skills/alpha/SKILL.md",
+                    artifact_path=artifact_ref,
+                    artifact_sha256=artifact_hash,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(worker, "execute_action", execute)
+
+    result = worker.worker_once(tmp_path, "worker-skill-provenance")
+
+    assert result.status == "completed"
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        invocation = store.fetch_all("skill_invocations")[0]
+        attempt = store.fetch_all("action_attempts")[0]
+    assert invocation["action_id"] == request.action_id
+    assert invocation["attempt_id"] == attempt["attempt_id"]
+    assert invocation["artifact_sha256"] == artifact_hash
 
 
 def test_confirmed_demand_run_reconciles_and_worker_calls_planner_primitive(
