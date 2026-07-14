@@ -363,6 +363,7 @@ def seed_parent22_partial_fixture(root: Path) -> dict[str, object]:
             "evaluator_scenarios_path": "docs/harness/evaluator-scenarios/fixture.json",
             "stop_conditions": ["secret exposure"],
             "next_planning_hint": "Evaluate independently",
+            "skill_invocations": [],
         },
     )
     for attempt in (3, 4):
@@ -850,3 +851,100 @@ def test_failed_alternate_queues_reviewer_once_without_user_decision(tmp_path: P
         if row["action_id"] == reviewer_action.action_id
     )
     assert reviewer_attempt["worker_id"] == "task-5-reviewer"
+
+    post_review = reconcile_once(tmp_path, store, include_worktrees=False)
+
+    next_action = post_review.action_for(PARENT22_RUN_ID)
+    assert next_action is not None
+    assert next_action.action_type is not ActionType.RUN_REVIEWER
+    assert json.loads(episode_failures(store)[0]["resolution"])["status"] == "closed"
+
+
+@pytest.mark.parametrize("decision", ["continue", "refocus"])
+def test_closed_recovery_episode_ignores_historical_failed_alternate_after_review(
+    tmp_path: Path,
+    decision: str,
+) -> None:
+    from scripts.loop_supervisor.reviewer import run_queued_reviewer
+
+    seed_parent22_partial_fixture(tmp_path)
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock)
+    action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+    assert action is not None
+    for attempt, delay in ((1, 60), (2, 120), (3, 0)):
+        _complete_retryable_action(store, action.action_id, f"worker-{attempt}")
+        reconciled = reconcile_once(tmp_path, store, include_worktrees=False)
+        if delay:
+            clock.advance(seconds=delay)
+            action = reconcile_once(
+                tmp_path, store, include_worktrees=False
+            ).action_for(PARENT22_RUN_ID)
+            assert action is not None
+    alternate = reconciled.action_for(PARENT22_RUN_ID)
+    assert alternate is not None
+    leased = store.lease_next_action(
+        "worker-alternate",
+        lease_seconds=120,
+        heartbeat_stale_seconds=60,
+    )
+    assert leased is not None and leased.action_id == alternate.action_id
+    store.complete_action(
+        alternate.action_id,
+        "worker-alternate",
+        ActionResult(
+            result_class=ActionResultClass.TERMINAL_FAILURE,
+            summary="alternate failed",
+            failure_key="worker:alternate:failed",
+            error_class="partial_artifact_unprovable",
+        ),
+    )
+    reviewer_action = reconcile_once(
+        tmp_path, store, include_worktrees=False
+    ).action_for(PARENT22_RUN_ID)
+    assert reviewer_action is not None
+    assert reviewer_action.action_type is ActionType.RUN_REVIEWER
+
+    def accepted_driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        evidence_path = next(review_dir.glob("review-*-evidence.json"))
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        payload = {
+            "schema_version": 1,
+            "review_id": str(kwargs["run_id"]),
+            "scope": "project",
+            "decision": decision,
+            "affected_run_ids": [PARENT22_RUN_ID] if decision == "refocus" else [],
+            "summary": f"Reviewer chose {decision}.",
+            "evidence_refs": list(evidence["evidence_hashes"].values()),
+            "findings": [],
+            "skill_governance": [],
+            "next_review_after_parent_tasks": 2,
+        }
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(payload) + "\n", encoding="utf-8"
+        )
+        return {"status": "pass", "exit_code": 0}
+
+    result = run_queued_reviewer(
+        store,
+        reviewer_id=f"reviewer-{decision}",
+        driver=accepted_driver,
+    )
+    assert result is not None and result.status == "review_complete"
+
+    post_review = reconcile_once(tmp_path, store, include_worktrees=False)
+
+    next_action = post_review.action_for(PARENT22_RUN_ID)
+    assert next_action is not None
+    assert next_action.action_type is not ActionType.RUN_REVIEWER
+    assert len(
+        [
+            row
+            for row in store.fetch_all("actions")
+            if row["action_type"] == ActionType.RUN_REVIEWER.value
+        ]
+    ) == 1
+    assert json.loads(episode_failures(store)[0]["resolution"])["status"] == "closed"

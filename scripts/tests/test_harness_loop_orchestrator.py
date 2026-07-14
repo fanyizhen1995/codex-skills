@@ -799,6 +799,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "artifacts": [],
                 "cleanup_required": False,
                 "notes": "seeded current visibility target",
+                "skill_invocations": [],
             },
         )
         return relative_path
@@ -833,6 +834,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "artifacts": [],
                 "cleanup_required": False,
                 "notes": "seeded current visibility targets",
+                "skill_invocations": [],
             },
         )
         return relative_paths
@@ -1574,6 +1576,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "No repo changes for this regression.",
+                    "skill_invocations": [],
                 },
             )
             (repo_root / ".codex" / "ai-infra-expansion-continuation.log").write_text(
@@ -1626,6 +1629,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "No repo changes for this regression.",
+                    "skill_invocations": [],
                 },
             )
 
@@ -1674,6 +1678,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "evaluator_scenarios_path": "",
                             "stop_conditions": ["stopped_no_action", "stopped_budget", "stopped_blocked"],
                             "next_planning_hint": "continue planning",
+                            "skill_invocations": [],
                         },
                     )
                 elif role == "generator":
@@ -1695,6 +1700,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/codex-task.md"],
                             "cleanup_required": False,
                             "notes": "autonomous knowledge update without dependency changes",
+                            "skill_invocations": [],
                         },
                     )
                 elif role == "evaluator":
@@ -1707,6 +1713,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "returncode": 0,
                             "stdout": "codex autonomous evaluator pass\n",
                             "stderr": "",
+                            "skill_invocations": [],
                         },
                     )
                 return {
@@ -2177,6 +2184,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/fake-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 return {
@@ -2249,6 +2257,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/fake-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 write_json_file(
@@ -2375,6 +2384,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/forged-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 write_json_file(
@@ -2487,6 +2497,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/forged-exact-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 write_json_file(
@@ -2663,6 +2674,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [changed_path],
                     "cleanup_required": False,
                     "notes": "Retry a transient commit failure.",
+                    "skill_invocations": [],
                 },
             )
             write_json_file(
@@ -6269,6 +6281,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "evaluator_scenarios_path": "",
                         "stop_conditions": ["passed_waiting_human_merge"],
                         "next_planning_hint": "",
+                        "skill_invocations": [],
                     },
                 )
                 return {"status": "pass", "run_id": "demo-run", "role": "planner", "attempt": 1}
@@ -6343,6 +6356,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "evaluator_scenarios_path": "",
                     "stop_conditions": ["passed_waiting_human_merge"],
                     "next_planning_hint": "",
+                    "skill_invocations": [],
                 },
             )
             from scripts.harness_loop_orchestrator import run_planner
@@ -6386,6 +6400,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "evaluator_scenarios_path": "",
                     "stop_conditions": ["passed_waiting_human_merge"],
                     "next_planning_hint": "",
+                    "skill_invocations": [],
                 },
             )
             from scripts.harness_loop_orchestrator import run_planner
@@ -6528,6 +6543,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "stale result",
+                    "skill_invocations": [],
                 },
             )
 
@@ -6569,6 +6585,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "stale result",
+                    "skill_invocations": [],
                 },
             )
 
@@ -6998,6 +7015,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": ["artifact.txt"],
                     "cleanup_required": False,
                     "notes": "needs hygiene",
+                    "skill_invocations": [],
                 },
             )
             run = read_json_file(run_dir / "run.json")
@@ -7313,6 +7331,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "artifacts": ["large.bin"],
                 "cleanup_required": False,
                 "notes": "needs hygiene",
+                "skill_invocations": [],
             }
             write_json_file(run_dir / "generator-result.json", generator_result)
             run = read_json_file(run_dir / "run.json")
@@ -7364,6 +7383,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 ],
                 "cleanup_required": False,
                 "notes": "Existing raw issue corpus is cited as evidence, not emitted as a new artifact.",
+                "skill_invocations": [],
             }
             write_json_file(run_dir / "generator-result.json", generator_result)
             run = read_json_file(run_dir / "run.json")
@@ -8253,6 +8273,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                                 "stopped_budget",
                             ],
                             "next_planning_hint": "",
+                            "skill_invocations": [],
                             "backlog": [],
                             "planner_decision": "next_child",
                             "next_child_task": {
@@ -8292,6 +8313,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                             "artifacts": [],
                             "cleanup_required": False,
                             "notes": "codex demand child generated",
+                            "skill_invocations": [],
                         },
                     )
                 else:
@@ -9062,6 +9084,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 "returncode": 0,
                 "stdout": "evaluator pass\n",
                 "stderr": "",
+                "skill_invocations": [],
             }
             artifact_path = f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json"
             artifact = repo_root / artifact_path
@@ -9137,6 +9160,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 "returncode": 0,
                 "stdout": "evaluator pass\n",
                 "stderr": "",
+                "skill_invocations": [],
             }
 
             blocked = harness_loop_orchestrator._merge_formal_verification_result(repo_root, run, dict(evaluator_payload))

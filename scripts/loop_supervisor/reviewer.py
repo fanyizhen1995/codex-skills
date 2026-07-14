@@ -657,6 +657,8 @@ def run_queued_reviewer(
     heartbeat_seconds: float = 30.0,
 ) -> ReviewerExecutionResult | None:
     """Lease and execute one Reviewer action outside the ordinary Worker."""
+    if store.has_blocked_review_migration():
+        return None
     action = store.lease_next_action(
         reviewer_id,
         lease_seconds=timeout_seconds + 60,

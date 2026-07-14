@@ -75,6 +75,7 @@ try:
         ActionRequest,
         ActionResult,
         ActionResultClass,
+        SkillInvocationEvidence,
     )
 except ModuleNotFoundError:
     from harness_ai_infra_evidence import (  # type: ignore[no-redef]
@@ -134,6 +135,7 @@ except ModuleNotFoundError:
         ActionRequest,
         ActionResult,
         ActionResultClass,
+        SkillInvocationEvidence,
     )
 
 
@@ -669,6 +671,7 @@ def _demand_child_planner_payload(
         "evaluator_scenarios_path": "",
         "stop_conditions": ["passed"],
         "next_planning_hint": "return to parent planner",
+        "skill_invocations": [],
     }
     if child_task.get("audit_remediation"):
         payload["audit_remediation"] = True
@@ -925,6 +928,17 @@ def _reviewer_directives_prompt(run: Mapping[str, Any]) -> str:
     )
 
 
+def _skill_invocation_prompt(run_id: str, role: str) -> str:
+    return (
+        "Always include skill_invocations as a JSON list. If no skill was invoked, "
+        "use []. For each invocation, write a separate JSON evidence artifact under "
+        f".codex/loop-runs/{run_id}/ with exactly schema_version=1, invocation_id, "
+        f"run_id, task_id, role={role}, skill_path, and status=confirmed; then include "
+        "invocation_id, skill_path, artifact_path, and its lowercase sha256 hash in "
+        "skill_invocations. Do not infer skill use from logs or prose."
+    )
+
+
 def _planner_prompt(requirement: str, run_id: str, run: Mapping[str, Any]) -> str:
     output_path = f".codex/loop-runs/{run_id}/planner-output.json"
     return "\n".join(
@@ -934,6 +948,7 @@ def _planner_prompt(requirement: str, run_id: str, run: Mapping[str, Any]) -> st
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
             "Use policy demand_development and task_kind registered_task unless the requirement explicitly says otherwise.",
+            _skill_invocation_prompt(run_id, "planner"),
             f"Run ID: {run_id}",
             f"Requirement: {requirement}",
             _reviewer_directives_prompt(run),
@@ -953,6 +968,7 @@ def _generator_prompt(run_id: str) -> str:
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
             "Do not mark final completion; evaluator decides.",
+            _skill_invocation_prompt(run_id, "generator"),
             "",
         ]
     )
@@ -969,6 +985,7 @@ def _autonomous_planner_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
             "Use policy autonomous_knowledge and task_kind autonomous_implementation_task when work is actionable.",
+            _skill_invocation_prompt(str(run["run_id"]), "planner"),
             "If there is no actionable work, update loop-state.json no-action evidence and do not write unrelated files.",
             f"Run ID: {run['run_id']}",
             f"Domain: {run['domain']}",
@@ -993,6 +1010,7 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Only modify paths allowed by planner-output.json and the autonomous policy.",
             "Do not run git commit or fill the commit field; the orchestrator commits after gates pass.",
             "Run verification commands and include non-empty verify_results when dependency files change.",
+            _skill_invocation_prompt(str(run["run_id"]), "generator"),
             (
                 "Do not run live service or local socket checks from planner verify_commands. "
                 "Do not start tmux, uvicorn, npm, Vite, or other long-lived services. "
@@ -1039,6 +1057,7 @@ def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
                 "the orchestrator captures fresh trusted live evidence after evaluator acceptance."
             ),
             "Do not modify repository files other than the evaluator result.",
+            _skill_invocation_prompt(str(run["run_id"]), "evaluator"),
             f"Run ID: {run['run_id']}",
             f"Task ID: {run['task_id']}",
             f"Domain: {run['domain']}",
@@ -1345,6 +1364,7 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             "evaluator_scenarios_path": "",
             "stop_conditions": list(run.get("stop_conditions", ["passed_waiting_human_merge"])),
             "next_planning_hint": "",
+            "skill_invocations": [],
         }
         validate_planner_output_payload(payload)
         write_json_file(output_path, payload)
@@ -1407,6 +1427,7 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             "artifacts": [],
             "cleanup_required": False,
             "notes": "fake generator completed",
+            "skill_invocations": [],
         }
         validate_generator_result_payload(payload)
         write_json_file(output_path, payload)
@@ -1637,6 +1658,7 @@ def run_evaluator(
                     "stdout": f"scenario commands failed: {scenario_command_results_path}\n",
                     "stderr": "",
                     "scenario_command_results_path": scenario_command_results_path,
+                    "skill_invocations": [],
                 }
                 validate_evaluator_result_payload(evaluator_payload)
                 write_json_file(output_path, evaluator_payload)
@@ -1706,6 +1728,7 @@ def run_evaluator(
         "stdout": result.stdout,
         "stderr": result.stderr,
         "scenario_command_results_path": scenario_command_results_path,
+        "skill_invocations": [],
     }
     evaluator_payload = _merge_formal_verification_result(root, run, evaluator_payload)
     validate_evaluator_result_payload(evaluator_payload)
@@ -1925,6 +1948,7 @@ def _fake_parent_planner_payload(
         "stop_conditions": ["passed_waiting_human_merge", "stopped_blocked", "stopped_budget"],
         "backlog": list(parent.get("backlog", [])),
         "next_planning_hint": "",
+        "skill_invocations": [],
     }
     if decision in {"blocked", "failed"}:
         return {
@@ -2029,6 +2053,7 @@ def _run_fake_demand_child(
         "artifacts": [generated_path],
         "cleanup_required": False,
         "notes": "fake demand child generated",
+        "skill_invocations": [],
     }
     validate_generator_result_payload(generator_payload)
     write_json_file(child_run_dir / "generator-result.json", generator_payload)
@@ -2065,6 +2090,7 @@ def _run_fake_demand_child(
         "returncode": 1 if should_fail_once else 0,
         "stdout": "fake evaluator fail\n" if should_fail_once else "fake evaluator pass\n",
         "stderr": "",
+        "skill_invocations": [],
     }
     validate_evaluator_result_payload(evaluator_payload)
     write_json_file(child_run_dir / "evaluator-result.json", evaluator_payload)
@@ -2179,6 +2205,7 @@ def _demand_parent_planner_prompt(parent: dict[str, Any]) -> str:
             "Use planner_decision=next_child when another child task is actionable.",
             "Use planner_decision=parent_done only when the whole demand is complete and ready for human merge.",
             "Use planner_decision=blocked or failed when no safe automated next step exists.",
+            _skill_invocation_prompt(run_id, "planner"),
             f"Run ID: {run_id}",
             f"Requirement: {parent.get('requirement', '')}",
             f"Current child run IDs: {json.dumps(parent.get('child_run_ids', []), ensure_ascii=False)}",
@@ -2283,6 +2310,7 @@ def _audit_remediation_parent_planner_payload(
         "evaluator_scenarios_path": "",
         "stop_conditions": ["passed_waiting_human_merge", "stopped_blocked", "stopped_budget"],
         "next_planning_hint": "run audit remediation child before ordinary planning",
+        "skill_invocations": [],
         "planner_decision": "next_child",
         "next_child_task": child_task,
         "backlog": list(parent.get("backlog", [])),
@@ -2979,6 +3007,7 @@ def _run_fake_autonomous_planner(
         "evaluator_scenarios_path": "",
         "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
         "next_planning_hint": "return to planning after commit",
+        "skill_invocations": [],
     }
     validate_planner_output_payload(planner_payload)
     write_json_file(run_dir / "planner-output.json", planner_payload)
@@ -3023,6 +3052,7 @@ def _start_autonomous_audit_remediation(repo_root: Path, run: dict[str, Any], *,
         "evaluator_scenarios_path": "",
         "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
         "next_planning_hint": "return to planning after audit remediation commit",
+        "skill_invocations": [],
         "audit_response": audit_response,
         "audit_remediation": True,
     }
@@ -3454,6 +3484,7 @@ def _write_fake_autonomous_generator_result(
         "artifacts": artifacts,
         "cleanup_required": False,
         "notes": notes,
+        "skill_invocations": [],
     }
     validate_generator_result_payload(payload)
     write_json_file(run_dir / "generator-result.json", payload)
@@ -3624,6 +3655,7 @@ def _run_fake_autonomous_evaluator(
         "returncode": 0,
         "stdout": "fake autonomous smoke pass\n",
         "stderr": "",
+        "skill_invocations": [],
     }
     validate_evaluator_result_payload(payload)
     write_json_file(output_path, payload)
@@ -5884,6 +5916,7 @@ def _bounded_success(
     started_at: str,
     artifact_paths: Sequence[str] = (),
     checkpoint: str = "",
+    skill_invocations: Sequence[SkillInvocationEvidence] = (),
 ) -> ActionResult:
     return ActionResult(
         result_class=ActionResultClass.SUCCESS,
@@ -5892,7 +5925,61 @@ def _bounded_success(
         checkpoint=checkpoint,
         started_at=started_at,
         finished_at=_timestamp(),
+        skill_invocations=tuple(skill_invocations),
     )
+
+
+def _bounded_skill_invocations(
+    repo_root: Path,
+    request: ActionRequest,
+    role: str,
+    result_payload: Mapping[str, Any],
+) -> tuple[SkillInvocationEvidence, ...]:
+    if "skill_invocations" not in result_payload:
+        raise ValueError("skill_invocations is required")
+    raw_invocations = result_payload["skill_invocations"]
+    if not isinstance(raw_invocations, list):
+        raise ValueError("skill_invocations must be a list")
+    expected_prefix = (".codex", "loop-runs", request.run_id)
+    task_id = str(result_payload.get("task_id") or request.task_id)
+    invocations: list[SkillInvocationEvidence] = []
+    for raw in raw_invocations:
+        if not isinstance(raw, Mapping):
+            raise ValueError("skill invocation must be an object")
+        invocation = SkillInvocationEvidence(
+            invocation_id=str(raw.get("invocation_id") or ""),
+            skill_path=str(raw.get("skill_path") or ""),
+            artifact_path=str(raw.get("artifact_path") or ""),
+            artifact_sha256=str(raw.get("artifact_sha256") or ""),
+        )
+        relative = Path(invocation.artifact_path)
+        if tuple(relative.parts[:3]) != expected_prefix:
+            raise ValueError("skill invocation evidence is not owned by this run")
+        artifact = repo_root / relative
+        current = repo_root
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError("skill invocation evidence traverses a symlink")
+        if not artifact.is_file():
+            raise ValueError("skill invocation evidence must be a regular file")
+        actual_hash = f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}"
+        if actual_hash != invocation.artifact_sha256:
+            raise ValueError("skill invocation evidence hash does not match")
+        evidence = read_json_file(artifact)
+        expected_evidence = {
+            "schema_version": 1,
+            "invocation_id": invocation.invocation_id,
+            "run_id": request.run_id,
+            "task_id": task_id,
+            "role": role,
+            "skill_path": invocation.skill_path,
+            "status": "confirmed",
+        }
+        if evidence != expected_evidence:
+            raise ValueError("skill invocation evidence identity does not match")
+        invocations.append(invocation)
+    return tuple(invocations)
 
 
 def _bounded_driver(request: ActionRequest, role: str) -> str:
@@ -6023,11 +6110,17 @@ def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult
             run_planner(repo_root, request.run_id, driver=driver)
         artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
         artifacts = [_relative_artifact(repo_root, artifact)] if artifact.exists() else []
+        planner_payload = read_json_file(artifact) if artifact.exists() else {}
+        skill_invocations = _bounded_skill_invocations(
+            repo_root, request, "planner", planner_payload
+        )
+        artifacts.extend(item.artifact_path for item in skill_invocations)
         return _bounded_success(
             "planner phase completed",
             started_at=started_at,
             artifact_paths=artifacts,
             checkpoint="planner",
+            skill_invocations=skill_invocations,
         )
     except Exception as exc:
         return _bounded_failure(
@@ -6056,11 +6149,19 @@ def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResu
         else:
             run_generator(repo_root, request.run_id, driver=driver)
         artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        generator_payload = read_json_file(artifact)
+        skill_invocations = _bounded_skill_invocations(
+            repo_root, request, "generator", generator_payload
+        )
         return _bounded_success(
             "generator phase completed",
             started_at=started_at,
-            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            artifact_paths=[
+                _relative_artifact(repo_root, artifact),
+                *(item.artifact_path for item in skill_invocations),
+            ],
             checkpoint="generator",
+            skill_invocations=skill_invocations,
         )
     except Exception as exc:
         return _bounded_failure(
@@ -6098,11 +6199,19 @@ def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResu
                 max_attempts=max_attempts,
             )
         artifact = run_dir_for(repo_root, request.run_id) / "evaluator-result.json"
+        evaluator_payload = read_json_file(artifact)
+        skill_invocations = _bounded_skill_invocations(
+            repo_root, request, "evaluator", evaluator_payload
+        )
         return _bounded_success(
             "evaluator phase completed",
             started_at=started_at,
-            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            artifact_paths=[
+                _relative_artifact(repo_root, artifact),
+                *(item.artifact_path for item in skill_invocations),
+            ],
             checkpoint="evaluator",
+            skill_invocations=skill_invocations,
         )
     except Exception as exc:
         return _bounded_failure(

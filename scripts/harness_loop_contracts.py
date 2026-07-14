@@ -1,7 +1,7 @@
 import json
 import re
 from copy import deepcopy
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 
@@ -354,6 +354,7 @@ def validate_planner_output_payload(payload: dict[str, Any]) -> None:
         _require_string(payload, key)
     for key in ("non_goals", "allowed_paths", "denylist_paths", "verify_commands", "stop_conditions"):
         _require_list(payload, key)
+    _validate_skill_invocations(payload)
     if _has_multi_task_planner_fields(payload):
         _validate_multi_task_planner_fields(payload)
 
@@ -441,6 +442,7 @@ def validate_generator_result_payload(payload: dict[str, Any]) -> None:
     for key in ("commit", "notes"):
         _require_string(payload, key)
     _require_bool(payload, "cleanup_required")
+    _validate_skill_invocations(payload)
 
 
 def validate_evaluator_result_payload(payload: dict[str, Any]) -> None:
@@ -461,6 +463,52 @@ def validate_evaluator_result_payload(payload: dict[str, Any]) -> None:
     for key in ("task_id", "driver", "stdout", "stderr"):
         _require_string(payload, key)
     _require_int(payload, "returncode")
+    _validate_skill_invocations(payload)
+
+
+def _validate_skill_invocations(payload: dict[str, Any]) -> None:
+    if "skill_invocations" not in payload:
+        raise ValueError("skill_invocations is required")
+    invocations = payload["skill_invocations"]
+    if not isinstance(invocations, list):
+        raise ValueError("skill_invocations must be a list")
+    required = {
+        "invocation_id",
+        "skill_path",
+        "artifact_path",
+        "artifact_sha256",
+    }
+    seen_ids: set[str] = set()
+    seen_skills: set[str] = set()
+    for index, invocation in enumerate(invocations):
+        if not isinstance(invocation, dict) or set(invocation) != required:
+            raise ValueError(
+                f"skill_invocations[{index}] must contain exactly {sorted(required)}"
+            )
+        for key in ("invocation_id", "skill_path", "artifact_path"):
+            value = invocation[key]
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"skill_invocations[{index}].{key} must be non-empty")
+        invocation_id = invocation["invocation_id"]
+        skill_path = invocation["skill_path"]
+        if invocation_id in seen_ids or skill_path in seen_skills:
+            raise ValueError("skill_invocations must use unique IDs and skill paths")
+        seen_ids.add(invocation_id)
+        seen_skills.add(skill_path)
+        for key in ("skill_path", "artifact_path"):
+            value = invocation[key]
+            relative = PurePosixPath(value)
+            if (
+                relative.is_absolute()
+                or value != relative.as_posix()
+                or ".." in relative.parts
+                or "\\" in value
+            ):
+                raise ValueError(f"skill_invocations[{index}].{key} is unsafe")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", invocation["artifact_sha256"]):
+            raise ValueError(
+                f"skill_invocations[{index}].artifact_sha256 is invalid"
+            )
 
 
 def validate_task_contract_payload(payload: dict[str, Any]) -> None:

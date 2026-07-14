@@ -17,7 +17,6 @@ from scripts.loop_supervisor.models import (
     ActionResult,
     ActionResultClass,
     ActionType,
-    SkillInvocationEvidence,
 )
 from scripts.loop_supervisor.store import SupervisorStore
 from scripts.loop_supervisor.reconciler import reconcile_once
@@ -73,11 +72,19 @@ def _seed_action(
     run_id: str = "run-1",
     action_type: ActionType = ActionType.RUN_PLANNER,
     phase: str = "planning",
+    next_action: str = "run_autonomous_planner",
 ) -> ActionRequest:
     run_dir = root / ".codex" / "loop-runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "run.json").write_text(
-        json.dumps(_valid_run_payload(root, run_id, phase=phase))
+        json.dumps(
+            _valid_run_payload(
+                root,
+                run_id,
+                phase=phase,
+                next_action=next_action,
+            )
+        )
         + "\n",
         encoding="utf-8",
     )
@@ -89,6 +96,7 @@ def _seed_action(
         phase=phase,
         action_type=action_type,
         idempotency_key=f"key-{action_id}",
+        next_action=next_action,
         payload={"driver": "fake"},
     )
     with SupervisorStore.open(root) as store:
@@ -240,38 +248,89 @@ def test_worker_executes_exactly_one_action(
     assert statuses == {"action-1": "completed", "action-2": "pending"}
 
 
-def test_worker_atomically_records_successful_skill_invocations(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("role", "action_type", "phase", "next_action", "producer", "result_name"),
+    [
+        (
+            "planner",
+            ActionType.RUN_PLANNER,
+            "planning",
+            "run_autonomous_planner",
+            "_run_fake_autonomous_planner",
+            "planner-output.json",
+        ),
+        (
+            "generator",
+            ActionType.RUN_GENERATOR,
+            "generating",
+            "run_autonomous_generator",
+            "_write_fake_autonomous_generator_result",
+            "generator-result.json",
+        ),
+        (
+            "evaluator",
+            ActionType.RUN_EVALUATOR,
+            "evaluating",
+            "run_autonomous_evaluator",
+            "_run_fake_autonomous_evaluator",
+            "evaluator-result.json",
+        ),
+    ],
+)
+def test_worker_atomically_records_real_bounded_skill_invocations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    action_type: ActionType,
+    phase: str,
+    next_action: str,
+    producer: str,
+    result_name: str,
 ) -> None:
     from scripts.loop_supervisor import worker
 
-    request = _seed_action(tmp_path)
+    request = _seed_action(
+        tmp_path,
+        action_type=action_type,
+        phase=phase,
+        next_action=next_action,
+    )
     skill_path = tmp_path / "skills" / "alpha" / "SKILL.md"
     skill_path.parent.mkdir(parents=True)
     skill_path.write_text("---\nname: alpha\ndescription: Alpha skill.\n---\n", encoding="utf-8")
-    artifact_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "planner-output.json"
-    artifact_path.write_text('{"status":"pass"}\n', encoding="utf-8")
-    artifact_ref = artifact_path.relative_to(tmp_path).as_posix()
-    artifact_hash = f"sha256:{hashlib.sha256(artifact_path.read_bytes()).hexdigest()}"
+    original_producer = getattr(legacy, producer)
+    artifact_ref = f".codex/loop-runs/run-1/{role}-skill-invocation.json"
+    artifact_path = tmp_path / artifact_ref
 
-    def execute(_request: ActionRequest, _root: Path) -> ActionResult:
-        return ActionResult(
-            ActionResultClass.SUCCESS,
-            "planner used alpha",
-            artifact_paths=(artifact_ref,),
-            skill_invocations=(
-                SkillInvocationEvidence(
-                    invocation_id="invocation-worker-alpha",
-                    skill_path="skills/alpha/SKILL.md",
-                    artifact_path=artifact_ref,
-                    artifact_sha256=artifact_hash,
-                ),
-            ),
-        )
+    def structured_producer(repo_root, run, **kwargs):
+        produced = original_producer(repo_root, run, **kwargs)
+        result_path = tmp_path / ".codex" / "loop-runs" / "run-1" / result_name
+        payload = legacy.read_json_file(result_path)
+        evidence = {
+            "schema_version": 1,
+            "invocation_id": f"invocation-worker-{role}-alpha",
+            "run_id": "run-1",
+            "task_id": payload["task_id"],
+            "role": role,
+            "skill_path": "skills/alpha/SKILL.md",
+            "status": "confirmed",
+        }
+        legacy.write_json_file(artifact_path, evidence)
+        artifact_hash = f"sha256:{hashlib.sha256(artifact_path.read_bytes()).hexdigest()}"
+        payload["skill_invocations"] = [
+            {
+                "invocation_id": f"invocation-worker-{role}-alpha",
+                "skill_path": "skills/alpha/SKILL.md",
+                "artifact_path": artifact_ref,
+                "artifact_sha256": artifact_hash,
+            }
+        ]
+        legacy.write_json_file(result_path, payload)
+        return produced
 
-    monkeypatch.setattr(worker, "execute_action", execute)
+    monkeypatch.setattr(legacy, producer, structured_producer)
 
-    result = worker.worker_once(tmp_path, "worker-skill-provenance")
+    result = worker.worker_once(tmp_path, f"worker-skill-{role}")
 
     assert result.status == "completed"
     with SupervisorStore.open(tmp_path) as store:
@@ -280,7 +339,9 @@ def test_worker_atomically_records_successful_skill_invocations(
         attempt = store.fetch_all("action_attempts")[0]
     assert invocation["action_id"] == request.action_id
     assert invocation["attempt_id"] == attempt["attempt_id"]
-    assert invocation["artifact_sha256"] == artifact_hash
+    assert invocation["artifact_sha256"] == (
+        f"sha256:{hashlib.sha256(artifact_path.read_bytes()).hexdigest()}"
+    )
 
 
 def test_confirmed_demand_run_reconciles_and_worker_calls_planner_primitive(
@@ -1571,6 +1632,7 @@ def test_bounded_primitive_timeout_with_valid_generator_result_is_recoverable_pa
             "artifacts": [],
             "cleanup_required": False,
             "notes": "partial result survived timeout",
+            "skill_invocations": [],
         },
     )
     request = ActionRequest(

@@ -81,7 +81,7 @@ CHECKED = [
     "确认 evaluator 验证功能实现完整性和设计/mock 匹配，并在验收 tab 中可见",
     "查看验收 tab 中的模拟用户验收场景",
     "查看审计与 Skill tab 中的 Auditor 结论、open must_fix、确定性信号和当前项目 Skill 使用情况",
-    "通过真实 harness auditor engine fixture 验证 active 引擎、audit_blocked 后自动整改、复审报告和确定性信号在看板可见",
+    "通过真实 harness auditor engine fixture 验证历史审计可读、audit_blocked 迁移整改结果可见且不生成后继审计报告",
     "查看阻塞诊断 tab 中的 evaluator finding",
     "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
     "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
@@ -1285,9 +1285,10 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
                 "commit": "",
                 "verify_commands": [],
                 "verify_results": [{"command": "auditor engine fixture", "status": "pass"}],
-                "artifacts": [changed_path],
-                "cleanup_required": False,
-                "notes": "seeded auditor engine child",
+                    "artifacts": [changed_path],
+                    "cleanup_required": False,
+                    "notes": "seeded auditor engine child",
+                    "skill_invocations": [],
             },
         )
         write_json_file(
@@ -1296,10 +1297,11 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
                 "status": "pass",
                 "task_id": f"{child_id}-task",
                 "driver": "fixture",
-                "returncode": 0,
-                "stdout": "same evaluator finding: dashboard must prove real auditor engine\n",
-                "stderr": "",
-            },
+                    "returncode": 0,
+                    "stdout": "same evaluator finding: dashboard must prove real auditor engine\n",
+                    "stderr": "",
+                    "skill_invocations": [],
+                },
         )
 
     parent = load_run(project_root, AUDITOR_ENGINE_RUN_ID)
@@ -1338,6 +1340,26 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
     )
     if status.get("phase") != "passed_waiting_human_merge":
         raise RuntimeError(f"auditor engine fixture expected remediation to pass, got {status.get('phase')}")
+    run_dir = run_dir_for(project_root, AUDITOR_ENGINE_RUN_ID)
+    migration_diagnostics: list[str] = []
+    historical_report = read_json_file(
+        run_dir / "audit-reports" / "audit-001.json", migration_diagnostics
+    )
+    if not historical_report or historical_report.get("audit_id") != "audit-001":
+        raise RuntimeError("auditor engine fixture must preserve its historical audit report")
+    migration_result = read_json_file(
+        run_dir / "audit-remediation-result.json", migration_diagnostics
+    )
+    if (
+        migration_diagnostics
+        or not migration_result
+        or migration_result.get("audit_id") != "audit-001"
+        or migration_result.get("status") != "pass"
+        or migration_result.get("new_audit_report") != ""
+    ):
+        raise RuntimeError("auditor engine fixture migration result is invalid")
+    if (run_dir / "audit-reports" / "audit-002.json").exists():
+        raise RuntimeError("auditor engine fixture must not produce a successor audit report")
 
 
 def seed_project_skill_fixture(project_root: Path) -> None:
@@ -2319,13 +2341,20 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             expect(engine_auditor_tab).to_contain_text("已接入")
             expect(engine_auditor_tab).to_contain_text("会触发 audit_blocked")
             expect(engine_auditor_tab).to_contain_text("open must_fix")
-            expect(engine_auditor_tab).to_contain_text("0")
-            expect(engine_auditor_tab).to_contain_text("通过")
-            expect(engine_auditor_tab).to_contain_text("resume_after_audit_remediation")
-            expect(engine_auditor_tab).to_contain_text("审计产物：.codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-002.json")
+            expect(engine_auditor_tab).to_contain_text("1")
+            expect(engine_auditor_tab).to_contain_text("必须整改")
+            expect(engine_auditor_tab).to_contain_text("重新聚焦")
+            expect(engine_auditor_tab).to_contain_text("审计产物：.codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-001.json")
+            expect(engine_auditor_tab).not_to_contain_text("audit-002.json")
             expect(engine_auditor_tab).to_contain_text("确定性信号")
             expect(engine_auditor_tab).to_contain_text("重复 finding")
             expect(engine_auditor_tab).to_contain_text("2")
+            tabs.get_by_role("tab", name="产物").click()
+            engine_artifacts = page.get_by_test_id("tab-artifacts")
+            expect(engine_artifacts).to_contain_text(
+                ".codex/loop-runs/loop-auditor-engine-dev/audit-remediation-result.json"
+            )
+            expect(engine_artifacts).not_to_contain_text("audit-002.json")
             click_run(page, "active-repair-run")
 
             tabs.get_by_role("tab", name="阻塞诊断").click()

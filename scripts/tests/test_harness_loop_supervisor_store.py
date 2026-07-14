@@ -231,7 +231,7 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 11
+    assert store.pragma("user_version") == 12
     assert "state_fingerprint" in {
         row["name"] for row in store._connection.execute("PRAGMA table_info(runs)")
     }
@@ -272,7 +272,7 @@ def test_migrate_adds_state_fingerprint_to_v7_run_projection(tmp_path):
     store = SupervisorStore.open(tmp_path)
     store.migrate()
 
-    assert store.pragma("user_version") == 11
+    assert store.pragma("user_version") == 12
     assert store.get_run("legacy-run")["state_fingerprint"] == ""
 
 
@@ -1916,6 +1916,89 @@ def test_retention_preserves_incomplete_review_application_and_applied_attempt(
     assert store.fetch_all("review_applications")[0]["status"] == "applying"
 
 
+def test_retention_preserves_completed_review_while_source_action_is_nonterminal(
+    tmp_path,
+):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    source = ActionRequest(
+        action_id="reviewer-source-retention",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_REVIEWER,
+        idempotency_key="reviewer-source-retention",
+        queue_owner=ActionOwner.REVIEWER,
+    )
+    store.enqueue_action(source)
+    target = ActionRequest(
+        action_id="review-target-retention",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.REFOCUS_RUN,
+        idempotency_key="review-target-retention",
+        queue_owner=ActionOwner.SUPERVISOR,
+    )
+    store.record_review(
+        review_id="review-source-retention",
+        trigger="cadence",
+        status="review_applying",
+        decision="refocus",
+        summary="outbox applying",
+        source_action_id=source.action_id,
+    )
+    store.prepare_review_application(
+        review_id="review-source-retention",
+        decision="refocus",
+        targets=[
+            (
+                target,
+                {
+                    "expected_revision": 1,
+                    "expected_fingerprint": f"sha256:{'a' * 64}",
+                    "source_phase": "planning",
+                    "target_phase": "planning",
+                    "target_next_action": "run_autonomous_planner",
+                    "target_last_result": "none",
+                },
+            )
+        ],
+    )
+    owner = "supervisor-review-application-retention-source"
+    assert store.claim_pending_action(
+        target.action_id,
+        owner,
+        lease_seconds=120,
+        expected_queue_owner=ActionOwner.SUPERVISOR,
+    ) is not None
+    store.complete_review_application_target(
+        review_id="review-source-retention",
+        run_id="run-1",
+        action_id=target.action_id,
+        owner_id=owner,
+        result=ActionResult(
+            result_class=ActionResultClass.SUCCESS,
+            summary="outbox target complete",
+        ),
+        applied_revision=2,
+    )
+    assert store.fetch_all("review_applications")[0]["status"] == "completed"
+    assert store.fetch_all("reviews")[0]["status"] == "review_complete"
+    assert store.get_action(source.action_id).status == "pending"
+    clock.advance(days=91)
+
+    result = store.compact_retention(retention_days=90)
+
+    assert result["reviews"] == 0
+    assert store.count("reviews") == 1
+    assert store.count("review_applications") == 1
+    assert store.count("review_application_targets") == 1
+
+
 def test_retention_preserves_reviews_with_active_findings_and_compacts_terminal_ones(
     tmp_path,
 ):
@@ -2216,7 +2299,7 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 11
+    assert store.pragma("user_version") == 12
 
 
 @pytest.mark.parametrize("legacy_version", [3, 4, 5])
@@ -2240,7 +2323,7 @@ def test_legacy_migration_normalizes_timestamps_before_finding_collapse(
         "SELECT value FROM store_metadata WHERE key = 'legacy_naive_timestamp_policy'"
     ).fetchone()[0]
     assert policy == "assume_utc"
-    assert store.pragma("user_version") == 11
+    assert store.pragma("user_version") == 12
 
 
 def test_invalid_legacy_timestamp_rolls_back_schema_version_and_data(tmp_path):

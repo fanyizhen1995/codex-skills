@@ -27,7 +27,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -674,6 +674,167 @@ class SupervisorStore:
                 "ALTER TABLE reviews "
                 "ADD COLUMN source_action_id TEXT NOT NULL DEFAULT ''"
             )
+        self._migrate_legacy_applying_reviews()
+
+    def _migrate_legacy_applying_reviews(self) -> None:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM reviews
+            WHERE status = 'review_applying'
+              AND accepted_review_json = '{}'
+              AND trigger != 'direct_application'
+              AND evidence_json != '[]'
+            ORDER BY created_at, review_id
+            """
+        ).fetchall()
+        for row in rows:
+            source_action_id = self._legacy_review_source_action()
+            try:
+                if not source_action_id:
+                    raise ValueError("legacy applying review source action is ambiguous")
+                accepted_review = self._reconstruct_legacy_accepted_review(row)
+            except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                self._connection.execute(
+                    """
+                    UPDATE reviews
+                    SET status = 'review_migration_blocked', source_action_id = ?,
+                        summary = ?, updated_at = ?
+                    WHERE review_id = ?
+                    """,
+                    (
+                        source_action_id,
+                        f"legacy applying review requires operator resolution: {exc}"[
+                            :MAX_SUMMARY_CHARS
+                        ],
+                        self._now_text(),
+                        row["review_id"],
+                    ),
+                )
+                if source_action_id:
+                    self._connection.execute(
+                        """
+                        UPDATE actions
+                        SET status = 'migration_blocked', lease_owner = '',
+                            lease_expires_at = '', lease_heartbeat_at = '', updated_at = ?
+                        WHERE action_id = ? AND status IN ('pending', 'leased', 'running')
+                        """,
+                        (self._now_text(), source_action_id),
+                    )
+                continue
+            self._connection.execute(
+                """
+                UPDATE reviews
+                SET accepted_review_json = ?, source_action_id = ?, updated_at = ?
+                WHERE review_id = ? AND status = 'review_applying'
+                """,
+                (
+                    self._json(accepted_review),
+                    source_action_id,
+                    self._now_text(),
+                    row["review_id"],
+                ),
+            )
+
+    def _legacy_review_source_action(self) -> str:
+        rows = self._connection.execute(
+            """
+            SELECT action_id FROM actions
+            WHERE action_type = 'run_reviewer'
+              AND status IN ('pending', 'leased', 'running')
+            ORDER BY created_at, action_id
+            """
+        ).fetchall()
+        return str(rows[0]["action_id"]) if len(rows) == 1 else ""
+
+    def _reconstruct_legacy_accepted_review(
+        self, row: sqlite3.Row
+    ) -> dict[str, Any]:
+        evidence_refs = json.loads(str(row["evidence_json"]))
+        validated = self._validate_artifact_paths(
+            evidence_refs, field_name="legacy review evidence"
+        )
+        if len(validated) < 2:
+            raise ValueError("legacy applying review lacks accepted artifact evidence")
+        bundle = self._read_owned_json_artifact(validated[0], "legacy review bundle")
+        candidate = self._read_owned_json_artifact(
+            validated[1], "legacy accepted review"
+        )
+        if str(candidate.get("review_id") or "") != str(row["review_id"]):
+            raise ValueError("legacy accepted review identity changed")
+        evidence_hashes = bundle.get("evidence_hashes")
+        if not isinstance(evidence_hashes, Mapping):
+            raise ValueError("legacy review bundle lacks trusted evidence hashes")
+        targets = self._connection.execute(
+            """
+            SELECT run_id, expected_revision, expected_fingerprint
+            FROM review_application_targets WHERE review_id = ?
+            ORDER BY run_id
+            """,
+            (row["review_id"],),
+        ).fetchall()
+        reviewed_runs = {
+            str(target["run_id"]): {
+                "revision": int(target["expected_revision"]),
+                "state_fingerprint": str(target["expected_fingerprint"]),
+            }
+            for target in targets
+        }
+        affected_run_ids = candidate.get("affected_run_ids")
+        if (
+            candidate.get("decision") != "continue"
+            and (
+                not isinstance(affected_run_ids, list)
+                or set(affected_run_ids) != set(reviewed_runs)
+            )
+        ):
+            raise ValueError(
+                "legacy applying review lacks revision-bound application targets"
+            )
+        governance = bundle.get("evidence", {})
+        skill_governance = (
+            governance.get("skill_governance", {})
+            if isinstance(governance, Mapping)
+            else {}
+        )
+        inventory = (
+            skill_governance.get("inventory", [])
+            if isinstance(skill_governance, Mapping)
+            else []
+        )
+        from .reviewer import _persisted_review, validate_review_payload
+
+        review = validate_review_payload(
+            candidate,
+            expected_evidence_hashes=tuple(str(value) for value in evidence_hashes.values()),
+            allowed_run_ids=tuple(
+                str(item["run_id"])
+                for item in self._connection.execute("SELECT run_id FROM runs").fetchall()
+            ),
+            allowed_skill_paths=tuple(
+                str(item.get("path") or "")
+                for item in inventory
+                if isinstance(item, Mapping) and item.get("path")
+            ),
+            reviewed_runs=reviewed_runs,
+            existing_findings=tuple(
+                dict(item)
+                for item in self._connection.execute(
+                    "SELECT * FROM review_findings"
+                ).fetchall()
+            ),
+        )
+        return _persisted_review(review)
+
+    def _read_owned_json_artifact(
+        self, relative_path: str, field_name: str
+    ) -> dict[str, Any]:
+        path = self.project_root / relative_path
+        if not path.is_file() or path.is_symlink():
+            raise ValueError(f"{field_name} must be an owned regular file")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise TypeError(f"{field_name} must contain an object")
+        return payload
 
     @staticmethod
     def _normalize_legacy_timestamp(value: object, *, allow_empty: bool) -> str:
@@ -2629,6 +2790,13 @@ class SupervisorStore:
             raise RuntimeError("Reviewer action has multiple accepted reviews")
         return self._decoded_row(rows[0]) if rows else None
 
+    def has_blocked_review_migration(self) -> bool:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT 1 FROM reviews WHERE status = 'review_migration_blocked' LIMIT 1"
+            ).fetchone()
+        return row is not None
+
     def set_review_status(self, review_id: str, status: str) -> None:
         self._required_text(review_id, "review_id")
         self._required_text(status, "status")
@@ -3092,6 +3260,12 @@ class SupervisorStore:
                   SELECT 1 FROM review_applications AS incomplete_applications
                   WHERE incomplete_applications.review_id = reviews.review_id
                     AND incomplete_applications.status != 'completed'
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM actions AS nonterminal_review_sources
+                  WHERE nonterminal_review_sources.action_id = reviews.source_action_id
+                    AND nonterminal_review_sources.status
+                      NOT IN ('completed', 'failed', 'cancelled')
                 )
                 AND NOT EXISTS (
                   SELECT 1 FROM review_findings AS active_findings

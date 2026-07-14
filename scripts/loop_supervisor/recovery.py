@@ -773,6 +773,7 @@ def reconstruct_result_envelope(
         "artifacts": list(assessment.artifacts),
         "cleanup_required": True,
         "notes": "Reconstructed from validated partial Generator artifacts; independent Evaluator required.",
+        "skill_invocations": [],
         "recovery": {
             "recovered_from_attempts": list(assessment.recovered_attempts),
             "attempt_hashes": {
@@ -918,6 +919,13 @@ def recovery_action_for_run(
         for row in actions
         if row.get("status") == "failed"
         and _action_payload(row).get("recovery_failure_key")
+        and _load_episode(
+            _failure_row(
+                store,
+                str(_action_payload(row)["recovery_failure_key"]),
+            )
+        ).get("status")
+        != "closed"
         and row.get("action_type")
         in {
             ActionType.RECOVER_GENERATOR_RESULT.value,
@@ -953,6 +961,20 @@ def recovery_action_for_run(
     attempt = _latest_attempt(store, desired.action_id)
     if attempt is None:
         return None
+    reviewed_episode = next(
+        (
+            state
+            for _row, state in _matching_episode_rows(
+                store, run, desired.action_type
+            )
+            if state.get("status") == "closed"
+            and state.get("last_attempt_id") == attempt.get("attempt_id")
+        ),
+        None,
+    )
+    if reviewed_episode is not None:
+        _requeue_failed_action(store, desired.action_id, 0)
+        return desired
     plan = plan_recovery(
         store,
         run,

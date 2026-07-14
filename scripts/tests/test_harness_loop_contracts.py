@@ -63,6 +63,7 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "evaluator_scenarios_path": "docs/harness/evaluator-scenarios/demo-task.json",
             "stop_conditions": ["human merge gate"],
             "next_planning_hint": "",
+            "skill_invocations": [],
         }
 
     def _generator_payload(self) -> dict:
@@ -76,6 +77,7 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "artifacts": [],
             "cleanup_required": True,
             "notes": "ok",
+            "skill_invocations": [],
         }
 
     def _loop_state_payload(self) -> dict:
@@ -235,6 +237,7 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "evaluator_scenarios_path": "docs/harness/evaluator-scenarios/demo-task.json",
             "stop_conditions": ["human merge gate"],
             "next_planning_hint": "",
+            "skill_invocations": [],
         }
         validate_planner_output_payload(payload)
         payload["task_kind"] = "handoff_to_demand_development"
@@ -252,11 +255,70 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "artifacts": [],
             "cleanup_required": True,
             "notes": "ok",
+            "skill_invocations": [],
         }
         validate_generator_result_payload(payload)
         payload["changed_paths"] = "not-a-list"
         with self.assertRaises(ValueError):
             validate_generator_result_payload(payload)
+
+    def test_agent_result_contracts_reject_malformed_skill_invocations(self) -> None:
+        invocation = {
+            "invocation_id": "invocation-alpha",
+            "skill_path": "skills/alpha/SKILL.md",
+            "artifact_path": ".codex/loop-runs/demo/planner-skill-invocation.json",
+            "artifact_sha256": f"sha256:{'a' * 64}",
+        }
+        planner = {
+            "task_id": "demo-task",
+            "policy": "demand_development",
+            "task_kind": "registered_task",
+            "title": "Demo",
+            "goal": "Demo goal",
+            "non_goals": [],
+            "allowed_paths": [],
+            "denylist_paths": [],
+            "verify_commands": [],
+            "evaluator_scenarios_path": "",
+            "stop_conditions": [],
+            "next_planning_hint": "",
+            "skill_invocations": [invocation],
+        }
+        generator = {
+            "task_id": "demo-task",
+            "status": "implemented",
+            "changed_paths": [],
+            "commit": "",
+            "verify_commands": [],
+            "verify_results": [],
+            "artifacts": [],
+            "cleanup_required": False,
+            "notes": "done",
+            "skill_invocations": [invocation],
+        }
+        evaluator = {
+            "status": "pass",
+            "task_id": "demo-task",
+            "driver": "fake",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "skill_invocations": [invocation],
+        }
+        for validator, payload in (
+            (validate_planner_output_payload, planner),
+            (validate_generator_result_payload, generator),
+            (validate_evaluator_result_payload, evaluator),
+        ):
+            validator(payload)
+            missing = json.loads(json.dumps(payload))
+            del missing["skill_invocations"]
+            with self.assertRaisesRegex(ValueError, "skill_invocations"):
+                validator(missing)
+            malformed = json.loads(json.dumps(payload))
+            malformed["skill_invocations"][0]["artifact_sha256"] = "forged"
+            with self.assertRaisesRegex(ValueError, "artifact_sha256"):
+                validator(malformed)
 
     def test_validate_agent_attempt_payload_accepts_timeout_status(self) -> None:
         payload = {
@@ -425,6 +487,7 @@ class HarnessLoopContractsTests(unittest.TestCase):
             "returncode": 0,
             "stdout": "ok",
             "stderr": "",
+            "skill_invocations": [],
         }
         validate_evaluator_result_payload(payload)
 

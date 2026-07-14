@@ -665,6 +665,169 @@ def test_queued_reviewer_resumes_persisted_outbox_after_cold_store_reopen(
     )
 
 
+def _seed_v10_applying_review(
+    tmp_path: Path,
+    *,
+    accepted_artifact: bool,
+    application_targets: bool = True,
+) -> tuple[SupervisorStore, str, str]:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    source = ActionRequest(
+        action_id="v10-reviewer-action",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="stopped_budget",
+        action_type=ActionType.RUN_REVIEWER,
+        idempotency_key="v10-reviewer-action",
+        queue_owner=ActionOwner.REVIEWER,
+    )
+    store.enqueue_action(source)
+    review_id = "review-v10-applying"
+    review_dir = tmp_path / ".codex" / "supervisor" / "reviews" / review_id
+    review_dir.mkdir(parents=True)
+    evidence_path = review_dir / f"{review_id}-evidence.json"
+    accepted_path = review_dir / f"{review_id}.json"
+    evidence_hash = f"sha256:{'a' * 64}"
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "evidence_hashes": {"objective_constraints": evidence_hash},
+                "evidence": {"skill_governance": {"inventory": []}},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    candidate = valid_review_payload(
+        review_id=review_id,
+        decision="refocus",
+        affected_run_ids=["run-1"],
+        evidence_refs=[evidence_hash],
+    )
+    if accepted_artifact:
+        accepted_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
+    store.record_review(
+        review_id=review_id,
+        trigger=json.dumps(
+            {"kind": "project_global", "triggering_lineages": ["lineage-a"]}
+        ),
+        status="review_applying",
+        decision="refocus",
+        summary=str(candidate["summary"]),
+        evidence_refs=[
+            evidence_path.relative_to(tmp_path).as_posix(),
+            accepted_path.relative_to(tmp_path).as_posix(),
+        ],
+    )
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
+    run_payload = json.loads(run_path.read_text(encoding="utf-8"))
+    target = ActionRequest(
+        action_id="v10-review-target",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="stopped_budget",
+        action_type=ActionType.REFOCUS_RUN,
+        idempotency_key="v10-review-target",
+        queue_owner=ActionOwner.SUPERVISOR,
+    )
+    if application_targets:
+        store.prepare_review_application(
+            review_id=review_id,
+            decision="refocus",
+            targets=[
+                (
+                    target,
+                    {
+                        "expected_revision": 1,
+                        "expected_fingerprint": _state_fingerprint(run_payload),
+                        "source_phase": "stopped_budget",
+                        "target_phase": "planning",
+                        "target_next_action": "run_autonomous_planner",
+                        "target_last_result": "none",
+                    },
+                )
+            ],
+        )
+    store._connection.execute("ALTER TABLE reviews DROP COLUMN accepted_review_json")
+    store._connection.execute("ALTER TABLE reviews DROP COLUMN source_action_id")
+    store._connection.execute("PRAGMA user_version=10")
+    store._connection.commit()
+    store.close()
+    return store, source.action_id, review_id
+
+
+def test_v10_applying_review_reconstructs_and_resumes_before_new_llm(
+    tmp_path: Path,
+) -> None:
+    _seed_v10_applying_review(tmp_path, accepted_artifact=True)
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    def forbidden_driver(**_kwargs: object) -> dict[str, object]:
+        raise AssertionError("v10 reconstruction must run before a new LLM")
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v10-reopen",
+        driver=forbidden_driver,
+    )
+
+    assert result is not None and result.status == "review_complete"
+    review = reopened.fetch_all("reviews")[0]
+    assert review["source_action_id"] == "v10-reviewer-action"
+    assert json.loads(review["accepted_review_json"])["review_id"] == review["review_id"]
+    assert reopened.get_action("v10-reviewer-action").status == "completed"
+
+
+def test_v10_applying_review_without_trusted_artifact_blocks_llm_reinvocation(
+    tmp_path: Path,
+) -> None:
+    _seed_v10_applying_review(tmp_path, accepted_artifact=False)
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v10-blocked",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("blocked v10 migration must not invoke an LLM")
+        ),
+    )
+
+    assert result is None
+    review = reopened.fetch_all("reviews")[0]
+    assert review["status"] == "review_migration_blocked"
+    assert reopened.get_action("v10-reviewer-action").status == "migration_blocked"
+
+
+def test_v10_affected_review_without_revision_targets_blocks_llm_reinvocation(
+    tmp_path: Path,
+) -> None:
+    _seed_v10_applying_review(
+        tmp_path,
+        accepted_artifact=True,
+        application_targets=False,
+    )
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v10-unbound",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("unbound v10 migration must not invoke an LLM")
+        ),
+    )
+
+    assert result is None
+    review = reopened.fetch_all("reviews")[0]
+    assert review["status"] == "review_migration_blocked"
+    assert reopened.get_action("v10-reviewer-action").status == "migration_blocked"
+
+
 def test_reviewer_module_exposes_distinct_once_service_path(tmp_path: Path) -> None:
     result = subprocess.run(
         [

@@ -75,6 +75,58 @@ def _scenario_statuses(payload: dict) -> dict[str, str]:
 
 
 class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
+    def test_auditor_engine_fixture_preserves_historical_report_without_successor(self) -> None:
+        from scripts.loop_dashboard_evaluator import (
+            AUDITOR_ENGINE_RUN_ID,
+            seed_auditor_engine_fixture,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            seed_auditor_engine_fixture(repo_root)
+            run_dir = repo_root / ".codex" / "loop-runs" / AUDITOR_ENGINE_RUN_ID
+
+            historical_report = json.loads(
+                (run_dir / "audit-reports" / "audit-001.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            migration_result = json.loads(
+                (run_dir / "audit-remediation-result.json").read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(historical_report["audit_id"], "audit-001")
+            self.assertEqual(historical_report["verdict"], "must_fix")
+            self.assertEqual(migration_result["audit_id"], "audit-001")
+            self.assertEqual(migration_result["status"], "pass")
+            self.assertEqual(migration_result["new_audit_report"], "")
+            self.assertFalse((run_dir / "audit-reports" / "audit-002.json").exists())
+
+    def test_auditor_engine_fixture_rejects_successor_audit_report(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        real_run_demand_multi = evaluator.run_demand_multi
+
+        def produce_obsolete_successor(*args, **kwargs):
+            status = real_run_demand_multi(*args, **kwargs)
+            repo_root = Path(kwargs["repo_root"])
+            _write_json(
+                repo_root
+                / ".codex"
+                / "loop-runs"
+                / evaluator.AUDITOR_ENGINE_RUN_ID
+                / "audit-reports"
+                / "audit-002.json",
+                {"audit_id": "audit-002", "verdict": "pass"},
+            )
+            return status
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            evaluator, "run_demand_multi", side_effect=produce_obsolete_successor
+        ):
+            with self.assertRaisesRegex(RuntimeError, "must not produce a successor"):
+                evaluator.seed_auditor_engine_fixture(Path(tmp))
+
     def test_loop_supervisor_scenario_seeds_contract_artifacts_without_synthetic_run(self) -> None:
         from scripts.loop_dashboard_evaluator import seed_loop_supervisor_fixture
 
