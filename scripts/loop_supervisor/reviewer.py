@@ -38,7 +38,11 @@ from .reviewer_safety import (
     evaluate_review_safety_gate,
     require_review_safety_clear,
 )
-from .reviewer_outbox import ApplicationCutpoint, apply_review_outbox
+from .reviewer_outbox import (
+    ApplicationCutpoint,
+    apply_review_outbox,
+    repair_resumable_review_projection,
+)
 from .store import LeaseError, SupervisorStore
 
 
@@ -209,7 +213,7 @@ def schedule_due_reviews(
                 idempotency_key=f"review-cadence:{digest}",
                 queue_owner=ActionOwner.REVIEWER,
                 not_before=not_before.isoformat(),
-                repo_relative_root=".",
+                repo_relative_root=str(representative.get("repo_relative_root") or "."),
                 task_id=f"review:{digest[:24]}",
                 next_action="supervisor_reviewer",
                 payload=payload,
@@ -680,6 +684,12 @@ def run_queued_reviewer(
         run = store.get_run(action.run_id)
         lineages = [str(run.get("loop_lineage_id") or action.run_id)]
     lease_seconds = timeout_seconds + 60
+    persisted = store.resumable_review_for_action(action.action_id)
+    if persisted is not None:
+        repair_resumable_review_projection(
+            store,
+            _review_from_persisted(persisted["accepted_review"]),
+        )
     with ActionLeaseGuard(
         store,
         action_id=action.action_id,
@@ -688,7 +698,6 @@ def run_queued_reviewer(
         heartbeat_seconds=heartbeat_seconds,
         safety_checkpoint=lambda: require_review_safety_clear(store),
     ) as guard:
-        persisted = store.resumable_review_for_action(action.action_id)
         if persisted is not None:
             review = _review_from_persisted(persisted["accepted_review"])
             actions = apply_review_decision(

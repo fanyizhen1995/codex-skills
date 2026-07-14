@@ -7,7 +7,13 @@ import time
 
 import pytest
 
-from scripts.loop_supervisor.models import ActionOwner, ActionRequest, ActionType
+from scripts.loop_supervisor.models import (
+    ActionOwner,
+    ActionRequest,
+    ActionResult,
+    ActionResultClass,
+    ActionType,
+)
 from scripts.loop_supervisor.reconciler import _state_fingerprint
 from scripts.loop_supervisor.reviewer_runtime import ActionLeaseGuard
 from scripts.loop_supervisor.reviewer_safety import require_review_safety_clear
@@ -138,6 +144,27 @@ def test_action_lease_guard_prevents_side_effect_after_lease_loss(
             side_effects.append("mutated")
 
     assert side_effects == []
+
+
+def test_supervisor_orphaned_source_projection_blocks_renewal_and_completion(
+    tmp_path,
+) -> None:
+    store, request = leased_supervisor_action(tmp_path)
+    store._connection.execute("DELETE FROM runs WHERE run_id = ?", (request.run_id,))
+
+    assert (
+        store.renew_lease(request.action_id, "reviewer-test", lease_seconds=2)
+        is False
+    )
+    with pytest.raises(LeaseError, match="authoritative run projection"):
+        store.complete_action(
+            request.action_id,
+            "reviewer-test",
+            ActionResult(
+                result_class=ActionResultClass.SUCCESS,
+                summary="must not complete without a source projection",
+            ),
+        )
 
 
 def test_action_lease_guard_rejects_renewal_after_global_stop(tmp_path) -> None:

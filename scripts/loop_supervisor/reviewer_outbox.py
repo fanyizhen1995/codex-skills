@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from scripts.harness_loop_agents import validate_owned_regular_file
+from scripts.harness_loop_contracts import validate_run_payload
 
 from .models import (
     ActionOwner,
@@ -22,7 +23,7 @@ from .models import (
 from .registry import review_application_for, transition_for
 from .reviewer_runtime import ActionLeaseGuard
 from .reviewer_safety import require_review_safety_clear
-from .store import SupervisorStore
+from .store import LeaseError, SupervisorStore
 
 
 ApplicationCutpoint = Callable[[str, str], None]
@@ -226,13 +227,15 @@ def _apply_target(
                 lease_checkpoint()
                 from .reconciler import atomic_save_run
 
-                saved = atomic_save_run(
-                    execution_root,
-                    request.run_id,
-                    updated,
-                    expected_revision=expected_revision,
-                    expected_fingerprint=expected_fingerprint,
-                )
+                with guard.suspend_safety():
+                    saved = atomic_save_run(
+                        execution_root,
+                        request.run_id,
+                        updated,
+                        expected_revision=expected_revision,
+                        expected_fingerprint=expected_fingerprint,
+                    )
+                    _project_saved_run(store, run, saved)
                 applied_revision = int(saved["state_revision"])
                 canonical_payload = saved
             elif current_revision == expected_revision + 1 and already_applied:
@@ -242,7 +245,8 @@ def _apply_target(
                 raise ValueError(
                     f"review application target changed after review: {request.run_id}"
                 )
-            _project_saved_run(store, run, canonical_payload)
+            if current_revision != expected_revision:
+                _project_saved_run(store, run, canonical_payload)
             artifacts = (run_path.relative_to(execution_root).as_posix(),)
         cutpoint("after_file_write", request.run_id)
         guard.checkpoint()
@@ -283,6 +287,7 @@ def _project_saved_run(
         {
             "run_id": str(previous["run_id"]),
             "revision": _revision(payload),
+            "repo_relative_root": str(previous.get("repo_relative_root") or "."),
             "loop_lineage_id": str(previous.get("loop_lineage_id") or ""),
             "parent_run_id": str(previous.get("parent_run_id") or ""),
             "policy": str(payload.get("policy") or previous["policy"]),
@@ -327,14 +332,15 @@ def _already_applied(
     target: Mapping[str, Any],
 ) -> bool:
     directives = payload.get("reviewer_directives")
+    directive = {
+        "review_id": review.review_id,
+        "decision": review.decision.value,
+        "summary": review.summary,
+        "evidence_refs": list(review.evidence_refs),
+    }
     return (
         isinstance(directives, list)
-        and any(
-            isinstance(item, Mapping)
-            and item.get("review_id") == review.review_id
-            and item.get("decision") == review.decision.value
-            for item in directives
-        )
+        and directive in directives
         and payload.get("phase") == target["target_phase"]
         and payload.get("next_action") == target["target_next_action"]
     )
@@ -372,24 +378,70 @@ def _target_run(
 ) -> tuple[Path, Path, dict[str, Any]]:
     summary = run.get("summary")
     refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
-    run_ref = next(
-        (value for value in refs if isinstance(value, str) and value.endswith("/run.json")),
-        "",
+    from .models import validate_repo_relative_root
+
+    repo_relative_root = validate_repo_relative_root(
+        run.get("repo_relative_root", ".")
     )
-    if not run_ref:
-        raise ValueError(f"run projection lacks run.json evidence: {run['run_id']}")
-    relative = PurePosixPath(run_ref)
-    expected_tail = (".codex", "loop-runs", str(run["run_id"]), "run.json")
-    if tuple(relative.parts[-4:]) != expected_tail:
-        raise ValueError("run projection artifact reference has invalid ownership")
+    expected_parts = (
+        *PurePosixPath(repo_relative_root).parts,
+        ".codex",
+        "loop-runs",
+        str(run["run_id"]),
+        "run.json",
+    )
+    canonical_refs = [
+        value
+        for value in refs
+        if isinstance(value, str)
+        and not PurePosixPath(value).is_absolute()
+        and PurePosixPath(value).as_posix() == value
+        and tuple(PurePosixPath(value).parts) == expected_parts
+    ]
+    if len(canonical_refs) != 1:
+        raise ValueError(f"run projection lacks canonical run.json evidence: {run['run_id']}")
+    relative = PurePosixPath(canonical_refs[0])
     path = store.project_root.joinpath(*relative.parts)
     safe = validate_owned_regular_file(store.project_root, path, "Reviewer target run")
     payload = json.loads(safe.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise TypeError("Reviewer target run must be an object")
-    execution_root = store.project_root.joinpath(*relative.parts[:-4]).resolve()
+    execution_root = store.project_root.joinpath(*PurePosixPath(repo_relative_root).parts).resolve()
     execution_root.relative_to(store.project_root)
     return execution_root, safe, payload
+
+
+def repair_resumable_review_projection(
+    store: SupervisorStore,
+    review: SupervisorReview,
+) -> None:
+    """Repair only the durable file-write/projection-persist cutpoint."""
+    for target in store.review_application_targets(review.review_id):
+        if str(target["status"]) == "applied":
+            continue
+        request = _request_for_stored_target(store, target)
+        run = store.get_run(request.run_id)
+        if str(run.get("repo_relative_root") or ".") != request.repo_relative_root:
+            raise LeaseError(
+                f"review outbox source projection is corrupt: {request.run_id}"
+            )
+        _execution_root, _run_path, payload = _target_run(store, run)
+        validate_run_payload(payload)
+        if payload.get("run_id") != request.run_id:
+            raise LeaseError(
+                f"review outbox canonical state is corrupt: {request.run_id}"
+            )
+        expected_revision = int(target["expected_revision"])
+        expected_fingerprint = str(target["expected_fingerprint"])
+        if _revision(payload) == expected_revision and _fingerprint(payload) == expected_fingerprint:
+            continue
+        if _revision(payload) != expected_revision + 1 or not _already_applied(
+            payload, review, target
+        ):
+            raise LeaseError(
+                f"review outbox canonical state is corrupt: {request.run_id}"
+            )
+        _project_saved_run(store, run, payload)
 
 
 def _revision(payload: Mapping[str, Any]) -> int:

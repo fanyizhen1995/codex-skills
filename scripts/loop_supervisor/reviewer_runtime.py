@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from threading import Event, Thread
+from contextlib import contextmanager
+from threading import Event, RLock, Thread
 from types import TracebackType
 from typing import Self
 
@@ -32,6 +33,8 @@ class ActionLeaseGuard:
         self._heartbeat_seconds = heartbeat_seconds
         self._safety_checkpoint = safety_checkpoint
         self._finished = Event()
+        self._safety_suspended = Event()
+        self._safety_lock = RLock()
         self._lost = Event()
         self._error: BaseException | None = None
         self._thread = Thread(
@@ -79,11 +82,26 @@ class ActionLeaseGuard:
             self._lost.set()
             raise LeaseError("Reviewer action lease lost")
 
+    @contextmanager
+    def suspend_safety(self):
+        """Keep the lease alive during one file/projection atomic transition."""
+        with self._safety_lock:
+            self._safety_suspended.set()
+        try:
+            yield
+        finally:
+            with self._safety_lock:
+                self._safety_suspended.clear()
+
     def _heartbeat(self) -> None:
         while not self._finished.wait(self._heartbeat_seconds):
             try:
-                if self._safety_checkpoint is not None:
-                    self._safety_checkpoint()
+                with self._safety_lock:
+                    if (
+                        self._safety_checkpoint is not None
+                        and not self._safety_suspended.is_set()
+                    ):
+                        self._safety_checkpoint()
                 renewed = self._store.renew_lease(
                     self._action_id,
                     self._owner_id,

@@ -1238,6 +1238,8 @@ def _projection(
     return {
         "run_id": record.run_id,
         "revision": revision,
+        "repo_relative_root": record.repo_root.resolve().relative_to(project_root).as_posix()
+        or ".",
         "state_fingerprint": _state_fingerprint(run),
         "loop_lineage_id": str(run.get("loop_lineage_id") or record.run_id),
         "parent_run_id": str(
@@ -1263,6 +1265,8 @@ def _same_projection(existing: Mapping[str, Any], incoming: Mapping[str, Any]) -
         and str(existing.get("policy") or "") == str(incoming.get("policy") or "")
         and str(existing.get("phase") or "") == str(incoming.get("phase") or "")
         and str(existing.get("status") or "") == str(incoming.get("status") or "")
+        and str(existing.get("repo_relative_root") or ".")
+        == str(incoming.get("repo_relative_root") or ".")
         and (
             not str(existing.get("state_fingerprint") or "")
             or str(existing.get("state_fingerprint"))

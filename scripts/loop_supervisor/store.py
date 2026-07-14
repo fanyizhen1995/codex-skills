@@ -24,10 +24,11 @@ from scripts.loop_supervisor.models import (
     ActionRequest,
     ActionResult,
     ActionResultClass,
+    validate_repo_relative_root,
 )
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -200,6 +201,7 @@ _DDL = (
       phase TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT '',
       revision INTEGER NOT NULL CHECK (revision >= 0),
+      repo_relative_root TEXT NOT NULL DEFAULT '.',
       state_fingerprint TEXT NOT NULL DEFAULT '',
       summary_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
@@ -553,6 +555,7 @@ class SupervisorStore:
                 """
             )
             self._ensure_run_state_fingerprint()
+            self._ensure_run_execution_root()
             self._ensure_action_execution_root()
             self._ensure_action_ownership()
             self._ensure_review_resume_state()
@@ -623,6 +626,17 @@ class SupervisorStore:
         if "state_fingerprint" not in columns:
             self._connection.execute(
                 "ALTER TABLE runs ADD COLUMN state_fingerprint TEXT NOT NULL DEFAULT ''"
+            )
+
+    def _ensure_run_execution_root(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute("PRAGMA table_info(runs)").fetchall()
+        }
+        if "repo_relative_root" not in columns:
+            self._connection.execute(
+                "ALTER TABLE runs "
+                "ADD COLUMN repo_relative_root TEXT NOT NULL DEFAULT '.'"
             )
 
     def _ensure_action_execution_root(self) -> None:
@@ -1716,8 +1730,11 @@ class SupervisorStore:
                 )
                 AND (a.not_before = '' OR a.not_before <= ?)
                 AND (
-                  a.queue_owner != 'worker'
-                  OR (r.revision = a.run_revision AND r.phase = a.phase)
+                  (a.queue_owner = 'worker'
+                   AND r.revision = a.run_revision AND r.phase = a.phase)
+                  OR (a.queue_owner IN ('reviewer', 'supervisor')
+                      AND r.run_id IS NOT NULL
+                      AND r.repo_relative_root = a.repo_relative_root)
                 )
                 AND NOT EXISTS (
                   SELECT 1 FROM user_decisions AS decisions
@@ -1751,27 +1768,35 @@ class SupervisorStore:
                     status = 'pending'
                     AND (not_before = '' OR not_before <= ?)
                     AND (
-                      queue_owner != 'worker'
-                      OR EXISTS (
+                      (queue_owner = 'worker' AND EXISTS (
                         SELECT 1 FROM runs
                         WHERE runs.run_id = actions.run_id
                           AND runs.revision = actions.run_revision
                           AND runs.phase = actions.phase
-                      )
+                      ))
+                      OR (queue_owner IN ('reviewer', 'supervisor') AND EXISTS (
+                        SELECT 1 FROM runs
+                        WHERE runs.run_id = actions.run_id
+                          AND runs.repo_relative_root = actions.repo_relative_root
+                      ))
                     )
                   )
                   OR (
                     status IN ('leased', 'running')
                     AND lease_expires_at <= ?
-                    AND EXISTS (
-                      SELECT 1
-                      WHERE actions.queue_owner != 'worker'
-                         OR EXISTS (
+                   AND EXISTS (
+                      SELECT 1 WHERE
+                        (actions.queue_owner = 'worker' AND EXISTS (
                            SELECT 1 FROM runs
                            WHERE runs.run_id = actions.run_id
                              AND runs.revision = actions.run_revision
                              AND runs.phase = actions.phase
-                         )
+                        ))
+                        OR (actions.queue_owner IN ('reviewer', 'supervisor') AND EXISTS (
+                           SELECT 1 FROM runs
+                           WHERE runs.run_id = actions.run_id
+                             AND runs.repo_relative_root = actions.repo_relative_root
+                        ))
                     )
                     AND NOT EXISTS (
                       SELECT 1 FROM workers
@@ -1836,6 +1861,11 @@ class SupervisorStore:
                     lease_heartbeat_at = ?, updated_at = ?
                 WHERE action_id = ? AND status = 'pending'
                   AND queue_owner = ?
+                  AND EXISTS (
+                    SELECT 1 FROM runs
+                    WHERE runs.run_id = actions.run_id
+                      AND runs.repo_relative_root = actions.repo_relative_root
+                  )
                   AND NOT EXISTS (
                     SELECT 1 FROM user_decisions AS decisions
                     WHERE decisions.status = 'open'
@@ -1938,21 +1968,25 @@ class SupervisorStore:
                 WHERE action_id = ? AND lease_owner = ?
                   AND status IN ('leased', 'running')
                   AND (
-                    queue_owner = 'worker'
-                    OR NOT EXISTS (
+                    (queue_owner = 'worker'
+                     OR NOT EXISTS (
                       SELECT 1 FROM user_decisions AS decisions
                       WHERE decisions.status = 'open'
                         AND decisions.scope = 'global'
-                    )
+                    ))
                   )
                   AND (
-                    queue_owner != 'worker'
-                    OR EXISTS (
+                    (queue_owner = 'worker' AND EXISTS (
                       SELECT 1 FROM runs
                       WHERE runs.run_id = actions.run_id
                         AND runs.revision = actions.run_revision
                         AND runs.phase = actions.phase
-                    )
+                    ))
+                    OR (queue_owner IN ('reviewer', 'supervisor') AND EXISTS (
+                      SELECT 1 FROM runs
+                      WHERE runs.run_id = actions.run_id
+                        AND runs.repo_relative_root = actions.repo_relative_root
+                    ))
                   )
                 """,
                 (expires_at, now, now, action_id, worker_id),
@@ -1998,7 +2032,7 @@ class SupervisorStore:
                     f"worker does not own a live lease for action: {action_id}"
                 )
             current_run = self._connection.execute(
-                "SELECT revision, phase FROM runs WHERE run_id = ?",
+                "SELECT revision, phase, repo_relative_root FROM runs WHERE run_id = ?",
                 (action["run_id"],),
             ).fetchone()
             if action["queue_owner"] == ActionOwner.WORKER.value and (
@@ -2008,6 +2042,17 @@ class SupervisorStore:
             ):
                 raise LeaseError(
                     f"action does not match current run revision and phase: {action_id}"
+                )
+            if action["queue_owner"] in {
+                ActionOwner.REVIEWER.value,
+                ActionOwner.SUPERVISOR.value,
+            } and (
+                current_run is None
+                or str(current_run["repo_relative_root"])
+                != str(action["repo_relative_root"])
+            ):
+                raise LeaseError(
+                    f"action lacks authoritative run projection: {action_id}"
                 )
             open_decision = self._connection.execute(
                 """
@@ -2154,6 +2199,9 @@ class SupervisorStore:
         state_fingerprint = projection.get("state_fingerprint", "")
         if not isinstance(state_fingerprint, str):
             raise TypeError("state_fingerprint must be a string")
+        repo_relative_root = validate_repo_relative_root(
+            projection.get("repo_relative_root", ".")
+        )
         with self._immediate_transaction():
             existing = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
@@ -2163,9 +2211,9 @@ class SupervisorStore:
                     """
                     INSERT INTO runs(
                       run_id, loop_lineage_id, parent_run_id, policy, phase, status,
-                      revision, state_fingerprint, summary_json, created_at,
+                      revision, repo_relative_root, state_fingerprint, summary_json, created_at,
                       updated_at, last_seen_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         run_id,
@@ -2175,6 +2223,7 @@ class SupervisorStore:
                         phase,
                         status,
                         revision,
+                        repo_relative_root,
                         state_fingerprint,
                         summary_json,
                         now,
@@ -2195,6 +2244,7 @@ class SupervisorStore:
                         policy,
                         phase,
                         status,
+                        repo_relative_root,
                         state_fingerprint,
                         summary_json,
                     )
@@ -2204,6 +2254,7 @@ class SupervisorStore:
                         str(existing["policy"]),
                         str(existing["phase"]),
                         str(existing["status"]),
+                        str(existing["repo_relative_root"]),
                         str(existing["state_fingerprint"]),
                         str(existing["summary_json"]),
                     )
@@ -2223,10 +2274,10 @@ class SupervisorStore:
                         )
                     self._connection.execute(
                         """
-                        UPDATE runs SET state_fingerprint = ?, last_seen_at = ?
+                        UPDATE runs SET state_fingerprint = ?, repo_relative_root = ?, last_seen_at = ?
                         WHERE run_id = ?
                         """,
-                        (state_fingerprint, now, run_id),
+                        (state_fingerprint, repo_relative_root, now, run_id),
                     )
                 else:
                     self._insert_transition(
@@ -2244,7 +2295,7 @@ class SupervisorStore:
                         """
                         UPDATE runs SET loop_lineage_id = ?, parent_run_id = ?, policy = ?,
                           phase = ?, status = ?, revision = ?, state_fingerprint = ?,
-                          summary_json = ?, updated_at = ?, last_seen_at = ?
+                          repo_relative_root = ?, summary_json = ?, updated_at = ?, last_seen_at = ?
                         WHERE run_id = ?
                         """,
                         (
@@ -2255,6 +2306,7 @@ class SupervisorStore:
                             status,
                             revision,
                             state_fingerprint,
+                            repo_relative_root,
                             summary_json,
                             now,
                             now,

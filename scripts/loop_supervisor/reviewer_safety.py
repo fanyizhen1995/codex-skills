@@ -12,6 +12,7 @@ from scripts.harness_loop_agents import validate_owned_regular_file
 from scripts.harness_loop_contracts import validate_run_payload
 
 from .safety_signals import detected_global_safety_signals
+from .models import ActionOwner, validate_repo_relative_root
 from .store import LeaseError, SupervisorStore
 
 
@@ -91,7 +92,22 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
     from .reconciler import _state_fingerprint, _state_revision
 
     detected: set[tuple[str, str]] = set()
-    for row in store.fetch_all("runs"):
+    runs = {str(row.get("run_id") or ""): row for row in store.fetch_all("runs")}
+    for action in store.fetch_all("actions"):
+        if (
+            str(action.get("queue_owner") or "")
+            not in {ActionOwner.REVIEWER.value, ActionOwner.SUPERVISOR.value}
+            or str(action.get("status") or "")
+            not in {"pending", "leased", "running"}
+        ):
+            continue
+        run_id = str(action.get("run_id") or "")
+        projection = runs.get(run_id)
+        if projection is None or str(projection.get("repo_relative_root") or ".") != str(
+            action.get("repo_relative_root") or "."
+        ):
+            detected.add((run_id, "repo_corruption"))
+    for row in runs.values():
         run_id = str(row.get("run_id") or "")
         try:
             summary = json.loads(str(row.get("summary_json") or "{}"))
@@ -100,7 +116,16 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
             continue
         try:
             refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
-            expected_parts = (".codex", "loop-runs", run_id, "run.json")
+            repo_relative_root = validate_repo_relative_root(
+                row.get("repo_relative_root", ".")
+            )
+            expected_parts = (
+                *PurePosixPath(repo_relative_root).parts,
+                ".codex",
+                "loop-runs",
+                run_id,
+                "run.json",
+            )
             canonical_refs = [
                 value
                 for value in refs
@@ -125,10 +150,12 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
             if payload["run_id"] != run_id:
                 raise ValueError("canonical run state run_id does not match projection")
             if _state_revision(payload) != int(row["revision"]):
-                raise ValueError("canonical run state revision does not match projection")
+                if not _matches_pending_outbox_transition(store, row, payload):
+                    raise ValueError("canonical run state revision does not match projection")
             fingerprint = str(row.get("state_fingerprint") or "")
             if not fingerprint or _state_fingerprint(payload) != fingerprint:
-                raise ValueError("canonical run state fingerprint does not match projection")
+                if not _matches_pending_outbox_transition(store, row, payload):
+                    raise ValueError("canonical run state fingerprint does not match projection")
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             detected.add((run_id, "repo_corruption"))
             continue
@@ -139,3 +166,64 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
         {"run_id": run_id, "signal": signal}
         for run_id, signal in sorted(detected)
     ]
+
+
+def _matches_pending_outbox_transition(
+    store: SupervisorStore,
+    run: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> bool:
+    """Recognize only a persisted accepted outbox write awaiting its projection."""
+    run_id = str(run.get("run_id") or "")
+    for target in store.fetch_all("review_application_targets"):
+        if str(target.get("run_id") or "") != run_id or str(target.get("status")) != "pending":
+            continue
+        review_id = str(target.get("review_id") or "")
+        review = next(
+            (
+                row
+                for row in store.fetch_all("reviews")
+                if str(row.get("review_id") or "") == review_id
+                and str(row.get("status")) == "review_applying"
+            ),
+            None,
+        )
+        if review is None:
+            continue
+        try:
+            accepted = json.loads(str(review.get("accepted_review_json") or "{}"))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(accepted, Mapping):
+            continue
+        evidence_refs = accepted.get("evidence_refs")
+        if (
+            accepted.get("review_id") != review_id
+            or accepted.get("decision") != review.get("decision")
+            or not isinstance(accepted.get("summary"), str)
+            or not isinstance(evidence_refs, list)
+            or not all(isinstance(value, str) for value in evidence_refs)
+        ):
+            continue
+        expected_revision = target.get("expected_revision")
+        if not isinstance(expected_revision, int) or isinstance(expected_revision, bool):
+            continue
+        directive = {
+            "review_id": review_id,
+            "decision": accepted["decision"],
+            "summary": accepted["summary"],
+            "evidence_refs": evidence_refs,
+        }
+        directives = payload.get("reviewer_directives")
+        payload_revision = payload.get("state_revision")
+        if (
+            isinstance(payload_revision, int)
+            and not isinstance(payload_revision, bool)
+            and payload_revision == expected_revision + 1
+            and isinstance(directives, list)
+            and directive in directives
+            and payload.get("phase") == target.get("target_phase")
+            and payload.get("next_action") == target.get("target_next_action")
+        ):
+            return True
+    return False

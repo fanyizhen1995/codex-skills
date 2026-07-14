@@ -19,6 +19,7 @@ from scripts.harness_loop_orchestrator import (
     run_auditor,
 )
 from scripts.loop_supervisor import reviewer as reviewer_module
+from scripts.loop_supervisor import reviewer_outbox as reviewer_outbox_module
 from scripts.loop_supervisor.executor import ACTION_HANDLERS
 from scripts.loop_supervisor.models import (
     ActionOwner,
@@ -29,6 +30,7 @@ from scripts.loop_supervisor.models import (
     ReviewDecision,
 )
 from scripts.loop_supervisor.reconciler import _state_fingerprint
+from scripts.loop_supervisor.reconciler import reconcile_once
 from scripts.loop_supervisor.reviewer import (
     ReviewerContext,
     apply_review_decision,
@@ -39,6 +41,7 @@ from scripts.loop_supervisor.reviewer import (
     schedule_due_reviews,
     validate_review_payload,
 )
+from scripts.loop_supervisor.reviewer_safety import current_review_safety_checks
 from scripts.loop_supervisor.store import LeaseError, SupervisorStore
 
 
@@ -66,8 +69,11 @@ def record_parent_completion(
     run_id: str,
     parent: int,
     previous_run_id: str = "",
+    execution_root: Path | None = None,
+    project: bool = True,
 ) -> None:
-    run_dir = store.project_root / ".codex" / "loop-runs" / run_id
+    root = (execution_root or store.project_root).resolve()
+    run_dir = root / ".codex" / "loop-runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "run_id": run_id,
@@ -77,7 +83,7 @@ def record_parent_completion(
         "run_kind": "single",
         "domain": "",
         "branch": "main",
-        "worktree": str(store.project_root),
+        "worktree": str(root),
         "loop_lineage_id": lineage_id,
         "previous_run_id": previous_run_id,
         "task_id": f"parent-{parent}",
@@ -108,10 +114,13 @@ def record_parent_completion(
     }
     run_path = run_dir / "run.json"
     run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    if not project:
+        return
     store.upsert_run_projection(
         {
             "run_id": run_id,
             "revision": 1,
+            "repo_relative_root": root.relative_to(store.project_root).as_posix() or ".",
             "loop_lineage_id": lineage_id,
             "parent_run_id": previous_run_id,
             "policy": "autonomous_knowledge",
@@ -679,6 +688,7 @@ def test_queued_reviewer_resumes_persisted_outbox_after_cold_store_reopen(
             timeout_seconds=1,
             heartbeat_seconds=0.01,
         )
+    monkeypatch.setattr(reviewer_module, "apply_review_decision", original_apply)
 
     persisted = store.fetch_all("reviews")[0]
     assert persisted["source_action_id"] == request.action_id
@@ -1337,6 +1347,190 @@ def test_queued_reviewer_blocks_application_and_completion_for_noncanonical_stat
         {"run_id": "run-a2", "signal": "repo_corruption"}
     ]
     assert run_path.read_bytes() != before
+
+
+def test_queued_reviewer_orphaned_source_projection_never_invokes_driver(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    request = schedule_due_reviews(store, now=NOW)[0]
+    store._connection.execute("DELETE FROM runs WHERE run_id = ?", (request.run_id,))
+    clock.value = NOW + timedelta(minutes=10)
+
+    result = run_queued_reviewer(
+        store,
+        reviewer_id="reviewer-orphaned-source",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("orphaned source must block before any LLM invocation")
+        ),
+    )
+
+    assert result is None
+    assert store.get_action(request.action_id).status == "pending"
+    assert current_review_safety_checks(store)["fresh_global_safety_signals"] == [
+        {"run_id": request.run_id, "signal": "repo_corruption"}
+    ]
+
+
+@pytest.mark.parametrize("tamper_directive", [False, True])
+def test_cold_reviewer_recovery_repairs_projection_after_file_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tamper_directive: bool,
+) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    request = schedule_due_reviews(store, now=NOW)[0]
+    clock.value = NOW + timedelta(minutes=10)
+
+    def first_driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        bundle = json.loads(
+            next(review_dir.glob("review-*-evidence.json")).read_text(encoding="utf-8")
+        )
+        candidate = valid_review_payload(
+            review_id=str(kwargs["run_id"]),
+            decision="refocus",
+            affected_run_ids=["run-a2"],
+            evidence_refs=list(bundle["evidence_hashes"].values()),
+        )
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(candidate) + "\n", encoding="utf-8"
+        )
+        return {"status": "pass", "exit_code": 0}
+
+    original_project = reviewer_outbox_module._project_saved_run
+    monkeypatch.setattr(reviewer_outbox_module, "_project_saved_run", lambda *_args: None)
+    original_apply = reviewer_module.apply_review_decision
+
+    def cut_after_file_write(*args: object, **kwargs: object):
+        def cutpoint(stage: str, _run_id: str) -> None:
+            if stage == "after_file_write":
+                raise RuntimeError("projection persistence cutpoint")
+
+        return original_apply(*args, application_cutpoint=cutpoint, **kwargs)
+
+    monkeypatch.setattr(reviewer_module, "apply_review_decision", cut_after_file_write)
+    with pytest.raises(RuntimeError, match="projection persistence cutpoint"):
+        run_queued_reviewer(
+            store,
+            reviewer_id="reviewer-before-projection-repair",
+            driver=first_driver,
+            timeout_seconds=1,
+            heartbeat_seconds=0.01,
+        )
+    monkeypatch.setattr(reviewer_outbox_module, "_project_saved_run", original_project)
+    monkeypatch.setattr(reviewer_module, "apply_review_decision", original_apply)
+
+    stale = store.get_run("run-a2")
+    assert stale["revision"] == 1
+    assert json.loads(
+        (tmp_path / ".codex" / "loop-runs" / "run-a2" / "run.json").read_text(
+            encoding="utf-8"
+        )
+    )["state_revision"] == 2
+    if tamper_directive:
+        run_path = tmp_path / ".codex" / "loop-runs" / "run-a2" / "run.json"
+        replaced = json.loads(run_path.read_text(encoding="utf-8"))
+        replaced["reviewer_directives"][-1]["summary"] = "tampered immutable review"
+        run_path.write_text(json.dumps(replaced) + "\n", encoding="utf-8")
+    store.close()
+    clock.value += timedelta(seconds=121)
+    reopened = SupervisorStore.open(tmp_path, clock=clock)
+    reopened.migrate()
+
+    if tamper_directive:
+        with pytest.raises(LeaseError, match="canonical state is corrupt"):
+            run_queued_reviewer(
+                reopened,
+                reviewer_id="reviewer-after-projection-repair",
+                driver=lambda **_kwargs: (_ for _ in ()).throw(
+                    AssertionError("corrupt cold recovery must not invoke a new LLM")
+                ),
+                timeout_seconds=1,
+                heartbeat_seconds=0.01,
+            )
+        assert reopened.get_run("run-a2")["revision"] == 1
+        assert reopened.get_action(request.action_id).status == "leased"
+    else:
+        result = run_queued_reviewer(
+            reopened,
+            reviewer_id="reviewer-after-projection-repair",
+            driver=lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("cold outbox recovery must not invoke a new LLM")
+            ),
+            timeout_seconds=1,
+            heartbeat_seconds=0.01,
+        )
+
+        assert result is not None and result.status == "review_complete"
+        assert reopened.get_run("run-a2")["revision"] == 2
+        assert reopened.get_action(request.action_id).status == "completed"
+
+
+def test_reconciled_worktree_root_is_required_for_reviewer_outbox(
+    tmp_path: Path,
+) -> None:
+    worktree = tmp_path / ".worktrees" / "reviewer-child"
+    store = migrated_store(tmp_path, MutableClock(NOW))
+    record_parent_completion(
+        store,
+        "lineage-worktree",
+        run_id="worktree-a1",
+        parent=1,
+        execution_root=worktree,
+        project=False,
+    )
+    record_parent_completion(
+        store,
+        "lineage-worktree",
+        run_id="worktree-a2",
+        parent=2,
+        execution_root=worktree,
+        project=False,
+    )
+    reconcile_once(tmp_path, store)
+
+    payload = json.loads(
+        (
+            worktree / ".codex" / "loop-runs" / "worktree-a2" / "run.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert current_review_safety_checks(store)["fresh_global_safety_signals"] == [], {
+        "run": store.get_run("worktree-a2"),
+        "payload": payload,
+    }
+    actions = apply_review_decision(
+        store,
+        validate_review_payload(
+            valid_review_payload(
+                decision="refocus",
+                affected_run_ids=["worktree-a2"],
+            ),
+            allowed_run_ids=["worktree-a2"],
+            reviewed_runs={
+                "worktree-a2": {
+                    "revision": payload["state_revision"],
+                    "state_fingerprint": _state_fingerprint(payload),
+                }
+            },
+        ),
+    )
+
+    assert store.get_run("worktree-a2")["repo_relative_root"] == ".worktrees/reviewer-child"
+    assert store.get_action(actions[0].action_id).status == "completed"
+    store._connection.execute(
+        "UPDATE runs SET repo_relative_root = ? WHERE run_id = ?",
+        ("arbitrary/prefix", "worktree-a2"),
+    )
+    assert current_review_safety_checks(store)["fresh_global_safety_signals"] == [
+        {"run_id": "worktree-a2", "signal": "repo_corruption"}
+    ]
 
 
 @pytest.mark.parametrize(
