@@ -43,15 +43,22 @@ def action_request(
     revision: int,
     action_id: str = "action-1",
     payload: dict[str, object] | None = None,
+    phase: str = "planning",
+    action_type: ActionType = ActionType.RUN_PLANNER,
+    task_id: str = "",
+    policy: str = "autonomous_knowledge",
+    idempotency_key: str | None = None,
 ) -> ActionRequest:
     return ActionRequest(
         action_id=action_id,
         run_id=run_id,
         run_revision=revision,
-        policy="autonomous_knowledge",
-        phase="planning",
-        action_type=ActionType.RUN_PLANNER,
-        idempotency_key=f"{run_id}:{revision}:planning:run_planner",
+        policy=policy,
+        phase=phase,
+        action_type=action_type,
+        idempotency_key=idempotency_key
+        or f"{run_id}:{revision}:{phase}:{action_type.value}:{task_id}",
+        task_id=task_id,
         payload=payload or {},
     )
 
@@ -96,7 +103,7 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 2
+    assert store.pragma("user_version") == 4
 
 
 def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
@@ -132,12 +139,78 @@ def test_enqueue_action_is_idempotent_and_uses_storage_payload(tmp_path, monkeyp
     assert first.payload == {"nested": {"items": ["one"]}}
 
 
+def test_enqueue_deduplicates_same_canonical_identity_with_different_external_key(
+    tmp_path,
+):
+    store = migrated_store(tmp_path)
+    first = store.enqueue_action(
+        action_request("run-1", revision=3, idempotency_key="external-key-one")
+    )
+
+    second = store.enqueue_action(
+        action_request(
+            "run-1",
+            revision=3,
+            action_id="action-2",
+            idempotency_key="external-key-two",
+        )
+    )
+
+    assert second.action_id == first.action_id
+    assert store.count("actions") == 1
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"run_id": "run-2"},
+        {"revision": 4},
+        {"phase": "generating"},
+        {"action_type": ActionType.RUN_GENERATOR},
+        {"task_id": "task-2"},
+        {"policy": "demand_development"},
+    ],
+)
+def test_enqueue_rejects_idempotency_key_collision_with_different_identity(
+    tmp_path, overrides
+):
+    store = migrated_store(tmp_path)
+    store.enqueue_action(
+        action_request(
+            "run-1",
+            revision=3,
+            task_id="task-1",
+            idempotency_key="shared-key",
+        )
+    )
+    incoming = {
+        "run_id": "run-1",
+        "revision": 3,
+        "action_id": "action-2",
+        "task_id": "task-1",
+        "idempotency_key": "shared-key",
+    }
+    incoming.update(overrides)
+
+    with pytest.raises(ValueError, match="idempotency identity conflict"):
+        store.enqueue_action(action_request(**incoming))
+
+    stored = store.get_action("action-1")
+    assert stored.run_id == "run-1"
+    assert stored.run_revision == 3
+    assert stored.phase == "planning"
+    assert stored.action_type == "run_planner"
+
+
 @pytest.mark.parametrize(
     "payload",
     [
         {"stdout": "full command output"},
         {"nested": {"stderr": "full error output"}},
         {"result": {"raw_logs": ["line one", "line two"]}},
+        {"captured_stdout": "full command output"},
+        {"nested": {"process_stderr": "full error output"}},
+        {"result": {"worker_stdout_excerpt": "many log lines"}},
     ],
 )
 def test_enqueue_rejects_recursive_inline_log_body_keys(tmp_path, payload):
@@ -163,10 +236,59 @@ def test_enqueue_rejects_oversized_payload_but_allows_log_path_references(tmp_pa
             payload={
                 "stdout_path": ".codex/loop-runs/run-1/stdout.log",
                 "stderr_path": ".codex/loop-runs/run-1/stderr.log",
+                "captured_stdout_ref": "artifacts/stdout.log",
             },
         )
     )
     assert stored.payload["stdout_path"].endswith("stdout.log")
+
+
+@pytest.mark.parametrize(
+    ("checkpoint", "error"),
+    [
+        (123, TypeError),
+        ("line-one\nline-two", ValueError),
+        ("x" * 513, ValueError),
+        ("captured stdout body", ValueError),
+    ],
+)
+def test_complete_action_rejects_unsafe_checkpoint(tmp_path, checkpoint, error):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+
+    with pytest.raises(error, match="checkpoint"):
+        store.complete_action(
+            action.action_id,
+            "worker-a",
+            ActionResult(
+                result_class=ActionResultClass.SUCCESS,
+                summary="done",
+                checkpoint=checkpoint,
+            ),
+        )
+
+    assert store.count("action_attempts") == 0
+
+
+def test_complete_action_accepts_safe_single_line_checkpoint_reference(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+
+    store.complete_action(
+        action.action_id,
+        "worker-a",
+        ActionResult(
+            result_class=ActionResultClass.SUCCESS,
+            summary="done",
+            checkpoint="planner:step-2",
+        ),
+    )
+
+    assert store.fetch_all("action_attempts")[0]["checkpoint"] == "planner:step-2"
 
 
 @pytest.mark.parametrize(
@@ -301,6 +423,31 @@ def test_expired_lease_can_be_reclaimed_once(tmp_path):
         == action.action_id
     )
 
+
+def test_same_worker_cannot_reclaim_expired_lease_while_its_heartbeat_is_fresh(
+    tmp_path,
+):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=30, heartbeat_stale_seconds=60)
+
+    clock.advance(seconds=31)
+    assert (
+        store.lease_next_action(
+            "worker-a", lease_seconds=30, heartbeat_stale_seconds=60
+        )
+        is None
+    )
+    clock.advance(seconds=61)
+    assert (
+        store.lease_next_action(
+            "worker-a", lease_seconds=30, heartbeat_stale_seconds=60
+        ).action_id
+        == action.action_id
+    )
+
     clock.advance(seconds=121)
 
     assert (
@@ -408,6 +555,38 @@ def test_complete_action_rejects_lease_after_run_revision_advances(tmp_path):
     assert store.get_action(action.action_id).status == "leased"
 
 
+def test_complete_action_rejects_current_revision_with_wrong_run_phase(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=4)
+    action = store.enqueue_action(action_request("run-1", revision=4))
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+    store._connection.execute(
+        "UPDATE runs SET phase = 'generating' WHERE run_id = 'run-1'"
+    )
+
+    with pytest.raises(RuntimeError, match="current run revision and phase"):
+        store.complete_action(
+            action.action_id,
+            "worker-a",
+            ActionResult(result_class=ActionResultClass.SUCCESS, summary="stale"),
+        )
+
+    assert store.count("action_attempts") == 0
+
+
+def test_pending_action_for_current_revision_but_wrong_phase_is_never_leased(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=4, phase="generating")
+    store.enqueue_action(action_request("run-1", revision=4, phase="planning"))
+
+    assert (
+        store.lease_next_action(
+            "worker-a", lease_seconds=120, heartbeat_stale_seconds=60
+        )
+        is None
+    )
+
+
 def test_unchanged_reconcile_updates_last_seen_without_transition(tmp_path):
     clock = FakeClock()
     store = migrated_store(tmp_path, clock=clock)
@@ -444,6 +623,72 @@ def test_run_projection_rejects_stale_revision_without_overwriting_current(tmp_p
 
     assert store.get_run("run-1")["revision"] == 5
     assert store.count("transitions") == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("policy", "demand_development"),
+        ("phase", "generating"),
+        ("status", "blocked"),
+        ("summary", "changed summary"),
+        ("loop_lineage_id", "lineage-2"),
+        ("parent_run_id", "parent-2"),
+        ("artifact_refs", ["artifacts/other.json"]),
+    ],
+)
+def test_same_revision_projection_rejects_any_non_observation_change(
+    tmp_path, field, value
+):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+    original_projection = {
+        "run_id": "run-1",
+        "revision": 5,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "status": "running",
+        "summary": "stable summary",
+        "loop_lineage_id": "lineage-1",
+        "parent_run_id": "parent-1",
+        "artifact_refs": ["artifacts/run.json"],
+    }
+    store.upsert_run_projection(original_projection)
+    original = store.get_run("run-1")
+    changed = dict(original_projection)
+    changed[field] = value
+    clock.advance(seconds=30)
+
+    with pytest.raises(ValueError, match="same-revision run projection conflict"):
+        store.upsert_run_projection(changed)
+
+    assert store.get_run("run-1") == original
+
+
+def test_identical_same_revision_projection_updates_only_last_seen(tmp_path):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+    projection = {
+        "run_id": "run-1",
+        "revision": 5,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "status": "running",
+        "summary": "stable summary",
+        "loop_lineage_id": "lineage-1",
+        "parent_run_id": "parent-1",
+        "artifact_refs": ["artifacts/run.json"],
+    }
+    store.upsert_run_projection(projection)
+    original = store.get_run("run-1")
+    clock.advance(seconds=30)
+
+    refreshed = store.upsert_run_projection(projection)
+
+    assert refreshed["last_seen_at"] > original["last_seen_at"]
+    assert {
+        key: value for key, value in refreshed.items() if key != "last_seen_at"
+    } == {key: value for key, value in original.items() if key != "last_seen_at"}
 
 
 def test_pending_action_for_old_run_revision_is_never_leased(tmp_path):
@@ -484,6 +729,34 @@ def test_completed_action_reopens_when_run_has_not_advanced_and_preserves_eviden
     assert reopened.status == "pending"
     assert reopened.payload == {"input_ref": "artifacts/planner-input.json"}
     assert reopened.artifacts == ["artifacts/planner-result.json"]
+
+
+def test_completed_action_reopen_rejects_incoming_identity_impersonation(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    request = action_request("run-1", revision=1, idempotency_key="stable-external-key")
+    action = store.enqueue_action(request)
+    store.lease_next_action("worker-a", lease_seconds=120, heartbeat_stale_seconds=60)
+    store.complete_action(
+        action.action_id,
+        "worker-a",
+        ActionResult(result_class=ActionResultClass.SUCCESS, summary="done"),
+    )
+
+    with pytest.raises(ValueError, match="idempotency identity conflict"):
+        store.enqueue_action(
+            action_request(
+                "run-1",
+                revision=1,
+                action_id="action-2",
+                phase="generating",
+                idempotency_key="stable-external-key",
+            )
+        )
+
+    stored = store.get_action(action.action_id)
+    assert stored.status == "completed"
+    assert stored.phase == "planning"
 
 
 def test_completed_action_does_not_reopen_after_run_advances(tmp_path):
@@ -629,6 +902,8 @@ def test_cursor_rejects_tampering_and_filter_mismatch(tmp_path):
         payload["boundary"]["primary_key"],
     )
     assert payload["filter_fingerprint"]
+    assert isinstance(payload["snapshot_sequence"], int)
+    assert payload["snapshot_total"] == 21
 
 
 def test_cursor_boundary_is_stable_when_newer_row_is_inserted(tmp_path):
@@ -645,6 +920,14 @@ def test_cursor_boundary_is_stable_when_newer_row_is_inserted(tmp_path):
         to_phase="generating",
         created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
     )
+    store.record_transition(
+        run_id="backdated-run",
+        from_revision=0,
+        to_revision=1,
+        from_phase="planning",
+        to_phase="generating",
+        created_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+    )
     second = store.list_page(
         "transitions",
         resource="/api/transitions",
@@ -656,6 +939,7 @@ def test_cursor_boundary_is_stable_when_newer_row_is_inserted(tmp_path):
     assert len(second["items"]) == 5
     assert first_ids.isdisjoint(second_ids)
     assert all(item["run_id"] != "new-run" for item in second["items"])
+    assert all(item["run_id"] != "backdated-run" for item in second["items"])
     assert second["previous_cursor"]
     assert first["total"] == second["total"] == 25
 
@@ -668,6 +952,7 @@ def test_cursor_boundary_is_stable_when_newer_row_is_inserted(tmp_path):
     assert previous["total"] == 25
     assert {item["transition_id"] for item in previous["items"]} == first_ids
     assert all(item["run_id"] != "new-run" for item in previous["items"])
+    assert all(item["run_id"] != "backdated-run" for item in previous["items"])
 
 
 def test_retention_aggregates_rows_older_than_90_days_before_deleting(tmp_path):
@@ -813,6 +1098,111 @@ def test_retention_preserves_recent_terminal_finding_and_its_old_review(tmp_path
     assert result["review_findings"] == 0
     assert store.count("reviews") == 1
     assert store.count("review_findings") == 1
+
+
+def test_review_finding_status_transitions_update_one_stable_row(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    for index, status in enumerate(
+        ("open", "resolved_pending_audit", "closed"), start=1
+    ):
+        store.record_review(
+            review_id="review-lifecycle",
+            trigger="cadence",
+            status="completed",
+            decision="continue",
+            summary="finding lifecycle",
+            findings=(
+                {
+                    "finding_id": f"finding-version-{index}",
+                    "finding_key": "stable-finding-key",
+                    "status": status,
+                    "summary": f"finding is {status}",
+                },
+            ),
+        )
+        clock.advance(seconds=10)
+
+    findings = store.fetch_all("review_findings")
+    assert len(findings) == 1
+    assert findings[0]["finding_id"] == "finding-version-1"
+    assert findings[0]["finding_key"] == "stable-finding-key"
+    assert findings[0]["status"] == "closed"
+    assert findings[0]["occurrence_count"] == 3
+    assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
+    assert findings[0]["last_seen_at"] == "2026-01-01T00:00:20.000000Z"
+
+
+def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_path):
+    store = migrated_store(tmp_path)
+    store.record_review(
+        review_id="review-migration",
+        trigger="cadence",
+        status="completed",
+        decision="continue",
+        summary="migration fixture",
+    )
+    store._connection.execute("DROP TABLE review_findings")
+    store._connection.execute(
+        """
+        CREATE TABLE review_findings (
+          finding_id TEXT PRIMARY KEY,
+          review_id TEXT NOT NULL REFERENCES reviews(review_id) ON DELETE CASCADE,
+          finding_key TEXT NOT NULL,
+          status TEXT NOT NULL,
+          summary TEXT NOT NULL DEFAULT '',
+          remediation_action_id TEXT NOT NULL DEFAULT '',
+          occurrence_count INTEGER NOT NULL DEFAULT 1,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(finding_key, status)
+        )
+        """
+    )
+    store._connection.executemany(
+        """
+        INSERT INTO review_findings(
+          finding_id, review_id, finding_key, status, summary, occurrence_count,
+          first_seen_at, last_seen_at, created_at, updated_at
+        ) VALUES (?, 'review-migration', 'stable-key', ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                "finding-open",
+                "open",
+                "old",
+                2,
+                "2026-01-01T00:00:00.000000Z",
+                "2026-01-02T00:00:00.000000Z",
+                "2026-01-01T00:00:00.000000Z",
+                "2026-01-02T00:00:00.000000Z",
+            ),
+            (
+                "finding-closed",
+                "closed",
+                "latest",
+                1,
+                "2026-01-01T00:00:00.000000Z",
+                "2026-01-03T00:00:00.000000Z",
+                "2026-01-03T00:00:00.000000Z",
+                "2026-01-03T00:00:00.000000Z",
+            ),
+        ),
+    )
+    store._connection.execute("PRAGMA user_version=3")
+
+    store.migrate()
+
+    findings = store.fetch_all("review_findings")
+    assert len(findings) == 1
+    assert findings[0]["finding_id"] == "finding-closed"
+    assert findings[0]["status"] == "closed"
+    assert findings[0]["summary"] == "latest"
+    assert findings[0]["occurrence_count"] == 3
+    assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
+    assert store.pragma("user_version") == 4
 
 
 def test_retention_does_not_delete_details_if_aggregation_fails(tmp_path):

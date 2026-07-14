@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path, PurePosixPath
+import re
 import secrets
 import sqlite3
 from typing import Any, Iterator
@@ -23,12 +24,15 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
 MAX_SUMMARY_BYTES = 8_192
 MAX_ARTIFACT_PATH_CHARS = 1_024
+MAX_CHECKPOINT_CHARS = 512
+MAX_CHECKPOINT_BYTES = 1_024
+SAFE_CHECKPOINT_PATTERN = re.compile(r"\A[A-Za-z0-9.][A-Za-z0-9._:/-]{0,511}\Z")
 INLINE_LOG_BODY_KEYS = frozenset(
     {
         "command_output",
@@ -66,6 +70,7 @@ class LeaseError(RuntimeError):
 class ActionRecord:
     action_id: str
     idempotency_key: str
+    canonical_identity: str
     run_id: str
     run_revision: int
     policy: str
@@ -145,6 +150,7 @@ _DDL = (
     CREATE TABLE IF NOT EXISTS actions (
       action_id TEXT PRIMARY KEY,
       idempotency_key TEXT NOT NULL UNIQUE,
+      canonical_identity TEXT NOT NULL,
       run_id TEXT NOT NULL,
       run_revision INTEGER NOT NULL CHECK (run_revision >= 0),
       policy TEXT NOT NULL DEFAULT '',
@@ -240,7 +246,7 @@ _DDL = (
       last_seen_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      UNIQUE(finding_key, status)
+      UNIQUE(finding_key)
     )
     """,
     """
@@ -374,6 +380,8 @@ class SupervisorStore:
         with self._immediate_transaction():
             for statement in _DDL:
                 self._connection.execute(statement)
+            self._ensure_action_canonical_identity()
+            self._ensure_stable_review_finding_identity()
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                 (SCHEMA_VERSION, now),
@@ -389,6 +397,119 @@ class SupervisorStore:
             "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
         ).fetchall()
         return [str(row[0]) for row in rows]
+
+    def _ensure_action_canonical_identity(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute("PRAGMA table_info(actions)").fetchall()
+        }
+        if "canonical_identity" not in columns:
+            self._connection.execute(
+                "ALTER TABLE actions "
+                "ADD COLUMN canonical_identity TEXT NOT NULL DEFAULT ''"
+            )
+        rows = self._connection.execute(
+            """
+            SELECT action_id, run_id, run_revision, policy, phase, action_type, task_id
+            FROM actions
+            """
+        ).fetchall()
+        for row in rows:
+            canonical_identity = self._canonical_action_identity(
+                run_id=str(row["run_id"]),
+                run_revision=int(row["run_revision"]),
+                policy=str(row["policy"]),
+                phase=str(row["phase"]),
+                action_type=str(row["action_type"]),
+                task_id=str(row["task_id"]),
+            )
+            self._connection.execute(
+                "UPDATE actions SET canonical_identity = ? WHERE action_id = ?",
+                (canonical_identity, row["action_id"]),
+            )
+        try:
+            self._connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS actions_canonical_identity_idx "
+                "ON actions(canonical_identity)"
+            )
+        except sqlite3.IntegrityError as exc:
+            raise RuntimeError(
+                "cannot migrate duplicate canonical action identities"
+            ) from exc
+
+    def _ensure_stable_review_finding_identity(self) -> None:
+        has_stable_unique_key = False
+        for index in self._connection.execute(
+            "PRAGMA index_list(review_findings)"
+        ).fetchall():
+            if not int(index["unique"]):
+                continue
+            columns = [
+                str(row["name"])
+                for row in self._connection.execute(
+                    f"PRAGMA index_info({index['name']})"
+                ).fetchall()
+            ]
+            if columns == ["finding_key"]:
+                has_stable_unique_key = True
+                break
+        if has_stable_unique_key:
+            return
+
+        self._connection.execute(
+            """
+            CREATE TABLE review_findings_v4 (
+              finding_id TEXT PRIMARY KEY,
+              review_id TEXT NOT NULL REFERENCES reviews(review_id) ON DELETE CASCADE,
+              finding_key TEXT NOT NULL UNIQUE,
+              status TEXT NOT NULL,
+              summary TEXT NOT NULL DEFAULT '',
+              remediation_action_id TEXT NOT NULL DEFAULT '',
+              occurrence_count INTEGER NOT NULL DEFAULT 1,
+              first_seen_at TEXT NOT NULL,
+              last_seen_at TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """
+        )
+        self._connection.execute(
+            """
+            WITH ranked AS (
+              SELECT findings.*,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY finding_key
+                       ORDER BY last_seen_at DESC, updated_at DESC, rowid DESC
+                     ) AS identity_rank,
+                     SUM(occurrence_count) OVER (
+                       PARTITION BY finding_key
+                     ) AS total_occurrences,
+                     MIN(first_seen_at) OVER (
+                       PARTITION BY finding_key
+                     ) AS earliest_first_seen,
+                     MAX(last_seen_at) OVER (
+                       PARTITION BY finding_key
+                     ) AS latest_last_seen,
+                     MIN(created_at) OVER (
+                       PARTITION BY finding_key
+                     ) AS earliest_created_at
+              FROM review_findings AS findings
+            )
+            INSERT INTO review_findings_v4(
+              finding_id, review_id, finding_key, status, summary,
+              remediation_action_id, occurrence_count, first_seen_at,
+              last_seen_at, created_at, updated_at
+            )
+            SELECT finding_id, review_id, finding_key, status, summary,
+                   remediation_action_id, total_occurrences, earliest_first_seen,
+                   latest_last_seen, earliest_created_at, updated_at
+            FROM ranked WHERE identity_rank = 1
+            """
+        )
+        self._connection.execute("DROP TABLE review_findings")
+        self._connection.execute(
+            "ALTER TABLE review_findings_v4 RENAME TO review_findings"
+        )
 
     def pragma(self, name: str) -> Any:
         if name not in {"journal_mode", "foreign_keys", "busy_timeout", "user_version"}:
@@ -427,22 +548,63 @@ class SupervisorStore:
         artifacts = self._validate_artifact_paths(artifact_paths)
         payload_json = self._json(payload)
         artifact_json = self._json(artifacts)
+        canonical_identity = self._canonical_action_identity(
+            run_id=request.run_id,
+            run_revision=request.run_revision,
+            policy=request.policy,
+            phase=request.phase,
+            action_type=request.action_type.value,
+            task_id=request.task_id,
+        )
         now = self._now_text()
         with self._immediate_transaction():
-            existing = self._connection.execute(
+            existing_by_key = self._connection.execute(
                 "SELECT * FROM actions WHERE idempotency_key = ?",
                 (request.idempotency_key,),
             ).fetchone()
+            existing_by_identity = self._connection.execute(
+                "SELECT * FROM actions WHERE canonical_identity = ?",
+                (canonical_identity,),
+            ).fetchone()
+            if (
+                existing_by_key is not None
+                and existing_by_identity is not None
+                and existing_by_key["action_id"] != existing_by_identity["action_id"]
+            ):
+                raise ValueError("idempotency identity conflict spans multiple actions")
+            existing = existing_by_key or existing_by_identity
             if existing is not None:
+                expected_identity = (
+                    request.run_id,
+                    request.run_revision,
+                    request.phase,
+                    request.action_type.value,
+                    request.task_id,
+                    request.policy,
+                    canonical_identity,
+                )
+                stored_identity = (
+                    str(existing["run_id"]),
+                    int(existing["run_revision"]),
+                    str(existing["phase"]),
+                    str(existing["action_type"]),
+                    str(existing["task_id"]),
+                    str(existing["policy"]),
+                    str(existing["canonical_identity"]),
+                )
+                if stored_identity != expected_identity:
+                    raise ValueError(
+                        "idempotency identity conflict between stored and incoming action"
+                    )
                 run = self._connection.execute(
                     "SELECT revision, phase FROM runs WHERE run_id = ?",
-                    (request.run_id,),
+                    (existing["run_id"],),
                 ).fetchone()
                 reopen = (
                     existing["status"] == "completed"
                     and run is not None
-                    and int(run["revision"]) == request.run_revision
-                    and str(run["phase"]) == request.phase
+                    and int(run["revision"]) == int(existing["run_revision"])
+                    and str(run["phase"]) == str(existing["phase"])
                 )
                 stored_payload_json = (
                     str(existing["payload_json"])
@@ -457,8 +619,8 @@ class SupervisorStore:
                 self._connection.execute(
                     """
                     UPDATE actions
-                    SET policy = ?, phase = ?, task_id = ?, next_action = ?, priority = ?,
-                        recovery_tier = ?, payload_json = ?, artifact_json = ?,
+                    SET next_action = ?, priority = ?, recovery_tier = ?,
+                        payload_json = ?, artifact_json = ?,
                         status = CASE WHEN ? THEN 'pending' ELSE status END,
                         lease_owner = CASE WHEN ? THEN '' ELSE lease_owner END,
                         lease_expires_at = CASE WHEN ? THEN '' ELSE lease_expires_at END,
@@ -467,9 +629,6 @@ class SupervisorStore:
                     WHERE action_id = ?
                     """,
                     (
-                        request.policy,
-                        request.phase,
-                        request.task_id,
                         request.next_action,
                         priority,
                         recovery_tier,
@@ -491,14 +650,16 @@ class SupervisorStore:
                 self._connection.execute(
                     """
                     INSERT INTO actions(
-                      action_id, idempotency_key, run_id, run_revision, policy, phase,
+                      action_id, idempotency_key, canonical_identity,
+                      run_id, run_revision, policy, phase,
                       action_type, task_id, next_action, status, priority, recovery_tier,
                       payload_json, artifact_json, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         request.action_id,
                         request.idempotency_key,
+                        canonical_identity,
                         request.run_id,
                         request.run_revision,
                         request.policy,
@@ -534,29 +695,30 @@ class SupervisorStore:
             self._now() - timedelta(seconds=heartbeat_stale_seconds)
         )
         with self._immediate_transaction():
-            self._write_worker_heartbeat(worker_id, now)
             row = self._connection.execute(
                 """
                 SELECT a.* FROM actions AS a
                 JOIN runs AS r
-                  ON r.run_id = a.run_id AND r.revision = a.run_revision
+                  ON r.run_id = a.run_id
+                 AND r.revision = a.run_revision
+                 AND r.phase = a.phase
                 LEFT JOIN workers AS owner ON owner.worker_id = a.lease_owner
                 WHERE a.status = 'pending'
                    OR (
                      a.status IN ('leased', 'running')
                      AND a.lease_expires_at <= ?
                      AND (
-                       a.lease_owner = ?
-                       OR owner.worker_id IS NULL
+                       owner.worker_id IS NULL
                        OR owner.heartbeat_at < ?
                      )
                    )
                 ORDER BY a.priority ASC, a.created_at ASC, a.action_id ASC
                 LIMIT 1
                 """,
-                (now, worker_id, heartbeat_cutoff),
+                (now, heartbeat_cutoff),
             ).fetchone()
             if row is None:
+                self._write_worker_heartbeat(worker_id, now)
                 return None
             updated = self._connection.execute(
                 """
@@ -570,6 +732,7 @@ class SupervisorStore:
                       SELECT 1 FROM runs
                       WHERE runs.run_id = actions.run_id
                         AND runs.revision = actions.run_revision
+                        AND runs.phase = actions.phase
                     )
                   )
                   OR (
@@ -579,14 +742,12 @@ class SupervisorStore:
                       SELECT 1 FROM runs
                       WHERE runs.run_id = actions.run_id
                         AND runs.revision = actions.run_revision
+                        AND runs.phase = actions.phase
                     )
-                    AND (
-                      lease_owner = ?
-                      OR NOT EXISTS (
-                        SELECT 1 FROM workers
-                        WHERE workers.worker_id = actions.lease_owner
-                          AND workers.heartbeat_at >= ?
-                      )
+                    AND NOT EXISTS (
+                      SELECT 1 FROM workers
+                      WHERE workers.worker_id = actions.lease_owner
+                        AND workers.heartbeat_at >= ?
                     )
                   )
                 )
@@ -598,10 +759,10 @@ class SupervisorStore:
                     now,
                     row["action_id"],
                     now,
-                    worker_id,
                     heartbeat_cutoff,
                 ),
             )
+            self._write_worker_heartbeat(worker_id, now)
             if updated.rowcount != 1:
                 return None
             leased = self._connection.execute(
@@ -627,6 +788,7 @@ class SupervisorStore:
                     SELECT 1 FROM runs
                     WHERE runs.run_id = actions.run_id
                       AND runs.revision = actions.run_revision
+                      AND runs.phase = actions.phase
                   )
                 """,
                 (expires_at, now, now, action_id, worker_id),
@@ -654,6 +816,7 @@ class SupervisorStore:
         if not isinstance(result, ActionResult):
             raise TypeError("result must be an ActionResult")
         self._validate_summary(result.summary)
+        self._validate_checkpoint(result.checkpoint)
         artifacts = self._validate_artifact_paths(result.artifact_paths)
         now = self._now_text()
         attempt_id = f"attempt-{uuid4().hex}"
@@ -674,13 +837,16 @@ class SupervisorStore:
                     f"worker does not own a live lease for action: {action_id}"
                 )
             current_run = self._connection.execute(
-                "SELECT revision FROM runs WHERE run_id = ?", (action["run_id"],)
+                "SELECT revision, phase FROM runs WHERE run_id = ?",
+                (action["run_id"],),
             ).fetchone()
-            if current_run is None or int(current_run["revision"]) != int(
-                action["run_revision"]
+            if (
+                current_run is None
+                or int(current_run["revision"]) != int(action["run_revision"])
+                or str(current_run["phase"]) != str(action["phase"])
             ):
                 raise LeaseError(
-                    f"action does not match current run revision: {action_id}"
+                    f"action does not match current run revision and phase: {action_id}"
                 )
             tier = (
                 int(action["recovery_tier"]) if recovery_tier is None else recovery_tier
@@ -769,6 +935,11 @@ class SupervisorStore:
             "summary": projection_summary,
             "artifact_refs": artifact_refs,
         }
+        summary_json = self._json(summary)
+        loop_lineage_id = str(projection.get("loop_lineage_id", ""))
+        parent_run_id = str(projection.get("parent_run_id", ""))
+        policy = str(projection.get("policy", ""))
+        status = str(projection.get("status", ""))
         with self._immediate_transaction():
             existing = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
@@ -783,13 +954,13 @@ class SupervisorStore:
                     """,
                     (
                         run_id,
-                        str(projection.get("loop_lineage_id", "")),
-                        str(projection.get("parent_run_id", "")),
-                        str(projection.get("policy", "")),
+                        loop_lineage_id,
+                        parent_run_id,
+                        policy,
                         phase,
-                        str(projection.get("status", "")),
+                        status,
                         revision,
-                        self._json(summary),
+                        summary_json,
                         now,
                         now,
                         now,
@@ -801,12 +972,33 @@ class SupervisorStore:
                     raise ValueError(
                         f"stale run projection revision {revision}; current is {current_revision}"
                     )
-                if revision == current_revision and existing["phase"] != phase:
-                    raise ValueError(
-                        "run projection phase changed without increasing revision"
+                if revision == current_revision:
+                    incoming_projection = (
+                        loop_lineage_id,
+                        parent_run_id,
+                        policy,
+                        phase,
+                        status,
+                        summary_json,
                     )
-                changed = current_revision != revision or existing["phase"] != phase
-                if changed:
+                    stored_projection = (
+                        str(existing["loop_lineage_id"]),
+                        str(existing["parent_run_id"]),
+                        str(existing["policy"]),
+                        str(existing["phase"]),
+                        str(existing["status"]),
+                        str(existing["summary_json"]),
+                    )
+                    if incoming_projection != stored_projection:
+                        raise ValueError(
+                            "same-revision run projection conflict: "
+                            "only last_seen_at may change"
+                        )
+                    self._connection.execute(
+                        "UPDATE runs SET last_seen_at = ? WHERE run_id = ?",
+                        (now, run_id),
+                    )
+                else:
                     self._insert_transition(
                         run_id=run_id,
                         from_revision=int(existing["revision"]),
@@ -818,31 +1010,26 @@ class SupervisorStore:
                         artifact_paths=(),
                         created_at=now,
                     )
-                self._connection.execute(
-                    """
-                    UPDATE runs SET loop_lineage_id = ?, parent_run_id = ?, policy = ?,
-                      phase = ?, status = ?, revision = ?, summary_json = ?,
-                      updated_at = CASE WHEN ? THEN ? ELSE updated_at END, last_seen_at = ?
-                    WHERE run_id = ?
-                    """,
-                    (
-                        str(
-                            projection.get(
-                                "loop_lineage_id", existing["loop_lineage_id"]
-                            )
+                    self._connection.execute(
+                        """
+                        UPDATE runs SET loop_lineage_id = ?, parent_run_id = ?, policy = ?,
+                          phase = ?, status = ?, revision = ?, summary_json = ?,
+                          updated_at = ?, last_seen_at = ?
+                        WHERE run_id = ?
+                        """,
+                        (
+                            loop_lineage_id,
+                            parent_run_id,
+                            policy,
+                            phase,
+                            status,
+                            revision,
+                            summary_json,
+                            now,
+                            now,
+                            run_id,
                         ),
-                        str(projection.get("parent_run_id", existing["parent_run_id"])),
-                        str(projection.get("policy", existing["policy"])),
-                        phase,
-                        str(projection.get("status", existing["status"])),
-                        revision,
-                        self._json(summary),
-                        changed,
-                        now,
-                        now,
-                        run_id,
-                    ),
-                )
+                    )
             row = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
             ).fetchone()
@@ -1068,8 +1255,9 @@ class SupervisorStore:
                       finding_id, review_id, finding_key, status, summary,
                       remediation_action_id, first_seen_at, last_seen_at, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(finding_key, status) DO UPDATE SET
-                      review_id = excluded.review_id, summary = excluded.summary,
+                    ON CONFLICT(finding_key) DO UPDATE SET
+                      review_id = excluded.review_id, status = excluded.status,
+                      summary = excluded.summary,
                       remediation_action_id = excluded.remediation_action_id,
                       occurrence_count = review_findings.occurrence_count + 1,
                       last_seen_at = excluded.last_seen_at, updated_at = excluded.updated_at
@@ -1118,6 +1306,8 @@ class SupervisorStore:
         direction = "next"
         boundary: tuple[str, str] | None = None
         snapshot: tuple[str, str] | None = None
+        snapshot_sequence = 0
+        snapshot_total = 0
         if cursor:
             payload = self._decode_cursor(cursor)
             if payload.get("schema_version") != SCHEMA_VERSION:
@@ -1133,10 +1323,23 @@ class SupervisorStore:
                 raise CursorError("cursor direction is invalid")
             snapshot = self._cursor_position(payload.get("snapshot"), "snapshot")
             boundary = self._cursor_position(payload.get("boundary"), "boundary")
+            snapshot_sequence = self._cursor_non_negative_int(
+                payload.get("snapshot_sequence"), "snapshot_sequence"
+            )
+            snapshot_total = self._cursor_non_negative_int(
+                payload.get("snapshot_total"), "snapshot_total"
+            )
         else:
+            snapshot_sequence = int(
+                self._connection.execute(
+                    f"SELECT COALESCE(MAX(rowid), 0) FROM {table}"
+                ).fetchone()[0]
+            )
             snapshot_where, snapshot_parameters = self._filter_clause(
                 normalized_filters
             )
+            snapshot_where.append("rowid <= ?")
+            snapshot_parameters.append(snapshot_sequence)
             snapshot_where_sql = (
                 f" WHERE {' AND '.join(snapshot_where)}" if snapshot_where else ""
             )
@@ -1157,6 +1360,8 @@ class SupervisorStore:
         if cursor and boundary is None:
             raise CursorError("cursor boundary is invalid")
         where, parameters = self._filter_clause(normalized_filters)
+        where.append("rowid <= ?")
+        parameters.append(snapshot_sequence)
         if snapshot is not None:
             self._append_position_condition(
                 where,
@@ -1188,6 +1393,8 @@ class SupervisorStore:
             selected.reverse()
         items = [self._decoded_row(row) for row in selected]
         base_where, base_parameters = self._filter_clause(normalized_filters)
+        base_where.append("rowid <= ?")
+        base_parameters.append(snapshot_sequence)
         if snapshot is not None:
             self._append_position_condition(
                 base_where,
@@ -1198,11 +1405,15 @@ class SupervisorStore:
                 snapshot,
             )
         base_where_sql = f" WHERE {' AND '.join(base_where)}" if base_where else ""
-        total = int(
-            self._connection.execute(
-                f"SELECT COUNT(*) FROM {table}{base_where_sql}", base_parameters
-            ).fetchone()[0]
-        )
+        if cursor:
+            total = snapshot_total
+        else:
+            total = int(
+                self._connection.execute(
+                    f"SELECT COUNT(*) FROM {table}{base_where_sql}", base_parameters
+                ).fetchone()[0]
+            )
+            snapshot_total = total
         next_cursor = None
         previous_cursor = None
         if selected:
@@ -1214,6 +1425,7 @@ class SupervisorStore:
                 primary_key,
                 normalized_filters,
                 snapshot,
+                snapshot_sequence,
                 "<",
                 str(last[timestamp_column]),
                 str(last[primary_key]),
@@ -1224,6 +1436,8 @@ class SupervisorStore:
                     page_size,
                     filter_fingerprint,
                     snapshot,
+                    snapshot_sequence,
+                    snapshot_total,
                     "next",
                     (str(last[timestamp_column]), str(last[primary_key])),
                 )
@@ -1233,6 +1447,7 @@ class SupervisorStore:
                 primary_key,
                 normalized_filters,
                 snapshot,
+                snapshot_sequence,
                 ">",
                 str(first[timestamp_column]),
                 str(first[primary_key]),
@@ -1243,6 +1458,8 @@ class SupervisorStore:
                     page_size,
                     filter_fingerprint,
                     snapshot,
+                    snapshot_sequence,
+                    snapshot_total,
                     "previous",
                     (str(first[timestamp_column]), str(first[primary_key])),
                 )
@@ -1447,6 +1664,8 @@ class SupervisorStore:
         page_size: int,
         filter_fingerprint: str,
         snapshot: tuple[str, str],
+        snapshot_sequence: int,
+        snapshot_total: int,
         direction: str,
         boundary: tuple[str, str],
     ) -> str:
@@ -1457,6 +1676,8 @@ class SupervisorStore:
             "page_size": page_size,
             "filter_fingerprint": filter_fingerprint,
             "direction": direction,
+            "snapshot_sequence": snapshot_sequence,
+            "snapshot_total": snapshot_total,
             "snapshot": {
                 "sort_timestamp": snapshot[0],
                 "primary_key": snapshot[1],
@@ -1514,11 +1735,14 @@ class SupervisorStore:
         primary_key: str,
         filters: Mapping[str, Any],
         snapshot: tuple[str, str] | None,
+        snapshot_sequence: int,
         operator: str,
         timestamp: str,
         key: str,
     ) -> bool:
         where, parameters = self._filter_clause(filters)
+        where.append("rowid <= ?")
+        parameters.append(snapshot_sequence)
         if snapshot is not None:
             self._append_position_condition(
                 where,
@@ -1569,6 +1793,12 @@ class SupervisorStore:
         return timestamp, primary_key
 
     @staticmethod
+    def _cursor_non_negative_int(value: object, name: str) -> int:
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise CursorError(f"cursor {name} is invalid")
+        return value
+
+    @staticmethod
     def _filter_clause(filters: Mapping[str, Any]) -> tuple[list[str], list[Any]]:
         clauses: list[str] = []
         parameters: list[Any] = []
@@ -1597,6 +1827,7 @@ class SupervisorStore:
         return ActionRecord(
             action_id=str(row["action_id"]),
             idempotency_key=str(row["idempotency_key"]),
+            canonical_identity=str(row["canonical_identity"]),
             run_id=str(row["run_id"]),
             run_revision=int(row["run_revision"]),
             policy=str(row["policy"]),
@@ -1662,7 +1893,15 @@ class SupervisorStore:
             if isinstance(value, Mapping):
                 for key, item in value.items():
                     normalized_key = key.lower().replace("-", "_")
-                    if normalized_key in INLINE_LOG_BODY_KEYS:
+                    is_stream_key = (
+                        "stdout" in normalized_key or "stderr" in normalized_key
+                    )
+                    is_explicit_stream_reference = normalized_key.endswith(
+                        ("_path", "_ref")
+                    )
+                    if normalized_key in INLINE_LOG_BODY_KEYS or (
+                        is_stream_key and not is_explicit_stream_reference
+                    ):
                         raise ValueError(
                             f"payload contains forbidden inline log body key: {key}"
                         )
@@ -1678,6 +1917,10 @@ class SupervisorStore:
                         references = item if normalized_key.endswith("s") else (item,)
                         self._validate_artifact_paths(
                             references, field_name=f"payload {key}"
+                        )
+                    elif is_stream_key and normalized_key.endswith("_ref"):
+                        self._validate_artifact_paths(
+                            (item,), field_name=f"payload {key}"
                         )
                     visit(item)
             elif isinstance(value, (list, tuple)):
@@ -1737,11 +1980,54 @@ class SupervisorStore:
         if len(value.encode("utf-8")) > MAX_SUMMARY_BYTES:
             raise ValueError(f"{field_name} exceeds {MAX_SUMMARY_BYTES} encoded bytes")
 
+    def _validate_checkpoint(self, value: object) -> None:
+        if not isinstance(value, str):
+            raise TypeError("checkpoint must be a string")
+        if not value:
+            return
+        if len(value) > MAX_CHECKPOINT_CHARS:
+            raise ValueError(f"checkpoint exceeds {MAX_CHECKPOINT_CHARS} characters")
+        if len(value.encode("utf-8")) > MAX_CHECKPOINT_BYTES:
+            raise ValueError(f"checkpoint exceeds {MAX_CHECKPOINT_BYTES} encoded bytes")
+        if (
+            "\n" in value
+            or "\r" in value
+            or "\x00" in value
+            or "\\" in value
+            or "://" in value
+            or SAFE_CHECKPOINT_PATTERN.fullmatch(value) is None
+        ):
+            raise ValueError("checkpoint must be a safe single-line reference")
+        if "/" in value:
+            self._validate_artifact_paths((value,), field_name="checkpoint")
+
     @staticmethod
     def _json(value: Any) -> str:
         return json.dumps(
             value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
         )
+
+    @staticmethod
+    def _canonical_action_identity(
+        *,
+        run_id: str,
+        run_revision: int,
+        policy: str,
+        phase: str,
+        action_type: str,
+        task_id: str,
+    ) -> str:
+        canonical = SupervisorStore._json(
+            {
+                "action_type": action_type,
+                "phase": phase,
+                "policy": policy,
+                "run_id": run_id,
+                "run_revision": run_revision,
+                "task_id": task_id,
+            }
+        ).encode("utf-8")
+        return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
 
     @staticmethod
     def _required_text(value: object, field_name: str) -> str:
