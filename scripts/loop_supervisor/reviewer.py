@@ -33,7 +33,11 @@ from .models import (
 )
 from .registry import reviewer_schedule_transition
 from .reviewer_runtime import ActionLeaseGuard
-from .reviewer_safety import ReviewSafetyGate, evaluate_review_safety_gate
+from .reviewer_safety import (
+    ReviewSafetyGate,
+    evaluate_review_safety_gate,
+    require_review_safety_clear,
+)
 from .reviewer_outbox import ApplicationCutpoint, apply_review_outbox
 from .store import LeaseError, SupervisorStore
 
@@ -559,6 +563,9 @@ def run_reviewer(
             attempt=1,
             timeout_seconds=context.timeout_seconds,
         )
+        gate = evaluate_review_safety_gate(store)
+        if not gate.passed:
+            raise RuntimeError("Reviewer safety gate failed after driver execution")
         if not isinstance(attempt, Mapping) or attempt.get("status") != "pass":
             status = str(attempt.get("status") if isinstance(attempt, Mapping) else "invalid_driver_result")
             raise RuntimeError(f"Reviewer execution did not pass: {status}")
@@ -678,6 +685,7 @@ def run_queued_reviewer(
         owner_id=reviewer_id,
         lease_seconds=lease_seconds,
         heartbeat_seconds=heartbeat_seconds,
+        safety_checkpoint=lambda: require_review_safety_clear(store),
     ) as guard:
         persisted = store.resumable_review_for_action(action.action_id)
         if persisted is not None:

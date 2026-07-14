@@ -7,6 +7,7 @@ import pytest
 
 from scripts.loop_supervisor.models import ActionOwner, ActionRequest, ActionType
 from scripts.loop_supervisor.reviewer_runtime import ActionLeaseGuard
+from scripts.loop_supervisor.reviewer_safety import require_review_safety_clear
 from scripts.loop_supervisor.store import LeaseError, SupervisorStore
 
 
@@ -94,3 +95,27 @@ def test_action_lease_guard_prevents_side_effect_after_lease_loss(
             side_effects.append("mutated")
 
     assert side_effects == []
+
+
+def test_action_lease_guard_rejects_renewal_after_global_stop(tmp_path) -> None:
+    store, request = leased_supervisor_action(tmp_path)
+
+    with ActionLeaseGuard(
+        store,
+        action_id=request.action_id,
+        owner_id="reviewer-test",
+        lease_seconds=2,
+        heartbeat_seconds=60,
+        safety_checkpoint=lambda: require_review_safety_clear(store),
+    ) as guard:
+        store.open_user_decision(
+            scope="global",
+            summary="Stop project automation.",
+            failure_key="global-stop:test",
+            required_decision="Resolve the global stop.",
+        )
+
+        with pytest.raises(LeaseError, match="safety gate"):
+            guard.checkpoint()
+
+    assert store.get_action(request.action_id).status == "leased"

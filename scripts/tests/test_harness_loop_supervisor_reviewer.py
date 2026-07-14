@@ -670,9 +670,16 @@ def _seed_v10_applying_review(
     *,
     accepted_artifact: bool,
     application_targets: bool = True,
+    tamper_evidence: bool = False,
+    changed_decision: bool = False,
+    wrong_source: bool = False,
+    reservation: bool = True,
 ) -> tuple[SupervisorStore, str, str]:
     store = migrated_store(tmp_path)
     record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    bundle = build_review_evidence(tmp_path, store, ("lineage-a",))
+    bundle_payload = bundle.as_dict()
+    reservation_id = "v10-review-reservation"
     source = ActionRequest(
         action_id="v10-reviewer-action",
         run_id="run-1",
@@ -682,36 +689,60 @@ def _seed_v10_applying_review(
         action_type=ActionType.RUN_REVIEWER,
         idempotency_key="v10-reviewer-action",
         queue_owner=ActionOwner.REVIEWER,
+        not_before=(store.current_time() - timedelta(minutes=10)).isoformat(),
+        task_id="review:v10-reviewer-action",
+        next_action="supervisor_reviewer",
+        payload={
+            "trigger": "regular_cadence",
+            "triggering_lineages": list(bundle.triggering_lineages),
+            "cadence_positions": dict(bundle.cadence_positions),
+            "reservation_id": reservation_id,
+            "worker_executable": False,
+        },
     )
-    store.enqueue_action(source)
+    if reservation:
+        store.reserve_review_action(
+            source,
+            reservation_id=reservation_id,
+            lineage_positions=bundle.cadence_positions,
+            due_at=store.current_time() - timedelta(minutes=20),
+            not_before=store.current_time() - timedelta(minutes=10),
+        )
+    else:
+        store.enqueue_action(source)
     review_id = "review-v10-applying"
     review_dir = tmp_path / ".codex" / "supervisor" / "reviews" / review_id
     review_dir.mkdir(parents=True)
     evidence_path = review_dir / f"{review_id}-evidence.json"
     accepted_path = review_dir / f"{review_id}.json"
-    evidence_hash = f"sha256:{'a' * 64}"
+    if tamper_evidence:
+        bundle_payload["evidence"]["objective_constraints"][0]["constraints"] = [
+            "tampered after acceptance"
+        ]
     evidence_path.write_text(
-        json.dumps(
-            {
-                "evidence_hashes": {"objective_constraints": evidence_hash},
-                "evidence": {"skill_governance": {"inventory": []}},
-            }
-        )
-        + "\n",
-        encoding="utf-8",
+        json.dumps(bundle_payload) + "\n", encoding="utf-8"
     )
     candidate = valid_review_payload(
         review_id=review_id,
         decision="refocus",
         affected_run_ids=["run-1"],
-        evidence_refs=[evidence_hash],
+        evidence_refs=list(bundle.evidence_hashes.values()),
     )
+    if changed_decision:
+        candidate["decision"] = "stop_run"
     if accepted_artifact:
         accepted_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
+    gate_id = "review-gate-v10-applying"
+    store.record_review_safety_gate(gate_id, status="pass", checks={"passed": True})
     store.record_review(
         review_id=review_id,
         trigger=json.dumps(
-            {"kind": "project_global", "triggering_lineages": ["lineage-a"]}
+            {
+                "kind": "project_global",
+                "triggering_lineages": list(bundle.triggering_lineages),
+                "cadence_positions": dict(bundle.cadence_positions),
+                "safety_gate_id": gate_id,
+            }
         ),
         status="review_applying",
         decision="refocus",
@@ -723,6 +754,7 @@ def _seed_v10_applying_review(
     )
     run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
     run_payload = json.loads(run_path.read_text(encoding="utf-8"))
+    expected_fingerprint = _state_fingerprint(run_payload)
     target = ActionRequest(
         action_id="v10-review-target",
         run_id="run-1",
@@ -732,6 +764,13 @@ def _seed_v10_applying_review(
         action_type=ActionType.REFOCUS_RUN,
         idempotency_key="v10-review-target",
         queue_owner=ActionOwner.SUPERVISOR,
+        payload={
+            "review_id": review_id,
+            "review_decision": "refocus",
+            "expected_revision": 1,
+            "expected_fingerprint": expected_fingerprint,
+            "worker_executable": False,
+        },
     )
     if application_targets:
         store.prepare_review_application(
@@ -742,7 +781,7 @@ def _seed_v10_applying_review(
                     target,
                     {
                         "expected_revision": 1,
-                        "expected_fingerprint": _state_fingerprint(run_payload),
+                        "expected_fingerprint": expected_fingerprint,
                         "source_phase": "stopped_budget",
                         "target_phase": "planning",
                         "target_next_action": "run_autonomous_planner",
@@ -751,6 +790,25 @@ def _seed_v10_applying_review(
                 )
             ],
         )
+    if wrong_source:
+        store._connection.execute(
+            "UPDATE actions SET status = 'completed' WHERE action_id = ?",
+            (source.action_id,),
+        )
+        rogue = ActionRequest(
+            action_id="v10-rogue-reviewer-action",
+            run_id="run-1",
+            run_revision=1,
+            policy="autonomous_knowledge",
+            phase="stopped_budget",
+            action_type=ActionType.RUN_REVIEWER,
+            idempotency_key="v10-rogue-reviewer-action",
+            queue_owner=ActionOwner.REVIEWER,
+            task_id="review:v10-rogue",
+            next_action="supervisor_reviewer",
+            payload={"triggering_lineages": ["wrong-lineage"]},
+        )
+        store.enqueue_action(rogue)
     store._connection.execute("ALTER TABLE reviews DROP COLUMN accepted_review_json")
     store._connection.execute("ALTER TABLE reviews DROP COLUMN source_action_id")
     store._connection.execute("PRAGMA user_version=10")
@@ -826,6 +884,42 @@ def test_v10_affected_review_without_revision_targets_blocks_llm_reinvocation(
     review = reopened.fetch_all("reviews")[0]
     assert review["status"] == "review_migration_blocked"
     assert reopened.get_action("v10-reviewer-action").status == "migration_blocked"
+
+
+@pytest.mark.parametrize(
+    "fixture_options",
+    [
+        {"tamper_evidence": True},
+        {"changed_decision": True},
+        {"reservation": False},
+        {"wrong_source": True},
+    ],
+)
+def test_v10_untrusted_identity_or_artifacts_block_llm_reinvocation(
+    tmp_path: Path,
+    fixture_options: dict[str, bool],
+) -> None:
+    _seed_v10_applying_review(
+        tmp_path,
+        accepted_artifact=True,
+        **fixture_options,
+    )
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-v10-untrusted",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("untrusted v10 migration must not invoke an LLM")
+        ),
+    )
+
+    assert result is None
+    review = reopened.fetch_all("reviews")[0]
+    assert review["status"] == "review_migration_blocked"
+    if fixture_options.get("wrong_source"):
+        assert review["source_action_id"] != "v10-rogue-reviewer-action"
 
 
 def test_reviewer_module_exposes_distinct_once_service_path(tmp_path: Path) -> None:
@@ -956,6 +1050,111 @@ def test_reviewer_fail_open_gate_reads_fresh_owned_global_safety_signals(
     assert checks["fresh_global_safety_signals"] == [
         {"run_id": "run-1", "signal": expected_signal}
     ]
+
+
+def test_reviewer_recomputes_global_decisions_after_driver_before_fail_open(
+    tmp_path: Path,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+
+    def driver(**_kwargs: object) -> dict[str, object]:
+        store.open_user_decision(
+            scope="global",
+            summary="Stop while Reviewer is running.",
+            failure_key="global-stop:in-flight",
+            required_decision="Resolve the global stop.",
+        )
+        return {"status": "timeout", "exit_code": 124}
+
+    result = run_reviewer(
+        ReviewerContext(tmp_path, store, ("lineage-a",)),
+        driver=driver,
+    )
+
+    assert result.status == "review_degraded"
+    assert result.blocks_safe_runs is True
+    assert [row["status"] for row in store.fetch_all("review_safety_gates")] == [
+        "pass",
+        "fail",
+    ]
+
+
+@pytest.mark.parametrize(
+    "signal",
+    [
+        "secret_exposure_confirmed",
+        "repo_corruption",
+        "permission_expansion_required",
+        "irreversible_operation_required",
+        "explicit_global_stop",
+    ],
+)
+def test_reviewer_recomputes_each_canonical_signal_after_driver(
+    tmp_path: Path,
+    signal: str,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
+
+    def driver(**_kwargs: object) -> dict[str, object]:
+        payload = json.loads(run_path.read_text(encoding="utf-8"))
+        payload[signal] = True
+        run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        return {"status": "timeout", "exit_code": 124}
+
+    result = run_reviewer(
+        ReviewerContext(tmp_path, store, ("lineage-a",)),
+        driver=driver,
+    )
+
+    assert result.status == "review_degraded"
+    assert result.blocks_safe_runs is True
+    assert store.fetch_all("review_safety_gates")[-1]["status"] == "fail"
+
+
+def test_inflight_global_stop_prevents_accepted_review_application(
+    tmp_path: Path,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
+    before = run_path.read_bytes()
+
+    def driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        bundle = json.loads(
+            next(review_dir.glob("review-*-evidence.json")).read_text(
+                encoding="utf-8"
+            )
+        )
+        payload = valid_review_payload(
+            review_id=str(kwargs["run_id"]),
+            decision="refocus",
+            affected_run_ids=["run-1"],
+            evidence_refs=list(bundle["evidence_hashes"].values()),
+        )
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(payload) + "\n", encoding="utf-8"
+        )
+        store.open_user_decision(
+            scope="global",
+            summary="Stop before Reviewer application.",
+            failure_key="global-stop:before-application",
+            required_decision="Resolve the global stop.",
+        )
+        return {"status": "pass", "exit_code": 0}
+
+    result = run_reviewer(
+        ReviewerContext(tmp_path, store, ("lineage-a",)),
+        driver=driver,
+    )
+
+    assert result.status == "review_degraded"
+    assert result.blocks_safe_runs is True
+    assert run_path.read_bytes() == before
+    assert store.fetch_all("review_applications") == []
 
 
 def test_real_reviewer_path_validates_candidate_and_records_accepted_review(tmp_path: Path) -> None:

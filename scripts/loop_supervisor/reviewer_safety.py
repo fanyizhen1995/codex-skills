@@ -11,7 +11,7 @@ from uuid import uuid4
 from scripts.harness_loop_agents import validate_owned_regular_file
 
 from .safety_signals import detected_global_safety_signals
-from .store import SupervisorStore
+from .store import LeaseError, SupervisorStore
 
 
 @dataclass(frozen=True)
@@ -24,19 +24,7 @@ class ReviewSafetyGate:
 
 def evaluate_review_safety_gate(store: SupervisorStore) -> ReviewSafetyGate:
     """Evaluate and persist the shared deterministic gates immediately before review."""
-    open_global = [
-        str(row["decision_id"])
-        for row in store.fetch_all("user_decisions")
-        if row.get("status") == "open" and row.get("scope") == "global"
-    ]
-    fresh_signals = _fresh_global_safety_signals(store)
-    checks = {
-        "database_integrity": store.database_integrity_ok(),
-        "open_global_decision_ids": sorted(open_global),
-        "no_open_global_decisions": not open_global,
-        "fresh_global_safety_signals": fresh_signals,
-        "no_fresh_global_safety_signals": not fresh_signals,
-    }
+    checks = current_review_safety_checks(store)
     passed = bool(checks["database_integrity"]) and bool(
         checks["no_open_global_decisions"]
     ) and bool(checks["no_fresh_global_safety_signals"])
@@ -52,6 +40,35 @@ def evaluate_review_safety_gate(store: SupervisorStore) -> ReviewSafetyGate:
         checked_at=str(row["checked_at"]),
         checks=checks,
     )
+
+
+def current_review_safety_checks(store: SupervisorStore) -> dict[str, Any]:
+    """Read the canonical global safety state without persisting a gate row."""
+    open_global = [
+        str(row["decision_id"])
+        for row in store.fetch_all("user_decisions")
+        if row.get("status") == "open" and row.get("scope") == "global"
+    ]
+    fresh_signals = _fresh_global_safety_signals(store)
+    checks = {
+        "database_integrity": store.database_integrity_ok(),
+        "open_global_decision_ids": sorted(open_global),
+        "no_open_global_decisions": not open_global,
+        "fresh_global_safety_signals": fresh_signals,
+        "no_fresh_global_safety_signals": not fresh_signals,
+    }
+    return checks
+
+
+def require_review_safety_clear(store: SupervisorStore) -> None:
+    """Reject Reviewer renewal or side effects while any global gate is unsafe."""
+    checks = current_review_safety_checks(store)
+    if not checks["database_integrity"]:
+        raise LeaseError("Reviewer safety gate blocked by database integrity failure")
+    if not checks["no_open_global_decisions"]:
+        raise LeaseError("Reviewer safety gate blocked by an open global decision")
+    if not checks["no_fresh_global_safety_signals"]:
+        raise LeaseError("Reviewer safety gate blocked by a canonical global signal")
 
 
 def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]:

@@ -21,6 +21,7 @@ from .models import (
 )
 from .registry import review_application_for
 from .reviewer_runtime import ActionLeaseGuard
+from .reviewer_safety import require_review_safety_clear
 from .store import SupervisorStore
 
 
@@ -197,6 +198,7 @@ def _apply_target(
         owner_id=owner_id,
         lease_seconds=120,
         heartbeat_seconds=30,
+        safety_checkpoint=lambda: require_review_safety_clear(store),
     ) as guard:
         lease_checkpoint()
         guard.checkpoint()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from threading import Event, Thread
 from types import TracebackType
 from typing import Self
@@ -20,6 +21,7 @@ class ActionLeaseGuard:
         owner_id: str,
         lease_seconds: int,
         heartbeat_seconds: float,
+        safety_checkpoint: Callable[[], None] | None = None,
     ) -> None:
         if heartbeat_seconds <= 0:
             raise ValueError("heartbeat_seconds must be positive")
@@ -28,6 +30,7 @@ class ActionLeaseGuard:
         self._owner_id = owner_id
         self._lease_seconds = lease_seconds
         self._heartbeat_seconds = heartbeat_seconds
+        self._safety_checkpoint = safety_checkpoint
         self._finished = Event()
         self._lost = Event()
         self._error: BaseException | None = None
@@ -61,6 +64,8 @@ class ActionLeaseGuard:
             detail = f": {self._error}" if self._error is not None else ""
             raise LeaseError(f"Reviewer action lease lost{detail}")
         try:
+            if self._safety_checkpoint is not None:
+                self._safety_checkpoint()
             renewed = self._store.renew_lease(
                 self._action_id,
                 self._owner_id,
@@ -77,6 +82,8 @@ class ActionLeaseGuard:
     def _heartbeat(self) -> None:
         while not self._finished.wait(self._heartbeat_seconds):
             try:
+                if self._safety_checkpoint is not None:
+                    self._safety_checkpoint()
                 renewed = self._store.renew_lease(
                     self._action_id,
                     self._owner_id,
