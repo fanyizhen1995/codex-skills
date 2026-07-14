@@ -1311,6 +1311,33 @@ def test_identical_open_user_decision_replay_does_not_write(tmp_path):
     assert store.count("user_decisions") == 1
 
 
+def test_close_user_decision_compare_and_swap_preserves_newer_open_update(tmp_path):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+    observed = store.open_user_decision(
+        scope="global",
+        failure_key="secret:global",
+        summary="initial observation",
+    )
+    clock.advance(seconds=1)
+    newer = store.open_user_decision(
+        scope="global",
+        failure_key="secret:global",
+        summary="newer observation",
+    )
+
+    closed = store.close_user_decision(
+        observed["decision_id"],
+        resolution="stale close",
+        expected_updated_at=observed["updated_at"],
+    )
+
+    assert closed is None
+    current = store.fetch_all("user_decisions")[0]
+    assert current["status"] == "open"
+    assert current["summary"] == newer["summary"]
+
+
 def _seed_transitions(
     store: SupervisorStore, count: int, *, run_id: str = "run-1"
 ) -> None:

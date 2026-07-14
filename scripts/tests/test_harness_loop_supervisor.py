@@ -4,15 +4,19 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
 
 from scripts.harness_loop_supervisor import (
     SupervisorConfig,
+    main,
     run_supervisor_once,
 )
 from scripts.loop_supervisor.models import ActionType
 from scripts.loop_supervisor.reconciler import (
+    _state_fingerprint,
     atomic_save_run,
     desired_action_for_run,
     discover_run_records,
@@ -146,6 +150,65 @@ def test_watch_cli_can_stop_after_one_reconcile_tick(tmp_path):
     assert state["last_tick_at"].endswith("Z")
 
 
+def test_watch_reports_transient_tick_error_and_continues(
+    tmp_path, monkeypatch, capsys
+):
+    calls = 0
+
+    def fail_once(config):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("temporary discovery failure " + "x" * 1000)
+        return {"status": "healthy", "tick": calls}
+
+    monkeypatch.setattr(
+        "scripts.harness_loop_supervisor.run_supervisor_once", fail_once
+    )
+    monkeypatch.setattr("scripts.harness_loop_supervisor.time.sleep", lambda _: None)
+
+    assert (
+        main(
+            [
+                "--project-root",
+                str(tmp_path),
+                "--watch",
+                "--max-ticks",
+                "2",
+                "--interval-seconds",
+                "1",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert calls == 2
+    assert '"status": "error"' in output
+    assert '"tick": 2' in output
+    assert len(output) < 2000
+    state = json.loads(
+        (tmp_path / ".codex" / "supervisor" / "supervisor-state.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert state["status"] == "error"
+    assert state["error"]["class"] == "OSError"
+
+
+@pytest.mark.parametrize("control_error", [KeyboardInterrupt, SystemExit])
+def test_watch_does_not_catch_process_control_exceptions(
+    tmp_path, monkeypatch, control_error
+):
+    def stop(_config):
+        raise control_error()
+
+    monkeypatch.setattr("scripts.harness_loop_supervisor.run_supervisor_once", stop)
+
+    with pytest.raises(control_error):
+        main(["--project-root", str(tmp_path), "--watch"])
+
+
 def test_wrapper_has_no_direct_process_or_service_restart_execution_path():
     source = (REPO_ROOT / "scripts" / "harness_loop_supervisor.py").read_text(
         encoding="utf-8"
@@ -229,6 +292,98 @@ def test_reconcile_honors_existing_store_decisions_before_desired_actions(tmp_pa
     assert globally_blocked.queued_actions == []
 
 
+def test_reconcile_project_lock_serializes_entire_tick(tmp_path, monkeypatch):
+    seed_run(tmp_path, "run-1")
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    discovery_calls = 0
+    calls_lock = threading.Lock()
+    from scripts.loop_supervisor import reconciler
+
+    real_discover = reconciler.discover_run_records
+
+    def gated_discover(root, *, include_worktrees=True):
+        nonlocal discovery_calls
+        with calls_lock:
+            discovery_calls += 1
+            current = discovery_calls
+        if current == 1:
+            first_entered.set()
+            assert release_first.wait(timeout=5)
+        return real_discover(root, include_worktrees=include_worktrees)
+
+    monkeypatch.setattr(reconciler, "discover_run_records", gated_discover)
+    outcomes = []
+
+    def reconcile():
+        with migrated_store(tmp_path) as store:
+            outcomes.append(reconciler.reconcile_once(tmp_path, store))
+
+    first = threading.Thread(target=reconcile)
+    second = threading.Thread(target=reconcile)
+    first.start()
+    assert first_entered.wait(timeout=5)
+    second.start()
+    try:
+        time.sleep(0.2)
+        assert discovery_calls == 1
+    finally:
+        release_first.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert len(outcomes) == 2
+
+
+def test_reconcile_does_not_close_global_decision_updated_after_observation(
+    tmp_path, monkeypatch
+):
+    run_path = seed_run(tmp_path, "secret-run", unsafe_secret=True)
+    with migrated_store(tmp_path) as seed_store:
+        reconcile_once(tmp_path, seed_store)
+    cleared = json.loads(run_path.read_text(encoding="utf-8"))
+    cleared.pop("unsafe_secret")
+    run_path.write_text(json.dumps(cleared, indent=2) + "\n", encoding="utf-8")
+    store_a = migrated_store(tmp_path)
+    store_b = migrated_store(tmp_path)
+    before_close = threading.Event()
+    allow_close = threading.Event()
+    original_close = store_a.close_user_decision
+
+    def gated_close(decision_id, *, resolution, expected_updated_at=None):
+        before_close.set()
+        assert allow_close.wait(timeout=5)
+        return original_close(
+            decision_id,
+            resolution=resolution,
+            expected_updated_at=expected_updated_at,
+        )
+
+    monkeypatch.setattr(store_a, "close_user_decision", gated_close)
+    outcome = []
+
+    thread = threading.Thread(
+        target=lambda: outcome.append(reconcile_once(tmp_path, store_a))
+    )
+    thread.start()
+    assert before_close.wait(timeout=5)
+    decision = store_b.fetch_all("user_decisions")[0]
+    store_b.open_user_decision(
+        scope="global",
+        run_id="secret-run",
+        failure_key=decision["failure_key"],
+        summary="secret condition re-observed by another tick",
+    )
+    allow_close.set()
+    thread.join(timeout=5)
+
+    current = store_b.fetch_all("user_decisions")[0]
+    assert not thread.is_alive()
+    assert len(outcome) == 1
+    assert current["status"] == "open"
+    assert current["summary"] == "secret condition re-observed by another tick"
+
+
 def test_secret_exposure_is_global_and_blocks_independent_continuation(tmp_path):
     seed_run(tmp_path, "secret-run", unsafe_secret=True)
     seed_stopped_budget_run(tmp_path, "otherwise-safe")
@@ -270,8 +425,15 @@ def test_resolved_failure_reopens_when_same_global_condition_recurs(tmp_path):
     run_path.write_text(json.dumps(cleared, indent=2) + "\n", encoding="utf-8")
     reconcile_once(tmp_path, store)
     recurring = json.loads(run_path.read_text(encoding="utf-8"))
+    expected_fingerprint = _state_fingerprint(recurring)
     recurring["unsafe_secret"] = True
-    atomic_save_run(tmp_path, "secret-run", recurring, expected_revision=1)
+    atomic_save_run(
+        tmp_path,
+        "secret-run",
+        recurring,
+        expected_revision=1,
+        expected_fingerprint=expected_fingerprint,
+    )
 
     result = reconcile_once(tmp_path, store)
 
@@ -411,6 +573,48 @@ def test_discovery_reads_root_and_contained_non_symlink_worktree(tmp_path):
     assert records[1].repo_root == worktree.resolve()
 
 
+def test_reconcile_can_exclude_worktree_runs(tmp_path):
+    seed_run(tmp_path, "root-run", worktree=".")
+    worktree = tmp_path / ".worktrees" / "child"
+    seed_run(worktree, "worktree-run")
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store, include_worktrees=False)
+
+    assert [record.run_id for record in result.run_records] == ["root-run"]
+    assert store.get_run("root-run") is not None
+    with pytest.raises(KeyError):
+        store.get_run("worktree-run")
+
+
+@pytest.mark.parametrize("root_valid", [True, False])
+def test_duplicate_directory_run_id_invalidates_every_record(tmp_path, root_valid):
+    if root_valid:
+        seed_run(tmp_path, "duplicate-run")
+    else:
+        invalid = tmp_path / ".codex" / "loop-runs" / "duplicate-run" / "run.json"
+        invalid.parent.mkdir(parents=True)
+        invalid.write_text("{not-json}\n", encoding="utf-8")
+    worktree = tmp_path / ".worktrees" / "child"
+    seed_run(worktree, "duplicate-run")
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store)
+
+    duplicates = [
+        record
+        for record in result.run_records
+        if record.directory_run_id == "duplicate-run"
+    ]
+    assert len(duplicates) == 2
+    assert all(not record.valid and record.ownership_failure for record in duplicates)
+    assert all("duplicate run directory id" in record.error for record in duplicates)
+    assert store.count("runs") == 0
+    assert store.count("actions") == 0
+    assert len(result.open_user_decisions) == 1
+    assert result.open_user_decisions[0]["scope"] == "global"
+
+
 def test_discovery_rejects_symlinked_worktree_and_escaped_run_file(tmp_path):
     outside = tmp_path.parent / f"{tmp_path.name}-outside"
     seed_run(outside, "outside-run")
@@ -427,6 +631,36 @@ def test_discovery_rejects_symlinked_worktree_and_escaped_run_file(tmp_path):
 
     assert not any(record.run_id == "outside-run" for record in records)
     assert sum(record.ownership_failure for record in records) == 2
+
+
+def test_discovery_rejects_run_json_symlink_swap_after_validation(
+    tmp_path, monkeypatch
+):
+    run_path = seed_run(tmp_path, "swap-run")
+    outside_path = tmp_path / "outside-run.json"
+    outside_path.write_text(run_path.read_text(encoding="utf-8"), encoding="utf-8")
+    from scripts.loop_supervisor import reconciler
+
+    real_check = reconciler._require_contained_non_symlink
+    swapped = False
+
+    def swap_after_check(path, root, *, allow_missing_leaf=False):
+        nonlocal swapped
+        result = real_check(path, root, allow_missing_leaf=allow_missing_leaf)
+        if Path(path) == run_path and not swapped:
+            run_path.unlink()
+            run_path.symlink_to(outside_path)
+            swapped = True
+        return result
+
+    monkeypatch.setattr(reconciler, "_require_contained_non_symlink", swap_after_check)
+
+    records = discover_run_records(tmp_path)
+
+    assert len(records) == 1
+    assert records[0].directory_run_id == "swap-run"
+    assert records[0].ownership_failure is True
+    assert records[0].payload == {}
 
 
 @pytest.mark.parametrize(
@@ -474,6 +708,23 @@ def test_invalid_json_is_run_scoped_but_ownership_failure_is_global(tmp_path):
     assert result.decision_for("invalid")["scope"] == "run"
     assert any(decision["scope"] == "global" for decision in result.open_user_decisions)
     assert store.count("failures") == 2
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_non_finite_run_json_is_invalid_and_never_projected(tmp_path, constant):
+    run_path = tmp_path / ".codex" / "loop-runs" / "invalid-number" / "run.json"
+    run_path.parent.mkdir(parents=True)
+    run_path.write_text(
+        '{"run_id":"invalid-number","policy":"autonomous_knowledge",'
+        f'"phase":"planning","next_action":"run_autonomous_planner","value":{constant}}}\n',
+        encoding="utf-8",
+    )
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store)
+
+    assert result.decision_for("invalid-number")["scope"] == "run"
+    assert store.count("runs") == 0
 
 
 @pytest.mark.parametrize("declared_run_id", ["declared-other", None])

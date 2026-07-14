@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import errno
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
-import tempfile
-from typing import Any, Iterator, TextIO
+import secrets
+import stat
+import sys
+from typing import Any, Iterator
 
 from scripts.harness_loop_contracts import validate_run_id
 
@@ -73,6 +77,7 @@ class RunRecord:
     valid: bool = True
     error: str = ""
     ownership_failure: bool = False
+    directory_run_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -118,6 +123,7 @@ def atomic_save_run(
     payload: Mapping[str, Any],
     *,
     expected_revision: int | None = None,
+    expected_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     """Persist one accepted run transition with a durable atomic replacement."""
     if not isinstance(payload, Mapping):
@@ -131,29 +137,42 @@ def atomic_save_run(
         )
     target = root / ".codex" / "loop-runs" / run_id / "run.json"
     _require_contained_non_symlink(target, root, allow_missing_leaf=True)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    _require_contained_non_symlink(target.parent, root)
+    with _open_run_directory(root, run_id, create=True):
+        pass
 
     with _exclusive_run_write_lock(root, run_id):
-        return _atomic_save_run_locked(
-            target,
-            payload,
-            run_id=run_id,
-            expected_revision=expected_revision,
-        )
+        with _open_run_directory(root, run_id, create=False) as (
+            runs_fd,
+            run_fd,
+        ):
+            _require_same_directory_entry(runs_fd, run_id, run_fd)
+            return _atomic_save_run_locked(
+                run_fd,
+                target,
+                payload,
+                run_id=run_id,
+                expected_revision=expected_revision,
+                expected_fingerprint=expected_fingerprint,
+                runs_fd=runs_fd,
+            )
 
 
 def _atomic_save_run_locked(
+    run_fd: int,
     target: Path,
     payload: Mapping[str, Any],
     *,
     run_id: str,
     expected_revision: int | None,
+    expected_fingerprint: str | None,
+    runs_fd: int,
 ) -> dict[str, Any]:
-
     current_revision = -1
-    if target.exists():
-        current = _read_json_object(target)
+    try:
+        current = _read_json_object_at(run_fd, "run.json", target)
+    except FileNotFoundError:
+        current = None
+    if current is not None:
         stored_run_id = str(current.get("run_id") or "")
         if stored_run_id != run_id:
             raise ValueError(f"run id mismatch at {target}")
@@ -162,100 +181,312 @@ def _atomic_save_run_locked(
         raise ValueError(
             f"stale run revision {expected_revision}; current is {current_revision}"
         )
+    if current_revision >= 0:
+        if not expected_fingerprint:
+            raise ValueError("expected fingerprint is required for an existing run")
+        current_fingerprint = _state_fingerprint(current)
+        if current_fingerprint != expected_fingerprint:
+            raise ValueError(
+                "stale run fingerprint; current run state changed after discovery"
+            )
 
     saved = dict(payload)
     saved["state_revision"] = 0 if current_revision < 0 else current_revision + 1
-    fd, temporary_name = tempfile.mkstemp(
-        prefix=".run.json.", suffix=".tmp", dir=target.parent
-    )
-    temporary = Path(temporary_name)
+    temporary_name, fd = _open_temporary_at(run_fd)
+    replaced = False
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(saved, handle, indent=2, sort_keys=True)
+        handle = None
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+            fd = -1
+            json.dump(saved, handle, indent=2, sort_keys=True, allow_nan=False)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, target)
-        directory_fd = os.open(
-            target.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-        )
-        try:
-            os.fsync(directory_fd)
         finally:
-            os.close(directory_fd)
+            _close_stream_preserving_error(handle)
+            if fd >= 0:
+                _close_fd_preserving_error(fd)
+        _require_same_directory_entry(runs_fd, run_id, run_fd)
+        os.replace(
+            temporary_name,
+            "run.json",
+            src_dir_fd=run_fd,
+            dst_dir_fd=run_fd,
+        )
+        replaced = True
+        os.fsync(run_fd)
     except BaseException:
-        temporary.unlink(missing_ok=True)
+        if not replaced:
+            _unlink_at_preserving_error(run_fd, temporary_name)
         raise
     return saved
 
 
 @contextmanager
-def _exclusive_run_write_lock(root: Path, run_id: str) -> Iterator[TextIO]:
+def _exclusive_run_write_lock(root: Path, run_id: str) -> Iterator[int]:
     lock_path = root / ".codex" / "loop-locks" / f"{run_id}.lock"
     _require_contained_non_symlink(lock_path, root, allow_missing_leaf=True)
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    _require_contained_non_symlink(lock_path.parent, root)
-    handle = lock_path.open("a+", encoding="utf-8")
+    with _open_directory_chain(root, (".codex", "loop-locks"), create=True) as lock_fd:
+        fd = os.open(
+            f"{run_id}.lock",
+            os.O_RDWR | os.O_CREAT | _O_NOFOLLOW | _O_CLOEXEC,
+            0o600,
+            dir_fd=lock_fd,
+        )
+        _yield_locked_fd(fd)
+        try:
+            yield fd
+        except BaseException:
+            _release_locked_fd(fd, primary_exception=True)
+            raise
+        else:
+            _release_locked_fd(fd, primary_exception=False)
+
+
+@contextmanager
+def _project_reconcile_lock(root: Path) -> Iterator[int]:
+    lock_path = root / ".codex" / "supervisor" / "reconcile.lock"
+    _require_contained_non_symlink(lock_path, root, allow_missing_leaf=True)
+    with _open_directory_chain(root, (".codex", "supervisor"), create=True) as lock_fd:
+        fd = os.open(
+            "reconcile.lock",
+            os.O_RDWR | os.O_CREAT | _O_NOFOLLOW | _O_CLOEXEC,
+            0o600,
+            dir_fd=lock_fd,
+        )
+        _yield_locked_fd(fd)
+        try:
+            yield fd
+        except BaseException:
+            _release_locked_fd(fd, primary_exception=True)
+            raise
+        else:
+            _release_locked_fd(fd, primary_exception=False)
+
+
+_O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+_O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_DIRECTORY_FLAGS = os.O_RDONLY | _O_DIRECTORY | _O_NOFOLLOW | _O_CLOEXEC
+
+
+@contextmanager
+def _open_directory_chain(
+    root: Path, parts: tuple[str, ...], *, create: bool
+) -> Iterator[int]:
+    fds: list[int] = []
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        yield handle
+        current = os.open(root, _DIRECTORY_FLAGS)
+        fds.append(current)
+        for part in parts:
+            if create:
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=current)
+                except FileExistsError:
+                    pass
+            child = os.open(part, _DIRECTORY_FLAGS, dir_fd=current)
+            fds.append(child)
+            current = child
+        yield current
     finally:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        primary_exception = sys.exc_info()[0] is not None
+        close_error: BaseException | None = None
+        for fd in reversed(fds):
+            try:
+                os.close(fd)
+            except BaseException as exc:
+                if close_error is None:
+                    close_error = exc
+        if close_error is not None and not primary_exception:
+            raise close_error
+
+
+@contextmanager
+def _open_run_directory(
+    root: Path, run_id: str, *, create: bool
+) -> Iterator[tuple[int, int]]:
+    with _open_directory_chain(root, (".codex", "loop-runs"), create=create) as runs_fd:
+        if create:
+            try:
+                os.mkdir(run_id, mode=0o700, dir_fd=runs_fd)
+            except FileExistsError:
+                pass
+        run_fd = os.open(run_id, _DIRECTORY_FLAGS, dir_fd=runs_fd)
+        try:
+            yield runs_fd, run_fd
+        finally:
+            _close_fd_preserving_error(run_fd)
+
+
+def _require_same_directory_entry(parent_fd: int, name: str, directory_fd: int) -> None:
+    expected = os.fstat(directory_fd)
+    actual = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if not stat.S_ISDIR(actual.st_mode) or (
+        actual.st_dev,
+        actual.st_ino,
+    ) != (expected.st_dev, expected.st_ino):
+        raise ValueError(f"run directory ownership changed: {name}")
+
+
+def _open_temporary_at(directory_fd: int) -> tuple[str, int]:
+    for _ in range(100):
+        name = f".run.json.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+        try:
+            fd = os.open(
+                name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_NOFOLLOW | _O_CLOEXEC,
+                0o600,
+                dir_fd=directory_fd,
+            )
+        except FileExistsError:
+            continue
+        return name, fd
+    raise FileExistsError("could not allocate a unique run temp file")
+
+
+def _yield_locked_fd(fd: int) -> None:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except BaseException:
+        _close_fd_preserving_error(fd)
+        raise
+
+
+def _release_locked_fd(fd: int, *, primary_exception: bool) -> None:
+    unlock_error: BaseException | None = None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    except BaseException as exc:
+        unlock_error = exc
+    try:
+        os.close(fd)
+    except BaseException:
+        if not primary_exception and unlock_error is None:
+            raise
+    if unlock_error is not None and not primary_exception:
+        raise unlock_error
+
+
+def _close_fd_preserving_error(fd: int) -> None:
+    try:
+        os.close(fd)
+    except OSError:
+        if sys.exc_info()[0] is None:
+            raise
+
+
+def _close_stream_preserving_error(handle: Any) -> None:
+    if handle is None:
+        return
+    try:
         handle.close()
+    except BaseException:
+        if sys.exc_info()[0] is None:
+            raise
 
 
-def discover_run_records(project_root: Path) -> list[RunRecord]:
+def _unlink_at_preserving_error(directory_fd: int, name: str) -> None:
+    try:
+        os.unlink(name, dir_fd=directory_fd)
+    except FileNotFoundError:
+        return
+    except OSError:
+        if sys.exc_info()[0] is None:
+            raise
+
+
+def discover_run_records(
+    project_root: Path, *, include_worktrees: bool = True
+) -> list[RunRecord]:
     """Discover root and direct non-symlink worktree runs without path escape."""
     root = Path(project_root).resolve()
     records: list[RunRecord] = []
-    records.extend(_records_under_repo(root, root))
-    worktrees_root = root / ".worktrees"
-    if worktrees_root.is_symlink():
-        records.append(
-            _ownership_record(worktrees_root, root, "worktrees root is a symlink")
+    with _open_directory_chain(root, (), create=False) as root_fd:
+        records.extend(_records_under_repo(root, root, repo_fd=root_fd))
+        if include_worktrees:
+            records.extend(_records_under_worktrees(root, root_fd))
+
+    counts: dict[str, int] = {}
+    for record in records:
+        if record.directory_run_id:
+            counts[record.directory_run_id] = counts.get(record.directory_run_id, 0) + 1
+    duplicate_ids = {run_id for run_id, count in counts.items() if count > 1}
+    return [
+        replace(
+            record,
+            run_id=record.directory_run_id,
+            payload={},
+            valid=False,
+            error=f"duplicate run directory id: {record.directory_run_id}",
+            ownership_failure=True,
         )
-    elif worktrees_root.exists():
-        if worktrees_root.is_dir():
-            for worktree in sorted(
-                worktrees_root.iterdir(), key=lambda item: item.name
-            ):
-                if worktree.is_symlink():
+        if record.directory_run_id in duplicate_ids
+        else record
+        for record in records
+    ]
+
+
+def _records_under_worktrees(root: Path, root_fd: int) -> list[RunRecord]:
+    worktrees_root = root / ".worktrees"
+    try:
+        root_stat = os.stat(".worktrees", dir_fd=root_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return []
+    if stat.S_ISLNK(root_stat.st_mode):
+        return [_ownership_record(worktrees_root, root, "worktrees root is a symlink")]
+    if not stat.S_ISDIR(root_stat.st_mode):
+        return []
+    try:
+        worktrees_fd = os.open(".worktrees", _DIRECTORY_FLAGS, dir_fd=root_fd)
+    except OSError as exc:
+        return [
+            _ownership_record(worktrees_root, root, f"unsafe worktrees root: {exc}")
+        ]
+    records: list[RunRecord] = []
+    try:
+        if not _same_open_directory(root_stat, worktrees_fd):
+            return [
+                _ownership_record(
+                    worktrees_root, root, "worktrees root ownership changed"
+                )
+            ]
+        for name in sorted(os.listdir(worktrees_fd)):
+            worktree = worktrees_root / name
+            try:
+                child_stat = os.stat(name, dir_fd=worktrees_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISLNK(child_stat.st_mode):
+                records.append(
+                    _ownership_record(worktree, root, "worktree is a symlink")
+                )
+                continue
+            if not stat.S_ISDIR(child_stat.st_mode):
+                continue
+            try:
+                child_fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=worktrees_fd)
+            except OSError as exc:
+                records.append(
+                    _ownership_record(
+                        worktree, root, f"unsafe worktree directory: {exc}"
+                    )
+                )
+                continue
+            try:
+                if not _same_open_directory(child_stat, child_fd):
                     records.append(
-                        _ownership_record(worktree, root, "worktree is a symlink")
+                        _ownership_record(
+                            worktree, root, "worktree directory ownership changed"
+                        )
                     )
                     continue
-                if not worktree.is_dir():
-                    continue
-                try:
-                    _require_contained_non_symlink(worktree, worktrees_root)
-                except ValueError as exc:
-                    records.append(_ownership_record(worktree, root, str(exc)))
-                    continue
-                records.extend(_records_under_repo(worktree.resolve(), root))
-
-    seen: dict[str, RunRecord] = {}
-    result: list[RunRecord] = []
-    for record in records:
-        if not record.valid:
-            result.append(record)
-            continue
-        previous = seen.get(record.run_id)
-        if previous is not None:
-            result.append(
-                RunRecord(
-                    run_id=record.run_id,
-                    repo_root=record.repo_root,
-                    run_json_path=record.run_json_path,
-                    payload={},
-                    valid=False,
-                    error=f"duplicate run id also owned by {previous.run_json_path}",
-                    ownership_failure=True,
-                )
-            )
-            continue
-        seen[record.run_id] = record
-        result.append(record)
-    return result
+                records.extend(_records_under_repo(worktree, root, repo_fd=child_fd))
+            finally:
+                _close_fd_preserving_error(child_fd)
+    finally:
+        _close_fd_preserving_error(worktrees_fd)
+    return records
 
 
 def desired_action_for_run(run: Mapping[str, Any]) -> ActionRequest | None:
@@ -317,17 +548,34 @@ def reconcile_once(
     store: SupervisorStore,
     *,
     shadow: bool = False,
+    include_worktrees: bool = True,
 ) -> ReconcileResult:
     """Project run files, open scoped decisions, and enqueue one action per leaf run."""
     root = Path(project_root).resolve()
     if store.project_root != root:
         raise ValueError("store project root does not match reconciliation root")
+    with _project_reconcile_lock(root):
+        return _reconcile_once_locked(
+            root,
+            store,
+            shadow=shadow,
+            include_worktrees=include_worktrees,
+        )
+
+
+def _reconcile_once_locked(
+    root: Path,
+    store: SupervisorStore,
+    *,
+    shadow: bool,
+    include_worktrees: bool,
+) -> ReconcileResult:
     open_decisions_by_id = {
         str(item["decision_id"]): item
         for item in store.fetch_all("user_decisions")
         if item.get("status") == "open"
     }
-    records = discover_run_records(root)
+    records = discover_run_records(root, include_worktrees=include_worktrees)
     valid_records: list[RunRecord] = []
     decisions: list[dict[str, Any]] = []
 
@@ -344,19 +592,22 @@ def reconcile_once(
                 else "invalid_json",
                 summary=record.error,
             )
-            decisions.append(
-                store.open_user_decision(
-                    scope=scope,
-                    run_id=record.run_id,
-                    failure_key=failure_key,
-                    summary=record.error,
-                    required_decision=(
-                        "Restore trustworthy repository ownership before reconciliation."
-                        if scope == "global"
-                        else "Repair or archive the invalid run file."
-                    ),
-                )
+            opened = store.open_user_decision(
+                scope=scope,
+                run_id=record.run_id,
+                failure_key=failure_key,
+                summary=record.error,
+                required_decision=(
+                    "Restore trustworthy repository ownership before reconciliation."
+                    if scope == "global"
+                    else "Repair or archive the invalid run file."
+                ),
             )
+            if not any(
+                item.get("decision_id") == opened.get("decision_id")
+                for item in decisions
+            ):
+                decisions.append(opened)
             continue
         try:
             projected = _project_run(root, store, record)
@@ -450,10 +701,13 @@ def reconcile_once(
             and failure_key.startswith("reconcile:")
             and failure_key not in observed_decision_keys
         ):
-            store.close_user_decision(
+            closed = store.close_user_decision(
                 str(decision["decision_id"]),
                 resolution="reconciliation condition cleared",
+                expected_updated_at=str(decision["updated_at"]),
             )
+            if closed is None:
+                continue
             failure = next(
                 (
                     item
@@ -517,85 +771,201 @@ def reconcile_once(
     )
 
 
-def _records_under_repo(repo_root: Path, project_root: Path) -> list[RunRecord]:
+def _records_under_repo(
+    repo_root: Path, project_root: Path, *, repo_fd: int
+) -> list[RunRecord]:
     runs_root = repo_root / ".codex" / "loop-runs"
-    if runs_root.is_symlink():
-        return [_ownership_record(runs_root, repo_root, "loop-runs root is a symlink")]
-    if not runs_root.exists():
+    try:
+        codex_stat = os.stat(".codex", dir_fd=repo_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return []
+    if stat.S_ISLNK(codex_stat.st_mode):
+        return [
+            _ownership_record(repo_root / ".codex", repo_root, ".codex is a symlink")
+        ]
+    if not stat.S_ISDIR(codex_stat.st_mode):
         return []
     try:
-        _require_contained_non_symlink(runs_root, project_root)
-    except ValueError as exc:
-        return [_ownership_record(runs_root, repo_root, str(exc))]
+        codex_fd = os.open(".codex", _DIRECTORY_FLAGS, dir_fd=repo_fd)
+    except OSError as exc:
+        return [_ownership_record(repo_root / ".codex", repo_root, str(exc))]
+    try:
+        if not _same_open_directory(codex_stat, codex_fd):
+            return [
+                _ownership_record(
+                    repo_root / ".codex", repo_root, ".codex ownership changed"
+                )
+            ]
+        try:
+            runs_stat = os.stat("loop-runs", dir_fd=codex_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return []
+        if stat.S_ISLNK(runs_stat.st_mode):
+            return [
+                _ownership_record(runs_root, repo_root, "loop-runs root is a symlink")
+            ]
+        if not stat.S_ISDIR(runs_stat.st_mode):
+            return []
+        try:
+            runs_fd = os.open("loop-runs", _DIRECTORY_FLAGS, dir_fd=codex_fd)
+        except OSError as exc:
+            return [_ownership_record(runs_root, repo_root, str(exc))]
+        try:
+            if not _same_open_directory(runs_stat, runs_fd):
+                return [
+                    _ownership_record(
+                        runs_root, repo_root, "loop-runs root ownership changed"
+                    )
+                ]
+            return _records_under_runs_fd(repo_root, project_root, runs_root, runs_fd)
+        finally:
+            _close_fd_preserving_error(runs_fd)
+    finally:
+        _close_fd_preserving_error(codex_fd)
+
+
+def _records_under_runs_fd(
+    repo_root: Path,
+    project_root: Path,
+    runs_root: Path,
+    runs_fd: int,
+) -> list[RunRecord]:
     records: list[RunRecord] = []
-    for run_dir in sorted(runs_root.iterdir(), key=lambda item: item.name):
-        if run_dir.is_symlink():
+    for name in sorted(os.listdir(runs_fd)):
+        run_dir = runs_root / name
+        try:
+            run_stat = os.stat(name, dir_fd=runs_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(run_stat.st_mode):
             records.append(
-                _ownership_record(run_dir, repo_root, "run directory is a symlink")
+                _ownership_record(
+                    run_dir,
+                    repo_root,
+                    "run directory is a symlink",
+                    directory_run_id=name,
+                )
             )
             continue
-        if not run_dir.is_dir():
-            continue
-        path = run_dir / "run.json"
-        if path.is_symlink():
-            records.append(_ownership_record(path, repo_root, "run.json is a symlink"))
-            continue
-        if not path.exists():
+        if not stat.S_ISDIR(run_stat.st_mode):
             continue
         try:
-            _require_contained_non_symlink(path, repo_root)
-            payload = _read_json_object(path)
-            declared_run_id = payload.get("run_id")
-            if not isinstance(declared_run_id, str) or declared_run_id != run_dir.name:
-                raise PermissionError(
-                    f"run id {declared_run_id!r} does not match directory {run_dir.name!r}"
-                )
-            run_id = declared_run_id
-            validate_run_id(run_id)
-            declared_worktree = payload.get("worktree")
-            if isinstance(declared_worktree, str) and declared_worktree:
-                declared_path = Path(declared_worktree)
-                if not declared_path.is_absolute():
-                    declared_path = repo_root / declared_path
-                if declared_path.resolve() != repo_root.resolve():
-                    raise PermissionError("run declares a different repository owner")
+            run_fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=runs_fd)
+        except OSError as exc:
             records.append(
-                RunRecord(
-                    run_id=run_id,
-                    repo_root=repo_root,
-                    run_json_path=path,
-                    payload=payload,
+                _ownership_record(
+                    run_dir,
+                    repo_root,
+                    f"unsafe run directory: {exc}",
+                    directory_run_id=name,
                 )
             )
-        except PermissionError as exc:
-            records.append(_ownership_record(path, repo_root, str(exc)))
-        except ValueError as exc:
-            ownership = (
-                "symlink" in str(exc) or "escape" in str(exc) or "owner" in str(exc)
-            )
-            records.append(
-                RunRecord(
-                    run_id=run_dir.name,
-                    repo_root=repo_root,
-                    run_json_path=path,
-                    payload={},
-                    valid=False,
-                    error=str(exc),
-                    ownership_failure=ownership,
+            continue
+        try:
+            if not _same_open_directory(run_stat, run_fd):
+                records.append(
+                    _ownership_record(
+                        run_dir,
+                        repo_root,
+                        "run directory ownership changed",
+                        directory_run_id=name,
+                    )
                 )
+                continue
+            record = _record_from_run_fd(
+                repo_root,
+                project_root,
+                run_dir,
+                run_fd,
             )
-        except (OSError, json.JSONDecodeError) as exc:
-            records.append(
-                RunRecord(
-                    run_id=run_dir.name,
-                    repo_root=repo_root,
-                    run_json_path=path,
-                    payload={},
-                    valid=False,
-                    error=f"invalid run JSON: {exc}",
-                )
-            )
+            if record is not None:
+                records.append(record)
+        finally:
+            _close_fd_preserving_error(run_fd)
     return records
+
+
+def _record_from_run_fd(
+    repo_root: Path,
+    project_root: Path,
+    run_dir: Path,
+    run_fd: int,
+) -> RunRecord | None:
+    path = run_dir / "run.json"
+    name = run_dir.name
+    try:
+        file_stat = os.stat("run.json", dir_fd=run_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(file_stat.st_mode):
+        return _ownership_record(
+            path, repo_root, "run.json is a symlink", directory_run_id=name
+        )
+    if not stat.S_ISREG(file_stat.st_mode):
+        return _ownership_record(
+            path, repo_root, "run.json is not a regular file", directory_run_id=name
+        )
+    try:
+        _require_contained_non_symlink(path, project_root)
+        payload = _read_json_object_at(run_fd, "run.json", path)
+        declared_run_id = payload.get("run_id")
+        if not isinstance(declared_run_id, str) or declared_run_id != name:
+            raise PermissionError(
+                f"run id {declared_run_id!r} does not match directory {name!r}"
+            )
+        validate_run_id(declared_run_id)
+        declared_worktree = payload.get("worktree")
+        if isinstance(declared_worktree, str) and declared_worktree:
+            declared_path = Path(declared_worktree)
+            if not declared_path.is_absolute():
+                declared_path = repo_root / declared_path
+            if declared_path.resolve() != repo_root.resolve():
+                raise PermissionError("run declares a different repository owner")
+        return RunRecord(
+            run_id=declared_run_id,
+            repo_root=repo_root,
+            run_json_path=path,
+            payload=payload,
+            directory_run_id=name,
+        )
+    except PermissionError as exc:
+        return _ownership_record(path, repo_root, str(exc), directory_run_id=name)
+    except ValueError as exc:
+        ownership = "symlink" in str(exc) or "escape" in str(exc) or "owner" in str(exc)
+        return RunRecord(
+            run_id=name,
+            repo_root=repo_root,
+            run_json_path=path,
+            payload={},
+            valid=False,
+            error=str(exc),
+            ownership_failure=ownership,
+            directory_run_id=name,
+        )
+    except OSError as exc:
+        ownership = exc.errno in {errno.EACCES, errno.ELOOP, errno.ENOTDIR, errno.EPERM}
+        return RunRecord(
+            run_id=name,
+            repo_root=repo_root,
+            run_json_path=path,
+            payload={},
+            valid=False,
+            error=(
+                f"unsafe run.json ownership: {exc}"
+                if ownership
+                else f"invalid run JSON: {exc}"
+            ),
+            ownership_failure=ownership,
+            directory_run_id=name,
+        )
+
+
+def _same_open_directory(expected: os.stat_result, directory_fd: int) -> bool:
+    actual = os.fstat(directory_fd)
+    return stat.S_ISDIR(actual.st_mode) and (actual.st_dev, actual.st_ino) == (
+        expected.st_dev,
+        expected.st_ino,
+    )
 
 
 def _project_run(
@@ -629,6 +999,7 @@ def _project_run(
             record.run_id,
             run,
             expected_revision=current_revision,
+            expected_fingerprint=_state_fingerprint(record.payload),
         )
         incoming_revision = int(run["state_revision"])
         projection = _projection(project_root, record, run, incoming_revision)
@@ -637,6 +1008,7 @@ def _project_run(
             repo_root=record.repo_root,
             run_json_path=record.run_json_path,
             payload=run,
+            directory_run_id=record.directory_run_id,
         )
     store.upsert_run_projection(projection)
     return record
@@ -768,29 +1140,72 @@ def _state_revision(run: Mapping[str, Any]) -> int:
 
 
 def _state_fingerprint(run: Mapping[str, Any]) -> str:
-    canonical_state = {
+    state = {
         key: value
         for key, value in run.items()
         if key not in _FINGERPRINT_OBSERVATION_KEYS
     }
+    canonical_state = _canonical_json_value(state)
     encoded = json.dumps(
         canonical_state,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=True,
+        allow_nan=False,
     ).encode("utf-8")
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _canonical_json_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        if not all(isinstance(key, str) for key in value):
+            raise TypeError("canonical mapping keys must be strings")
+        return {key: _canonical_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_json_value(item) for item in value]
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("canonical JSON numbers must be finite")
+        return int(value) if value.is_integer() else value
+    raise TypeError(f"unsupported canonical JSON value: {type(value).__name__}")
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
     try:
         with path.open("r", encoding="utf-8") as handle:
-            value = json.load(handle)
+            value = json.load(handle, parse_constant=_reject_json_constant)
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid run JSON: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError("run JSON must contain an object")
     return value
+
+
+def _read_json_object_at(
+    directory_fd: int, name: str, display_path: Path
+) -> dict[str, Any]:
+    fd = os.open(name, os.O_RDONLY | _O_NOFOLLOW | _O_CLOEXEC, dir_fd=directory_fd)
+    handle = None
+    try:
+        handle = os.fdopen(fd, "r", encoding="utf-8")
+        fd = -1
+        try:
+            value = json.load(handle, parse_constant=_reject_json_constant)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid run JSON: {exc}") from exc
+    finally:
+        _close_stream_preserving_error(handle)
+        if fd >= 0:
+            _close_fd_preserving_error(fd)
+    if not isinstance(value, dict):
+        raise ValueError(f"run JSON must contain an object: {display_path}")
+    return value
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"invalid run JSON number: {value}")
 
 
 def _require_contained_non_symlink(
@@ -819,7 +1234,13 @@ def _require_contained_non_symlink(
             continue
 
 
-def _ownership_record(path: Path, repo_root: Path, error: str) -> RunRecord:
+def _ownership_record(
+    path: Path,
+    repo_root: Path,
+    error: str,
+    *,
+    directory_run_id: str = "",
+) -> RunRecord:
     return RunRecord(
         run_id=f"ownership-{_safe_slug(path.name)}",
         repo_root=repo_root,
@@ -828,6 +1249,7 @@ def _ownership_record(path: Path, repo_root: Path, error: str) -> RunRecord:
         valid=False,
         error=error,
         ownership_failure=True,
+        directory_run_id=directory_run_id,
     )
 
 

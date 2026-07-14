@@ -1,8 +1,11 @@
+import fcntl
 import json
 import multiprocessing
 import os
 import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -18,7 +21,7 @@ from scripts.harness_loop_supervisor_state import (
     supervisor_dir,
     utc_now_iso,
 )
-from scripts.loop_supervisor.reconciler import atomic_save_run
+from scripts.loop_supervisor.reconciler import _state_fingerprint, atomic_save_run
 
 
 def test_failure_key_normalizes_and_rejects_unknown_category():
@@ -403,9 +406,9 @@ def test_atomic_save_run_increments_revision_once_and_replaces_sibling_tempfile(
     real_replace = os.replace
     real_fsync = os.fsync
 
-    def observed_replace(source, target):
-        replace_calls.append((source, target))
-        return real_replace(source, target)
+    def observed_replace(source, target, **kwargs):
+        replace_calls.append((source, target, kwargs))
+        return real_replace(source, target, **kwargs)
 
     def observed_fsync(fd):
         fsync_calls.append(fd)
@@ -425,13 +428,23 @@ def test_atomic_save_run_increments_revision_once_and_replaces_sibling_tempfile(
             "phase": "generating",
         },
         expected_revision=3,
+        expected_fingerprint=_state_fingerprint(
+            {
+                "run_id": "atomic-run",
+                "policy": "autonomous_knowledge",
+                "phase": "planning",
+                "state_revision": 3,
+            }
+        ),
     )
 
     assert saved["state_revision"] == 4
     assert json.loads(run_path.read_text(encoding="utf-8"))["state_revision"] == 4
     assert len(replace_calls) == 1
-    assert os.fspath(replace_calls[0][1]) == os.fspath(run_path)
-    assert os.path.dirname(os.fspath(replace_calls[0][0])) == os.fspath(run_dir)
+    source, target, replace_kwargs = replace_calls[0]
+    assert source.startswith(".run.json.") and source.endswith(".tmp")
+    assert target == "run.json"
+    assert replace_kwargs["src_dir_fd"] == replace_kwargs["dst_dir_fd"]
     assert len(fsync_calls) == 2
     assert not list(run_dir.glob(".run.json.*.tmp"))
 
@@ -454,9 +467,56 @@ def test_atomic_save_run_rejects_stale_expected_revision_without_writing(tmp_pat
             "stale-run",
             {**original, "phase": "generating"},
             expected_revision=4,
+            expected_fingerprint=_state_fingerprint(original),
         )
 
     assert json.loads(run_path.read_text(encoding="utf-8")) == original
+
+
+def test_atomic_save_run_rejects_same_revision_snapshot_changed_after_discovery(
+    tmp_path,
+):
+    run_dir = tmp_path / ".codex" / "loop-runs" / "legacy-run"
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.json"
+    discovered = {
+        "run_id": "legacy-run",
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+    }
+    run_path.write_text(json.dumps(discovered) + "\n", encoding="utf-8")
+    expected_fingerprint = _state_fingerprint(discovered)
+    concurrent = {**discovered, "parent_task_counter": 99}
+    run_path.write_text(json.dumps(concurrent) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="stale run fingerprint"):
+        atomic_save_run(
+            tmp_path,
+            "legacy-run",
+            {**discovered, "phase": "generating"},
+            expected_revision=0,
+            expected_fingerprint=expected_fingerprint,
+        )
+
+    assert json.loads(run_path.read_text(encoding="utf-8")) == concurrent
+
+
+def test_state_fingerprint_canonicalizes_integral_float_to_integer():
+    integer = _state_fingerprint({"run_id": "run-1", "value": 1})
+    integral_float = _state_fingerprint({"value": 1.0, "run_id": "run-1"})
+
+    assert integer == integral_float
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_state_fingerprint_rejects_non_finite_numbers(invalid):
+    with pytest.raises(ValueError, match="finite"):
+        _state_fingerprint({"run_id": "run-1", "value": invalid})
+
+
+def test_state_fingerprint_rejects_non_string_mapping_keys():
+    with pytest.raises(TypeError, match="mapping keys"):
+        _state_fingerprint({"run_id": "run-1", "nested": {1: "invalid"}})
 
 
 def test_atomic_save_run_rejects_payload_id_different_from_target_directory(tmp_path):
@@ -477,10 +537,187 @@ def test_atomic_save_run_rejects_payload_id_different_from_target_directory(tmp_
             "directory-owner",
             {**original, "run_id": "declared-other", "phase": "generating"},
             expected_revision=5,
+            expected_fingerprint=_state_fingerprint(original),
         )
 
     assert json.loads(run_path.read_text(encoding="utf-8")) == original
     assert not (tmp_path / ".codex" / "loop-runs" / "declared-other").exists()
+
+
+def test_atomic_save_run_rejects_run_directory_symlink_swap_after_lock(
+    tmp_path, monkeypatch
+):
+    run_path = _seed_atomic_cas_run(tmp_path, revision=3)
+    original = json.loads(run_path.read_text(encoding="utf-8"))
+    outside_dir = tmp_path / "outside" / "cas-run"
+    outside_dir.mkdir(parents=True)
+    outside_path = outside_dir / "run.json"
+    outside_path.write_text(json.dumps(original) + "\n", encoding="utf-8")
+    moved_dir = tmp_path / "moved-cas-run"
+    from scripts.loop_supervisor import reconciler
+
+    real_lock = reconciler._exclusive_run_write_lock
+
+    @contextmanager
+    def swapping_lock(root, run_id):
+        with real_lock(root, run_id) as handle:
+            run_path.parent.rename(moved_dir)
+            run_path.parent.symlink_to(outside_dir, target_is_directory=True)
+            yield handle
+
+    monkeypatch.setattr(reconciler, "_exclusive_run_write_lock", swapping_lock)
+
+    with pytest.raises((OSError, ValueError), match="symlink|ownership|directory"):
+        atomic_save_run(
+            tmp_path,
+            "cas-run",
+            {**original, "phase": "generating"},
+            expected_revision=3,
+            expected_fingerprint=_state_fingerprint(original),
+        )
+
+    assert json.loads(outside_path.read_text(encoding="utf-8")) == original
+
+
+def test_atomic_save_run_rejects_lock_file_symlink_swap_after_validation(
+    tmp_path, monkeypatch
+):
+    run_path = _seed_atomic_cas_run(tmp_path, revision=4)
+    original = json.loads(run_path.read_text(encoding="utf-8"))
+    lock_dir = tmp_path / ".codex" / "loop-locks"
+    lock_dir.mkdir(parents=True)
+    outside_lock = tmp_path / "outside.lock"
+    outside_lock.write_text("outside\n", encoding="utf-8")
+    from scripts.loop_supervisor import reconciler
+
+    real_check = reconciler._require_contained_non_symlink
+    swapped = False
+
+    def swap_after_check(path, root, *, allow_missing_leaf=False):
+        nonlocal swapped
+        result = real_check(path, root, allow_missing_leaf=allow_missing_leaf)
+        if Path(path).name == "cas-run.lock" and not swapped:
+            Path(path).symlink_to(outside_lock)
+            swapped = True
+        return result
+
+    monkeypatch.setattr(reconciler, "_require_contained_non_symlink", swap_after_check)
+
+    with pytest.raises(OSError):
+        atomic_save_run(
+            tmp_path,
+            "cas-run",
+            {**original, "phase": "generating"},
+            expected_revision=4,
+            expected_fingerprint=_state_fingerprint(original),
+        )
+
+    assert outside_lock.read_text(encoding="utf-8") == "outside\n"
+
+
+def test_atomic_save_run_fdopen_failure_closes_owned_descriptor(tmp_path, monkeypatch):
+    run_path = _seed_atomic_cas_run(tmp_path, revision=5)
+    original = json.loads(run_path.read_text(encoding="utf-8"))
+    from scripts.loop_supervisor import reconciler
+
+    real_fdopen = reconciler.os.fdopen
+    observed_fd = -1
+
+    def fail_fdopen(fd, *args, **kwargs):
+        nonlocal observed_fd
+        observed_fd = fd
+        raise RuntimeError("injected fdopen failure")
+
+    monkeypatch.setattr(reconciler.os, "fdopen", fail_fdopen)
+
+    with pytest.raises(RuntimeError, match="injected fdopen failure"):
+        atomic_save_run(
+            tmp_path,
+            "cas-run",
+            {**original, "phase": "generating"},
+            expected_revision=5,
+            expected_fingerprint=_state_fingerprint(original),
+        )
+
+    monkeypatch.setattr(reconciler.os, "fdopen", real_fdopen)
+    with pytest.raises(OSError):
+        os.fstat(observed_fd)
+
+
+@pytest.mark.parametrize("failure_point", ["temporary", "replace", "fsync"])
+def test_atomic_save_run_failure_cleans_temp_and_preserves_original(
+    tmp_path, monkeypatch, failure_point
+):
+    run_path = _seed_atomic_cas_run(tmp_path, revision=6)
+    original = json.loads(run_path.read_text(encoding="utf-8"))
+    from scripts.loop_supervisor import reconciler
+
+    if failure_point == "temporary":
+        monkeypatch.setattr(
+            reconciler,
+            "_open_temporary_at",
+            lambda _fd: (_ for _ in ()).throw(OSError("injected temporary failure")),
+        )
+    elif failure_point == "replace":
+        monkeypatch.setattr(
+            reconciler.os,
+            "replace",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                OSError("injected replace failure")
+            ),
+        )
+    else:
+        monkeypatch.setattr(
+            reconciler.os,
+            "fsync",
+            lambda _fd: (_ for _ in ()).throw(OSError("injected fsync failure")),
+        )
+
+    with pytest.raises(OSError, match=f"injected {failure_point} failure"):
+        atomic_save_run(
+            tmp_path,
+            "cas-run",
+            {**original, "phase": "generating"},
+            expected_revision=6,
+            expected_fingerprint=_state_fingerprint(original),
+        )
+
+    assert json.loads(run_path.read_text(encoding="utf-8")) == original
+    assert list(run_path.parent.glob(".run.json.*.tmp")) == []
+
+
+def test_atomic_save_run_unlock_failure_does_not_mask_write_failure(
+    tmp_path, monkeypatch
+):
+    _seed_atomic_cas_run(tmp_path, revision=8)
+    from scripts.loop_supervisor import reconciler
+
+    real_flock = reconciler.fcntl.flock
+
+    def fail_unlock(fd, operation):
+        if operation == fcntl.LOCK_UN:
+            raise OSError("injected unlock failure")
+        return real_flock(fd, operation)
+
+    def fail_write(*args, **kwargs):
+        raise RuntimeError("injected primary write failure")
+
+    monkeypatch.setattr(reconciler.fcntl, "flock", fail_unlock)
+    monkeypatch.setattr(reconciler, "_atomic_save_run_locked", fail_write)
+    current = json.loads(
+        (tmp_path / ".codex" / "loop-runs" / "cas-run" / "run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="injected primary write failure"):
+        atomic_save_run(
+            tmp_path,
+            "cas-run",
+            current,
+            expected_revision=8,
+            expected_fingerprint=_state_fingerprint(current),
+        )
 
 
 def test_atomic_save_run_serializes_thread_cas_before_revision_read(
@@ -492,11 +729,14 @@ def test_atomic_save_run_serializes_thread_cas_before_revision_read(
     read_count = 0
     read_count_lock = threading.Lock()
     results = []
+    expected_fingerprint = _state_fingerprint(
+        json.loads(run_path.read_text(encoding="utf-8"))
+    )
     from scripts.loop_supervisor import reconciler
 
-    real_read = reconciler._read_json_object
+    real_read = reconciler._read_json_object_at
 
-    def gated_read(path):
+    def gated_read(directory_fd, name, display_path):
         nonlocal read_count
         with read_count_lock:
             read_count += 1
@@ -504,9 +744,9 @@ def test_atomic_save_run_serializes_thread_cas_before_revision_read(
         if current == 1:
             first_read.set()
             assert release_first.wait(timeout=5)
-        return real_read(path)
+        return real_read(directory_fd, name, display_path)
 
-    monkeypatch.setattr(reconciler, "_read_json_object", gated_read)
+    monkeypatch.setattr(reconciler, "_read_json_object_at", gated_read)
 
     def write(phase):
         try:
@@ -519,6 +759,7 @@ def test_atomic_save_run_serializes_thread_cas_before_revision_read(
                     "phase": phase,
                 },
                 expected_revision=7,
+                expected_fingerprint=expected_fingerprint,
             )
             results.append(("success", saved["phase"]))
         except ValueError as exc:
@@ -551,20 +792,23 @@ def test_atomic_save_run_serializes_process_cas_before_revision_read(
     release_first = context.Event()
     read_count = context.Value("i", 0)
     results = context.Queue()
+    expected_fingerprint = _state_fingerprint(
+        json.loads(run_path.read_text(encoding="utf-8"))
+    )
     from scripts.loop_supervisor import reconciler
 
-    real_read = reconciler._read_json_object
+    real_read = reconciler._read_json_object_at
 
-    def gated_read(path):
+    def gated_read(directory_fd, name, display_path):
         with read_count.get_lock():
             read_count.value += 1
             current = read_count.value
         if current == 1:
             first_read.set()
             assert release_first.wait(timeout=5)
-        return real_read(path)
+        return real_read(directory_fd, name, display_path)
 
-    monkeypatch.setattr(reconciler, "_read_json_object", gated_read)
+    monkeypatch.setattr(reconciler, "_read_json_object_at", gated_read)
 
     def write(phase):
         try:
@@ -577,6 +821,7 @@ def test_atomic_save_run_serializes_process_cas_before_revision_read(
                     "phase": phase,
                 },
                 expected_revision=11,
+                expected_fingerprint=expected_fingerprint,
             )
             results.put(("success", saved["phase"]))
         except ValueError as exc:

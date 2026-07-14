@@ -34,7 +34,12 @@ def run_supervisor_once(config: SupervisorConfig) -> dict[str, Any]:
     root = Path(config.project_root).resolve()
     with SupervisorStore.open(root) as store:
         store.migrate()
-        reconciled = reconcile_once(root, store, shadow=config.dry_run)
+        reconciled = reconcile_once(
+            root,
+            store,
+            shadow=config.dry_run,
+            include_worktrees=config.include_worktrees,
+        )
         open_decisions = [
             row
             for row in store.fetch_all("user_decisions")
@@ -76,6 +81,47 @@ def _print_json(payload: Mapping[str, Any]) -> None:
     print(json.dumps(dict(payload), indent=2, ensure_ascii=False, sort_keys=True))
 
 
+def _watch_error_state(config: SupervisorConfig, error: Exception) -> dict[str, Any]:
+    summary = " ".join(str(error).split())[:500]
+    error_payload = {"class": type(error).__name__, "summary": summary}
+    fallback: dict[str, Any] = {
+        "schema_version": 1,
+        "project_root": str(config.project_root),
+        "mode": "watch",
+        "status": "error",
+        "error": error_payload,
+    }
+    try:
+        state = build_supervisor_state(
+            config.project_root,
+            mode="watch",
+            service_health={},
+            run_summary={
+                "active": 0,
+                "blocked": 0,
+                "continuation_candidates": 0,
+                "needs_user_decision": 0,
+            },
+            failure_summary={"open_failure_keys": 1},
+            last_decision=None,
+            watch_interval_seconds=config.watch_interval_seconds,
+        )
+        state.update({"status": "error", "error": error_payload})
+        state_path = (
+            config.project_root / ".codex" / "supervisor" / "supervisor-state.json"
+        )
+        with state_path.open("w", encoding="utf-8") as handle:
+            json.dump(state, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        return state
+    except Exception as status_error:
+        fallback["record_error"] = {
+            "class": type(status_error).__name__,
+            "summary": " ".join(str(status_error).split())[:200],
+        }
+        return fallback
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the SQLite Loop Supervisor once or in watch mode."
@@ -108,7 +154,13 @@ def main(argv: list[str] | None = None) -> int:
     tick = 0
     while True:
         tick += 1
-        _print_json(run_supervisor_once(config))
+        try:
+            state = run_supervisor_once(config)
+        except Exception as error:
+            if not args.watch:
+                raise
+            state = _watch_error_state(config, error)
+        _print_json(state)
         if not args.watch or (args.max_ticks and tick >= args.max_ticks):
             return 0
         time.sleep(max(args.interval_seconds, 1))

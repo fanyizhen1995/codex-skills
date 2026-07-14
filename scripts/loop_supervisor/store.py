@@ -1445,20 +1445,36 @@ class SupervisorStore:
         return self._decoded_row(row)
 
     def close_user_decision(
-        self, decision_id: str, *, resolution: str
-    ) -> dict[str, Any]:
+        self,
+        decision_id: str,
+        *,
+        resolution: str,
+        expected_updated_at: str | None = None,
+    ) -> dict[str, Any] | None:
         self._validate_summary(resolution, field_name="resolution")
         now = self._now_text()
         with self._immediate_transaction():
-            updated = self._connection.execute(
-                """
+            if expected_updated_at is None:
+                updated = self._connection.execute(
+                    """
                 UPDATE user_decisions SET status = 'closed', resolution = ?,
                   closed_at = ?, updated_at = ?
                 WHERE decision_id = ? AND status = 'open'
-                """,
-                (resolution, now, now, decision_id),
-            )
+                    """,
+                    (resolution, now, now, decision_id),
+                )
+            else:
+                updated = self._connection.execute(
+                    """
+                    UPDATE user_decisions SET status = 'closed', resolution = ?,
+                      closed_at = ?, updated_at = ?
+                    WHERE decision_id = ? AND status = 'open' AND updated_at = ?
+                    """,
+                    (resolution, now, now, decision_id, expected_updated_at),
+                )
             if updated.rowcount != 1:
+                if expected_updated_at is not None:
+                    return None
                 raise KeyError(decision_id)
             row = self._connection.execute(
                 "SELECT * FROM user_decisions WHERE decision_id = ?", (decision_id,)
