@@ -24,11 +24,39 @@ def run_lock_path(repo_root: Path, run_id: str) -> Path:
     return Path(repo_root) / ".codex" / "loop-locks" / f"{run_id}.lock"
 
 
+def repository_mutation_lock_path(repo_root: Path) -> Path:
+    return Path(repo_root) / ".codex" / "loop-locks" / "repository-mutation.lock"
+
+
 @contextmanager
 def acquire_run_lock(repo_root: Path, run_id: str, *, owner: str) -> Iterator[dict[str, object]]:
+    with _acquire_lock(
+        run_lock_path(repo_root, run_id),
+        lock_id=run_id,
+        owner=owner,
+    ) as metadata:
+        yield metadata
+
+
+@contextmanager
+def acquire_repository_mutation_lock(
+    repo_root: Path, *, owner: str
+) -> Iterator[dict[str, object]]:
+    with _acquire_lock(
+        repository_mutation_lock_path(repo_root),
+        lock_id="repository-mutation",
+        owner=owner,
+    ) as metadata:
+        yield metadata
+
+
+@contextmanager
+def _acquire_lock(
+    path: Path, *, lock_id: str, owner: str
+) -> Iterator[dict[str, object]]:
     if not isinstance(owner, str) or not owner.strip():
-        raise ValueError("run lock owner must be a non-empty string")
-    path = run_lock_path(repo_root, run_id).resolve()
+        raise ValueError("lock owner must be a non-empty string")
+    path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+", encoding="utf-8")
     try:
@@ -38,8 +66,10 @@ def acquire_run_lock(repo_root: Path, run_id: str, *, owner: str) -> Iterator[di
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             handle.close()
-            raise RunLockBusy(run_id, str(existing.get("owner") or "")) from exc
-        metadata = {"run_id": run_id, "owner": owner.strip(), "pid": os.getpid()}
+            raise RunLockBusy(lock_id, str(existing.get("owner") or "")) from exc
+        metadata = {"lock_id": lock_id, "owner": owner.strip(), "pid": os.getpid()}
+        if lock_id != "repository-mutation":
+            metadata["run_id"] = lock_id
         handle.seek(0)
         handle.truncate()
         json.dump(metadata, handle, sort_keys=True)
@@ -48,6 +78,9 @@ def acquire_run_lock(repo_root: Path, run_id: str, *, owner: str) -> Iterator[di
         try:
             yield metadata
         finally:
+            handle.seek(0)
+            handle.truncate()
+            handle.flush()
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
     finally:
         if not handle.closed:

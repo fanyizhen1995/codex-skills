@@ -2,9 +2,11 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -64,6 +66,11 @@ try:
         validate_governance_preflight_evidence,
     )
     from scripts.harness_loop_runtime_lock import acquire_run_lock
+    from scripts.loop_supervisor.models import (
+        ActionRequest,
+        ActionResult,
+        ActionResultClass,
+    )
 except ModuleNotFoundError:
     from harness_ai_infra_evidence import (  # type: ignore[no-redef]
         check_service_availability,
@@ -116,6 +123,12 @@ except ModuleNotFoundError:
         validate_governance_preflight_evidence,
     )
     from harness_loop_runtime_lock import acquire_run_lock  # type: ignore[no-redef]
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.loop_supervisor.models import (  # type: ignore[no-redef]
+        ActionRequest,
+        ActionResult,
+        ActionResultClass,
+    )
 
 
 def _timestamp() -> str:
@@ -3723,6 +3736,8 @@ def _commit_autonomous_changes(
     repo_root: Path,
     run: dict[str, Any],
     generator_result: dict[str, Any],
+    *,
+    bounded: bool = False,
 ) -> bool:
     run_dir = run_dir_for(repo_root, run["run_id"])
     changed_paths = list(generator_result["changed_paths"])
@@ -3867,6 +3882,13 @@ def _commit_autonomous_changes(
         write_json_file(run_dir / "generator-result.json", generator_result)
 
     commit_sha = str(generator_result.get("commit") or "").strip()
+    if bounded:
+        current = load_run(repo_root, str(run["run_id"]))
+        current["phase"] = "committed"
+        current["next_action"] = "push_autonomous_commit"
+        current["last_result"] = "pass"
+        save_run(repo_root, current)
+        return True
     if commit_sha:
         push_result = _push_autonomous_commit(repo_root, load_run(repo_root, run["run_id"]), commit_sha)
         if push_result["status"] == "fail":
@@ -5706,6 +5728,407 @@ def _run_autonomous_locked(
             tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
 
 
+def _bounded_failure(
+    request: ActionRequest,
+    action_name: str,
+    exc: BaseException,
+    *,
+    started_at: str,
+) -> ActionResult:
+    retryable = isinstance(exc, (OSError, subprocess.SubprocessError, TimeoutError))
+    return ActionResult(
+        result_class=(
+            ActionResultClass.RETRYABLE_FAILURE
+            if retryable
+            else ActionResultClass.TERMINAL_FAILURE
+        ),
+        summary=f"{action_name} failed: {exc}",
+        failure_key=f"{action_name}:{request.run_id}:{exc.__class__.__name__}",
+        error_class=exc.__class__.__name__,
+        started_at=started_at,
+        finished_at=_timestamp(),
+    )
+
+
+def _bounded_success(
+    summary: str,
+    *,
+    started_at: str,
+    artifact_paths: Sequence[str] = (),
+    checkpoint: str = "",
+) -> ActionResult:
+    return ActionResult(
+        result_class=ActionResultClass.SUCCESS,
+        summary=summary,
+        artifact_paths=tuple(artifact_paths),
+        checkpoint=checkpoint,
+        started_at=started_at,
+        finished_at=_timestamp(),
+    )
+
+
+def _bounded_driver(request: ActionRequest, role: str) -> str:
+    value = request.payload.get(f"{role}_driver", request.payload.get("driver", "fake"))
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{role} driver must be a non-empty string")
+    return value
+
+
+def _relative_artifact(repo_root: Path, path: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
+
+
+def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        driver = _bounded_driver(request, "planner")
+        if request.policy == "autonomous_knowledge":
+            if run["phase"] != "planning":
+                raise RuntimeError(f"autonomous planner requires planning; current phase is {run['phase']}")
+            if driver == "fake":
+                _run_fake_autonomous_planner(
+                    repo_root,
+                    run,
+                    task_number=_next_autonomous_task_number(run),
+                )
+            elif driver == "codex-exec":
+                if not _stop_if_autonomous_no_action(repo_root, run):
+                    if not _run_codex_autonomous_planner(repo_root, run):
+                        raise RuntimeError("autonomous planner did not produce a valid result")
+            else:
+                raise ValueError(f"unsupported autonomous planner driver: {driver}")
+        else:
+            run_planner(repo_root, request.run_id, driver=driver)
+        artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
+        artifacts = [_relative_artifact(repo_root, artifact)] if artifact.exists() else []
+        return _bounded_success(
+            "planner phase completed",
+            started_at=started_at,
+            artifact_paths=artifacts,
+            checkpoint="planner",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "planner", exc, started_at=started_at)
+
+
+def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        driver = _bounded_driver(request, "generator")
+        if request.policy == "autonomous_knowledge":
+            if run["phase"] != "generating":
+                raise RuntimeError(f"autonomous generator requires generating; current phase is {run['phase']}")
+            if driver == "codex-exec":
+                if _run_codex_autonomous_generator(repo_root, run) is None:
+                    raise RuntimeError("autonomous generator did not produce a valid result")
+            else:
+                _write_fake_autonomous_generator_result(
+                    repo_root,
+                    run,
+                    driver=driver,
+                    task_number=_next_autonomous_task_number(run),
+                )
+        else:
+            run_generator(repo_root, request.run_id, driver=driver)
+        artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        return _bounded_success(
+            "generator phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="generator",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "generator", exc, started_at=started_at)
+
+
+def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        driver = _bounded_driver(request, "evaluator")
+        max_attempts = request.payload.get("max_attempts", 2)
+        if not isinstance(max_attempts, int) or isinstance(max_attempts, bool) or max_attempts <= 0:
+            raise ValueError("max_attempts must be a positive integer")
+        if request.policy == "autonomous_knowledge":
+            if run["phase"] != "evaluating":
+                raise RuntimeError(f"autonomous evaluator requires evaluating; current phase is {run['phase']}")
+            result = (
+                _run_fake_autonomous_evaluator(
+                    repo_root, run, max_attempts=max_attempts
+                )
+                if driver == "fake"
+                else _run_codex_autonomous_evaluator(repo_root, run)
+                if driver == "codex-exec"
+                else None
+            )
+            if result is None:
+                raise RuntimeError(f"unsupported or failed autonomous evaluator driver: {driver}")
+        else:
+            run_evaluator(
+                repo_root,
+                request.run_id,
+                driver=driver,
+                max_attempts=max_attempts,
+            )
+        artifact = run_dir_for(repo_root, request.run_id) / "evaluator-result.json"
+        return _bounded_success(
+            "evaluator phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="evaluator",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "evaluator", exc, started_at=started_at)
+
+
+def run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "verifying":
+            raise RuntimeError(f"evidence gate requires verifying; current phase is {run['phase']}")
+        artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        validate_generator_result_payload(read_json_file(artifact))
+        run["phase"] = "evaluating"
+        run["next_action"] = "run_evaluator"
+        save_run(repo_root, run)
+        return _bounded_success(
+            "evidence gate passed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="evidence-gate",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "evidence-gate", exc, started_at=started_at)
+
+
+def run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        artifact = run_artifact_hygiene_step(repo_root, request.run_id)
+        return _bounded_success(
+            "artifact hygiene completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="artifact-hygiene",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "artifact-hygiene", exc, started_at=started_at)
+
+
+def run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "cleanup" or request.policy != "autonomous_knowledge":
+            raise RuntimeError("bounded commit requires autonomous cleanup phase")
+        artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        generator_result = read_json_file(artifact)
+        validate_generator_result_payload(generator_result)
+        if not _commit_autonomous_changes(
+            repo_root, run, generator_result, bounded=True
+        ):
+            raise RuntimeError("autonomous commit gates blocked")
+        commit_result = run_dir_for(repo_root, request.run_id) / "commit-result.json"
+        artifacts = [_relative_artifact(repo_root, artifact)]
+        if commit_result.exists():
+            artifacts.append(_relative_artifact(repo_root, commit_result))
+        return _bounded_success(
+            "commit phase completed",
+            started_at=started_at,
+            artifact_paths=artifacts,
+            checkpoint="commit",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "commit", exc, started_at=started_at)
+
+
+def run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "committed":
+            raise RuntimeError(f"push requires committed; current phase is {run['phase']}")
+        generator_path = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        generator_result = read_json_file(generator_path)
+        commit_sha = str(generator_result.get("commit") or "")
+        if not commit_sha:
+            raise RuntimeError("push requires generator-result commit")
+        push_result = _push_autonomous_commit(repo_root, run, commit_sha)
+        if push_result["status"] not in {"pass", "skipped"}:
+            raise RuntimeError(str(push_result.get("error") or "git push failed"))
+        run = load_run(repo_root, request.run_id)
+        run["phase"] = "cleanup"
+        run["next_action"] = "run_cleanup"
+        save_run(repo_root, run)
+        artifact = run_dir_for(repo_root, request.run_id) / "push-result.json"
+        return _bounded_success(
+            "push phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="push",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "push", exc, started_at=started_at)
+
+
+def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        artifact = run_cleanup(repo_root, request.run_id)
+        return _bounded_success(
+            "cleanup phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="cleanup",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "cleanup", exc, started_at=started_at)
+
+
+def run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        source = load_run(repo_root, request.run_id)
+        if source["phase"] != "stopped_budget":
+            raise RuntimeError("continuation requires stopped_budget phase")
+        identity = request.payload.get("continuation_identity")
+        if not isinstance(identity, Mapping):
+            raise ValueError("continuation_identity payload is required")
+        digest = hashlib.sha256(
+            json.dumps(dict(identity), sort_keys=True).encode("utf-8")
+        ).hexdigest()[:10]
+        continuation_run_id = str(
+            request.payload.get("continuation_run_id")
+            or f"{request.run_id}-continuation-{digest}"
+        )
+        target = run_dir_for(repo_root, continuation_run_id) / "run.json"
+        if not target.exists():
+            create_preflight_run(
+                repo_root=repo_root,
+                mode=source["policy"],
+                requirement=source["requirement"],
+                run_id=continuation_run_id,
+                task_id="",
+                domain=str(source.get("domain") or ""),
+                constraints=list(source.get("constraints", [])),
+                stop_conditions=list(source.get("stop_conditions", [])),
+                confirm=True,
+            )
+            continuation = load_run(repo_root, continuation_run_id)
+            continuation["loop_lineage_id"] = str(
+                identity.get("loop_lineage_id") or request.run_id
+            )
+            continuation["previous_run_id"] = request.run_id
+            continuation["parent_run_id"] = request.run_id
+            continuation["previous_commit"] = str(identity.get("source_commit") or "")
+            save_run(repo_root, continuation)
+        return _bounded_success(
+            f"created continuation {continuation_run_id}",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, target)],
+            checkpoint="continuation",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "continuation", exc, started_at=started_at)
+
+
+def run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        recovery = {
+            "inspect_autonomous_dirty_paths": _resume_autonomous_dirty_path_block,
+            "inspect_required_evidence": _resume_autonomous_required_evidence_block,
+            "inspect_autonomous_commit": _resume_autonomous_commit_block,
+        }.get(str(run.get("next_action") or ""))
+        if recovery is None or not recovery(repo_root, run):
+            raise RuntimeError("no bounded generator-result recovery matched")
+        return _bounded_success(
+            "generator result recovered",
+            started_at=started_at,
+            checkpoint="generator-recovery",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "generator-recovery", exc, started_at=started_at)
+
+
+def run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "audit_blocked":
+            raise RuntimeError("alternate recovery requires audit_blocked phase")
+        if not _start_autonomous_audit_remediation(
+            repo_root, run, task_number=_next_autonomous_task_number(run)
+        ):
+            raise RuntimeError("alternate recovery did not produce a remediation task")
+        artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
+        return _bounded_success(
+            "alternate recovery planned",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="alternate-recovery",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "alternate-recovery", exc, started_at=started_at)
+
+
+def run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        driver = _bounded_driver(request, "reviewer")
+        artifact = run_auditor(repo_root, request.run_id, driver=driver)
+        return _bounded_success(
+            "reviewer phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="reviewer",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "reviewer", exc, started_at=started_at)
+
+
+def run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        run["phase"] = "planning"
+        run["next_action"] = "run_autonomous_planner"
+        run["last_result"] = "none"
+        save_run(repo_root, run)
+        return _bounded_success(
+            "run refocused to planning",
+            started_at=started_at,
+            checkpoint="refocus",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "refocus", exc, started_at=started_at)
+
+
+def run_bounded_stop(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        phase = str(request.payload.get("stop_phase") or "stopped_blocked")
+        _stop_run(
+            repo_root,
+            run,
+            phase=phase,
+            next_action="none",
+            last_result="blocked",
+        )
+        return _bounded_success(
+            f"run stopped in {phase}",
+            started_at=started_at,
+            checkpoint="stop",
+        )
+    except Exception as exc:
+        return _bounded_failure(request, "stop", exc, started_at=started_at)
+
+
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
     payload = load_run(repo_root, run_id)
     return {
@@ -5834,6 +6257,17 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if (
+        args.command in {"run", "run-demand-multi", "run-autonomous"}
+        and os.environ.get("HARNESS_LEGACY_MULTI_ROUND_TEST_COMPAT") != "1"
+    ):
+        print(
+            "deprecated: multi-round orchestrator execution is test-only; "
+            "use the Loop Supervisor instead: "
+            f"python3 scripts/harness_loop_supervisor.py --watch --project-root {args.repo_root}",
+            file=sys.stderr,
+        )
+        return 2
     if args.command == "preflight":
         payload = create_preflight_run(
             repo_root=args.repo_root,

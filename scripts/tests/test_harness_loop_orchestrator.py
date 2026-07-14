@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import json
 import subprocess
+import contextlib
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Mapping
@@ -71,8 +72,33 @@ def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
 
 
 def call_cli(argv: list[str]) -> int:
-    with redirect_stdout(io.StringIO()):
-        return main(argv)
+    with patch.dict(os.environ, {"HARNESS_LEGACY_MULTI_ROUND_TEST_COMPAT": "1"}):
+        with redirect_stdout(io.StringIO()):
+            return main(argv)
+
+
+def test_multi_round_cli_is_deprecated_and_points_to_supervisor() -> None:
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        result = main(
+            [
+                "run-autonomous",
+                "--repo-root",
+                ".",
+                "--run-id",
+                "legacy-run",
+                "--planner-driver",
+                "fake",
+                "--generator-driver",
+                "fake",
+                "--evaluator-driver",
+                "fake",
+            ]
+        )
+
+    assert result == 2
+    assert "deprecated" in stderr.getvalue().lower()
+    assert "Supervisor" in stderr.getvalue()
 
 
 def remove_fake_evaluator_attempts(eval_dir: Path) -> None:
