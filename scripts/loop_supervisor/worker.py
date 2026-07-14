@@ -6,8 +6,14 @@ from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 import json
+import hashlib
+import os
 from pathlib import Path
+from pathlib import PurePosixPath
+import re
 import signal
+import stat
+import subprocess
 import threading
 from typing import Any
 
@@ -17,7 +23,7 @@ from scripts.harness_loop_runtime_lock import (
     acquire_repository_mutation_lock,
     acquire_run_lock,
 )
-from scripts.harness_loop_contracts import read_json_file
+import scripts.harness_loop_orchestrator as legacy
 
 from .executor import execute_action
 from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
@@ -44,6 +50,21 @@ class WorkerResult:
     summary: str = ""
     interruption_evidence: str = ""
     recovery_evidence: str = ""
+
+
+class BoundedFailure(RuntimeError):
+    def __init__(
+        self,
+        summary: str,
+        *,
+        cause: BaseException | None = None,
+        artifact_paths: tuple[str, ...] = (),
+        checkpoint: str = "",
+    ) -> None:
+        super().__init__(summary)
+        self.cause = cause
+        self.artifact_paths = artifact_paths
+        self.checkpoint = checkpoint
 
 
 def request_stop(reason: str = "SIGTERM") -> None:
@@ -79,6 +100,7 @@ def _request_from_record(store: SupervisorStore, action: ActionRecord) -> Action
         phase=action.phase,
         action_type=ActionType(action.action_type),
         idempotency_key=action.idempotency_key,
+        repo_relative_root=action.repo_relative_root,
         task_id=str(row.get("task_id") or ""),
         next_action=str(row.get("next_action") or ""),
         payload=action.payload,
@@ -101,44 +123,181 @@ def _heartbeat(
     worker_id: str,
     finished: threading.Event,
     lease_lost: threading.Event,
+    heartbeat_errors: list[BaseException],
 ) -> None:
-    with SupervisorStore.open(project_root) as store:
-        store.migrate()
-        while not finished.wait(HEARTBEAT_SECONDS):
-            if not store.renew_lease(
-                action_id,
-                worker_id,
-                lease_seconds=LEASE_SECONDS,
-            ):
-                lease_lost.set()
-                return
+    try:
+        with SupervisorStore.open(project_root) as store:
+            store.migrate()
+            while not finished.wait(HEARTBEAT_SECONDS):
+                if not store.renew_lease(
+                    action_id,
+                    worker_id,
+                    lease_seconds=LEASE_SECONDS,
+                ):
+                    lease_lost.set()
+                    return
+    except BaseException as exc:
+        heartbeat_errors.append(exc)
+        lease_lost.set()
 
 
-def _failure_result(exc: BaseException, action_id: str) -> ActionResult:
-    retryable = isinstance(exc, (OSError, RunLockBusy, TimeoutError))
-    result_class = (
-        ActionResultClass.RETRYABLE_FAILURE
-        if retryable
-        else ActionResultClass.TERMINAL_FAILURE
+def _valid_partial_artifacts(
+    execution_root: Path | None, paths: tuple[str, ...]
+) -> tuple[str, ...]:
+    if execution_root is None:
+        return ()
+    valid: list[str] = []
+    for value in paths:
+        path = PurePosixPath(value)
+        if path.is_absolute() or ".." in path.parts or value != path.as_posix():
+            continue
+        candidate = execution_root.joinpath(*path.parts)
+        try:
+            metadata = candidate.lstat()
+        except OSError:
+            continue
+        if stat.S_ISREG(metadata.st_mode):
+            valid.append(value)
+    return tuple(valid)
+
+
+def classify_bounded_failure(
+    exc: BaseException,
+    *,
+    action_id: str,
+    execution_root: Path | None = None,
+) -> ActionResult:
+    source = exc.cause if isinstance(exc, BoundedFailure) and exc.cause else exc
+    artifacts = (
+        _valid_partial_artifacts(execution_root, exc.artifact_paths)
+        if isinstance(exc, BoundedFailure)
+        else ()
     )
+    checkpoint = exc.checkpoint if isinstance(exc, BoundedFailure) else ""
+    text = f"{source.__class__.__name__}: {source}".lower()
+    policy_markers = (
+        "secret",
+        "scope",
+        "permission",
+        "ownership",
+        "symlink",
+        "outside",
+        "escape",
+    )
+    retry_markers = (
+        "index.lock",
+        "could not resolve",
+        "dns",
+        "transport",
+        "connection",
+        "timed out",
+        "timeout",
+    )
+    if artifacts and isinstance(source, (TimeoutError, OSError, subprocess.SubprocessError)):
+        result_class = ActionResultClass.RECOVERABLE_PARTIAL
+    elif isinstance(source, PermissionError) or any(item in text for item in policy_markers):
+        result_class = ActionResultClass.POLICY_BLOCK
+    elif isinstance(source, (OSError, RunLockBusy, TimeoutError, subprocess.SubprocessError)) or any(
+        item in text for item in retry_markers
+    ):
+        result_class = ActionResultClass.RETRYABLE_FAILURE
+    elif any(item in text for item in ("corrupt", "unprovable", "invalid json")):
+        result_class = ActionResultClass.TERMINAL_FAILURE
+    else:
+        result_class = ActionResultClass.RETRYABLE_FAILURE
     return ActionResult(
         result_class=result_class,
-        summary=str(exc) or exc.__class__.__name__,
-        failure_key=f"worker:{action_id}:{exc.__class__.__name__}",
-        error_class=exc.__class__.__name__,
+        summary=_redact_text(str(exc) or exc.__class__.__name__),
+        failure_key=f"worker:{hashlib.sha256(action_id.encode()).hexdigest()[:16]}:{source.__class__.__name__}",
+        error_class=source.__class__.__name__,
+        artifact_paths=artifacts,
+        checkpoint=checkpoint if artifacts else "",
     )
+
+
+def _redact_text(value: object, *, limit: int = 1024) -> str:
+    text = str(value).replace("\x00", "")
+    text = re.sub(
+        r"(?i)\b(token|secret|password|authorization)\s*[:=]\s*[^\s,;]+",
+        r"\1=[REDACTED]",
+        text,
+    )
+    return text[:limit]
+
+
+def _evidence_filename(prefix: str, action_id: str) -> str:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", action_id):
+        safe_action = action_id
+    else:
+        safe_action = "sha256-" + hashlib.sha256(action_id.encode()).hexdigest()[:24]
+    return f"{prefix}-{safe_action}.json"
+
+
+def _write_evidence(
+    execution_root: Path,
+    request: ActionRequest,
+    prefix: str,
+    payload: dict[str, Any],
+) -> str:
+    relative = Path(".codex") / "loop-runs" / request.run_id / _evidence_filename(
+        prefix, request.action_id
+    )
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    directory_fds: list[int] = [os.open(execution_root, flags)]
+    try:
+        for part in (".codex", "loop-runs", request.run_id):
+            directory_fds.append(os.open(part, flags, dir_fd=directory_fds[-1]))
+    except BaseException:
+        for directory_fd in reversed(directory_fds):
+            os.close(directory_fd)
+        raise
+    run_fd = directory_fds[-1]
+    name = relative.name
+    try:
+        try:
+            existing = os.stat(name, dir_fd=run_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None and stat.S_ISLNK(existing.st_mode):
+            raise OSError("evidence target is a symlink")
+        temporary = f".{name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        fd = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=run_fd,
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            fd = -1
+            os.replace(temporary, name, src_dir_fd=run_fd, dst_dir_fd=run_fd)
+            os.fsync(run_fd)
+        finally:
+            if fd >= 0:
+                os.close(fd)
+            try:
+                os.unlink(temporary, dir_fd=run_fd)
+            except FileNotFoundError:
+                pass
+    finally:
+        for directory_fd in reversed(directory_fds):
+            os.close(directory_fd)
+    return relative.as_posix()
 
 
 def _write_interruption_evidence(
     project_root: Path,
     request: ActionRequest,
     worker_id: str,
+    *,
+    result: ActionResult,
+    before_fingerprint: str,
+    after_fingerprint: str,
 ) -> str:
-    relative = Path(".codex") / "loop-runs" / request.run_id / (
-        f"worker-interruption-{request.action_id}.json"
-    )
-    path = project_root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "action_id": request.action_id,
         "run_id": request.run_id,
@@ -146,43 +305,33 @@ def _write_interruption_evidence(
         "signal": _current_stop_reason() or "SIGTERM",
         "observed_at": datetime.now(UTC).isoformat(timespec="microseconds"),
         "new_leases_stopped": True,
+        "result_class": ActionResultClass.RECOVERABLE_PARTIAL.value,
+        "summary": "worker interrupted after bounded action",
+        "artifact_paths": list(result.artifact_paths),
+        "checkpoint": result.checkpoint,
+        "before_fingerprint": before_fingerprint,
+        "after_fingerprint": after_fingerprint,
+        "lease_provenance": "worker-owned-live-lease",
     }
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(path)
-    return relative.as_posix()
+    return _write_evidence(project_root, request, "worker-interruption", payload)
 
 
-def _read_run_state(project_root: Path, run_id: str) -> dict[str, Any]:
-    path = project_root / ".codex" / "loop-runs" / run_id / "run.json"
-    return read_json_file(path)
-
-
-def _finalize_run_revision(
-    project_root: Path,
-    request: ActionRequest,
-    before: dict[str, Any],
-    token: RunLockToken,
-) -> None:
-    after = _read_run_state(project_root, request.run_id)
-    if _state_fingerprint(before) == _state_fingerprint(after):
-        return
-    revision = after.get("state_revision", 0)
-    if revision == request.run_revision:
-        atomic_save_run_locked(
-            project_root,
-            request.run_id,
-            after,
-            token=token,
-            expected_revision=request.run_revision,
-            expected_fingerprint=_state_fingerprint(after),
-        )
-        return
-    if revision != request.run_revision + 1:
-        raise ValueError(
-            f"bounded action produced invalid run revision {revision}; "
-            f"expected {request.run_revision + 1}"
-        )
+def _read_run_state_locked(token: RunLockToken) -> dict[str, Any]:
+    validate = os.open(
+        "run.json",
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        dir_fd=token.run_fd,
+    )
+    try:
+        with os.fdopen(validate, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        validate = -1
+    finally:
+        if validate >= 0:
+            os.close(validate)
+    if not isinstance(payload, dict):
+        raise ValueError("run.json must contain an object")
+    return payload
 
 
 def _write_recovery_evidence(
@@ -190,28 +339,61 @@ def _write_recovery_evidence(
     request: ActionRequest,
     worker_id: str,
     error: BaseException | str,
+    *,
+    before_fingerprint: str = "",
+    after_fingerprint: str = "",
 ) -> str:
-    relative = Path(".codex") / "loop-runs" / request.run_id / (
-        f"worker-completion-failure-{request.action_id}.json"
-    )
-    path = project_root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
     error_class = error.__class__.__name__ if isinstance(error, BaseException) else "LeaseLost"
     payload = {
         "action_id": request.action_id,
         "run_id": request.run_id,
         "worker_id": worker_id,
         "error_class": error_class,
-        "summary": str(error),
+        "summary": _redact_text(error),
         "observed_at": datetime.now(UTC).isoformat(timespec="microseconds"),
         "recoverable": True,
+        "result_class": ActionResultClass.RECOVERABLE_PARTIAL.value,
+        "artifact_paths": [],
+        "checkpoint": "worker-completion",
+        "error_provenance": "heartbeat" if "heartbeat" in str(error).lower() else "completion",
+        "lease_provenance": "lease-lost-or-completion-rejected",
+        "before_fingerprint": before_fingerprint,
+        "after_fingerprint": after_fingerprint,
     }
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    return _write_evidence(
+        project_root, request, "worker-completion-failure", payload
     )
-    temporary.replace(path)
-    return relative.as_posix()
+
+
+def _execution_root(project_root: Path, relative_root: str) -> Path:
+    current = project_root
+    if relative_root != ".":
+        for part in PurePosixPath(relative_root).parts:
+            current = current / part
+            metadata = current.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                raise PermissionError("execution root may not contain symlinks")
+    resolved = current.resolve()
+    if resolved != project_root and project_root not in resolved.parents:
+        raise PermissionError("execution root escapes project root")
+    if not resolved.is_dir():
+        raise PermissionError("execution root must be a directory")
+    return resolved
+
+
+def _validate_result_artifacts(
+    execution_root: Path, result: ActionResult
+) -> None:
+    for value in result.artifact_paths:
+        path = PurePosixPath(value)
+        if path.is_absolute() or ".." in path.parts or value != path.as_posix():
+            raise PermissionError(f"artifact path escapes execution root: {value}")
+        current = execution_root
+        for part in path.parts:
+            current = current / part
+            metadata = current.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                raise PermissionError(f"artifact path ownership changed: {value}")
 
 
 def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
@@ -229,29 +411,45 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
         if action is None:
             return WorkerResult(status="idle")
         request = _request_from_record(store, action)
+        execution_root = _execution_root(root, request.repo_relative_root)
 
         finished = threading.Event()
         lease_lost = threading.Event()
+        heartbeat_errors: list[BaseException] = []
         heartbeat = threading.Thread(
             target=_heartbeat,
-            args=(root, action.action_id, worker_id, finished, lease_lost),
+            args=(
+                root,
+                action.action_id,
+                worker_id,
+                finished,
+                lease_lost,
+                heartbeat_errors,
+            ),
             name=f"loop-worker-heartbeat-{worker_id}",
             daemon=True,
         )
         heartbeat.start()
         interruption_evidence = ""
         recovery_evidence = ""
+        before_fingerprint = ""
+        after_fingerprint = ""
         outcome: WorkerResult | None = None
         try:
             with acquire_run_lock(
-                root,
+                execution_root,
                 request.run_id,
                 owner=f"worker:{worker_id}",
                 blocking=True,
             ) as token:
                 if lease_lost.is_set():
                     recovery_evidence = _write_recovery_evidence(
-                        root, request, worker_id, "action lease lost before execution"
+                        execution_root,
+                        request,
+                        worker_id,
+                        heartbeat_errors[0]
+                        if heartbeat_errors
+                        else "action lease lost before execution",
                     )
                     outcome = WorkerResult(
                         action_id=action.action_id,
@@ -266,19 +464,52 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
                             if _mutates_git(request):
                                 locks.enter_context(
                                     acquire_repository_mutation_lock(
-                                        root,
+                                        execution_root,
                                         owner=f"worker:{worker_id}:{request.action_id}",
                                     )
                                 )
-                            before = _read_run_state(root, request.run_id)
-                            result = execute_action(request, root)
-                            _finalize_run_revision(root, request, before, token)
+                            before = _read_run_state_locked(token)
+                            before_fingerprint = _state_fingerprint(before)
+                            if int(before.get("state_revision", 0)) != request.run_revision:
+                                raise ValueError("leased action run revision is stale")
+                            with legacy.bounded_run_transaction(
+                                execution_root, request.run_id, before
+                            ) as transaction:
+                                result = execute_action(request, execution_root)
+                                _validate_result_artifacts(execution_root, result)
+                                if lease_lost.is_set():
+                                    raise BoundedFailure(
+                                        "heartbeat failed before run commit",
+                                        cause=heartbeat_errors[0]
+                                        if heartbeat_errors
+                                        else None,
+                                    )
+                                saved = atomic_save_run_locked(
+                                    execution_root,
+                                    request.run_id,
+                                    transaction.staged_payload,
+                                    token=token,
+                                    expected_revision=request.run_revision,
+                                    expected_fingerprint=before_fingerprint,
+                                )
+                                after_fingerprint = _state_fingerprint(saved)
                     except Exception as exc:
-                        result = _failure_result(exc, action.action_id)
+                        if not after_fingerprint:
+                            after_fingerprint = before_fingerprint
+                        result = classify_bounded_failure(
+                            exc,
+                            action_id=action.action_id,
+                            execution_root=execution_root,
+                        )
 
                     if _stop_requested.is_set():
                         interruption_evidence = _write_interruption_evidence(
-                            root, request, worker_id
+                            execution_root,
+                            request,
+                            worker_id,
+                            result=result,
+                            before_fingerprint=before_fingerprint,
+                            after_fingerprint=after_fingerprint,
                         )
                         result = replace(
                             result,
@@ -291,17 +522,25 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
 
                     if lease_lost.is_set():
                         recovery_evidence = _write_recovery_evidence(
-                            root,
+                            execution_root,
                             request,
                             worker_id,
-                            "action lease lost before completion",
+                            heartbeat_errors[0]
+                            if heartbeat_errors
+                            else "action lease lost before completion",
+                            before_fingerprint=before_fingerprint,
+                            after_fingerprint=after_fingerprint,
                         )
                         outcome = WorkerResult(
                             action_id=action.action_id,
                             run_id=action.run_id,
                             status="lease_lost",
                             result_class=result.result_class.value,
-                            summary="action lease was lost during execution",
+                            summary=(
+                                "heartbeat failed during execution"
+                                if heartbeat_errors
+                                else "action lease was lost during execution"
+                            ),
                             interruption_evidence=interruption_evidence,
                             recovery_evidence=recovery_evidence,
                         )
@@ -310,7 +549,12 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
                             store.complete_action(action.action_id, worker_id, result)
                         except Exception as exc:
                             recovery_evidence = _write_recovery_evidence(
-                                root, request, worker_id, exc
+                                execution_root,
+                                request,
+                                worker_id,
+                                exc,
+                                before_fingerprint=before_fingerprint,
+                                after_fingerprint=after_fingerprint,
                             )
                             outcome = WorkerResult(
                                 action_id=action.action_id,

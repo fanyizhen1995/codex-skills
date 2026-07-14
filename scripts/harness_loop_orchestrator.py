@@ -7,9 +7,14 @@ import re
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from typing import Iterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -955,15 +960,58 @@ def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
 
 
 def load_run(repo_root: Path | str, run_id: str) -> dict[str, Any]:
+    transaction = _BOUNDED_RUN_TRANSACTION.get()
+    if transaction is not None and transaction.matches(repo_root, run_id):
+        return deepcopy(transaction.staged_payload)
     payload = read_json_file(run_dir_for(Path(repo_root), run_id) / "run.json")
     validate_run_payload(payload)
     return payload
 
 
 def save_run(repo_root: Path | str, payload: dict[str, Any]) -> dict[str, Any]:
+    transaction = _BOUNDED_RUN_TRANSACTION.get()
+    if transaction is not None and transaction.matches(repo_root, str(payload["run_id"])):
+        transaction.staged_payload = deepcopy(payload)
+        return payload
     validate_run_payload(payload)
     write_json_file(run_dir_for(Path(repo_root), payload["run_id"]) / "run.json", payload)
     return payload
+
+
+@dataclass
+class BoundedRunTransaction:
+    repo_root: Path
+    run_id: str
+    initial_payload: dict[str, Any]
+    staged_payload: dict[str, Any]
+
+    def matches(self, repo_root: Path | str, run_id: str) -> bool:
+        return Path(repo_root).resolve() == self.repo_root and run_id == self.run_id
+
+
+_BOUNDED_RUN_TRANSACTION: ContextVar[BoundedRunTransaction | None] = ContextVar(
+    "bounded_run_transaction", default=None
+)
+
+
+@contextmanager
+def bounded_run_transaction(
+    repo_root: Path | str, run_id: str, payload: Mapping[str, Any]
+) -> Iterator[BoundedRunTransaction]:
+    if _BOUNDED_RUN_TRANSACTION.get() is not None:
+        raise RuntimeError("bounded run transactions cannot be nested")
+    initial = deepcopy(dict(payload))
+    transaction = BoundedRunTransaction(
+        repo_root=Path(repo_root).resolve(),
+        run_id=run_id,
+        initial_payload=initial,
+        staged_payload=deepcopy(initial),
+    )
+    reset = _BOUNDED_RUN_TRANSACTION.set(transaction)
+    try:
+        yield transaction
+    finally:
+        _BOUNDED_RUN_TRANSACTION.reset(reset)
 
 
 def _git_commit_exists(repo_root: Path, commitish: str) -> bool:
@@ -5734,17 +5782,54 @@ def _bounded_failure(
     exc: BaseException,
     *,
     started_at: str,
+    repo_root: Path | None = None,
 ) -> ActionResult:
-    retryable = isinstance(exc, (OSError, subprocess.SubprocessError, TimeoutError))
+    text = f"{exc.__class__.__name__}: {exc}".lower()
+    policy = isinstance(exc, PermissionError) or any(
+        marker in text
+        for marker in ("secret", "scope", "permission", "ownership", "symlink", "escape")
+    )
+    terminal = any(
+        marker in text for marker in ("corrupt", "unprovable", "invalid json")
+    )
+    partial_artifacts: tuple[str, ...] = ()
+    retryable_source = isinstance(
+        exc, (OSError, subprocess.SubprocessError, TimeoutError)
+    )
+    artifact_specs = {
+        "planner": ("planner-output.json", validate_planner_output_payload),
+        "generator": ("generator-result.json", validate_generator_result_payload),
+        "evaluator": ("evaluator-result.json", validate_evaluator_result_payload),
+        "evidence-gate": ("generator-result.json", validate_generator_result_payload),
+        "artifact-hygiene": (
+            "artifact-hygiene-result.json",
+            validate_artifact_hygiene_result_payload,
+        ),
+    }
+    artifact_spec = artifact_specs.get(action_name)
+    if retryable_source and repo_root is not None and artifact_spec is not None:
+        artifact_path = run_dir_for(repo_root, request.run_id) / artifact_spec[0]
+        try:
+            artifact_spec[1](read_json_file(artifact_path))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+        else:
+            partial_artifacts = (_relative_artifact(repo_root, artifact_path),)
     return ActionResult(
         result_class=(
-            ActionResultClass.RETRYABLE_FAILURE
-            if retryable
+            ActionResultClass.RECOVERABLE_PARTIAL
+            if partial_artifacts
+            else ActionResultClass.POLICY_BLOCK
+            if policy
             else ActionResultClass.TERMINAL_FAILURE
+            if terminal
+            else ActionResultClass.RETRYABLE_FAILURE
         ),
         summary=f"{action_name} failed: {exc}",
         failure_key=f"{action_name}:{request.run_id}:{exc.__class__.__name__}",
         error_class=exc.__class__.__name__,
+        artifact_paths=partial_artifacts,
+        checkpoint=action_name if partial_artifacts else "",
         started_at=started_at,
         finished_at=_timestamp(),
     )
@@ -5778,6 +5863,90 @@ def _relative_artifact(repo_root: Path, path: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
+def _run_bounded_demand_parent_planner(
+    repo_root: Path,
+    parent: dict[str, Any],
+    request: ActionRequest,
+    *,
+    planner_driver: str,
+) -> None:
+    parent = _ensure_parent_fields(parent)
+    if parent.get("run_kind") != "parent":
+        raise RuntimeError("demand parent planner requires run_kind=parent")
+    if parent["phase"] == "child_running":
+        child_id = str(parent.get("current_child_run_id") or "")
+        if not child_id or load_run(repo_root, child_id).get("phase") != "passed":
+            raise RuntimeError("demand parent child is not ready for aggregation")
+        parent, status = _reconcile_passed_demand_children(repo_root, parent)
+        if status == "blocked":
+            return
+        parent["phase"] = "planning"
+        parent["next_action"] = "run_parent_planner"
+        parent["reader_summary"]["current_progress"] = (
+            f"{parent['aggregate_acceptance']['passed']} children passed"
+        )
+        parent["reader_summary"]["next_step"] = "Run parent planner"
+        parent["reader_summary"]["decision_needed"] = "No"
+        save_run(repo_root, parent)
+        return
+    if parent["phase"] != "planning" or parent["next_action"] != "run_parent_planner":
+        raise RuntimeError("demand parent planner requires planning/run_parent_planner")
+
+    configured_max = request.payload.get(
+        "max_children", parent.get("limits", {}).get("max_tasks_per_run", 3)
+    )
+    if not isinstance(configured_max, int) or isinstance(configured_max, bool) or configured_max < 1:
+        raise ValueError("max_children must be a positive integer")
+    planner_payload = _run_demand_parent_planner(
+        repo_root,
+        parent,
+        planner_driver=planner_driver,
+        max_children=configured_max,
+    )
+    parent = _ensure_parent_fields(load_run(repo_root, str(parent["run_id"])))
+    parent["reader_summary"] = planner_payload["reader_summary"]
+    decision = planner_payload["planner_decision"]
+    if decision in {"blocked", "failed"}:
+        parent["phase"] = "stopped_blocked"
+        parent["last_result"] = "blocked"
+        parent["next_action"] = "inspect_parent_planner_blocked"
+        parent["aggregate_acceptance"]["user_decision_required"] = True
+        save_run(repo_root, parent)
+        return
+    if decision == "parent_done":
+        parent["phase"] = "passed_waiting_human_merge"
+        parent["last_result"] = "pass"
+        parent["next_action"] = "await_human_merge_confirmation"
+        parent["aggregate_acceptance"]["pending"] = 0
+        save_run(repo_root, parent)
+        return
+
+    child_index = len(parent["child_run_ids"]) + 1
+    if child_index > configured_max:
+        parent["phase"] = "stopped_budget"
+        parent["last_result"] = "blocked"
+        parent["next_action"] = "inspect_budget_limits"
+        save_run(repo_root, parent)
+        return
+    child = _create_child_run(
+        repo_root,
+        parent,
+        child_index,
+        planner_payload["next_child_task"],
+    )
+    parent["child_run_ids"].append(child["run_id"])
+    parent["current_child_run_id"] = child["run_id"]
+    parent["phase"] = "child_running"
+    parent["next_action"] = "run_child_generator"
+    parent["aggregate_acceptance"]["total"] = max(
+        int(parent["aggregate_acceptance"].get("total", 0)), child_index
+    )
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(
+        parent["aggregate_acceptance"]
+    )
+    save_run(repo_root, parent)
+
+
 def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
@@ -5798,6 +5967,15 @@ def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult
                         raise RuntimeError("autonomous planner did not produce a valid result")
             else:
                 raise ValueError(f"unsupported autonomous planner driver: {driver}")
+        elif run.get("run_kind") == "parent":
+            _run_bounded_demand_parent_planner(
+                repo_root,
+                run,
+                request,
+                planner_driver=driver,
+            )
+        elif run.get("run_kind") == "child":
+            raise RuntimeError("demand child planning is owned by its parent planner")
         else:
             run_planner(repo_root, request.run_id, driver=driver)
         artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
@@ -5809,7 +5987,9 @@ def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult
             checkpoint="planner",
         )
     except Exception as exc:
-        return _bounded_failure(request, "planner", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "planner", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5840,7 +6020,9 @@ def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResu
             checkpoint="generator",
         )
     except Exception as exc:
-        return _bounded_failure(request, "generator", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "generator", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5880,7 +6062,9 @@ def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResu
             checkpoint="evaluator",
         )
     except Exception as exc:
-        return _bounded_failure(request, "evaluator", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "evaluator", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5901,7 +6085,9 @@ def run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> Action
             checkpoint="evidence-gate",
         )
     except Exception as exc:
-        return _bounded_failure(request, "evidence-gate", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "evidence-gate", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5923,7 +6109,13 @@ def run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> Act
             checkpoint="artifact-hygiene",
         )
     except Exception as exc:
-        return _bounded_failure(request, "artifact-hygiene", exc, started_at=started_at)
+        return _bounded_failure(
+            request,
+            "artifact-hygiene",
+            exc,
+            started_at=started_at,
+            repo_root=repo_root,
+        )
 
 
 def run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5950,7 +6142,9 @@ def run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
             checkpoint="commit",
         )
     except Exception as exc:
-        return _bounded_failure(request, "commit", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "commit", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5979,7 +6173,9 @@ def run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
             checkpoint="push",
         )
     except Exception as exc:
-        return _bounded_failure(request, "push", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "push", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -5999,7 +6195,9 @@ def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult
             checkpoint="cleanup",
         )
     except Exception as exc:
-        return _bounded_failure(request, "cleanup", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "cleanup", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -6046,7 +6244,9 @@ def run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionR
             checkpoint="continuation",
         )
     except Exception as exc:
-        return _bounded_failure(request, "continuation", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "continuation", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -6066,7 +6266,13 @@ def run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> A
             checkpoint="generator-recovery",
         )
     except Exception as exc:
-        return _bounded_failure(request, "generator-recovery", exc, started_at=started_at)
+        return _bounded_failure(
+            request,
+            "generator-recovery",
+            exc,
+            started_at=started_at,
+            repo_root=repo_root,
+        )
 
 
 def run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -6087,7 +6293,13 @@ def run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> A
             checkpoint="alternate-recovery",
         )
     except Exception as exc:
-        return _bounded_failure(request, "alternate-recovery", exc, started_at=started_at)
+        return _bounded_failure(
+            request,
+            "alternate-recovery",
+            exc,
+            started_at=started_at,
+            repo_root=repo_root,
+        )
 
 
 def run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -6102,7 +6314,9 @@ def run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResul
             checkpoint="reviewer",
         )
     except Exception as exc:
-        return _bounded_failure(request, "reviewer", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "reviewer", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -6119,7 +6333,9 @@ def run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult
             checkpoint="refocus",
         )
     except Exception as exc:
-        return _bounded_failure(request, "refocus", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "refocus", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def run_bounded_stop(repo_root: Path, request: ActionRequest) -> ActionResult:
@@ -6140,7 +6356,9 @@ def run_bounded_stop(repo_root: Path, request: ActionRequest) -> ActionResult:
             checkpoint="stop",
         )
     except Exception as exc:
-        return _bounded_failure(request, "stop", exc, started_at=started_at)
+        return _bounded_failure(
+            request, "stop", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:

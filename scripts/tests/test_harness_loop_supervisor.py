@@ -603,6 +603,19 @@ def test_discovery_reads_root_and_contained_non_symlink_worktree(tmp_path):
     assert records[1].repo_root == worktree.resolve()
 
 
+def test_reconcile_action_carries_repo_relative_execution_root(tmp_path):
+    worktree = tmp_path / ".worktrees" / "child"
+    seed_run(worktree, "worktree-run")
+    store = migrated_store(tmp_path)
+
+    action = reconcile_once(tmp_path, store).action_for("worktree-run")
+
+    assert action is not None
+    assert action.repo_relative_root == ".worktrees/child"
+    stored = store.get_action(action.action_id)
+    assert stored.repo_relative_root == ".worktrees/child"
+
+
 def test_reconcile_can_exclude_worktree_runs(tmp_path):
     seed_run(tmp_path, "root-run", worktree=".")
     worktree = tmp_path / ".worktrees" / "child"

@@ -52,6 +52,7 @@ def test_action_request_is_immutable_and_carries_transition_identity():
     assert request.action_type is ActionType.RUN_PLANNER
     assert request.policy == "autonomous_knowledge"
     assert request.run_revision == 1
+    assert request.repo_relative_root == "."
     with pytest.raises(AttributeError):
         request.run_id = "other"  # type: ignore[misc]
 
@@ -65,6 +66,8 @@ def test_action_request_is_immutable_and_carries_transition_identity():
         ("action_type", "run_planner", TypeError),
         ("action_id", "", ValueError),
         ("run_id", "../escape", ValueError),
+        ("repo_relative_root", "../escape", ValueError),
+        ("repo_relative_root", "/absolute", ValueError),
     ],
 )
 def test_action_request_rejects_invalid_execution_fields(field, value, error):
@@ -81,6 +84,21 @@ def test_action_request_rejects_invalid_execution_fields(field, value, error):
 
     with pytest.raises(error):
         ActionRequest(**kwargs)
+
+
+def test_action_request_accepts_safe_nested_execution_root():
+    request = ActionRequest(
+        action_id="action-1",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key="run-1:1:planning:run_planner",
+        repo_relative_root=".worktrees/feature",
+    )
+
+    assert request.repo_relative_root == ".worktrees/feature"
 
 
 def test_frozen_models_snapshot_mutable_inputs_recursively():

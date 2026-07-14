@@ -6,6 +6,7 @@ import fcntl
 import json
 import os
 import re
+import stat
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -34,17 +35,42 @@ class RunLockToken(dict[str, object]):
         owner: str,
         pid: int,
         handle: object,
+        runs_fd: int | None,
+        run_fd: int | None,
     ) -> None:
         super().__init__(lock_id=run_id, run_id=run_id, owner=owner, pid=pid)
         self._repo_root = repo_root
         self._run_id = run_id
         self._handle = handle
+        self._runs_fd = runs_fd
+        self._run_fd = run_fd
+        if run_fd is None:
+            self._run_directory_identity = None
+        else:
+            opened = os.fstat(run_fd)
+            self._run_directory_identity = (opened.st_dev, opened.st_ino)
         self._guard = _RUN_LOCK_TOKEN_GUARD
         self._active = True
 
     @property
     def repo_root(self) -> Path:
         return self._repo_root
+
+    @property
+    def run_directory_identity(self) -> tuple[int, int] | None:
+        return self._run_directory_identity
+
+    @property
+    def runs_fd(self) -> int:
+        if self._runs_fd is None:
+            raise ValueError("run lock token has no bound runs directory")
+        return self._runs_fd
+
+    @property
+    def run_fd(self) -> int:
+        if self._run_fd is None:
+            raise ValueError("run lock token has no bound run directory")
+        return self._run_fd
 
 
 def run_lock_path(repo_root: Path, run_id: str) -> Path:
@@ -135,6 +161,7 @@ def _acquire_lock(
                 owner=owner.strip(),
                 pid=os.getpid(),
                 handle=handle,
+                **_open_run_directory_binding(run_root, lock_id),
             )
             if run_root is not None
             else metadata
@@ -145,6 +172,11 @@ def _acquire_lock(
             primary_exception = sys.exc_info()[0] is not None
             if isinstance(token, RunLockToken):
                 token._active = False
+                for directory_fd in (token._run_fd, token._runs_fd):
+                    if directory_fd is not None:
+                        os.close(directory_fd)
+                token._run_fd = None
+                token._runs_fd = None
             cleanup_error: BaseException | None = None
             try:
                 handle.seek(0)
@@ -177,7 +209,43 @@ def validate_run_lock_token(
         or getattr(token._handle, "closed", True)
     ):
         raise ValueError("an active run lock token for this repository and run is required")
+    if token._run_fd is not None:
+        opened = os.fstat(token._run_fd)
+        current = os.stat(
+            run_id,
+            dir_fd=token.runs_fd,
+            follow_symlinks=False,
+        )
+        if not stat.S_ISDIR(current.st_mode) or (
+            current.st_dev,
+            current.st_ino,
+        ) != (opened.st_dev, opened.st_ino):
+            raise ValueError(f"run directory ownership changed: {run_id}")
     return token
+
+
+def _open_run_directory_binding(
+    root: Path | None, run_id: str
+) -> dict[str, int | None]:
+    if root is None:
+        return {"runs_fd": None, "run_fd": None}
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    runs_path = root / ".codex" / "loop-runs"
+    try:
+        runs_fd = os.open(runs_path, flags)
+    except FileNotFoundError:
+        return {"runs_fd": None, "run_fd": None}
+    try:
+        run_fd = os.open(run_id, flags, dir_fd=runs_fd)
+    except BaseException:
+        os.close(runs_fd)
+        raise
+    return {"runs_fd": runs_fd, "run_fd": run_fd}
 
 
 def _read_metadata(raw: str) -> dict[str, object]:

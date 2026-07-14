@@ -26,7 +26,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -76,6 +76,7 @@ class ActionRecord:
     canonical_identity: str
     run_id: str
     run_revision: int
+    repo_relative_root: str
     policy: str
     phase: str
     action_type: str
@@ -204,6 +205,7 @@ _DDL = (
       canonical_identity TEXT NOT NULL,
       run_id TEXT NOT NULL,
       run_revision INTEGER NOT NULL CHECK (run_revision >= 0),
+      repo_relative_root TEXT NOT NULL DEFAULT '.',
       policy TEXT NOT NULL DEFAULT '',
       phase TEXT NOT NULL DEFAULT '',
       action_type TEXT NOT NULL,
@@ -448,6 +450,7 @@ class SupervisorStore:
                 """
             )
             self._ensure_run_state_fingerprint()
+            self._ensure_action_execution_root()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
             self._ensure_action_idempotency_aliases()
@@ -516,6 +519,17 @@ class SupervisorStore:
                 "ALTER TABLE runs ADD COLUMN state_fingerprint TEXT NOT NULL DEFAULT ''"
             )
 
+    def _ensure_action_execution_root(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute("PRAGMA table_info(actions)").fetchall()
+        }
+        if "repo_relative_root" not in columns:
+            self._connection.execute(
+                "ALTER TABLE actions "
+                "ADD COLUMN repo_relative_root TEXT NOT NULL DEFAULT '.'"
+            )
+
     @staticmethod
     def _normalize_legacy_timestamp(value: object, *, allow_empty: bool) -> str:
         if not isinstance(value, str):
@@ -542,7 +556,8 @@ class SupervisorStore:
             )
         rows = self._connection.execute(
             """
-            SELECT action_id, run_id, run_revision, policy, phase, action_type, task_id
+            SELECT action_id, run_id, run_revision, repo_relative_root,
+                   policy, phase, action_type, task_id
             FROM actions
             """
         ).fetchall()
@@ -550,6 +565,7 @@ class SupervisorStore:
             canonical_identity = self._canonical_action_identity(
                 run_id=str(row["run_id"]),
                 run_revision=int(row["run_revision"]),
+                repo_relative_root=str(row["repo_relative_root"]),
                 policy=str(row["policy"]),
                 phase=str(row["phase"]),
                 action_type=str(row["action_type"]),
@@ -577,6 +593,16 @@ class SupervisorStore:
             )
             SELECT idempotency_key, canonical_identity, action_id, created_at
             FROM actions
+            """
+        )
+        self._connection.execute(
+            """
+            UPDATE action_idempotency_aliases
+            SET canonical_identity = (
+              SELECT actions.canonical_identity
+              FROM actions
+              WHERE actions.action_id = action_idempotency_aliases.action_id
+            )
             """
         )
 
@@ -715,8 +741,11 @@ class SupervisorStore:
             raise TypeError("expected_run_fingerprint must be a string")
         locked_snapshot = run_lock_token is not None
         if run_lock_token is not None:
+            expected_execution_root = (
+                self.project_root / request.repo_relative_root
+            ).resolve()
             validate_run_lock_token(
-                run_lock_token, run_lock_token.repo_root, request.run_id
+                run_lock_token, expected_execution_root, request.run_id
             )
         payload = request.payload_for_storage()
         self._validate_payload(payload)
@@ -730,6 +759,7 @@ class SupervisorStore:
             phase=request.phase,
             action_type=request.action_type.value,
             task_id=request.task_id,
+            repo_relative_root=request.repo_relative_root,
         )
         now = self._now_text()
         with self._immediate_transaction():
@@ -760,6 +790,7 @@ class SupervisorStore:
                     request.action_type.value,
                     request.task_id,
                     request.policy,
+                    request.repo_relative_root,
                     canonical_identity,
                 )
                 stored_identity = (
@@ -769,6 +800,7 @@ class SupervisorStore:
                     str(existing["action_type"]),
                     str(existing["task_id"]),
                     str(existing["policy"]),
+                    str(existing["repo_relative_root"]),
                     str(existing["canonical_identity"]),
                 )
                 if stored_identity != expected_identity:
@@ -848,10 +880,10 @@ class SupervisorStore:
                     """
                     INSERT INTO actions(
                       action_id, idempotency_key, canonical_identity,
-                      run_id, run_revision, policy, phase,
+                      run_id, run_revision, repo_relative_root, policy, phase,
                       action_type, task_id, next_action, status, priority, recovery_tier,
                       payload_json, artifact_json, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         request.action_id,
@@ -859,6 +891,7 @@ class SupervisorStore:
                         canonical_identity,
                         request.run_id,
                         request.run_revision,
+                        request.repo_relative_root,
                         request.policy,
                         request.phase,
                         request.action_type.value,
@@ -2187,6 +2220,7 @@ class SupervisorStore:
             canonical_identity=str(row["canonical_identity"]),
             run_id=str(row["run_id"]),
             run_revision=int(row["run_revision"]),
+            repo_relative_root=str(row["repo_relative_root"]),
             policy=str(row["policy"]),
             phase=str(row["phase"]),
             action_type=str(row["action_type"]),
@@ -2379,6 +2413,7 @@ class SupervisorStore:
         phase: str,
         action_type: str,
         task_id: str,
+        repo_relative_root: str,
     ) -> str:
         canonical = SupervisorStore._json(
             {
@@ -2387,6 +2422,7 @@ class SupervisorStore:
                 "policy": policy,
                 "run_id": run_id,
                 "run_revision": run_revision,
+                "repo_relative_root": repo_relative_root,
                 "task_id": task_id,
             }
         ).encode("utf-8")

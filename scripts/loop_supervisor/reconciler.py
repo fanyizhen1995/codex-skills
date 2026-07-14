@@ -165,6 +165,16 @@ def atomic_save_run_locked(
         )
     target = root / ".codex" / "loop-runs" / run_id / "run.json"
     _require_contained_non_symlink(target, root, allow_missing_leaf=True)
+    if token.run_directory_identity is not None:
+        return _atomic_save_run_locked(
+            token.run_fd,
+            target,
+            payload,
+            run_id=run_id,
+            expected_revision=expected_revision,
+            expected_fingerprint=expected_fingerprint,
+            runs_fd=token.runs_fd,
+        )
     with _open_run_directory(root, run_id, create=True):
         pass
 
@@ -544,6 +554,7 @@ def desired_action_for_run(run: Mapping[str, Any]) -> ActionRequest | None:
         "phase": phase,
         "action_type": rule.action_type.value,
         "task_id": task_id,
+        "repo_relative_root": str(run.get("_supervisor_repo_relative_root") or "."),
     }
     digest = hashlib.sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -556,6 +567,7 @@ def desired_action_for_run(run: Mapping[str, Any]) -> ActionRequest | None:
         phase=phase,
         action_type=rule.action_type,
         idempotency_key=f"reconcile:{digest}",
+        repo_relative_root=identity["repo_relative_root"],
         task_id=task_id,
         next_action=next_action,
         payload=payload,
@@ -730,7 +742,11 @@ def _reconcile_once_locked(
         run = record.payload
         try:
             desired_by_run[record.run_id] = desired_action_for_run(
-                {**run, "_supervisor_project_root": str(root)}
+                {
+                    **run,
+                    "_supervisor_project_root": str(root),
+                    "_supervisor_repo_relative_root": record.repo_root.relative_to(root).as_posix(),
+                }
             )
         except (TypeError, ValueError) as exc:
             failure_key = _failure_key("run", record.run_id, str(exc))
@@ -839,6 +855,7 @@ def _reconcile_once_locked(
         )
         for record in valid_records
     }
+    payload_by_run = {record.run_id: record.payload for record in valid_records}
     queued: list[ActionRequest] = []
     if not global_stop:
         for record in valid_records:
@@ -847,6 +864,13 @@ def _reconcile_once_locked(
             action = desired_by_run.get(record.run_id)
             if action is None:
                 continue
+            if record.payload.get("run_kind") == "parent" and record.payload.get(
+                "phase"
+            ) == "child_running":
+                child_id = str(record.payload.get("current_child_run_id") or "")
+                child = payload_by_run.get(child_id)
+                if child is None or child.get("phase") != "passed":
+                    continue
             if (
                 action.action_type is ActionType.CREATE_CONTINUATION
                 and record.run_id in child_sources

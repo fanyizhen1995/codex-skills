@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 import math
 from types import MappingProxyType
+from pathlib import PurePosixPath
 from typing import Any, Mapping
 
 from scripts.harness_loop_contracts import ALLOWED_PHASES, normalize_policy_id, validate_run_id
@@ -42,6 +43,16 @@ def _thaw_json_value(value: Any) -> Any:
     if isinstance(value, tuple):
         return [_thaw_json_value(item) for item in value]
     return value
+
+
+def validate_repo_relative_root(value: object) -> str:
+    root = _require_string(value, "repo_relative_root")
+    path = PurePosixPath(root)
+    if path.is_absolute() or root != path.as_posix() or any(
+        part in {"", ".."} for part in path.parts
+    ):
+        raise ValueError("repo_relative_root must be a normalized project-relative path")
+    return root
 
 
 class ActionType(StrEnum):
@@ -109,6 +120,7 @@ class ActionRequest:
     phase: str
     action_type: ActionType
     idempotency_key: str
+    repo_relative_root: str = "."
     task_id: str = ""
     next_action: str = ""
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -128,6 +140,11 @@ class ActionRequest:
         if not isinstance(self.action_type, ActionType):
             raise TypeError("action_type must be an ActionType")
         _require_string(self.idempotency_key, "idempotency_key")
+        object.__setattr__(
+            self,
+            "repo_relative_root",
+            validate_repo_relative_root(self.repo_relative_root),
+        )
         _require_string(self.task_id, "task_id", allow_empty=True)
         _require_string(self.next_action, "next_action", allow_empty=True)
         if not isinstance(self.payload, MappingABC):

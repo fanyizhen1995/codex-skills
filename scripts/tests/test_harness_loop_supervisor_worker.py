@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 import threading
-import time
+import os
 
 import pytest
 
@@ -198,6 +198,136 @@ def test_confirmed_demand_run_reconciles_and_worker_calls_planner_primitive(
     assert not (tmp_path / ".codex/loop-runs/demand-run/generator-result.json").exists()
 
 
+def test_demand_parent_planner_worker_creates_exactly_one_child(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    _init_git_repo(tmp_path)
+    parent = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Build bounded parent child chain",
+        run_id="parent-run",
+        confirm=True,
+    )
+    parent.update(
+        {
+            "run_kind": "parent",
+            "phase": "planning",
+            "next_action": "run_parent_planner",
+            "child_run_ids": [],
+            "current_child_run_id": "",
+            "backlog": [],
+            "aggregate_acceptance": {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "blocked": 0,
+                "pending": 0,
+                "user_decision_required": False,
+            },
+            "reader_summary": {
+                "purpose": "Build bounded parent child chain",
+                "current_progress": "Planning",
+                "next_step": "Create first child",
+                "decision_needed": "No",
+            },
+            "accepted_changed_paths": [],
+        }
+    )
+    legacy.save_run(tmp_path, parent)
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            "parent-run"
+        )
+    assert action is not None
+    assert action.action_type is ActionType.RUN_PLANNER
+
+    result = worker_once(tmp_path, "parent-planner-worker")
+
+    assert result.status == "completed"
+    persisted = legacy.load_run(tmp_path, "parent-run")
+    assert persisted["phase"] == "child_running"
+    assert persisted["next_action"] == "run_child_generator"
+    assert len(persisted["child_run_ids"]) == 1
+    child = legacy.load_run(tmp_path, persisted["child_run_ids"][0])
+    assert child["run_kind"] == "child"
+    assert child["phase"] == "generating"
+    assert not (tmp_path / "generated" / "child-001.txt").exists()
+
+
+def test_demand_parent_child_chain_uses_one_action_per_worker(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    _init_git_repo(tmp_path)
+    parent = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Run one bounded child",
+        run_id="chain-parent",
+        confirm=True,
+    )
+    parent.update(
+        {
+            "run_kind": "parent",
+            "phase": "planning",
+            "next_action": "run_parent_planner",
+            "child_run_ids": [],
+            "current_child_run_id": "",
+            "backlog": [],
+            "aggregate_acceptance": {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "blocked": 0,
+                "pending": 0,
+                "user_decision_required": False,
+            },
+            "reader_summary": {
+                "purpose": "Run one bounded child",
+                "current_progress": "Planning",
+                "next_step": "Create first child",
+                "decision_needed": "No",
+            },
+            "accepted_changed_paths": [],
+        }
+    )
+    legacy.save_run(tmp_path, parent)
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        reconcile_once(tmp_path, store, include_worktrees=False)
+        assert worker_once(tmp_path, "chain-parent-plan").status == "completed"
+
+        parent = legacy.load_run(tmp_path, "chain-parent")
+        child_id = parent["child_run_ids"][0]
+        generated = reconcile_once(tmp_path, store, include_worktrees=False)
+        assert generated.action_for("chain-parent") is None
+        assert generated.action_for(child_id).action_type is ActionType.RUN_GENERATOR
+        assert worker_once(tmp_path, "chain-child-generate").status == "completed"
+
+        evaluated = reconcile_once(tmp_path, store, include_worktrees=False)
+        assert evaluated.action_for("chain-parent") is None
+        assert evaluated.action_for(child_id).action_type is ActionType.RUN_EVALUATOR
+        assert worker_once(tmp_path, "chain-child-evaluate").status == "completed"
+
+        aggregate = reconcile_once(tmp_path, store, include_worktrees=False)
+        assert aggregate.action_for(child_id) is None
+        assert aggregate.action_for("chain-parent").action_type is ActionType.RUN_PLANNER
+        assert worker_once(tmp_path, "chain-parent-aggregate").status == "completed"
+
+    final = legacy.load_run(tmp_path, "chain-parent")
+    assert final["phase"] == "planning"
+    assert final["next_action"] == "run_parent_planner"
+    assert final["aggregate_acceptance"]["passed"] == 1
+    assert final["child_run_ids"] == [child_id]
+
+
 def test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -353,6 +483,7 @@ def test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock(
     legacy_written = threading.Event()
     release_handler = threading.Event()
     reconcile_attempted = threading.Event()
+    reconcile_acquired = threading.Event()
     original_acquire = reconciler_module.acquire_run_lock
 
     def same_revision_handler(
@@ -371,6 +502,7 @@ def test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock(
     def observed_reconcile_lock(*args: object, **kwargs: object):
         reconcile_attempted.set()
         with original_acquire(*args, **kwargs) as token:
+            reconcile_acquired.set()
             yield token
 
     monkeypatch.setattr(worker, "execute_action", same_revision_handler)
@@ -396,7 +528,7 @@ def test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock(
     reconcile_thread = threading.Thread(target=reconcile_in_thread)
     reconcile_thread.start()
     assert reconcile_attempted.wait(timeout=2)
-    time.sleep(0.1)
+    assert not reconcile_acquired.wait(timeout=0.1)
     assert reconcile_thread.is_alive()
     assert reconcile_result == []
 
@@ -486,7 +618,7 @@ def test_worker_waits_when_reconciler_holds_same_run_lock(
         )
     )
     worker_thread.start()
-    time.sleep(0.1)
+    assert not handler_entered.wait(timeout=0.1)
     assert worker_thread.is_alive()
     assert not handler_entered.is_set()
 
@@ -540,6 +672,8 @@ def test_worker_heartbeat_renews_worker_and_action_lease(
     action = _seed_action(tmp_path)
     entered = threading.Event()
     release = threading.Event()
+    renewed = threading.Event()
+    original_renew = SupervisorStore.renew_lease
 
     def execute(_request: ActionRequest, _root: Path) -> ActionResult:
         entered.set()
@@ -548,6 +682,13 @@ def test_worker_heartbeat_renews_worker_and_action_lease(
 
     monkeypatch.setattr(worker, "execute_action", execute)
     monkeypatch.setattr(worker, "HEARTBEAT_SECONDS", 0.05)
+
+    def observed_renew(self: SupervisorStore, *args: object, **kwargs: object) -> bool:
+        result = original_renew(self, *args, **kwargs)
+        renewed.set()
+        return result
+
+    monkeypatch.setattr(SupervisorStore, "renew_lease", observed_renew)
     thread = threading.Thread(target=worker.worker_once, args=(tmp_path, "worker-heartbeat"))
     thread.start()
     assert entered.wait(timeout=2)
@@ -555,7 +696,7 @@ def test_worker_heartbeat_renews_worker_and_action_lease(
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
         before = next(row for row in store.fetch_all("actions") if row["action_id"] == action.action_id)
-    time.sleep(0.15)
+    assert renewed.wait(timeout=2)
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
         after = next(row for row in store.fetch_all("actions") if row["action_id"] == action.action_id)
@@ -606,7 +747,14 @@ def test_process_exit_after_lease_is_not_recorded_as_action_failure(
 
     action = _seed_action(tmp_path)
 
-    def crash(_request: ActionRequest, _root: Path) -> ActionResult:
+    run_path = tmp_path / ".codex" / "loop-runs" / action.run_id / "run.json"
+    before = run_path.read_bytes()
+
+    def crash(request: ActionRequest, root: Path) -> ActionResult:
+        staged = legacy.load_run(root, request.run_id)
+        staged["phase"] = "generating"
+        staged["next_action"] = "run_autonomous_generator"
+        legacy.save_run(root, staged)
         raise SystemExit(9)
 
     monkeypatch.setattr(worker, "execute_action", crash)
@@ -621,6 +769,274 @@ def test_process_exit_after_lease_is_not_recorded_as_action_failure(
     assert row["status"] == "leased"
     assert row["lease_owner"] == "worker-crash"
     assert attempts == []
+    assert run_path.read_bytes() == before
+
+
+def test_successful_worker_stages_legacy_saves_and_commits_one_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    action = _seed_action(tmp_path)
+    run_path = tmp_path / ".codex" / "loop-runs" / action.run_id / "run.json"
+    before_stat = run_path.stat()
+
+    def execute(request: ActionRequest, root: Path) -> ActionResult:
+        staged = legacy.load_run(root, request.run_id)
+        staged["phase"] = "generating"
+        legacy.save_run(root, staged)
+        staged = legacy.load_run(root, request.run_id)
+        staged["next_action"] = "run_autonomous_generator"
+        legacy.save_run(root, staged)
+        assert os.stat(run_path).st_ino == before_stat.st_ino
+        return _success()
+
+    monkeypatch.setattr(worker, "execute_action", execute)
+
+    result = worker.worker_once(tmp_path, "transaction-worker")
+
+    assert result.status == "completed"
+    persisted = json.loads(run_path.read_text(encoding="utf-8"))
+    assert persisted["phase"] == "generating"
+    assert persisted["next_action"] == "run_autonomous_generator"
+    assert persisted["state_revision"] == 1
+
+
+def test_worker_executes_worktree_action_without_writing_main_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    worktree = tmp_path / ".worktrees" / "feature"
+    run_id = "worktree-run"
+    run_dir = worktree / ".codex" / "loop-runs" / run_id
+    run_dir.mkdir(parents=True)
+    initial = {
+        "run_id": run_id,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "next_action": "run_autonomous_planner",
+        "state_revision": 0,
+    }
+    (run_dir / "run.json").write_text(json.dumps(initial) + "\n", encoding="utf-8")
+    request = ActionRequest(
+        action_id="worktree-action",
+        run_id=run_id,
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key="worktree-action-key",
+        repo_relative_root=".worktrees/feature",
+        next_action="run_autonomous_planner",
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        store.upsert_run_projection(
+            {
+                "run_id": run_id,
+                "policy": request.policy,
+                "phase": request.phase,
+                "status": "active",
+                "revision": 0,
+            }
+        )
+        store.enqueue_action(request)
+
+    def execute(action: ActionRequest, execution_root: Path) -> ActionResult:
+        assert execution_root == worktree.resolve()
+        run = legacy.load_run(execution_root, action.run_id)
+        run["phase"] = "generating"
+        run["next_action"] = "run_autonomous_generator"
+        legacy.save_run(execution_root, run)
+        return _success()
+
+    monkeypatch.setattr(worker, "execute_action", execute)
+
+    result = worker.worker_once(tmp_path, "worktree-worker")
+
+    assert result.status == "completed"
+    assert not (tmp_path / ".codex" / "loop-runs" / run_id).exists()
+    persisted = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert persisted["state_revision"] == 1
+    assert persisted["phase"] == "generating"
+
+
+def test_heartbeat_exception_loses_lease_and_prevents_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    action = _seed_action(tmp_path)
+    heartbeat_failed = threading.Event()
+
+    def explode_heartbeat(*_args: object, **_kwargs: object) -> bool:
+        heartbeat_failed.set()
+        raise OSError("heartbeat transport failed")
+
+    def execute(_request: ActionRequest, _root: Path) -> ActionResult:
+        assert heartbeat_failed.wait(timeout=2)
+        return _success()
+
+    monkeypatch.setattr(SupervisorStore, "renew_lease", explode_heartbeat)
+    monkeypatch.setattr(worker, "execute_action", execute)
+    monkeypatch.setattr(worker, "HEARTBEAT_SECONDS", 0.01)
+
+    result = worker.worker_once(tmp_path, "heartbeat-failure-worker")
+
+    assert result.status == "lease_lost"
+    assert "heartbeat" in result.summary
+    assert result.recovery_evidence
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        assert store.get_action(action.action_id).status == "leased"
+        assert store.fetch_all("action_attempts") == []
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (TimeoutError("deadline"), ActionResultClass.RETRYABLE_FAILURE),
+        (subprocess.SubprocessError("child failed"), ActionResultClass.RETRYABLE_FAILURE),
+        (OSError("Could not resolve host"), ActionResultClass.RETRYABLE_FAILURE),
+        (PermissionError("scope denied"), ActionResultClass.POLICY_BLOCK),
+        (ValueError("corrupt run state"), ActionResultClass.TERMINAL_FAILURE),
+    ],
+)
+def test_bounded_failure_classifier_preserves_result_semantics(error, expected) -> None:
+    from scripts.loop_supervisor.worker import classify_bounded_failure
+
+    result = classify_bounded_failure(error, action_id="action-1")
+
+    assert result.result_class is expected
+
+
+def test_failure_classifier_reports_valid_partial_artifact(tmp_path: Path) -> None:
+    from scripts.loop_supervisor.worker import BoundedFailure, classify_bounded_failure
+
+    artifact = tmp_path / "partial.json"
+    artifact.write_text("{}\n", encoding="utf-8")
+    error = BoundedFailure(
+        "generator timed out",
+        cause=TimeoutError("deadline"),
+        artifact_paths=("partial.json",),
+        checkpoint="generator-output",
+    )
+
+    result = classify_bounded_failure(
+        error, action_id="action-1", execution_root=tmp_path
+    )
+
+    assert result.result_class is ActionResultClass.RECOVERABLE_PARTIAL
+    assert result.artifact_paths == ("partial.json",)
+    assert result.checkpoint == "generator-output"
+
+
+def test_bounded_primitive_timeout_with_valid_generator_result_is_recoverable_partial(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "partial-run"
+    run_dir.mkdir(parents=True)
+    legacy.write_json_file(
+        run_dir / "generator-result.json",
+        {
+            "task_id": "task-1",
+            "status": "implemented",
+            "changed_paths": [],
+            "commit": "",
+            "verify_commands": [],
+            "verify_results": [],
+            "artifacts": [],
+            "cleanup_required": False,
+            "notes": "partial result survived timeout",
+        },
+    )
+    request = ActionRequest(
+        action_id="partial-action",
+        run_id="partial-run",
+        run_revision=0,
+        policy="demand_development",
+        phase="generating",
+        action_type=ActionType.RUN_GENERATOR,
+        idempotency_key="partial-action-key",
+    )
+
+    result = legacy._bounded_failure(
+        request,
+        "generator",
+        TimeoutError("generator timed out"),
+        started_at="2026-01-01T00:00:00Z",
+        repo_root=tmp_path,
+    )
+
+    assert result.result_class is ActionResultClass.RECOVERABLE_PARTIAL
+    assert result.artifact_paths == (
+        ".codex/loop-runs/partial-run/generator-result.json",
+    )
+    assert result.checkpoint == "generator"
+
+
+def test_recovery_evidence_hashes_unsafe_action_id_and_rejects_symlink(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    request = ActionRequest(
+        action_id="../../unsafe action",
+        run_id="safe-run",
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key="unsafe-action-key",
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "safe-run"
+    run_dir.mkdir(parents=True)
+    evidence_name = worker._evidence_filename("worker-completion-failure", request.action_id)
+    outside = tmp_path / "outside.json"
+    outside.write_text("untouched\n", encoding="utf-8")
+    (run_dir / evidence_name).symlink_to(outside)
+
+    with pytest.raises(OSError):
+        worker._write_recovery_evidence(
+            tmp_path, request, "worker-1", RuntimeError("token=secret-value")
+        )
+
+    assert outside.read_text(encoding="utf-8") == "untouched\n"
+
+
+def test_run_directory_replacement_blocks_commit_without_state_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    action = _seed_action(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / action.run_id
+    original = run_dir / "run.json"
+    before = original.read_bytes()
+    outside = tmp_path / "outside-run"
+    outside.mkdir()
+    outside_run = outside / "run.json"
+    outside_run.write_text('{"outside":true}\n', encoding="utf-8")
+    displaced = run_dir.with_name(f"{run_dir.name}-displaced")
+
+    def replace_directory(request: ActionRequest, root: Path) -> ActionResult:
+        staged = legacy.load_run(root, request.run_id)
+        staged["phase"] = "generating"
+        staged["next_action"] = "run_autonomous_generator"
+        legacy.save_run(root, staged)
+        run_dir.rename(displaced)
+        run_dir.symlink_to(outside, target_is_directory=True)
+        return _success()
+
+    monkeypatch.setattr(worker, "execute_action", replace_directory)
+
+    result = worker.worker_once(tmp_path, "replacement-worker")
+
+    assert result.status == "failed"
+    assert result.result_class == ActionResultClass.POLICY_BLOCK.value
+    assert (displaced / "run.json").read_bytes() == before
+    assert outside_run.read_text(encoding="utf-8") == '{"outside":true}\n'
 
 
 def test_repository_mutation_lock_serializes_different_runs(tmp_path: Path) -> None:
