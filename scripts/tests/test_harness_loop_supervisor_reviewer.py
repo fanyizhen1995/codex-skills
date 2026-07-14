@@ -75,6 +75,9 @@ def record_parent_completion(
         "policy": "autonomous_knowledge",
         "phase": "stopped_budget",
         "run_kind": "single",
+        "domain": "",
+        "branch": "main",
+        "worktree": str(store.project_root),
         "loop_lineage_id": lineage_id,
         "previous_run_id": previous_run_id,
         "task_id": f"parent-{parent}",
@@ -85,6 +88,23 @@ def record_parent_completion(
         "stop_conditions": ["All acceptance checks pass"],
         "last_result": "pass",
         "next_action": "none",
+        "baseline_dirty_paths": [],
+        "allowed_paths": [],
+        "denylist_paths": [],
+        "attempts": {
+            "planner": 0,
+            "generator": 0,
+            "evaluator": 0,
+            "artifact_hygiene": 0,
+            "cleanup": 0,
+        },
+        "limits": {},
+        "attempt_history": [],
+        "cleanup": {
+            "worktrees_removed": [],
+            "processes_stopped": [],
+            "retained_artifacts": [],
+        },
     }
     run_path = run_dir / "run.json"
     run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
@@ -97,6 +117,7 @@ def record_parent_completion(
             "policy": "autonomous_knowledge",
             "phase": "stopped_budget",
             "status": "actionable",
+            "state_fingerprint": _state_fingerprint(payload),
             "summary": json.dumps(
                 {
                     "completed_semantic_parent_ids": [f"parent-{parent}"],
@@ -106,6 +127,28 @@ def record_parent_completion(
                 sort_keys=True,
             ),
             "artifact_refs": [run_path.relative_to(store.project_root).as_posix()],
+        }
+    )
+
+
+def refresh_run_projection(
+    store: SupervisorStore,
+    run_id: str,
+    payload: dict[str, object],
+) -> None:
+    current = store.get_run(run_id)
+    store.upsert_run_projection(
+        {
+            "run_id": run_id,
+            "revision": int(payload["state_revision"]),
+            "loop_lineage_id": current["loop_lineage_id"],
+            "parent_run_id": current["parent_run_id"],
+            "policy": payload["policy"],
+            "phase": payload["phase"],
+            "status": current["status"],
+            "state_fingerprint": _state_fingerprint(payload),
+            "summary": current["summary"]["summary"],
+            "artifact_refs": current["summary"]["artifact_refs"],
         }
     )
 
@@ -1111,7 +1154,9 @@ def test_reviewer_fail_open_gate_reads_fresh_owned_global_safety_signals(
     run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
     payload = json.loads(run_path.read_text(encoding="utf-8"))
     payload[signal] = True
+    payload["state_revision"] += 1
     run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    refresh_run_projection(store, "run-1", payload)
 
     result = run_reviewer(
         ReviewerContext(tmp_path, store, ("lineage-a",)),
@@ -1186,6 +1231,115 @@ def test_reviewer_driver_exception_blocks_on_missing_canonical_run_state(
 
 
 @pytest.mark.parametrize(
+    "state_problem",
+    ["malformed", "missing", "run_id", "revision", "fingerprint", "orphaned"],
+)
+def test_reviewer_rejects_noncanonical_run_state_before_degraded_fail_open(
+    tmp_path: Path,
+    state_problem: str,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
+
+    def driver(**_kwargs: object) -> dict[str, object]:
+        payload = json.loads(run_path.read_text(encoding="utf-8"))
+        if state_problem == "malformed":
+            run_path.write_text(json.dumps({"run_id": "run-1"}) + "\n", encoding="utf-8")
+        elif state_problem == "missing":
+            run_path.unlink()
+        elif state_problem == "run_id":
+            payload["run_id"] = "other-run"
+            run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        elif state_problem == "revision":
+            payload["state_revision"] = 2
+            run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        elif state_problem == "fingerprint":
+            payload["requirement"] = "mutated without reconciliation"
+            run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        else:
+            orphan_path = tmp_path / "orphan" / ".codex" / "loop-runs" / "run-1" / "run.json"
+            orphan_path.parent.mkdir(parents=True)
+            orphan_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            store._connection.execute(
+                "UPDATE runs SET summary_json = ? WHERE run_id = ?",
+                (
+                    json.dumps(
+                        {
+                            "summary": "orphaned canonical state",
+                            "artifact_refs": [
+                                orphan_path.relative_to(tmp_path).as_posix()
+                            ],
+                        }
+                    ),
+                    "run-1",
+                ),
+            )
+        return {"status": "timeout", "exit_code": 124}
+
+    result = run_reviewer(
+        ReviewerContext(tmp_path, store, ("lineage-a",)),
+        driver=driver,
+    )
+
+    assert result.status == "review_degraded"
+    assert result.blocks_safe_runs is True
+    checks = json.loads(store.fetch_all("review_safety_gates")[-1]["checks_json"])
+    assert checks["fresh_global_safety_signals"] == [
+        {"run_id": "run-1", "signal": "repo_corruption"}
+    ]
+
+
+def test_queued_reviewer_blocks_application_and_completion_for_noncanonical_state(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    request = schedule_due_reviews(store, now=NOW)[0]
+    clock.value = NOW + timedelta(minutes=10)
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-a2" / "run.json"
+    before = run_path.read_bytes()
+
+    def driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        bundle = json.loads(
+            next(review_dir.glob("review-*-evidence.json")).read_text(encoding="utf-8")
+        )
+        candidate = valid_review_payload(
+            review_id=str(kwargs["run_id"]),
+            decision="refocus",
+            affected_run_ids=["run-a2"],
+            evidence_refs=list(bundle["evidence_hashes"].values()),
+        )
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(candidate) + "\n", encoding="utf-8"
+        )
+        payload = json.loads(run_path.read_text(encoding="utf-8"))
+        payload["state_revision"] = 2
+        run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        return {"status": "pass", "exit_code": 0}
+
+    with pytest.raises(LeaseError, match="canonical global signal"):
+        run_queued_reviewer(
+            store,
+            reviewer_id="reviewer-canonical-state",
+            driver=driver,
+        )
+
+    assert store.get_action(request.action_id).status == "leased"
+    assert store.fetch_all("review_applications") == []
+    assert store.fetch_all("action_attempts") == []
+    assert store.fetch_all("reviews") == []
+    checks = json.loads(store.fetch_all("review_safety_gates")[-1]["checks_json"])
+    assert checks["fresh_global_safety_signals"] == [
+        {"run_id": "run-a2", "signal": "repo_corruption"}
+    ]
+    assert run_path.read_bytes() != before
+
+
+@pytest.mark.parametrize(
     "signal",
     [
         "secret_exposure_confirmed",
@@ -1206,7 +1360,9 @@ def test_reviewer_recomputes_each_canonical_signal_after_driver(
     def driver(**_kwargs: object) -> dict[str, object]:
         payload = json.loads(run_path.read_text(encoding="utf-8"))
         payload[signal] = True
+        payload["state_revision"] += 1
         run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        refresh_run_projection(store, "run-1", payload)
         return {"status": "timeout", "exit_code": 124}
 
     result = run_reviewer(

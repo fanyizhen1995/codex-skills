@@ -8,6 +8,7 @@ import time
 import pytest
 
 from scripts.loop_supervisor.models import ActionOwner, ActionRequest, ActionType
+from scripts.loop_supervisor.reconciler import _state_fingerprint
 from scripts.loop_supervisor.reviewer_runtime import ActionLeaseGuard
 from scripts.loop_supervisor.reviewer_safety import require_review_safety_clear
 from scripts.loop_supervisor.store import LeaseError, SupervisorStore
@@ -21,8 +22,41 @@ def leased_supervisor_action(tmp_path):
     store.migrate()
     run_path = Path(tmp_path) / ".codex" / "loop-runs" / "run-1" / "run.json"
     run_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "run_id": "run-1",
+        "state_revision": 1,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "run_kind": "single",
+        "task_id": "runtime-test",
+        "domain": "",
+        "branch": "main",
+        "worktree": str(tmp_path),
+        "requirement": "lease guard test",
+        "constraints": [],
+        "stop_conditions": [],
+        "baseline_dirty_paths": [],
+        "allowed_paths": [],
+        "denylist_paths": [],
+        "attempts": {
+            "planner": 0,
+            "generator": 0,
+            "evaluator": 0,
+            "artifact_hygiene": 0,
+            "cleanup": 0,
+        },
+        "limits": {},
+        "last_result": "none",
+        "next_action": "run_autonomous_planner",
+        "attempt_history": [],
+        "cleanup": {
+            "worktrees_removed": [],
+            "processes_stopped": [],
+            "retained_artifacts": [],
+        },
+    }
     run_path.write_text(
-        json.dumps({"run_id": "run-1", "phase": "planning"}) + "\n",
+        json.dumps(payload) + "\n",
         encoding="utf-8",
     )
     store.upsert_run_projection(
@@ -34,6 +68,7 @@ def leased_supervisor_action(tmp_path):
             "policy": "autonomous_knowledge",
             "phase": "planning",
             "status": "actionable",
+            "state_fingerprint": _state_fingerprint(payload),
             "summary": "{}",
             "artifact_refs": [run_path.relative_to(tmp_path).as_posix()],
         }

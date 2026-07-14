@@ -9,6 +9,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from scripts.harness_loop_agents import validate_owned_regular_file
+from scripts.harness_loop_contracts import validate_run_payload
 
 from .safety_signals import detected_global_safety_signals
 from .store import LeaseError, SupervisorStore
@@ -87,6 +88,8 @@ def require_review_safety_clear(store: SupervisorStore) -> None:
 
 
 def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]:
+    from .reconciler import _state_fingerprint, _state_revision
+
     detected: set[tuple[str, str]] = set()
     for row in store.fetch_all("runs"):
         run_id = str(row.get("run_id") or "")
@@ -95,30 +98,20 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
         except json.JSONDecodeError:
             detected.add((run_id, "repo_corruption"))
             continue
-        refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
-        run_ref = next(
-            (
+        try:
+            refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
+            expected_parts = (".codex", "loop-runs", run_id, "run.json")
+            canonical_refs = [
                 value
                 for value in refs
                 if isinstance(value, str)
-                and value.endswith(f"/.codex/loop-runs/{run_id}/run.json")
-            ),
-            "",
-        )
-        if not run_ref:
-            run_ref = next(
-                (
-                    value
-                    for value in refs
-                    if isinstance(value, str)
-                    and value == f".codex/loop-runs/{run_id}/run.json"
-                ),
-                "",
-            )
-        if not run_ref:
-            detected.add((run_id, "repo_corruption"))
-            continue
-        try:
+                and not PurePosixPath(value).is_absolute()
+                and PurePosixPath(value).as_posix() == value
+                and tuple(PurePosixPath(value).parts) == expected_parts
+            ]
+            if len(canonical_refs) != 1:
+                raise ValueError("run projection lacks one canonical run.json reference")
+            run_ref = canonical_refs[0]
             path = store.project_root.joinpath(*PurePosixPath(run_ref).parts)
             owned = validate_owned_regular_file(
                 store.project_root,
@@ -126,8 +119,16 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
                 "Reviewer safety run state",
             )
             payload = json.loads(owned.read_text(encoding="utf-8"))
-            if not isinstance(payload, Mapping):
+            if not isinstance(payload, dict):
                 raise ValueError("run state must be an object")
+            validate_run_payload(payload)
+            if payload["run_id"] != run_id:
+                raise ValueError("canonical run state run_id does not match projection")
+            if _state_revision(payload) != int(row["revision"]):
+                raise ValueError("canonical run state revision does not match projection")
+            fingerprint = str(row.get("state_fingerprint") or "")
+            if not fingerprint or _state_fingerprint(payload) != fingerprint:
+                raise ValueError("canonical run state fingerprint does not match projection")
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             detected.add((run_id, "repo_corruption"))
             continue

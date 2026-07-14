@@ -19,7 +19,7 @@ from .models import (
     ReviewDecision,
     SupervisorReview,
 )
-from .registry import review_application_for
+from .registry import review_application_for, transition_for
 from .reviewer_runtime import ActionLeaseGuard
 from .reviewer_safety import require_review_safety_clear
 from .store import SupervisorStore
@@ -234,12 +234,15 @@ def _apply_target(
                     expected_fingerprint=expected_fingerprint,
                 )
                 applied_revision = int(saved["state_revision"])
+                canonical_payload = saved
             elif current_revision == expected_revision + 1 and already_applied:
                 applied_revision = current_revision
+                canonical_payload = payload
             else:
                 raise ValueError(
                     f"review application target changed after review: {request.run_id}"
                 )
+            _project_saved_run(store, run, canonical_payload)
             artifacts = (run_path.relative_to(execution_root).as_posix(),)
         cutpoint("after_file_write", request.run_id)
         guard.checkpoint()
@@ -257,6 +260,43 @@ def _apply_target(
             ),
             applied_revision=applied_revision,
         )
+
+
+def _project_saved_run(
+    store: SupervisorStore,
+    previous: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> None:
+    from .reconciler import _STATE_SUMMARY_KEYS
+
+    summary = previous.get("summary")
+    if not isinstance(summary, Mapping):
+        raise ValueError("run projection summary is invalid")
+    phase = str(payload.get("phase") or "")
+    next_action = str(payload.get("next_action") or "")
+    transition = transition_for(
+        str(payload.get("policy") or previous["policy"]),
+        phase,
+        next_action,
+    )
+    store.upsert_run_projection(
+        {
+            "run_id": str(previous["run_id"]),
+            "revision": _revision(payload),
+            "loop_lineage_id": str(previous.get("loop_lineage_id") or ""),
+            "parent_run_id": str(previous.get("parent_run_id") or ""),
+            "policy": str(payload.get("policy") or previous["policy"]),
+            "phase": phase,
+            "status": "terminal" if transition.terminal else "actionable",
+            "state_fingerprint": _fingerprint(payload),
+            "summary": json.dumps(
+                {key: payload.get(key) for key in _STATE_SUMMARY_KEYS},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            "artifact_refs": summary.get("artifact_refs", []),
+        }
+    )
 
 
 def _updated_payload(
