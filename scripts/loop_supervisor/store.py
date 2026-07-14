@@ -25,7 +25,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -118,6 +118,45 @@ _TABLE_PAGE_SPECS: dict[str, tuple[str, str]] = {
     "skill_snapshots": ("snapshot_id", "created_at"),
     "aggregates": ("aggregate_id", "created_at"),
 }
+
+
+_LEGACY_TIMESTAMP_COLUMNS: dict[str, tuple[str, ...]] = {
+    "schema_migrations": ("applied_at",),
+    "runs": ("created_at", "updated_at", "last_seen_at"),
+    "actions": (
+        "lease_expires_at",
+        "lease_heartbeat_at",
+        "created_at",
+        "updated_at",
+    ),
+    "action_idempotency_aliases": ("created_at",),
+    "action_attempts": ("started_at", "finished_at", "created_at"),
+    "transitions": ("created_at",),
+    "failures": ("first_seen_at", "last_seen_at", "created_at", "updated_at"),
+    "reviews": ("created_at", "updated_at"),
+    "review_findings": (
+        "first_seen_at",
+        "last_seen_at",
+        "created_at",
+        "updated_at",
+    ),
+    "user_decisions": ("created_at", "updated_at", "closed_at"),
+    "services": ("heartbeat_at", "created_at", "updated_at"),
+    "freshness_checks": ("checked_at", "created_at"),
+    "skill_snapshots": ("created_at",),
+    "aggregates": ("created_at", "updated_at"),
+    "workers": ("heartbeat_at", "created_at", "updated_at"),
+}
+
+
+_OPTIONAL_LEGACY_TIMESTAMPS = frozenset(
+    {
+        ("actions", "lease_expires_at"),
+        ("actions", "lease_heartbeat_at"),
+        ("user_decisions", "closed_at"),
+        ("services", "heartbeat_at"),
+    }
+)
 
 
 _DDL = (
@@ -400,6 +439,13 @@ class SupervisorStore:
         with self._immediate_transaction():
             for statement in _DDL:
                 self._connection.execute(statement)
+            self._connection.execute(
+                """
+                INSERT OR IGNORE INTO store_metadata(key, value)
+                VALUES ('legacy_naive_timestamp_policy', 'assume_utc')
+                """
+            )
+            self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
             self._ensure_action_idempotency_aliases()
             self._ensure_stable_review_finding_identity()
@@ -420,6 +466,56 @@ class SupervisorStore:
                 "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
             ).fetchall()
         return [str(row[0]) for row in rows]
+
+    def _normalize_legacy_timestamps(self) -> None:
+        for table, configured_columns in _LEGACY_TIMESTAMP_COLUMNS.items():
+            available_columns = {
+                str(row["name"])
+                for row in self._connection.execute(
+                    f"PRAGMA table_info({table})"
+                ).fetchall()
+            }
+            columns = [
+                column for column in configured_columns if column in available_columns
+            ]
+            if not columns:
+                continue
+            rows = self._connection.execute(
+                f"SELECT rowid AS legacy_rowid, {', '.join(columns)} FROM {table}"
+            ).fetchall()
+            for row in rows:
+                normalized: dict[str, str] = {}
+                for column in columns:
+                    raw_value = row[column]
+                    try:
+                        normalized[column] = self._normalize_legacy_timestamp(
+                            raw_value,
+                            allow_empty=(table, column) in _OPTIONAL_LEGACY_TIMESTAMPS,
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            "invalid legacy timestamp in "
+                            f"{table}.{column} at rowid {row['legacy_rowid']}"
+                        ) from exc
+                assignments = ", ".join(f"{column} = ?" for column in columns)
+                self._connection.execute(
+                    f"UPDATE {table} SET {assignments} WHERE rowid = ?",
+                    (*[normalized[column] for column in columns], row["legacy_rowid"]),
+                )
+
+    @staticmethod
+    def _normalize_legacy_timestamp(value: object, *, allow_empty: bool) -> str:
+        if not isinstance(value, str):
+            raise TypeError("legacy timestamp must be a string")
+        if not value:
+            if allow_empty:
+                return ""
+            raise ValueError("legacy timestamp must be non-empty")
+        candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+        parsed = datetime.fromisoformat(candidate)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return SupervisorStore._time_text(parsed)
 
     def _ensure_action_canonical_identity(self) -> None:
         columns = {
@@ -777,12 +873,13 @@ class SupervisorStore:
     ) -> ActionRecord | None:
         self._validate_lease_input(worker_id, lease_seconds)
         self._validate_heartbeat_stale_seconds(heartbeat_stale_seconds)
-        now = self._now_text()
-        expires_at = self._time_text(self._now() + timedelta(seconds=lease_seconds))
-        heartbeat_cutoff = self._time_text(
-            self._now() - timedelta(seconds=heartbeat_stale_seconds)
-        )
         with self._immediate_transaction():
+            now_value = self._now()
+            now = self._time_text(now_value)
+            expires_at = self._time_text(now_value + timedelta(seconds=lease_seconds))
+            heartbeat_cutoff = self._time_text(
+                now_value - timedelta(seconds=heartbeat_stale_seconds)
+            )
             row = self._connection.execute(
                 """
                 SELECT a.* FROM actions AS a
@@ -862,9 +959,10 @@ class SupervisorStore:
         self, action_id: str, worker_id: str, *, lease_seconds: int
     ) -> bool:
         self._validate_lease_input(worker_id, lease_seconds)
-        now = self._now_text()
-        expires_at = self._time_text(self._now() + timedelta(seconds=lease_seconds))
         with self._immediate_transaction():
+            now_value = self._now()
+            now = self._time_text(now_value)
+            expires_at = self._time_text(now_value + timedelta(seconds=lease_seconds))
             self._write_worker_heartbeat(worker_id, now)
             updated = self._connection.execute(
                 """
@@ -885,8 +983,8 @@ class SupervisorStore:
 
     def record_worker_heartbeat(self, worker_id: str) -> dict[str, Any]:
         self._validate_worker_id(worker_id)
-        now = self._now_text()
         with self._immediate_transaction():
+            now = self._now_text()
             self._write_worker_heartbeat(worker_id, now)
             row = self._connection.execute(
                 "SELECT * FROM workers WHERE worker_id = ?", (worker_id,)
@@ -2218,6 +2316,7 @@ class SupervisorStore:
             VALUES (?, ?, ?, ?)
             ON CONFLICT(worker_id) DO UPDATE SET
               heartbeat_at = excluded.heartbeat_at, updated_at = excluded.updated_at
+            WHERE excluded.heartbeat_at > workers.heartbeat_at
             """,
             (worker_id, timestamp, timestamp, timestamp),
         )

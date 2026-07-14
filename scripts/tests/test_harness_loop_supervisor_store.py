@@ -29,6 +29,21 @@ class FakeClock:
         self.value += timedelta(**kwargs)
 
 
+class ObservableClock(FakeClock):
+    def __init__(self, value: datetime | None = None) -> None:
+        super().__init__(value)
+        self.observed: threading.Event | None = None
+
+    def now(self) -> datetime:
+        if self.observed is not None:
+            self.observed.set()
+        return super().now()
+
+    def observe(self) -> threading.Event:
+        self.observed = threading.Event()
+        return self.observed
+
+
 class CommitFailOnceConnection:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
@@ -55,6 +70,85 @@ def migrated_store(
     store = SupervisorStore.open(tmp_path, clock=clock)
     store.migrate()
     return store
+
+
+def legacy_finding_store(
+    tmp_path: Path, *, version: int, invalid_timestamp: bool = False
+) -> SupervisorStore:
+    db_path = tmp_path / ".codex" / "supervisor" / "supervisor.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(db_path)
+    connection.executescript(
+        f"""
+        PRAGMA user_version={version};
+        CREATE TABLE reviews (
+          review_id TEXT PRIMARY KEY,
+          trigger TEXT NOT NULL,
+          status TEXT NOT NULL,
+          decision TEXT NOT NULL DEFAULT '',
+          summary TEXT NOT NULL DEFAULT '',
+          evidence_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE review_findings (
+          finding_id TEXT PRIMARY KEY,
+          review_id TEXT NOT NULL REFERENCES reviews(review_id) ON DELETE CASCADE,
+          finding_key TEXT NOT NULL,
+          status TEXT NOT NULL,
+          summary TEXT NOT NULL DEFAULT '',
+          remediation_action_id TEXT NOT NULL DEFAULT '',
+          occurrence_count INTEGER NOT NULL DEFAULT 1,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(finding_key, status)
+        );
+        INSERT INTO reviews(
+          review_id, trigger, status, decision, summary, created_at, updated_at
+        ) VALUES (
+          'review-legacy', 'cadence', 'completed', 'continue', 'legacy',
+          '2025-12-31T21:00:00', '2025-12-31T21:30:00'
+        );
+        """
+    )
+    open_last_seen = (
+        "invalid-time" if invalid_timestamp else "2026-01-01T01:30:00+02:00"
+    )
+    connection.executemany(
+        """
+        INSERT INTO review_findings(
+          finding_id, review_id, finding_key, status, summary, occurrence_count,
+          first_seen_at, last_seen_at, created_at, updated_at
+        ) VALUES (?, 'review-legacy', 'legacy-key', ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                "finding-open",
+                "open",
+                "lexically-later-but-utc-earlier",
+                2,
+                "2025-12-31T22:00:00",
+                open_last_seen,
+                "2025-12-31T22:00:00",
+                open_last_seen,
+            ),
+            (
+                "finding-closed",
+                "closed",
+                "utc-latest",
+                1,
+                "2025-12-31T23:00:00Z",
+                "2025-12-31T23:45:00Z",
+                "2025-12-31T23:40:00Z",
+                "2025-12-31T23:45:00Z",
+            ),
+        ),
+    )
+    connection.commit()
+    connection.close()
+    return SupervisorStore.open(tmp_path)
 
 
 def action_request(
@@ -125,7 +219,7 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 6
+    assert store.pragma("user_version") == 7
 
 
 def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
@@ -516,6 +610,88 @@ def test_lease_next_action_uses_compatible_default_heartbeat_threshold(tmp_path)
     leased = store.lease_next_action("worker-a", lease_seconds=120)
 
     assert leased.action_id == action.action_id
+
+
+def test_queued_lease_computes_deadline_after_store_lock_is_acquired(tmp_path):
+    clock = ObservableClock()
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    observed = clock.observe()
+    result: list[object] = []
+    started = threading.Event()
+
+    def lease() -> None:
+        started.set()
+        try:
+            result.append(store.lease_next_action("worker-a", lease_seconds=120))
+        except BaseException as exc:
+            result.append(exc)
+
+    store._lock.acquire()
+    thread = threading.Thread(target=lease)
+    try:
+        thread.start()
+        assert started.wait(timeout=1)
+        observed_while_queued = observed.wait(timeout=0.2)
+        clock.advance(seconds=100)
+    finally:
+        store._lock.release()
+    thread.join(timeout=5)
+
+    assert observed_while_queued is False
+    assert not thread.is_alive()
+    assert result[0].action_id == action.action_id
+    assert result[0].lease_expires_at == "2026-01-01T00:03:40.000000Z"
+
+
+def test_queued_renew_computes_deadline_after_store_lock_is_acquired(tmp_path):
+    clock = ObservableClock()
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120)
+    observed = clock.observe()
+    result: list[object] = []
+    started = threading.Event()
+
+    def renew() -> None:
+        started.set()
+        try:
+            result.append(
+                store.renew_lease(action.action_id, "worker-a", lease_seconds=120)
+            )
+        except BaseException as exc:
+            result.append(exc)
+
+    store._lock.acquire()
+    thread = threading.Thread(target=renew)
+    try:
+        thread.start()
+        assert started.wait(timeout=1)
+        observed_while_queued = observed.wait(timeout=0.2)
+        clock.advance(seconds=100)
+    finally:
+        store._lock.release()
+    thread.join(timeout=5)
+
+    assert observed_while_queued is False
+    assert result == [True]
+    assert store.get_action(action.action_id).lease_expires_at == (
+        "2026-01-01T00:03:40.000000Z"
+    )
+
+
+def test_worker_heartbeat_upsert_never_moves_backwards(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, 0, 1, 40, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    first = store.record_worker_heartbeat("worker-a")
+    clock.value = datetime(2026, 1, 1, 0, 0, 50, tzinfo=timezone.utc)
+
+    second = store.record_worker_heartbeat("worker-a")
+
+    assert second["heartbeat_at"] == first["heartbeat_at"]
+    assert second["updated_at"] == first["updated_at"]
 
 
 def test_same_worker_cannot_reclaim_expired_lease_while_its_heartbeat_is_fresh(
@@ -1473,7 +1649,51 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 6
+    assert store.pragma("user_version") == 7
+
+
+@pytest.mark.parametrize("legacy_version", [3, 4, 5])
+def test_legacy_migration_normalizes_timestamps_before_finding_collapse(
+    tmp_path, legacy_version
+):
+    store = legacy_finding_store(tmp_path, version=legacy_version)
+
+    store.migrate()
+
+    findings = store.fetch_all("review_findings")
+    assert len(findings) == 1
+    assert findings[0]["finding_id"] == "finding-closed"
+    assert findings[0]["summary"] == "utc-latest"
+    assert findings[0]["occurrence_count"] == 3
+    assert findings[0]["first_seen_at"] == "2025-12-31T22:00:00.000000Z"
+    assert findings[0]["last_seen_at"] == "2025-12-31T23:45:00.000000Z"
+    review = store.fetch_all("reviews")[0]
+    assert review["created_at"] == "2025-12-31T21:00:00.000000Z"
+    policy = store._connection.execute(
+        "SELECT value FROM store_metadata WHERE key = 'legacy_naive_timestamp_policy'"
+    ).fetchone()[0]
+    assert policy == "assume_utc"
+    assert store.pragma("user_version") == 7
+
+
+def test_invalid_legacy_timestamp_rolls_back_schema_version_and_data(tmp_path):
+    store = legacy_finding_store(tmp_path, version=5, invalid_timestamp=True)
+    original_tables = store.table_names()
+    original_rows = store.fetch_all("review_findings")
+    original_schema = store._connection.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'review_findings'"
+    ).fetchone()[0]
+
+    with pytest.raises(ValueError, match="legacy timestamp.*review_findings"):
+        store.migrate()
+
+    assert store.pragma("user_version") == 5
+    assert store.table_names() == original_tables
+    assert store.fetch_all("review_findings") == original_rows
+    current_schema = store._connection.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'review_findings'"
+    ).fetchone()[0]
+    assert current_schema == original_schema
 
 
 def test_retention_does_not_delete_details_if_aggregation_fails(tmp_path):
