@@ -19,6 +19,8 @@ from typing import Any, Iterator, Sequence
 from uuid import uuid4
 
 from scripts.harness_loop_runtime_lock import RunLockToken, validate_run_lock_token
+from scripts.harness_loop_agents import validate_owned_regular_file
+from scripts.harness_loop_contracts import validate_run_payload
 from scripts.loop_supervisor.models import (
     ActionOwner,
     ActionRequest,
@@ -28,7 +30,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -360,6 +362,7 @@ _DDL = (
       action_id TEXT NOT NULL UNIQUE REFERENCES actions(action_id),
       expected_revision INTEGER NOT NULL,
       expected_fingerprint TEXT NOT NULL,
+      expected_post_write_fingerprint TEXT NOT NULL DEFAULT '',
       source_phase TEXT NOT NULL,
       target_phase TEXT NOT NULL,
       target_next_action TEXT NOT NULL,
@@ -556,6 +559,7 @@ class SupervisorStore:
             )
             self._ensure_run_state_fingerprint()
             self._ensure_run_execution_root()
+            self._ensure_review_target_post_write_fingerprint()
             self._ensure_action_execution_root()
             self._ensure_action_ownership()
             self._ensure_review_resume_state()
@@ -637,6 +641,78 @@ class SupervisorStore:
             self._connection.execute(
                 "ALTER TABLE runs "
                 "ADD COLUMN repo_relative_root TEXT NOT NULL DEFAULT '.'"
+            )
+        self._backfill_run_execution_roots()
+
+    def _backfill_run_execution_roots(self) -> None:
+        """Recover v12 worktree roots only from canonical, fingerprint-bound state."""
+        from .reconciler import _state_fingerprint, _state_revision
+
+        rows = self._connection.execute(
+            "SELECT * FROM runs WHERE repo_relative_root = '.'"
+        ).fetchall()
+        for row in rows:
+            try:
+                summary = json.loads(str(row["summary_json"]))
+                refs = summary.get("artifact_refs", [])
+                if not isinstance(refs, list):
+                    raise ValueError("run projection artifact refs must be a list")
+                run_id = str(row["run_id"])
+                tail = (".codex", "loop-runs", run_id, "run.json")
+                roots: set[str] = set()
+                for ref in refs:
+                    if not isinstance(ref, str):
+                        continue
+                    relative = PurePosixPath(ref)
+                    if (
+                        relative.is_absolute()
+                        or relative.as_posix() != ref
+                        or tuple(relative.parts[-4:]) != tail
+                    ):
+                        continue
+                    root = PurePosixPath(*relative.parts[:-4]).as_posix() or "."
+                    root = validate_repo_relative_root(root)
+                    if root == ".":
+                        continue
+                    path = self.project_root.joinpath(*relative.parts)
+                    payload = json.loads(
+                        validate_owned_regular_file(
+                            self.project_root,
+                            path,
+                            "legacy run projection",
+                        ).read_text(encoding="utf-8")
+                    )
+                    if not isinstance(payload, dict):
+                        continue
+                    validate_run_payload(payload)
+                    if (
+                        payload.get("run_id") != run_id
+                        or _state_revision(payload) != int(row["revision"])
+                        or not str(row["state_fingerprint"])
+                        or _state_fingerprint(payload) != str(row["state_fingerprint"])
+                    ):
+                        continue
+                    roots.add(root)
+                if len(roots) != 1:
+                    continue
+                self._connection.execute(
+                    "UPDATE runs SET repo_relative_root = ? WHERE run_id = ?",
+                    (roots.pop(), run_id),
+                )
+            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+
+    def _ensure_review_target_post_write_fingerprint(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute(
+                "PRAGMA table_info(review_application_targets)"
+            ).fetchall()
+        }
+        if "expected_post_write_fingerprint" not in columns:
+            self._connection.execute(
+                "ALTER TABLE review_application_targets "
+                "ADD COLUMN expected_post_write_fingerprint TEXT NOT NULL DEFAULT ''"
             )
 
     def _ensure_action_execution_root(self) -> None:
@@ -1489,6 +1565,7 @@ class SupervisorStore:
                     request.action_id,
                     int(target["expected_revision"]),
                     str(target["expected_fingerprint"]),
+                    str(target.get("expected_post_write_fingerprint", "")),
                     str(target["source_phase"]),
                     str(target["target_phase"]),
                     str(target["target_next_action"]),
@@ -1500,10 +1577,11 @@ class SupervisorStore:
                     """
                     INSERT INTO review_application_targets(
                       review_id, run_id, action_id, expected_revision,
-                      expected_fingerprint, source_phase, target_phase,
+                      expected_fingerprint, expected_post_write_fingerprint,
+                      source_phase, target_phase,
                       target_next_action, target_last_result, status,
                       created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
                     ON CONFLICT(review_id, run_id) DO NOTHING
                     """,
                     values,
@@ -1515,13 +1593,14 @@ class SupervisorStore:
                     """,
                     (review_id, request.run_id),
                 ).fetchone()
-                expected = values[:9]
+                expected = values[:10]
                 actual = tuple(stored[key] for key in (
                     "review_id",
                     "run_id",
                     "action_id",
                     "expected_revision",
                     "expected_fingerprint",
+                    "expected_post_write_fingerprint",
                     "source_phase",
                     "target_phase",
                     "target_next_action",
@@ -2264,9 +2343,16 @@ class SupervisorStore:
                         and incoming_projection[:-2] == stored_projection[:-2]
                         and incoming_projection[-1] == stored_projection[-1]
                     )
+                    root_backfill = (
+                        str(existing["repo_relative_root"]) == "."
+                        and repo_relative_root != "."
+                        and incoming_projection[:5] == stored_projection[:5]
+                        and incoming_projection[6:] == stored_projection[6:]
+                    )
                     if (
                         incoming_projection != stored_projection
                         and not fingerprint_backfill
+                        and not root_backfill
                     ):
                         raise ValueError(
                             "same-revision run projection conflict: "

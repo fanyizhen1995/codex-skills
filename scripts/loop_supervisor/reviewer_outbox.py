@@ -167,6 +167,10 @@ def _prepare_target(
         "target_next_action": rule.target_next_action,
         "target_last_result": rule.target_last_result,
     }
+    if review.decision is not ReviewDecision.ASK_USER:
+        expected_post_write = _updated_payload(payload, review, target)
+        expected_post_write["state_revision"] = expected_revision + 1
+        target["expected_post_write_fingerprint"] = _fingerprint(expected_post_write)
     return request, target, execution_root, run_path
 
 
@@ -218,6 +222,13 @@ def _apply_target(
             execution_root, run_path, payload = _target_run(store, run)
             expected_revision = int(target["expected_revision"])
             expected_fingerprint = str(target["expected_fingerprint"])
+            expected_post_write_fingerprint = str(
+                target.get("expected_post_write_fingerprint") or ""
+            )
+            if not expected_post_write_fingerprint:
+                raise LeaseError(
+                    f"review application lacks immutable post-write state: {request.run_id}"
+                )
             current_revision = _revision(payload)
             already_applied = _already_applied(payload, review, target)
             if current_revision == expected_revision and _fingerprint(payload) == expected_fingerprint:
@@ -236,9 +247,17 @@ def _apply_target(
                         expected_fingerprint=expected_fingerprint,
                     )
                     _project_saved_run(store, run, saved)
+                if _fingerprint(saved) != expected_post_write_fingerprint:
+                    raise LeaseError(
+                        f"review application wrote unexpected canonical state: {request.run_id}"
+                    )
                 applied_revision = int(saved["state_revision"])
                 canonical_payload = saved
-            elif current_revision == expected_revision + 1 and already_applied:
+            elif (
+                current_revision == expected_revision + 1
+                and already_applied
+                and _fingerprint(payload) == expected_post_write_fingerprint
+            ):
                 applied_revision = current_revision
                 canonical_payload = payload
             else:
@@ -433,10 +452,16 @@ def repair_resumable_review_projection(
             )
         expected_revision = int(target["expected_revision"])
         expected_fingerprint = str(target["expected_fingerprint"])
+        expected_post_write_fingerprint = str(
+            target.get("expected_post_write_fingerprint") or ""
+        )
         if _revision(payload) == expected_revision and _fingerprint(payload) == expected_fingerprint:
             continue
-        if _revision(payload) != expected_revision + 1 or not _already_applied(
-            payload, review, target
+        if (
+            not expected_post_write_fingerprint
+            or _revision(payload) != expected_revision + 1
+            or not _already_applied(payload, review, target)
+            or _fingerprint(payload) != expected_post_write_fingerprint
         ):
             raise LeaseError(
                 f"review outbox canonical state is corrupt: {request.run_id}"

@@ -206,7 +206,14 @@ def _matches_pending_outbox_transition(
         ):
             continue
         expected_revision = target.get("expected_revision")
-        if not isinstance(expected_revision, int) or isinstance(expected_revision, bool):
+        expected_post_write_fingerprint = str(
+            target.get("expected_post_write_fingerprint") or ""
+        )
+        if (
+            not isinstance(expected_revision, int)
+            or isinstance(expected_revision, bool)
+            or not expected_post_write_fingerprint
+        ):
             continue
         directive = {
             "review_id": review_id,
@@ -216,6 +223,8 @@ def _matches_pending_outbox_transition(
         }
         directives = payload.get("reviewer_directives")
         payload_revision = payload.get("state_revision")
+        from .reconciler import _state_fingerprint
+
         if (
             isinstance(payload_revision, int)
             and not isinstance(payload_revision, bool)
@@ -224,6 +233,7 @@ def _matches_pending_outbox_transition(
             and directive in directives
             and payload.get("phase") == target.get("target_phase")
             and payload.get("next_action") == target.get("target_next_action")
+            and _state_fingerprint(payload) == expected_post_write_fingerprint
         ):
             return True
     return False

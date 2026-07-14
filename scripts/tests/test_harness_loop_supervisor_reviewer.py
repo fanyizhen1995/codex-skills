@@ -1375,11 +1375,14 @@ def test_queued_reviewer_orphaned_source_projection_never_invokes_driver(
     ]
 
 
-@pytest.mark.parametrize("tamper_directive", [False, True])
+@pytest.mark.parametrize(
+    "tampered_field",
+    [None, "requirement", "constraints", "allowed_paths", "policy", "last_result"],
+)
 def test_cold_reviewer_recovery_repairs_projection_after_file_replacement(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    tamper_directive: bool,
+    tampered_field: str | None,
 ) -> None:
     clock = MutableClock(NOW)
     store = migrated_store(tmp_path, clock)
@@ -1429,22 +1432,34 @@ def test_cold_reviewer_recovery_repairs_projection_after_file_replacement(
 
     stale = store.get_run("run-a2")
     assert stale["revision"] == 1
-    assert json.loads(
+    saved_payload = json.loads(
         (tmp_path / ".codex" / "loop-runs" / "run-a2" / "run.json").read_text(
             encoding="utf-8"
         )
-    )["state_revision"] == 2
-    if tamper_directive:
+    )
+    assert saved_payload["state_revision"] == 2
+    target = store.fetch_all("review_application_targets")[0]
+    assert target["expected_post_write_fingerprint"] == _state_fingerprint(
+        saved_payload
+    )
+    if tampered_field is not None:
         run_path = tmp_path / ".codex" / "loop-runs" / "run-a2" / "run.json"
         replaced = json.loads(run_path.read_text(encoding="utf-8"))
-        replaced["reviewer_directives"][-1]["summary"] = "tampered immutable review"
+        replacements: dict[str, object] = {
+            "requirement": "Tampered review objective.",
+            "constraints": ["Tampered immutable constraint."],
+            "allowed_paths": ["scripts/tampered.py"],
+            "policy": "demand_development",
+            "last_result": "pass",
+        }
+        replaced[tampered_field] = replacements[tampered_field]
         run_path.write_text(json.dumps(replaced) + "\n", encoding="utf-8")
     store.close()
     clock.value += timedelta(seconds=121)
     reopened = SupervisorStore.open(tmp_path, clock=clock)
     reopened.migrate()
 
-    if tamper_directive:
+    if tampered_field is not None:
         with pytest.raises(LeaseError, match="canonical state is corrupt"):
             run_queued_reviewer(
                 reopened,
@@ -1471,6 +1486,62 @@ def test_cold_reviewer_recovery_repairs_projection_after_file_replacement(
         assert result is not None and result.status == "review_complete"
         assert reopened.get_run("run-a2")["revision"] == 2
         assert reopened.get_action(request.action_id).status == "completed"
+
+
+def test_v12_worktree_projection_migration_backfills_root_for_outbox(
+    tmp_path: Path,
+) -> None:
+    worktree = tmp_path / ".worktrees" / "v12-child"
+    store = migrated_store(tmp_path, MutableClock(NOW))
+    record_parent_completion(
+        store,
+        "lineage-v12",
+        run_id="v12-a1",
+        parent=1,
+        execution_root=worktree,
+        project=False,
+    )
+    record_parent_completion(
+        store,
+        "lineage-v12",
+        run_id="v12-a2",
+        parent=2,
+        execution_root=worktree,
+        project=False,
+    )
+    reconcile_once(tmp_path, store)
+    store._connection.execute("ALTER TABLE runs DROP COLUMN repo_relative_root")
+    store._connection.execute("PRAGMA user_version=12")
+    store._connection.commit()
+    store.close()
+
+    reopened = SupervisorStore.open(tmp_path, clock=MutableClock(NOW))
+    reopened.migrate()
+    reconcile_once(tmp_path, reopened)
+
+    assert reopened.get_run("v12-a2")["repo_relative_root"] == ".worktrees/v12-child"
+    assert current_review_safety_checks(reopened)["fresh_global_safety_signals"] == []
+    payload = json.loads(
+        (
+            worktree / ".codex" / "loop-runs" / "v12-a2" / "run.json"
+        ).read_text(encoding="utf-8")
+    )
+    review = validate_review_payload(
+        valid_review_payload(
+            decision="refocus",
+            affected_run_ids=["v12-a2"],
+        ),
+        allowed_run_ids=["v12-a2"],
+        reviewed_runs={
+            "v12-a2": {
+                "revision": payload["state_revision"],
+                "state_fingerprint": _state_fingerprint(payload),
+            }
+        },
+    )
+    actions = apply_review_decision(reopened, review)
+
+    assert reopened.get_action(actions[0].action_id).status == "completed"
 
 
 def test_reconciled_worktree_root_is_required_for_reviewer_outbox(
