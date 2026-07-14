@@ -861,6 +861,22 @@ def _reconcile_once_locked(
         for record in valid_records:
             if record.run_id in blocked_run_ids:
                 continue
+            if record.payload.get("run_kind") == "child":
+                parent_id = str(record.payload.get("parent_run_id") or "")
+                parent = payload_by_run.get(parent_id)
+                child_ids = (
+                    parent.get("child_run_ids", [])
+                    if isinstance(parent, Mapping)
+                    else []
+                )
+                if not (
+                    isinstance(parent, Mapping)
+                    and parent.get("run_kind") == "parent"
+                    and parent.get("phase") == "child_running"
+                    and record.run_id in child_ids
+                    and parent.get("current_child_run_id") == record.run_id
+                ):
+                    continue
             action = desired_by_run.get(record.run_id)
             if action is None:
                 continue

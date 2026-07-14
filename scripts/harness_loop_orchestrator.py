@@ -71,6 +71,10 @@ try:
         validate_governance_preflight_evidence,
     )
     from scripts.harness_loop_runtime_lock import acquire_run_lock
+    from scripts.loop_supervisor.failures import (
+        BoundedFailure,
+        classify_bounded_failure,
+    )
     from scripts.loop_supervisor.models import (
         ActionRequest,
         ActionResult,
@@ -129,6 +133,10 @@ except ModuleNotFoundError:
     )
     from harness_loop_runtime_lock import acquire_run_lock  # type: ignore[no-redef]
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.loop_supervisor.failures import (  # type: ignore[no-redef]
+        BoundedFailure,
+        classify_bounded_failure,
+    )
     from scripts.loop_supervisor.models import (  # type: ignore[no-redef]
         ActionRequest,
         ActionResult,
@@ -762,6 +770,46 @@ def _create_child_run(
             "acceptance_result": "",
         },
     }
+    child_dir = run_dir_for(repo_root, child_run_id)
+    if child_dir.is_symlink():
+        raise PermissionError(f"existing child run directory is a symlink: {child_run_id}")
+    if child_dir.exists():
+        existing = load_run(repo_root, child_run_id)
+        identity_fields = (
+            "run_id",
+            "run_kind",
+            "parent_run_id",
+            "child_index",
+            "audit_remediation",
+            "policy",
+            "task_id",
+            "requirement",
+            "constraints",
+            "allowed_paths",
+            "denylist_paths",
+        )
+        mismatched = [
+            field
+            for field in identity_fields
+            if existing.get(field) != child.get(field)
+        ]
+        if mismatched:
+            raise ValueError(
+                "existing deterministic child identity mismatch: "
+                + ", ".join(mismatched)
+            )
+        planner = read_json_file(child_dir / "planner-output.json")
+        contract = read_json_file(child_dir / "task-contract.json")
+        validate_planner_output_payload(planner)
+        validate_task_contract_payload(contract)
+        if (
+            planner.get("task_id") != child["task_id"]
+            or contract.get("task_id") != child["task_id"]
+            or list(planner.get("allowed_paths", [])) != child["allowed_paths"]
+            or list(planner.get("denylist_paths", [])) != child["denylist_paths"]
+        ):
+            raise ValueError("existing deterministic child artifact identity mismatch")
+        return existing
     save_run(repo_root, child)
 
     planner_payload = {
@@ -971,6 +1019,7 @@ def load_run(repo_root: Path | str, run_id: str) -> dict[str, Any]:
 def save_run(repo_root: Path | str, payload: dict[str, Any]) -> dict[str, Any]:
     transaction = _BOUNDED_RUN_TRANSACTION.get()
     if transaction is not None and transaction.matches(repo_root, str(payload["run_id"])):
+        validate_run_payload(payload)
         transaction.staged_payload = deepcopy(payload)
         return payload
     validate_run_payload(payload)
@@ -5784,14 +5833,6 @@ def _bounded_failure(
     started_at: str,
     repo_root: Path | None = None,
 ) -> ActionResult:
-    text = f"{exc.__class__.__name__}: {exc}".lower()
-    policy = isinstance(exc, PermissionError) or any(
-        marker in text
-        for marker in ("secret", "scope", "permission", "ownership", "symlink", "escape")
-    )
-    terminal = any(
-        marker in text for marker in ("corrupt", "unprovable", "invalid json")
-    )
     partial_artifacts: tuple[str, ...] = ()
     retryable_source = isinstance(
         exc, (OSError, subprocess.SubprocessError, TimeoutError)
@@ -5815,21 +5856,15 @@ def _bounded_failure(
             pass
         else:
             partial_artifacts = (_relative_artifact(repo_root, artifact_path),)
-    return ActionResult(
-        result_class=(
-            ActionResultClass.RECOVERABLE_PARTIAL
-            if partial_artifacts
-            else ActionResultClass.POLICY_BLOCK
-            if policy
-            else ActionResultClass.TERMINAL_FAILURE
-            if terminal
-            else ActionResultClass.RETRYABLE_FAILURE
+    return classify_bounded_failure(
+        BoundedFailure(
+            f"{action_name} failed: {exc}",
+            cause=exc,
+            artifact_paths=partial_artifacts,
+            checkpoint=action_name if partial_artifacts else "",
         ),
-        summary=f"{action_name} failed: {exc}",
-        failure_key=f"{action_name}:{request.run_id}:{exc.__class__.__name__}",
-        error_class=exc.__class__.__name__,
-        artifact_paths=partial_artifacts,
-        checkpoint=action_name if partial_artifacts else "",
+        action_id=request.action_id,
+        execution_root=repo_root,
         started_at=started_at,
         finished_at=_timestamp(),
     )
