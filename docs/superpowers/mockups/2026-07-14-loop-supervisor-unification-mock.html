@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Unified Loop Supervisor Dashboard Mock</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --surface: #ffffff;
+        --surface-soft: #f8f9fb;
+        --text: #18212f;
+        --muted: #617083;
+        --line: #d8dee7;
+        --blue: #1f5f9f;
+        --blue-soft: #e7f0fa;
+        --green: #19734c;
+        --green-soft: #e5f4ed;
+        --amber: #8b5700;
+        --amber-soft: #fff1d6;
+        --red: #a92c27;
+        --red-soft: #fde9e7;
+        font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 360px; min-height: 100vh; color: var(--text); background: var(--bg); font-size: 14px; line-height: 1.5; letter-spacing: 0; }
+      button, select, input { font: inherit; letter-spacing: 0; }
+      button { cursor: pointer; }
+      .topbar { min-height: 72px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+      .topbar h1 { margin: 0; font-size: 23px; line-height: 1.2; }
+      .subtitle { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+      .top-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+      .pill { display: inline-flex; min-height: 28px; padding: 4px 9px; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); color: var(--muted); white-space: nowrap; font-size: 12px; }
+      .pill.good { color: var(--green); border-color: #abd8c2; background: var(--green-soft); }
+      .pill.warn { color: var(--amber); border-color: #e2c583; background: var(--amber-soft); }
+      .pill.bad { color: var(--red); border-color: #eab3af; background: var(--red-soft); }
+      .project-strip { padding: 10px 18px; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+      .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - 121px); }
+      .sidebar { padding: 16px 12px; background: #eef1f5; border-right: 1px solid var(--line); }
+      .sidebar-title { margin: 0 6px 10px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+      .nav-item { width: 100%; margin-bottom: 6px; padding: 10px; display: block; text-align: left; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 6px; }
+      .nav-item.active { background: var(--surface); border-color: var(--line); box-shadow: 0 1px 2px rgba(24, 33, 47, 0.06); }
+      .nav-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+      .nav-meta { margin-top: 4px; color: var(--muted); font-size: 12px; }
+      .main { min-width: 0; padding: 18px; }
+      .hero { margin-bottom: 14px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .hero h2 { margin: 0; font-size: 22px; }
+      .hero-copy { max-width: 820px; }
+      .hero-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--surface); }
+      .tab { min-height: 42px; padding: 10px 13px; color: var(--muted); background: transparent; border: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
+      .tab.active { color: var(--text); border-bottom-color: var(--blue); font-weight: 700; }
+      .panel { display: none; padding-top: 14px; }
+      .panel.active { display: block; }
+      .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+      .metric { min-width: 0; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+      .metric-label { color: var(--muted); font-size: 12px; }
+      .metric-value { margin-top: 4px; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+      .section { margin-bottom: 12px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+      .section-head { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .section h3 { margin: 0; font-size: 16px; }
+      .section-note { color: var(--muted); font-size: 12px; }
+      .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+      .flow-node { padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-soft); }
+      .flow-node strong { display: block; margin-bottom: 4px; }
+      .flow-node span { color: var(--muted); font-size: 12px; }
+      .toolbar { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+      .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+      .control { min-height: 34px; padding: 6px 9px; color: var(--text); background: var(--surface); border: 1px solid #bdc6d2; border-radius: 5px; }
+      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+      table { width: 100%; border-collapse: collapse; min-width: 760px; }
+      th, td { padding: 10px; text-align: left; vertical-align: top; border-bottom: 1px solid #e5e8ed; }
+      th { color: #465365; background: #f3f5f7; font-size: 12px; }
+      tr:last-child td { border-bottom: 0; }
+      .cell-title { font-weight: 700; }
+      .cell-detail { margin-top: 3px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+      .status { font-weight: 700; }
+      .status.good { color: var(--green); }
+      .status.warn { color: var(--amber); }
+      .status.bad { color: var(--red); }
+      .pager { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; }
+      .pager-actions { display: flex; align-items: center; gap: 5px; }
+      .page-button { min-width: 34px; min-height: 32px; padding: 5px 8px; color: var(--text); background: var(--surface); border: 1px solid #bdc6d2; border-radius: 5px; }
+      .page-button.active { color: #fff; background: var(--blue); border-color: var(--blue); }
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .list { display: grid; gap: 8px; }
+      .list-item { padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-soft); }
+      .list-row { display: flex; justify-content: space-between; gap: 10px; }
+      .log-detail { display: none; margin-top: 8px; padding: 9px; white-space: pre-wrap; overflow-wrap: anywhere; color: #dce3ec; background: #202733; border-radius: 5px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+      .log-detail.open { display: block; }
+      .link-button { padding: 0; color: var(--blue); background: transparent; border: 0; text-decoration: underline; }
+      .empty { padding: 24px; color: var(--muted); text-align: center; border: 1px dashed #bdc6d2; border-radius: 6px; background: var(--surface-soft); }
+      .mobile-note { display: none; }
+
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+        .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .flow { grid-template-columns: 1fr 1fr; }
+        .split { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 560px) {
+        .topbar, .hero { align-items: stretch; flex-direction: column; }
+        .top-status, .hero-actions { justify-content: flex-start; }
+        .main { padding: 12px; }
+        .metrics, .flow { grid-template-columns: 1fr; }
+        .pager { align-items: flex-start; flex-direction: column; }
+        .mobile-note { display: block; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Loop Dashboard</h1>
+        <p class="subtitle">项目级 Supervisor 控制面与任务运行历史</p>
+      </div>
+      <div class="top-status">
+        <span class="pill good">Supervisor 正常</span>
+        <span class="pill good">Worker 在线</span>
+        <span class="pill">无全局停止</span>
+      </div>
+    </header>
+    <div class="project-strip">项目：/home/fyz/codex-skills · 运行库：.codex/supervisor/supervisor.db · 最近同步：2026-07-14 10:20</div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-title">项目控制面</div>
+        <button class="nav-item active" type="button">
+          <span class="nav-title"><span>Loop Supervisor</span><span class="status good">正常</span></span>
+          <span class="nav-meta">统一决策 · Worker 执行 · Reviewer 审视</span>
+        </button>
+        <div class="sidebar-title" style="margin-top:16px">运行历史</div>
+        <button class="nav-item" type="button">
+          <span class="nav-title"><span>AI infra parent-22</span><span class="status warn">恢复中</span></span>
+          <span class="nav-meta">Generator partial artifact recovery</span>
+        </button>
+        <button class="nav-item" type="button">
+          <span class="nav-title"><span>AI infra parent-21</span><span class="status good">完成</span></span>
+          <span class="nav-meta">验证、提交、推送均通过</span>
+        </button>
+        <button class="nav-item" type="button">
+          <span class="nav-title"><span>Loop runtime hardening</span><span class="status good">完成</span></span>
+          <span class="nav-meta">需求开发 · 已合入 main</span>
+        </button>
+      </aside>
+
+      <main class="main">
+        <section class="hero">
+          <div class="hero-copy">
+            <h2>Loop Supervisor</h2>
+            <p class="subtitle">唯一控制角色。负责 reconcile、恢复、Reviewer、服务保活、决策执行和 Worker 调度。</p>
+          </div>
+          <div class="hero-actions">
+            <span class="pill good">4 / 4 服务在线</span>
+            <span class="pill good">0 项人工决策</span>
+            <span class="pill warn">1 项自动恢复</span>
+          </div>
+        </section>
+
+        <nav class="tabs" aria-label="Supervisor 详情">
+          <button class="tab active" type="button" data-tab="overview">概览</button>
+          <button class="tab" type="button" data-tab="services">服务</button>
+          <button class="tab" type="button" data-tab="recovery">任务恢复</button>
+          <button class="tab" type="button" data-tab="reviewer">Reviewer</button>
+          <button class="tab" type="button" data-tab="decisions">决策</button>
+          <button class="tab" type="button" data-tab="skills">Skill 治理</button>
+          <button class="tab" type="button" data-tab="config">配置</button>
+        </nav>
+
+        <section class="panel active" data-panel="overview">
+          <div class="metrics">
+            <div class="metric"><div class="metric-label">活动运行</div><div class="metric-value">2</div></div>
+            <div class="metric"><div class="metric-label">待执行动作</div><div class="metric-value">1</div></div>
+            <div class="metric"><div class="metric-label">最近 Reviewer</div><div class="metric-value">继续</div></div>
+            <div class="metric"><div class="metric-label">需要用户</div><div class="metric-value">0</div></div>
+          </div>
+          <div class="section">
+            <div class="section-head"><h3>控制流程</h3><span class="section-note">一个注册表 · 一个动作队列 · 一个决策入口</span></div>
+            <div class="flow">
+              <div class="flow-node"><strong>Reconciler</strong><span>读取 run.json 和证据</span></div>
+              <div class="flow-node"><strong>Decision Engine</strong><span>计算下一状态与恢复层级</span></div>
+              <div class="flow-node"><strong>Action Queue</strong><span>SQLite 幂等动作与租约</span></div>
+              <div class="flow-node"><strong>Worker</strong><span>执行 Planner / Generator / Evaluator</span></div>
+              <div class="flow-node"><strong>Reviewer</strong><span>每两个父任务全局审视</span></div>
+            </div>
+          </div>
+          <div class="split">
+            <div class="section">
+              <div class="section-head"><h3>当前动作</h3><span class="pill warn">Tier 2</span></div>
+              <div class="list-item">
+                <div class="cell-title">恢复 parent-22 Generator 结果</div>
+                <div class="cell-detail">已有验证产物，正在重建缺失结果 envelope；完成后进入 Evaluator。</div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="section-head"><h3>最近全局判断</h3><span class="pill good">continue</span></div>
+              <div class="list-item">
+                <div class="cell-title">资料拓展方向有效，可继续</div>
+                <div class="cell-detail">恢复技术阻塞，不需要用户介入；下一次常规审视在两个父任务后。</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="services">
+          <div class="section">
+            <div class="section-head"><h3>服务状态</h3><span class="section-note">可达性、进程、版本和数据新鲜度分别判断</span></div>
+            <div class="table-wrap"><table><thead><tr><th>服务</th><th>可达</th><th>进程</th><th>版本</th><th>数据新鲜度</th></tr></thead><tbody>
+              <tr><td class="cell-title">Crawler Backend</td><td class="status good">在线</td><td>PID 1983168</td><td class="status good">匹配</td><td class="status good">通过</td></tr>
+              <tr><td class="cell-title">Crawler Frontend</td><td class="status good">在线</td><td>PID 1983724</td><td class="status good">匹配</td><td class="status good">通过</td></tr>
+              <tr><td class="cell-title">Loop Dashboard</td><td class="status good">在线</td><td>PID 1983192</td><td class="status good">匹配</td><td>不适用</td></tr>
+              <tr><td class="cell-title">Supervisor Worker</td><td class="status good">心跳正常</td><td>worker-01</td><td class="status good">匹配</td><td>不适用</td></tr>
+            </tbody></table></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="recovery">
+          <div class="section">
+            <div class="section-head"><h3>任务恢复</h3><span class="section-note">同一 failure key 更新次数，不按 tick 重复追加</span></div>
+            <div class="toolbar">
+              <div class="filters"><select class="control"><option>全部状态</option><option>执行中</option><option>已恢复</option><option>失败</option></select><input class="control" value="" placeholder="搜索 run 或 failure key"></div>
+              <span class="section-note">共 126 条</span>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>运行 / 动作</th><th>恢复判断</th><th>层级</th><th>状态</th></tr></thead><tbody>
+              <tr><td><div class="cell-title">AI infra parent-22</div><div class="cell-detail">recover_generator_result</div></td><td>验证现有产物并重建 envelope</td><td>Tier 2</td><td><span class="status warn">执行中</span><br><button class="link-button" type="button" id="toggle-log">查看恢复日志</button><pre class="log-detail" id="log-detail">Validated existing parent-22 artifacts.
+Result envelope missing at timeout boundary.
+Supervisor queued recover_generator_result with recovery_tier=2.</pre></td></tr>
+              <tr><td><div class="cell-title">AI infra parent-21</div><div class="cell-detail">generator:model_capacity</div></td><td>退避后重试成功</td><td>Tier 1 · 2/3</td><td class="status good">已恢复</td></tr>
+              <tr><td><div class="cell-title">AI infra parent-20</div><div class="cell-detail">generator:sse_timeout</div></td><td>使用验证产物恢复并通过 Evaluator</td><td>Tier 2</td><td class="status good">已恢复</td></tr>
+            </tbody></table></div>
+            <div class="pager"><span>第 1-20 条，共 126 条 · 每页 <select class="control page-size"><option>20</option><option>50</option><option>100</option></select></span><div class="pager-actions"><button class="page-button" disabled type="button">上一页</button><button class="page-button active" type="button">1</button><button class="page-button" type="button">2</button><button class="page-button" type="button">3</button><button class="page-button" type="button">下一页</button></div></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="reviewer">
+          <div class="metrics">
+            <div class="metric"><div class="metric-label">审视范围</div><div class="metric-value">项目全局</div></div>
+            <div class="metric"><div class="metric-label">常规节奏</div><div class="metric-value">2 父任务</div></div>
+            <div class="metric"><div class="metric-label">最近结论</div><div class="metric-value">继续</div></div>
+            <div class="metric"><div class="metric-label">开放 finding</div><div class="metric-value">1</div></div>
+          </div>
+          <div class="section">
+            <div class="section-head"><h3>Reviewer 历史</h3><span class="pill good">LLM Reviewer 已启用</span></div>
+            <div class="table-wrap"><table><thead><tr><th>时间</th><th>全局判断</th><th>证据范围</th><th>自动动作</th></tr></thead><tbody>
+              <tr><td>07-14 10:20</td><td><div class="cell-title">继续资料拓展</div><div class="cell-detail">当前阻塞是可恢复技术故障，不是方向问题。</div></td><td>parent-20 至 parent-22、服务、提交、恢复记录</td><td class="status good">auto_remediate</td></tr>
+              <tr><td>07-14 08:10</td><td><div class="cell-title">合并重复 Skill 候选</div><div class="cell-detail">两个 recovery skill 描述和步骤高度重叠。</div></td><td>Skill snapshot #18</td><td class="status warn">refocus</td></tr>
+            </tbody></table></div>
+            <div class="pager"><span>第 1-20 条，共 42 条</span><div class="pager-actions"><button class="page-button" disabled type="button">上一页</button><button class="page-button active" type="button">1</button><button class="page-button" type="button">2</button><button class="page-button" type="button">下一页</button></div></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="decisions">
+          <div class="section">
+            <div class="section-head"><h3>决策</h3><span class="pill good">暂无待人工处理</span></div>
+            <div class="toolbar"><div class="filters"><select class="control"><option>全部决策</option><option>自动</option><option>需要用户</option><option>已解决</option></select></div><span class="section-note">人工决策默认只影响单个 run</span></div>
+            <div class="table-wrap"><table><thead><tr><th>对象</th><th>决策</th><th>原因</th><th>影响范围</th></tr></thead><tbody>
+              <tr><td>parent-22</td><td class="status good">自动恢复</td><td>partial artifacts 可验证</td><td>仅当前 run</td></tr>
+              <tr><td>parent-21</td><td class="status good">继续</td><td>Evaluator 和 freshness 通过</td><td>仅当前 run</td></tr>
+              <tr><td>项目</td><td>无动作</td><td>没有 secret、权限扩大或仓库损坏</td><td>全局</td></tr>
+            </tbody></table></div>
+            <div class="pager"><span>第 1-20 条，共 86 条</span><div class="pager-actions"><button class="page-button" disabled type="button">上一页</button><button class="page-button active" type="button">1</button><button class="page-button" type="button">2</button><button class="page-button" type="button">下一页</button></div></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="skills">
+          <div class="metrics">
+            <div class="metric"><div class="metric-label">项目 Skill</div><div class="metric-value">24</div></div>
+            <div class="metric"><div class="metric-label">证据确认使用</div><div class="metric-value">8</div></div>
+            <div class="metric"><div class="metric-label">重复组</div><div class="metric-value">2</div></div>
+            <div class="metric"><div class="metric-label">待治理</div><div class="metric-value">3</div></div>
+          </div>
+          <div class="section">
+            <div class="section-head"><h3>Skill 治理</h3><span class="section-note">日志字符串匹配不作为使用证明</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Skill</th><th>证据</th><th>Reviewer 判断</th><th>建议</th></tr></thead><tbody>
+              <tr><td class="cell-title">pge-loop-agent-contract</td><td>8 个验证运行</td><td>稳定且职责清晰</td><td class="status good">保留</td></tr>
+              <tr><td class="cell-title">loop-closeout-audit</td><td>3 个提交证据</td><td>与 loop-ingest-closeout 重叠</td><td class="status warn">合并</td></tr>
+              <tr><td class="cell-title">legacy-auditor-gate</td><td>仅历史日志</td><td>职责已收归 Supervisor</td><td class="status bad">删除候选</td></tr>
+            </tbody></table></div>
+            <div class="pager"><span>第 1-20 条，共 24 条</span><div class="pager-actions"><button class="page-button" disabled type="button">上一页</button><button class="page-button active" type="button">1</button><button class="page-button" type="button">2</button><button class="page-button" type="button">下一页</button></div></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="config">
+          <div class="split">
+            <div class="section"><div class="section-head"><h3>恢复策略</h3></div><div class="list"><div class="list-item"><div class="list-row"><strong>原动作重试</strong><span>3 次</span></div></div><div class="list-item"><div class="list-row"><strong>替代恢复</strong><span>1 次</span></div></div><div class="list-item"><div class="list-row"><strong>Worker 租约</strong><span>120 秒</span></div></div></div></div>
+            <div class="section"><div class="section-head"><h3>审视与保留</h3></div><div class="list"><div class="list-item"><div class="list-row"><strong>Reviewer cadence</strong><span>2 父任务</span></div></div><div class="list-item"><div class="list-row"><strong>详细历史</strong><span>90 天</span></div></div><div class="list-item"><div class="list-row"><strong>导出轮转</strong><span>10 MB</span></div></div></div></div>
+          </div>
+          <div class="section"><div class="section-head"><h3>降级状态示例</h3></div><div class="list-item"><div class="list-row"><strong>Reviewer 暂时不可用</strong><span class="status warn">review_degraded</span></div><div class="cell-detail">确定性安全门通过，loop 继续；下一个 cadence 自动重试，不请求用户。</div></div></div>
+        </section>
+
+        <p class="mobile-note subtitle">移动端按单列显示，Tab 可横向滚动，表格保留横向滚动，不压缩长文本。</p>
+      </main>
+    </div>
+
+    <script>
+      const tabs = Array.from(document.querySelectorAll("[data-tab]"));
+      const panels = Array.from(document.querySelectorAll("[data-panel]"));
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const selected = tab.dataset.tab;
+          tabs.forEach((item) => item.classList.toggle("active", item === tab));
+          panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === selected));
+          const url = new URL(window.location.href);
+          url.searchParams.set("supervisor_tab", selected);
+          window.history.replaceState({}, "", url);
+        });
+      });
+
+      document.getElementById("toggle-log").addEventListener("click", (event) => {
+        const detail = document.getElementById("log-detail");
+        const open = detail.classList.toggle("open");
+        event.currentTarget.textContent = open ? "收起恢复日志" : "查看恢复日志";
+      });
+
+      document.querySelectorAll(".pager-actions").forEach((pager) => {
+        const numbered = Array.from(pager.querySelectorAll(".page-button")).filter((button) => /^\d+$/.test(button.textContent.trim()));
+        numbered.forEach((button) => button.addEventListener("click", () => {
+          numbered.forEach((item) => item.classList.toggle("active", item === button));
+        }));
+      });
+
+      const initialTab = new URL(window.location.href).searchParams.get("supervisor_tab");
+      const initialButton = tabs.find((tab) => tab.dataset.tab === initialTab);
+      if (initialButton) initialButton.click();
+    </script>
+  </body>
+</html>
