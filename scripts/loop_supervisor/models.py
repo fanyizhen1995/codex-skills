@@ -2,10 +2,31 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, Mapping
+
+from scripts.harness_loop_contracts import ALLOWED_PHASES, normalize_policy_id
+
+
+def _require_string(value: object, field_name: str, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string")
+    if not allow_empty and not value:
+        raise ValueError(f"{field_name} must be non-empty")
+    return value
+
+
+def _freeze_value(value: Any) -> Any:
+    if isinstance(value, MappingABC):
+        return MappingProxyType({key: _freeze_value(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_value(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_freeze_value(item) for item in value)
+    return value
 
 
 class ActionType(StrEnum):
@@ -68,6 +89,7 @@ class ReviewDecision(StrEnum):
 class ActionRequest:
     action_id: str
     run_id: str
+    run_revision: int
     policy: str
     phase: str
     action_type: ActionType
@@ -75,6 +97,27 @@ class ActionRequest:
     task_id: str = ""
     next_action: str = ""
     payload: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _require_string(self.action_id, "action_id")
+        _require_string(self.run_id, "run_id")
+        if not isinstance(self.run_revision, int) or isinstance(self.run_revision, bool):
+            raise TypeError("run_revision must be an int")
+        if self.run_revision < 0:
+            raise ValueError("run_revision must be non-negative")
+        _require_string(self.policy, "policy")
+        _require_string(self.phase, "phase")
+        if self.phase not in ALLOWED_PHASES:
+            raise ValueError(f"phase is not contract allowed: {self.phase}")
+        if not isinstance(self.action_type, ActionType):
+            raise TypeError("action_type must be an ActionType")
+        _require_string(self.idempotency_key, "idempotency_key")
+        _require_string(self.task_id, "task_id", allow_empty=True)
+        _require_string(self.next_action, "next_action", allow_empty=True)
+        if not isinstance(self.payload, MappingABC):
+            raise TypeError("payload must be a mapping")
+        object.__setattr__(self, "policy", normalize_policy_id(self.policy))
+        object.__setattr__(self, "payload", _freeze_value(self.payload))
 
 
 @dataclass(frozen=True)
@@ -93,6 +136,12 @@ class ActionResult:
             raise TypeError("result_class must be an ActionResultClass")
         if self.result_class is not ActionResultClass.SUCCESS and not self.failure_key:
             raise ValueError("non-success ActionResult requires failure_key")
+        if not isinstance(self.artifact_paths, (list, tuple)):
+            raise TypeError("artifact_paths must be a list or tuple of strings")
+        artifact_paths = tuple(self.artifact_paths)
+        if not all(isinstance(path, str) for path in artifact_paths):
+            raise TypeError("artifact_paths must contain only strings")
+        object.__setattr__(self, "artifact_paths", artifact_paths)
 
 
 DEFAULT_RESULT_HANDLING: Mapping[ActionResultClass, ResultHandling] = MappingProxyType(
@@ -120,17 +169,31 @@ class TransitionRule:
     def __post_init__(self) -> None:
         if not isinstance(self.action_type, ActionType):
             raise TypeError("action_type must be an ActionType")
-        if not self.allowed_result_classes or not all(
-            isinstance(result_class, ActionResultClass) for result_class in self.allowed_result_classes
+        for field_name in ("mutates_git", "terminal", "user_escalation"):
+            if not isinstance(getattr(self, field_name), bool):
+                raise TypeError(f"{field_name} must be a bool")
+        try:
+            allowed_result_classes = frozenset(self.allowed_result_classes)
+        except TypeError as exc:
+            raise TypeError("allowed_result_classes must be iterable") from exc
+        if not allowed_result_classes or not all(
+            isinstance(result_class, ActionResultClass) for result_class in allowed_result_classes
         ):
             raise TypeError("allowed_result_classes must contain ActionResultClass values")
-        if set(self.result_handling) != set(self.allowed_result_classes):
+        if not isinstance(self.result_handling, MappingABC):
+            raise TypeError("result_handling must be a mapping")
+        result_handling = dict(self.result_handling)
+        if not all(isinstance(result_class, ActionResultClass) for result_class in result_handling):
+            raise TypeError("result_handling must use ActionResultClass keys")
+        if set(result_handling) != set(allowed_result_classes):
             raise ValueError("result_handling must cover exactly the allowed result classes")
-        if not all(isinstance(handling, ResultHandling) for handling in self.result_handling.values()):
+        if not all(isinstance(handling, ResultHandling) for handling in result_handling.values()):
             raise TypeError("result_handling must contain ResultHandling values")
         if self.terminal:
             if self.action_type not in {ActionType.NO_OP, ActionType.STOP_RUN}:
                 raise ValueError("terminal TransitionRule must use a no-op or stop action")
             terminal_handlings = {ResultHandling.NO_OP, ResultHandling.STOP}
-            if not set(self.result_handling.values()) <= terminal_handlings:
+            if not set(result_handling.values()) <= terminal_handlings:
                 raise ValueError("terminal TransitionRule must use no-op or stop handling")
+        object.__setattr__(self, "allowed_result_classes", allowed_result_classes)
+        object.__setattr__(self, "result_handling", MappingProxyType(result_handling))

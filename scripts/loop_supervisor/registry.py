@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
+from typing import Mapping
+
 from scripts.harness_loop_contracts import (
     ALLOWED_PHASES,
     ALLOWED_POLICIES,
@@ -42,19 +45,19 @@ _TERMINAL_RULE = TransitionRule(
     terminal=True,
 )
 
-REGISTRY: dict[tuple[str, str, object], TransitionRule] = {
+_registry: dict[tuple[str, str, object], TransitionRule] = {
     (policy, phase, ANY_NEXT_ACTION): rule
     for policy in ALLOWED_POLICIES
     for phase, rule in _DEFAULT_RULES.items()
 }
-REGISTRY.update(
+_registry.update(
     {
         (policy, phase, ANY_NEXT_ACTION): _TERMINAL_RULE
         for policy in ALLOWED_POLICIES
         for phase in SUPERVISOR_TERMINAL_PHASES
     }
 )
-REGISTRY.update(
+_registry.update(
     {
         ("autonomous_knowledge", "planning", "run_autonomous_planner"): TransitionRule(ActionType.RUN_PLANNER, True),
         ("autonomous_knowledge", "generating", "run_autonomous_generator"): TransitionRule(ActionType.RUN_GENERATOR, True),
@@ -68,6 +71,7 @@ REGISTRY.update(
         ("demand_development", "evaluating", "run_evaluator"): TransitionRule(ActionType.RUN_EVALUATOR, False),
     }
 )
+REGISTRY: Mapping[tuple[str, str, object], TransitionRule] = MappingProxyType(dict(_registry))
 
 
 def transition_for(policy: str, phase: str, next_action: str) -> TransitionRule:
@@ -81,15 +85,18 @@ def transition_for(policy: str, phase: str, next_action: str) -> TransitionRule:
     return rule
 
 
-def validate_registry_coverage() -> None:
+def validate_registry_coverage(
+    registry: Mapping[tuple[str, str, object], TransitionRule] | None = None,
+) -> None:
     """Reject registry drift from the run schema before Supervisor starts."""
+    active_registry = REGISTRY if registry is None else registry
     invalid_terminal_phases = SUPERVISOR_TERMINAL_PHASES - ALLOWED_PHASES
     if invalid_terminal_phases:
         raise ValueError(f"terminal phases are not contract allowed: {sorted(invalid_terminal_phases)}")
 
     invalid_entries = [
         (policy, phase)
-        for policy, phase, _ in REGISTRY
+        for policy, phase, _ in active_registry
         if policy not in ALLOWED_POLICIES or phase not in ALLOWED_PHASES
     ]
     if invalid_entries:
@@ -99,16 +106,18 @@ def validate_registry_coverage() -> None:
         f"{policy}:{phase}"
         for policy in sorted(ALLOWED_POLICIES)
         for phase in sorted(ALLOWED_PHASES)
-        if not any(entry_policy == policy and entry_phase == phase for entry_policy, entry_phase, _ in REGISTRY)
+        if not any(
+            entry_policy == policy and entry_phase == phase
+            for entry_policy, entry_phase, _ in active_registry
+        )
     ]
     if missing:
         raise ValueError(f"registry lacks behavior for allowed phases: {', '.join(missing)}")
 
     invalid_terminal_rules = [
-        f"{policy}:{phase}"
-        for policy in sorted(ALLOWED_POLICIES)
-        for phase in sorted(SUPERVISOR_TERMINAL_PHASES)
-        if not (rule := REGISTRY.get((policy, phase, ANY_NEXT_ACTION))) or not rule.terminal
+        f"{policy}:{phase}:{next_action}"
+        for (policy, phase, next_action), rule in active_registry.items()
+        if phase in SUPERVISOR_TERMINAL_PHASES and not rule.terminal
     ]
     if invalid_terminal_rules:
         raise ValueError(f"registry lacks terminal behavior for allowed phases: {', '.join(invalid_terminal_rules)}")

@@ -39,15 +39,100 @@ def test_action_request_is_immutable_and_carries_transition_identity():
     request = ActionRequest(
         action_id="action-1",
         run_id="run-1",
-        policy="autonomous_knowledge",
+        run_revision=1,
+        policy="autonomous-knowledge",
         phase="planning",
         action_type=ActionType.RUN_PLANNER,
         idempotency_key="run-1:1:planning:run_planner",
     )
 
     assert request.action_type is ActionType.RUN_PLANNER
+    assert request.policy == "autonomous_knowledge"
+    assert request.run_revision == 1
     with pytest.raises(AttributeError):
         request.run_id = "other"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("run_revision", True, TypeError),
+        ("run_revision", -1, ValueError),
+        ("phase", "not_allowed", ValueError),
+        ("action_type", "run_planner", TypeError),
+        ("action_id", "", ValueError),
+    ],
+)
+def test_action_request_rejects_invalid_execution_fields(field, value, error):
+    kwargs = {
+        "action_id": "action-1",
+        "run_id": "run-1",
+        "run_revision": 1,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "action_type": ActionType.RUN_PLANNER,
+        "idempotency_key": "run-1:1:planning:run_planner",
+    }
+    kwargs[field] = value
+
+    with pytest.raises(error):
+        ActionRequest(**kwargs)
+
+
+def test_frozen_models_snapshot_mutable_inputs_recursively():
+    payload = {"nested": {"items": ["before"], "tags": {"before"}}}
+    artifact_paths = ["result.json"]
+    allowed_results = [ActionResultClass.SUCCESS]
+    handling = {ActionResultClass.SUCCESS: ResultHandling.ADVANCE}
+
+    request = ActionRequest(
+        action_id="action-1",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key="run-1:1:planning:run_planner",
+        payload=payload,
+    )
+    result = ActionResult(
+        result_class=ActionResultClass.SUCCESS,
+        summary="complete",
+        artifact_paths=artifact_paths,
+    )
+    rule = TransitionRule(
+        ActionType.RUN_GENERATOR,
+        True,
+        allowed_result_classes=allowed_results,
+        result_handling=handling,
+    )
+
+    payload["nested"]["items"].append("after")
+    payload["nested"]["tags"].add("after")
+    artifact_paths.append("other.json")
+    allowed_results.append(ActionResultClass.TERMINAL_FAILURE)
+    handling[ActionResultClass.SUCCESS] = ResultHandling.NO_OP
+
+    assert request.payload["nested"]["items"] == ("before",)
+    assert request.payload["nested"]["tags"] == frozenset({"before"})
+    assert result.artifact_paths == ("result.json",)
+    assert rule.allowed_result_classes == frozenset({ActionResultClass.SUCCESS})
+    assert rule.result_handling[ActionResultClass.SUCCESS] is ResultHandling.ADVANCE
+    with pytest.raises(TypeError):
+        request.payload["nested"] = {}  # type: ignore[index]
+    with pytest.raises(TypeError):
+        request.payload["nested"]["items"][0] = "changed"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        rule.result_handling[ActionResultClass.SUCCESS] = ResultHandling.NO_OP  # type: ignore[index]
+
+
+def test_transition_rule_requires_boolean_control_flags():
+    for field in ("mutates_git", "terminal", "user_escalation"):
+        kwargs = {"mutates_git": True, "terminal": False, "user_escalation": False}
+        kwargs[field] = 1
+
+        with pytest.raises(TypeError, match=field):
+            TransitionRule(ActionType.RUN_GENERATOR, **kwargs)
 
 
 def test_action_result_requires_failure_key_for_non_success():
