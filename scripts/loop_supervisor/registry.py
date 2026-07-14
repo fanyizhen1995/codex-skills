@@ -17,6 +17,7 @@ from .models import (
     ActionType,
     RecoveryStage,
     RecoveryTransitionRule,
+    ReviewDecision,
     ResultHandling,
     TransitionRule,
 )
@@ -38,13 +39,9 @@ _DEFAULT_RULES = {
     "committed": TransitionRule(ActionType.PUSH, True),
     "stopped_budget": TransitionRule(ActionType.CREATE_CONTINUATION, False),
     "stopped_blocked": TransitionRule(ActionType.ASK_USER, False, user_escalation=True),
-    "audit_pending": TransitionRule(
-        ActionType.RUN_REVIEWER, False, worker_executable=False
-    ),
-    "auditing": TransitionRule(
-        ActionType.RUN_REVIEWER, False, worker_executable=False
-    ),
-    "audit_blocked": TransitionRule(ActionType.RUN_ALTERNATE_RECOVERY, True),
+    "audit_pending": TransitionRule(ActionType.NO_OP, False, worker_executable=False),
+    "auditing": TransitionRule(ActionType.NO_OP, False, worker_executable=False),
+    "audit_blocked": TransitionRule(ActionType.NO_OP, False, worker_executable=False),
     "child_running": TransitionRule(ActionType.RUN_PLANNER, True),
 }
 
@@ -89,6 +86,43 @@ _registry.update(
 )
 REGISTRY: Mapping[tuple[str, str, object], TransitionRule] = MappingProxyType(dict(_registry))
 
+_REVIEW_DECISION_RULES: Mapping[ReviewDecision, TransitionRule] = MappingProxyType(
+    {
+        ReviewDecision.CONTINUE: TransitionRule(
+            ActionType.NO_OP,
+            False,
+            worker_executable=False,
+        ),
+        ReviewDecision.AUTO_REMEDIATE: TransitionRule(
+            ActionType.RUN_ALTERNATE_RECOVERY,
+            False,
+            worker_executable=False,
+        ),
+        ReviewDecision.REFOCUS: TransitionRule(
+            ActionType.REFOCUS_RUN,
+            False,
+            worker_executable=False,
+        ),
+        ReviewDecision.STOP_RUN: TransitionRule(
+            ActionType.STOP_RUN,
+            False,
+            worker_executable=False,
+        ),
+        ReviewDecision.ASK_USER: TransitionRule(
+            ActionType.ASK_USER,
+            False,
+            worker_executable=False,
+            user_escalation=True,
+        ),
+    }
+)
+
+_REVIEW_SCHEDULE_RULE = TransitionRule(
+    ActionType.RUN_REVIEWER,
+    False,
+    worker_executable=False,
+)
+
 
 def transition_for(policy: str, phase: str, next_action: str) -> TransitionRule:
     """Return the explicit rule for one normalized run state."""
@@ -99,6 +133,28 @@ def transition_for(policy: str, phase: str, next_action: str) -> TransitionRule:
     if rule is None:
         raise ValueError(f"no supervisor transition for {normalized_policy}:{phase}:{next_action}")
     return rule
+
+
+def review_transition_for(decision: ReviewDecision) -> TransitionRule:
+    """Return the registry-owned action rule for a validated Reviewer decision."""
+    if not isinstance(decision, ReviewDecision):
+        raise TypeError("decision must be a ReviewDecision")
+    return _REVIEW_DECISION_RULES[decision]
+
+
+def reviewer_schedule_transition() -> TransitionRule:
+    """Return the registry-owned project-global Reviewer scheduling rule."""
+    return _REVIEW_SCHEDULE_RULE
+
+
+def worker_executable_action_types() -> frozenset[ActionType]:
+    """Return normal and recovery actions owned by the Worker registry contract."""
+    normal = {
+        rule.action_type
+        for rule in REGISTRY.values()
+        if not rule.terminal and not rule.user_escalation and rule.worker_executable
+    }
+    return frozenset(normal | {ActionType.RUN_ALTERNATE_RECOVERY})
 
 
 def recovery_transition_for(

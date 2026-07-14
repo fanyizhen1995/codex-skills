@@ -1053,6 +1053,107 @@ class SupervisorStore:
             ).fetchone()
         return self._action_record(leased)
 
+    def claim_pending_action(
+        self,
+        action_id: str,
+        owner_id: str,
+        *,
+        lease_seconds: int,
+    ) -> ActionRecord | None:
+        """Claim one known pending Supervisor-owned action without scanning the queue."""
+        self._required_text(action_id, "action_id")
+        self._validate_lease_input(owner_id, lease_seconds)
+        with self._immediate_transaction():
+            now_value = self._now()
+            now = self._time_text(now_value)
+            expires_at = self._time_text(now_value + timedelta(seconds=lease_seconds))
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'leased', lease_owner = ?, lease_expires_at = ?,
+                    lease_heartbeat_at = ?, updated_at = ?
+                WHERE action_id = ? AND status = 'pending'
+                  AND EXISTS (
+                    SELECT 1 FROM runs
+                    WHERE runs.run_id = actions.run_id
+                      AND runs.revision = actions.run_revision
+                      AND runs.phase = actions.phase
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM user_decisions AS decisions
+                    WHERE decisions.status = 'open'
+                      AND (
+                        decisions.scope = 'global'
+                        OR (
+                          decisions.scope = 'run'
+                          AND decisions.run_id = actions.run_id
+                        )
+                      )
+                  )
+                """,
+                (owner_id, expires_at, now, now, action_id),
+            )
+            self._write_worker_heartbeat(owner_id, now)
+            if updated.rowcount != 1:
+                return None
+            row = self._connection.execute(
+                "SELECT * FROM actions WHERE action_id = ?", (action_id,)
+            ).fetchone()
+        return self._action_record(row)
+
+    def update_pending_action(self, request: ActionRequest) -> ActionRecord:
+        """Atomically replace metadata on one unclaimed, identity-stable action."""
+        if not isinstance(request, ActionRequest):
+            raise TypeError("request must be an ActionRequest")
+        payload = request.payload_for_storage()
+        self._validate_payload(payload)
+        with self._immediate_transaction():
+            existing = self._connection.execute(
+                "SELECT * FROM actions WHERE action_id = ?", (request.action_id,)
+            ).fetchone()
+            if existing is None or existing["status"] != "pending":
+                raise ValueError("action is not pending")
+            identity = (
+                str(existing["run_id"]),
+                int(existing["run_revision"]),
+                str(existing["policy"]),
+                str(existing["phase"]),
+                str(existing["action_type"]),
+                str(existing["task_id"]),
+                str(existing["repo_relative_root"]),
+                str(existing["idempotency_key"]),
+            )
+            incoming = (
+                request.run_id,
+                request.run_revision,
+                request.policy,
+                request.phase,
+                request.action_type.value,
+                request.task_id,
+                request.repo_relative_root,
+                request.idempotency_key,
+            )
+            if incoming != identity:
+                raise ValueError("pending action identity cannot change")
+            updated = self._connection.execute(
+                """
+                UPDATE actions SET next_action = ?, payload_json = ?, updated_at = ?
+                WHERE action_id = ? AND status = 'pending'
+                """,
+                (
+                    request.next_action,
+                    self._json(payload),
+                    self._now_text(),
+                    request.action_id,
+                ),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("pending action changed during update")
+            row = self._connection.execute(
+                "SELECT * FROM actions WHERE action_id = ?", (request.action_id,)
+            ).fetchone()
+        return self._action_record(row)
+
     def renew_lease(
         self, action_id: str, worker_id: str, *, lease_seconds: int
     ) -> bool:
@@ -1676,6 +1777,51 @@ class SupervisorStore:
                 )
             row = self._connection.execute(
                 "SELECT * FROM reviews WHERE review_id = ?", (review_id,)
+            ).fetchone()
+        return self._decoded_row(row)
+
+    def record_skill_snapshot(
+        self,
+        snapshot: Mapping[str, Any],
+        *,
+        snapshot_id: str = "",
+        created_at: datetime | str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(snapshot, Mapping):
+            raise TypeError("snapshot must be a mapping")
+        self._validate_payload(snapshot)
+        inventory = snapshot.get("inventory", [])
+        confirmed_usage = snapshot.get("confirmed_usage", [])
+        if not isinstance(inventory, (list, tuple)) or not isinstance(
+            confirmed_usage, (list, tuple)
+        ):
+            raise TypeError("skill snapshot collections must be lists or tuples")
+        timestamp = self._coerce_time(created_at)
+        identifier = snapshot_id or (
+            "skill-snapshot-"
+            + hashlib.sha256(self._json(snapshot).encode("utf-8")).hexdigest()[:24]
+        )
+        with self._immediate_transaction():
+            self._connection.execute(
+                """
+                INSERT INTO skill_snapshots(
+                  snapshot_id, total_skills, used_skills, snapshot_json, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(snapshot_id) DO UPDATE SET
+                  total_skills = excluded.total_skills,
+                  used_skills = excluded.used_skills,
+                  snapshot_json = excluded.snapshot_json
+                """,
+                (
+                    identifier,
+                    len(inventory),
+                    len(confirmed_usage),
+                    self._json(snapshot),
+                    timestamp,
+                ),
+            )
+            row = self._connection.execute(
+                "SELECT * FROM skill_snapshots WHERE snapshot_id = ?", (identifier,)
             ).fetchone()
         return self._decoded_row(row)
 

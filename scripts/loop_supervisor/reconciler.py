@@ -28,6 +28,7 @@ from scripts.harness_loop_runtime_lock import (
 from .models import ActionRequest, ActionType
 from .recovery import recovery_action_for_run
 from .registry import transition_for
+from .reviewer import schedule_due_reviews
 from .store import SupervisorStore
 
 
@@ -47,6 +48,19 @@ _STATE_SUMMARY_KEYS = (
     "task_id",
     "next_action",
     "last_result",
+    "run_kind",
+    "requirement",
+    "constraints",
+    "stop_conditions",
+    "parent_task_counter",
+    "semantic_parent_task_next",
+    "_autonomous_completed_task_ids",
+    "_autonomous_completed_remediation_task_ids",
+    "child_run_ids",
+    "aggregate_acceptance",
+    "skill_roots",
+    "reviewer_directives",
+    "legacy_audit_migration",
     "previous_run_id",
     "commit",
     "user_decision_required",
@@ -905,6 +919,8 @@ def _reconcile_once_locked(
             )
             queued.append(action)
 
+        queued.extend(schedule_due_reviews(store, now=store.current_time()))
+
     return ReconcileResult(
         queued_actions=queued,
         open_user_decisions=decisions,
@@ -1118,6 +1134,23 @@ def _project_run(
     token: RunLockToken,
 ) -> RunRecord:
     run = dict(record.payload)
+    if run.get("phase") in {"audit_pending", "auditing", "audit_blocked"}:
+        run = _migrate_legacy_audit_state(run)
+        run = atomic_save_run_locked(
+            record.repo_root,
+            record.run_id,
+            run,
+            token=token,
+            expected_revision=_state_revision(record.payload),
+            expected_fingerprint=_state_fingerprint(record.payload),
+        )
+        record = RunRecord(
+            run_id=record.run_id,
+            repo_root=record.repo_root,
+            run_json_path=record.run_json_path,
+            payload=run,
+            directory_run_id=record.directory_run_id,
+        )
     incoming_revision = _state_revision(run)
     projection = _projection(project_root, record, run, incoming_revision)
     try:
@@ -1159,6 +1192,38 @@ def _project_run(
         )
     store.upsert_run_projection(projection)
     return record
+
+
+def _migrate_legacy_audit_state(run: Mapping[str, Any]) -> dict[str, Any]:
+    migrated = dict(run)
+    source_phase = str(migrated.get("phase") or "")
+    decision = "auto_remediate" if source_phase == "audit_blocked" else "refocus"
+    existing_directives = migrated.get("reviewer_directives", [])
+    if not isinstance(existing_directives, list):
+        raise ValueError("reviewer_directives must be a list")
+    directives = list(existing_directives)
+    migrated["reviewer_directives"] = directives
+    directive = {
+        "review_id": "legacy-audit-migration",
+        "decision": decision,
+        "summary": f"Migrated legacy {source_phase} state into Supervisor planning.",
+        "evidence_refs": [],
+    }
+    if directive not in directives:
+        directives.append(directive)
+    migrated["legacy_audit_migration"] = {
+        "source_phase": source_phase,
+        "source_next_action": str(migrated.get("next_action") or ""),
+        "status": "migrated",
+    }
+    migrated["phase"] = "planning"
+    migrated["next_action"] = (
+        "run_autonomous_planner"
+        if migrated.get("policy") == "autonomous_knowledge"
+        else "run_parent_planner"
+    )
+    migrated["last_result"] = "none"
+    return migrated
 
 
 def _projection(

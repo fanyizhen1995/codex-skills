@@ -6,6 +6,7 @@ from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from enum import StrEnum
 import math
+import re
 from types import MappingProxyType
 from pathlib import PurePosixPath
 from typing import Any, Mapping
@@ -118,6 +119,122 @@ class ReviewDecision(StrEnum):
 
 
 @dataclass(frozen=True)
+class ReviewEvidenceBundle:
+    generated_at: str
+    triggering_lineages: tuple[str, ...]
+    cadence_positions: Mapping[str, int]
+    evidence: Mapping[str, Any]
+    evidence_hashes: Mapping[str, str]
+    bundle_hash: str
+
+    def __post_init__(self) -> None:
+        _require_string(self.generated_at, "generated_at")
+        lineages = tuple(self.triggering_lineages)
+        if not lineages or not all(isinstance(item, str) and item for item in lineages):
+            raise ValueError("triggering_lineages must contain non-empty strings")
+        if len(set(lineages)) != len(lineages):
+            raise ValueError("triggering_lineages must be unique")
+        positions = dict(self.cadence_positions)
+        if set(positions) != set(lineages) or not all(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0
+            for value in positions.values()
+        ):
+            raise ValueError("cadence_positions must cover every triggering lineage")
+        if not isinstance(self.evidence, MappingABC) or not self.evidence:
+            raise ValueError("evidence must be a non-empty mapping")
+        hashes = dict(self.evidence_hashes)
+        if set(hashes) != set(self.evidence):
+            raise ValueError("evidence_hashes must cover every evidence section")
+        for value in (*hashes.values(), self.bundle_hash):
+            if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+                raise ValueError("evidence hashes must be lowercase sha256 references")
+        object.__setattr__(self, "triggering_lineages", lineages)
+        object.__setattr__(self, "cadence_positions", MappingProxyType(positions))
+        object.__setattr__(self, "evidence", _freeze_json_value(self.evidence))
+        object.__setattr__(self, "evidence_hashes", MappingProxyType(hashes))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "generated_at": self.generated_at,
+            "triggering_lineages": list(self.triggering_lineages),
+            "cadence_positions": dict(self.cadence_positions),
+            "evidence": _thaw_json_value(self.evidence),
+            "evidence_hashes": dict(self.evidence_hashes),
+            "bundle_hash": self.bundle_hash,
+        }
+
+
+@dataclass(frozen=True)
+class SupervisorReview:
+    schema_version: int
+    review_id: str
+    scope: str
+    decision: ReviewDecision
+    affected_run_ids: tuple[str, ...]
+    summary: str
+    evidence_refs: tuple[str, ...]
+    findings: tuple[Mapping[str, Any], ...]
+    skill_governance: tuple[Mapping[str, Any], ...]
+    next_review_after_parent_tasks: int
+
+    def __post_init__(self) -> None:
+        if self.schema_version != 1:
+            raise ValueError("schema_version must be 1")
+        _require_string(self.review_id, "review_id")
+        if self.scope != "project":
+            raise ValueError("review scope must be project")
+        if not isinstance(self.decision, ReviewDecision):
+            raise TypeError("decision must be a ReviewDecision")
+        run_ids = tuple(self.affected_run_ids)
+        if len(set(run_ids)) != len(run_ids):
+            raise ValueError("affected_run_ids must be unique")
+        for run_id in run_ids:
+            validate_run_id(run_id)
+        _require_string(self.summary, "summary")
+        refs = tuple(self.evidence_refs)
+        if not refs:
+            raise ValueError("evidence_refs must not be empty")
+        findings = tuple(_freeze_json_value(item) for item in self.findings)
+        governance = tuple(_freeze_json_value(item) for item in self.skill_governance)
+        if (
+            not isinstance(self.next_review_after_parent_tasks, int)
+            or isinstance(self.next_review_after_parent_tasks, bool)
+            or self.next_review_after_parent_tasks != 2
+        ):
+            raise ValueError("next_review_after_parent_tasks must be 2")
+        object.__setattr__(self, "affected_run_ids", run_ids)
+        object.__setattr__(self, "evidence_refs", refs)
+        object.__setattr__(self, "findings", findings)
+        object.__setattr__(self, "skill_governance", governance)
+
+
+@dataclass(frozen=True)
+class ReviewerExecutionResult:
+    status: str
+    blocks_safe_runs: bool
+    review_id: str
+    review: SupervisorReview | None = None
+    actions: tuple[ActionRequest, ...] = ()
+    evidence_path: str = ""
+    accepted_review_path: str = ""
+    error: str = ""
+
+    def __post_init__(self) -> None:
+        if self.status not in {"review_complete", "review_degraded"}:
+            raise ValueError("unsupported Reviewer execution status")
+        if not isinstance(self.blocks_safe_runs, bool):
+            raise TypeError("blocks_safe_runs must be a bool")
+        _require_string(self.review_id, "review_id")
+        if self.review is not None and not isinstance(self.review, SupervisorReview):
+            raise TypeError("review must be a SupervisorReview")
+        actions = tuple(self.actions)
+        if not all(isinstance(item, ActionRequest) for item in actions):
+            raise TypeError("actions must contain ActionRequest values")
+        object.__setattr__(self, "actions", actions)
+
+
+@dataclass(frozen=True)
 class ActionRequest:
     action_id: str
     run_id: str
@@ -161,6 +278,11 @@ class ActionRequest:
     def payload_for_storage(self) -> dict[str, Any]:
         """Return an independent JSON-safe payload suitable for SQLite storage."""
         return _thaw_json_value(self.payload)
+
+    @property
+    def metadata(self) -> Mapping[str, Any]:
+        """Expose queue metadata without duplicating the immutable payload."""
+        return MappingProxyType(self.payload_for_storage())
 
 
 @dataclass(frozen=True)

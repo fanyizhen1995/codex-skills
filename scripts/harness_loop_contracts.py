@@ -27,6 +27,7 @@ ALLOWED_PHASES = frozenset(
         "planning",
         "committed",
         "stopped_no_action",
+        "stopped_by_reviewer",
         "stopped_budget",
         "stopped_blocked",
         "audit_pending",
@@ -48,9 +49,13 @@ PARENT_ONLY_PHASES = frozenset(
     }
 )
 CHILD_ONLY_PHASES = frozenset({"planned", "generating", "evaluating", "artifact_hygiene", "cleanup", "passed"})
-SHARED_PARENT_CHILD_PHASES = frozenset({"repair_needed", "stopped_budget", "stopped_blocked"})
+SHARED_PARENT_CHILD_PHASES = frozenset(
+    {"repair_needed", "stopped_budget", "stopped_blocked", "stopped_by_reviewer"}
+)
 ALLOWED_PHASES = ALLOWED_PHASES | frozenset({"child_running", "passed"})
-SUPERVISOR_TERMINAL_PHASES = frozenset({"audit_passed", "passed", "stopped_no_action"})
+SUPERVISOR_TERMINAL_PHASES = frozenset(
+    {"audit_passed", "passed", "stopped_no_action", "stopped_by_reviewer"}
+)
 AI_INFRA_EXPANDED_POLICY_FILE = "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json"
 ALLOWED_TASK_KINDS = frozenset(
     {
@@ -62,7 +67,9 @@ ALLOWED_TASK_KINDS = frozenset(
 )
 ALLOWED_GENERATOR_STATUSES = frozenset({"implemented", "repaired", "blocked", "failed"})
 ALLOWED_EVALUATOR_STATUSES = frozenset({"pass", "fail", "blocked"})
-ALLOWED_AGENT_ROLES = frozenset({"planner", "generator", "evaluator", "auditor"})
+ALLOWED_AGENT_ROLES = frozenset(
+    {"planner", "generator", "evaluator", "supervisor_reviewer", "auditor"}
+)
 ALLOWED_AUDIT_VERDICTS = frozenset({"pass", "must_fix", "should_fix", "observe", "blocked"})
 ALLOWED_AUDIT_FINDING_SEVERITIES = frozenset({"must_fix", "should_fix", "observe"})
 ALLOWED_AUDIT_FINDING_STATUSES = frozenset(

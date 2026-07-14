@@ -8,6 +8,9 @@ from .models import (
     ActionType,
     ResultHandling,
     ReviewDecision,
+    ReviewEvidenceBundle,
+    ReviewerExecutionResult,
+    SupervisorReview,
     TransitionRule,
 )
 from .registry import transition_for, validate_registry_coverage
@@ -20,6 +23,9 @@ __all__ = [
     "ActionType",
     "ResultHandling",
     "ReviewDecision",
+    "ReviewEvidenceBundle",
+    "ReviewerExecutionResult",
+    "SupervisorReview",
     "TransitionRule",
     "transition_for",
     "validate_registry_coverage",

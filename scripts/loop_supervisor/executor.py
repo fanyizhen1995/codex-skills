@@ -9,18 +9,14 @@ import scripts.harness_loop_orchestrator as legacy
 
 from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
 from .recovery import inspect_partial_artifacts, reconstruct_result_envelope
-from .registry import REGISTRY
+from .registry import worker_executable_action_types
 
 
 ActionHandler = Callable[[Path, ActionRequest], ActionResult]
 
 
 def executable_action_types() -> set[ActionType]:
-    return {
-        rule.action_type
-        for rule in REGISTRY.values()
-        if not rule.terminal and not rule.user_escalation and rule.worker_executable
-    }
+    return set(worker_executable_action_types())
 
 
 BOUNDED_PRIMITIVE_NAMES: Mapping[ActionType, str] = {

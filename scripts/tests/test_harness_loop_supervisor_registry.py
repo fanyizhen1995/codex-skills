@@ -117,6 +117,14 @@ def test_every_allowed_phase_is_represented_in_registry():
     assert ALLOWED_PHASES <= covered_phases
 
 
+@pytest.mark.parametrize("phase", ["audit_pending", "auditing", "audit_blocked"])
+def test_legacy_audit_phases_are_readable_but_not_normal_control_paths(phase):
+    rule = transition_for("autonomous_knowledge", phase, "legacy-audit-action")
+
+    assert rule.action_type is ActionType.NO_OP
+    assert rule.worker_executable is False
+
+
 def test_terminal_phases_have_explicit_noop_terminal_rules():
     for policy in ALLOWED_POLICIES:
         for phase in SUPERVISOR_TERMINAL_PHASES:

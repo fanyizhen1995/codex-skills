@@ -991,7 +991,16 @@ def _read_requirement(run_dir: Path) -> str:
     return text.split(marker, 1)[1].split("##", 1)[0].strip()
 
 
-def _planner_prompt(requirement: str, run_id: str) -> str:
+def _reviewer_directives_prompt(run: Mapping[str, Any]) -> str:
+    directives = run.get("reviewer_directives")
+    if not isinstance(directives, list) or not directives:
+        return "Reviewer directives: []"
+    return "Reviewer directives: " + json.dumps(
+        directives, ensure_ascii=False, sort_keys=True
+    )
+
+
+def _planner_prompt(requirement: str, run_id: str, run: Mapping[str, Any]) -> str:
     output_path = f".codex/loop-runs/{run_id}/planner-output.json"
     return "\n".join(
         [
@@ -1002,6 +1011,7 @@ def _planner_prompt(requirement: str, run_id: str) -> str:
             "Use policy demand_development and task_kind registered_task unless the requirement explicitly says otherwise.",
             f"Run ID: {run_id}",
             f"Requirement: {requirement}",
+            _reviewer_directives_prompt(run),
             "",
         ]
     )
@@ -1039,6 +1049,7 @@ def _autonomous_planner_prompt(run: dict[str, Any], run_dir: Path) -> str:
             f"Domain: {run['domain']}",
             f"Requirement: {run['requirement']}",
             f"Semantic parent task: parent-{_semantic_parent_task_number(run)}",
+            _reviewer_directives_prompt(run),
             "",
         ]
     )
@@ -1415,7 +1426,9 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     elif driver == "codex-exec":
         prompt_path = run_dir / "planner-prompt.md"
         prompt_path.write_text(
-            _planner_prompt(requirement=_read_requirement(run_dir), run_id=run_id),
+            _planner_prompt(
+                requirement=_read_requirement(run_dir), run_id=run_id, run=run
+            ),
             encoding="utf-8",
         )
         output_path.unlink(missing_ok=True)
@@ -2281,6 +2294,7 @@ def _demand_parent_planner_prompt(parent: dict[str, Any]) -> str:
             f"Current child run IDs: {json.dumps(parent.get('child_run_ids', []), ensure_ascii=False)}",
             f"Aggregate acceptance: {json.dumps(parent.get('aggregate_acceptance', {}), ensure_ascii=False, sort_keys=True)}",
             f"Backlog: {json.dumps(parent.get('backlog', []), ensure_ascii=False, sort_keys=True)}",
+            _reviewer_directives_prompt(parent),
             "",
         ]
     )

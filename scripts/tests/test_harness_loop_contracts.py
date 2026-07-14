@@ -372,6 +372,11 @@ class HarnessLoopContractsTests(unittest.TestCase):
         payload["role"] = "auditor"
         validate_agent_attempt_payload(payload)
 
+    def test_validate_agent_attempt_payload_accepts_supervisor_reviewer_role(self) -> None:
+        payload = self._agent_attempt_payload()
+        payload["role"] = "supervisor_reviewer"
+        validate_agent_attempt_payload(payload)
+
     def test_validate_agent_attempt_payload_rejects_non_positive_attempt(self) -> None:
         for attempt in (0, -1):
             payload = self._agent_attempt_payload()
@@ -1004,7 +1009,14 @@ class HarnessLoopContractsTests(unittest.TestCase):
     def test_supervisor_terminal_phases_are_allowed_contract_phases(self) -> None:
         self.assertEqual(
             harness_loop_contracts.SUPERVISOR_TERMINAL_PHASES,
-            frozenset({"audit_passed", "passed", "stopped_no_action"}),
+            frozenset(
+                {
+                    "audit_passed",
+                    "passed",
+                    "stopped_no_action",
+                    "stopped_by_reviewer",
+                }
+            ),
         )
         self.assertTrue(
             harness_loop_contracts.SUPERVISOR_TERMINAL_PHASES <= harness_loop_contracts.ALLOWED_PHASES

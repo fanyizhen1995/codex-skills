@@ -802,6 +802,57 @@ def test_reconciler_ignores_legacy_auditor_control_files(tmp_path):
     assert result.open_user_decisions == []
 
 
+def test_reconciler_migrates_legacy_audit_block_without_running_auditor(tmp_path):
+    run_path = seed_run(
+        tmp_path,
+        "legacy-audit-blocked",
+        run_kind="parent",
+        phase="audit_blocked",
+        next_action="create_audit_remediation_task",
+        last_result="blocked",
+    )
+    legacy_report = seed_auditor_report(tmp_path, "legacy-audit-blocked")
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store)
+
+    migrated = json.loads(run_path.read_text(encoding="utf-8"))
+    assert (migrated["phase"], migrated["next_action"]) == (
+        "planning",
+        "run_autonomous_planner",
+    )
+    assert migrated["legacy_audit_migration"]["source_phase"] == "audit_blocked"
+    assert migrated["reviewer_directives"][-1]["decision"] == "auto_remediate"
+    assert result.action_for("legacy-audit-blocked").action_type is ActionType.RUN_PLANNER
+    assert legacy_report.exists()
+    assert list(legacy_report.parent.glob("audit-*.json")) == [legacy_report]
+
+
+def test_legacy_audit_migration_preserves_existing_reviewer_directives(tmp_path):
+    existing = {
+        "review_id": "review-old",
+        "decision": "refocus",
+        "summary": "Keep the prior focus correction.",
+        "evidence_refs": [f"sha256:{'a' * 64}"],
+    }
+    run_path = seed_run(
+        tmp_path,
+        "legacy-audit-with-directive",
+        run_kind="parent",
+        phase="audit_blocked",
+        next_action="create_audit_remediation_task",
+        last_result="blocked",
+        reviewer_directives=[existing],
+    )
+    store = migrated_store(tmp_path)
+
+    reconcile_once(tmp_path, store)
+
+    migrated = json.loads(run_path.read_text(encoding="utf-8"))
+    assert migrated["reviewer_directives"][0] == existing
+    assert migrated["reviewer_directives"][1]["review_id"] == "legacy-audit-migration"
+
+
 def test_desired_action_always_uses_transition_registry(tmp_path, monkeypatch):
     calls = []
 

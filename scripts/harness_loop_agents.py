@@ -171,6 +171,8 @@ def build_codex_exec_command(
     repo_root: Path,
     output_message_path: Path,
     capabilities: Mapping[str, bool],
+    *,
+    sandbox_mode: str | None = None,
 ) -> list[str]:
     command = [
         "codex",
@@ -182,6 +184,10 @@ def build_codex_exec_command(
         "--color",
         "never",
     ]
+    if sandbox_mode is not None:
+        if sandbox_mode not in {"read-only", "workspace-write", "danger-full-access"}:
+            raise ValueError(f"unsupported Codex sandbox mode: {sandbox_mode}")
+        command.extend(["--sandbox", sandbox_mode])
     if capabilities.get("json", False):
         command.append("--json")
     if capabilities.get("output_last_message", False):
@@ -211,6 +217,7 @@ def run_codex_prompt(
         repo_root=repo_root,
         output_message_path=output_message_path,
         capabilities=codex_exec_capabilities(),
+        sandbox_mode="read-only" if role == "supervisor_reviewer" else None,
     )
 
     try:

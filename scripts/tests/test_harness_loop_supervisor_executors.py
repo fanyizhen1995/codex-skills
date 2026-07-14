@@ -12,7 +12,6 @@ from scripts.loop_supervisor.models import (
     ActionResultClass,
     ActionType,
 )
-from scripts.loop_supervisor.registry import REGISTRY
 
 
 def _request(action_type: ActionType) -> ActionRequest:
@@ -30,12 +29,9 @@ def _request(action_type: ActionType) -> ActionRequest:
 
 def test_handler_table_exactly_covers_registry_executable_actions() -> None:
     from scripts.loop_supervisor.executor import ACTION_HANDLERS, executable_action_types
+    from scripts.loop_supervisor.registry import worker_executable_action_types
 
-    expected = {
-        rule.action_type
-        for rule in REGISTRY.values()
-        if not rule.terminal and not rule.user_escalation and rule.worker_executable
-    }
+    expected = set(worker_executable_action_types())
 
     assert executable_action_types() == expected
     assert set(ACTION_HANDLERS) == expected
