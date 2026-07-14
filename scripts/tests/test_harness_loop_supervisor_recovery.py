@@ -525,6 +525,7 @@ def test_parent22_timeout_artifacts_reconstruct_generator_result_then_evaluate(
         ("missing_gap_proof", "missing_work", "required_evidence"),
         ("missing_freshness", "missing_work", "freshness_evidence"),
         ("primary_manifest_symlink", "unsafe", "verification_manifest"),
+        ("scenario_commands_owner_symlink", "unsafe", "verification_manifest"),
         ("verification_log_outside_run", "unsafe", "verification_manifest"),
     ],
 )
@@ -565,6 +566,19 @@ def test_partial_artifacts_require_proof_not_existence(
         outside = tmp_path / "unrelated-verification-manifest.json"
         manifest.replace(outside)
         manifest.symlink_to(outside)
+    elif mutation == "scenario_commands_owner_symlink":
+        commands = run_dir / "scenario-commands"
+        outside = tmp_path / "external-scenario-commands"
+        commands.replace(outside)
+        commands.symlink_to(outside, target_is_directory=True)
+        manifest = read_json_file(run_dir / "scenario-command-results.json")
+        manifest["results"][0]["stdout_path"] = str(
+            (outside / "command-1.stdout.log").resolve()
+        )
+        manifest["results"][0]["stderr_path"] = str(
+            (outside / "command-1.stderr.log").resolve()
+        )
+        _write_json(run_dir / "scenario-command-results.json", manifest)
     elif mutation == "verification_log_outside_run":
         manifest = read_json_file(run_dir / "scenario-command-results.json")
         manifest["results"][0]["stdout_path"] = str(tmp_path / "README.md")

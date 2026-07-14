@@ -121,6 +121,55 @@ class HarnessLoopAgentsTests(unittest.TestCase):
                     expected_run_id="run-1",
                 )
 
+    def test_load_validated_attempt_evidence_rejects_symlinked_run_ancestor(self) -> None:
+        for symlinked_ancestor in (".codex", "loop-runs"):
+            with self.subTest(symlinked_ancestor=symlinked_ancestor):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    lexical_run_dir = root / ".codex" / "loop-runs" / "run-1"
+                    if symlinked_ancestor == ".codex":
+                        external = root / "external-codex"
+                        actual_run_dir = external / "loop-runs" / "run-1"
+                        actual_run_dir.mkdir(parents=True)
+                        (root / ".codex").symlink_to(external, target_is_directory=True)
+                    else:
+                        external = root / "external-loop-runs"
+                        actual_run_dir = external / "run-1"
+                        actual_run_dir.mkdir(parents=True)
+                        (root / ".codex").mkdir()
+                        (root / ".codex" / "loop-runs").symlink_to(
+                            external, target_is_directory=True
+                        )
+                    stdout_path = actual_run_dir / "generator-attempt-3.stdout.log"
+                    stderr_path = actual_run_dir / "generator-attempt-3.stderr.log"
+                    stdout_path.write_text("partial\n", encoding="utf-8")
+                    stderr_path.write_text("timeout\n", encoding="utf-8")
+                    payload = {
+                        "run_id": "run-1",
+                        "role": "generator",
+                        "attempt": 3,
+                        "started_at": "2026-07-15T00:00:00Z",
+                        "finished_at": "2026-07-15T00:30:00Z",
+                        "exit_code": 124,
+                        "status": "timeout",
+                        "prompt_path": str(actual_run_dir / "generator-prompt.md"),
+                        "stdout_path": str(stdout_path.resolve()),
+                        "stderr_path": str(stderr_path.resolve()),
+                        "output_json_path": str(actual_run_dir / "generator-result.json"),
+                        "diff_patch_path": "",
+                        "verify_log_paths": [],
+                    }
+                    (actual_run_dir / "generator-attempt-3.json").write_text(
+                        json.dumps(payload) + "\n", encoding="utf-8"
+                    )
+
+                    with self.assertRaisesRegex(PermissionError, "symlink"):
+                        load_validated_attempt_evidence(
+                            lexical_run_dir,
+                            role="generator",
+                            expected_run_id="run-1",
+                        )
+
     def test_codex_exec_capabilities_detects_json_and_output_last_message(self) -> None:
         completed = subprocess.CompletedProcess(
             ["codex", "exec", "--help"],

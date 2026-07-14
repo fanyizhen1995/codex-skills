@@ -17,7 +17,10 @@ from scripts.harness_ai_infra_evidence import (
     resolve_manifest_artifact_path,
     validate_required_evidence_manifest,
 )
-from scripts.harness_loop_agents import load_validated_attempt_evidence
+from scripts.harness_loop_agents import (
+    load_validated_attempt_evidence,
+    validate_owned_regular_file,
+)
 from scripts.harness_loop_artifacts import _redact_sensitive_text
 from scripts.harness_loop_autonomous import check_autonomous_scope
 from scripts.harness_loop_contracts import (
@@ -427,28 +430,7 @@ def _read_object(path: Path) -> dict[str, Any]:
 
 
 def _owned_regular_file(owner_root: Path, path: Path, label: str) -> Path:
-    owner = owner_root.resolve()
-    candidate = path if path.is_absolute() else owner / path
-    try:
-        relative = candidate.relative_to(owner)
-    except ValueError as exc:
-        raise PermissionError(f"{label} is outside its run-owned root") from exc
-    current = owner
-    for part in relative.parts:
-        if part in {"", ".."}:
-            raise PermissionError(f"{label} is outside its run-owned root")
-        current = current / part
-        if current.is_symlink():
-            raise PermissionError(f"{label} traverses a symlink")
-    try:
-        current.resolve().relative_to(owner)
-    except (OSError, RuntimeError, ValueError) as exc:
-        raise PermissionError(f"{label} is outside its run-owned root") from exc
-    if not current.exists():
-        raise FileNotFoundError(f"missing {label}: {current}")
-    if not current.is_file():
-        raise PermissionError(f"{label} is not a regular file")
-    return current
+    return validate_owned_regular_file(owner_root, path, label)
 
 
 def _read_owned_object(owner_root: Path, path: Path, label: str) -> dict[str, Any]:

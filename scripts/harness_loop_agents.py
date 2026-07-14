@@ -4,6 +4,7 @@ import hashlib
 import os
 import re
 import signal
+import stat
 import subprocess
 import time
 from dataclasses import dataclass
@@ -45,28 +46,70 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _owned_attempt_path(run_dir: Path, value: object, field_name: str) -> Path:
-    path = Path(str(value))
-    if not path.is_absolute():
-        path = run_dir / path
+def _absolute_lexical_path(path: Path, label: str) -> Path:
+    if ".." in path.parts:
+        raise PermissionError(f"{label} ownership escapes its owner root")
+    return path if path.is_absolute() else Path.cwd() / path
+
+
+def _lexical_lstat(path: Path, label: str) -> os.stat_result | None:
+    current = Path(path.anchor)
+    metadata = current.lstat()
+    for part in path.parts[1:]:
+        current = current / part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            return None
+        if stat.S_ISLNK(metadata.st_mode):
+            raise PermissionError(f"{label} ownership traverses a symlink: {current}")
+    return metadata
+
+
+def validate_owned_regular_file(owner_root: Path, path: Path, label: str) -> Path:
+    """Validate lexical ownership before resolving a regular evidence file."""
+    owner = _absolute_lexical_path(Path(owner_root), f"{label} owner root")
+    owner_metadata = _lexical_lstat(owner, f"{label} owner root")
+    if owner_metadata is None or not stat.S_ISDIR(owner_metadata.st_mode):
+        raise PermissionError(f"{label} owner root ownership requires a real directory")
+
+    raw_candidate = Path(path)
+    candidate = _absolute_lexical_path(raw_candidate, label)
+    if not raw_candidate.is_absolute():
+        candidate = owner / raw_candidate
     try:
-        relative = path.relative_to(run_dir)
+        relative = candidate.relative_to(owner)
     except ValueError as exc:
-        raise PermissionError(f"attempt {field_name} ownership escapes run directory") from exc
-    current = run_dir
+        raise PermissionError(f"{label} ownership escapes its owner root") from exc
+
+    current = owner
+    candidate_metadata = owner_metadata
     for part in relative.parts:
         if part in {"", ".."}:
-            raise PermissionError(f"attempt {field_name} ownership escapes run directory")
+            raise PermissionError(f"{label} ownership escapes its owner root")
         current = current / part
-        if current.is_symlink():
-            raise PermissionError(f"attempt {field_name} ownership traverses a symlink")
+        try:
+            candidate_metadata = current.lstat()
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"missing {label}: {current}") from exc
+        if stat.S_ISLNK(candidate_metadata.st_mode):
+            raise PermissionError(f"{label} ownership traverses a symlink: {current}")
     try:
-        current.resolve().relative_to(run_dir)
+        resolved_owner = owner.resolve(strict=True)
+        current.resolve(strict=True).relative_to(resolved_owner)
     except (OSError, RuntimeError, ValueError) as exc:
-        raise PermissionError(f"attempt {field_name} ownership escapes run directory") from exc
-    if not current.is_file():
-        raise PermissionError(f"attempt {field_name} ownership requires a regular file")
+        raise PermissionError(f"{label} ownership escapes its owner root") from exc
+    if not stat.S_ISREG(candidate_metadata.st_mode):
+        raise PermissionError(f"{label} ownership requires a regular file")
     return current
+
+
+def _owned_attempt_path(run_dir: Path, value: object, field_name: str) -> Path:
+    return validate_owned_regular_file(
+        run_dir,
+        Path(str(value)),
+        f"attempt {field_name}",
+    )
 
 
 def load_validated_attempt_evidence(
@@ -76,11 +119,13 @@ def load_validated_attempt_evidence(
     expected_run_id: str,
 ) -> tuple[AgentAttemptEvidence, ...]:
     """Load contract-valid Agent attempts and hash their owned stream evidence."""
-    owner = Path(run_dir).resolve()
+    owner = _absolute_lexical_path(Path(run_dir), "attempt owner root")
+    owner_metadata = _lexical_lstat(owner, "attempt owner root")
+    if owner_metadata is None or not stat.S_ISDIR(owner_metadata.st_mode):
+        raise PermissionError("attempt owner root ownership requires a real directory")
     evidence: list[AgentAttemptEvidence] = []
-    for path in sorted(owner.glob(f"{role}-attempt-*.json")):
-        if path.is_symlink():
-            raise PermissionError("attempt JSON ownership traverses a symlink")
+    for discovered_path in sorted(owner.glob(f"{role}-attempt-*.json")):
+        path = validate_owned_regular_file(owner, discovered_path, "attempt JSON")
         with path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
         if not isinstance(payload, dict):
