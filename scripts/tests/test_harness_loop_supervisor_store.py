@@ -219,7 +219,49 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 7
+    assert store.pragma("user_version") == 8
+    assert "state_fingerprint" in {
+        row["name"] for row in store._connection.execute("PRAGMA table_info(runs)")
+    }
+
+
+def test_migrate_adds_state_fingerprint_to_v7_run_projection(tmp_path):
+    db_path = tmp_path / ".codex" / "supervisor" / "supervisor.db"
+    db_path.parent.mkdir(parents=True)
+    connection = sqlite3.connect(db_path)
+    connection.executescript(
+        """
+        PRAGMA user_version=7;
+        CREATE TABLE runs (
+          run_id TEXT PRIMARY KEY,
+          loop_lineage_id TEXT NOT NULL DEFAULT '',
+          parent_run_id TEXT NOT NULL DEFAULT '',
+          policy TEXT NOT NULL DEFAULT '',
+          phase TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT '',
+          revision INTEGER NOT NULL CHECK (revision >= 0),
+          summary_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL
+        );
+        INSERT INTO runs(
+          run_id, policy, phase, revision, created_at, updated_at, last_seen_at
+        ) VALUES (
+          'legacy-run', 'autonomous_knowledge', 'planning', 4,
+          '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z',
+          '2026-01-01T00:00:00Z'
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = SupervisorStore.open(tmp_path)
+    store.migrate()
+
+    assert store.pragma("user_version") == 8
+    assert store.get_run("legacy-run")["state_fingerprint"] == ""
 
 
 def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
@@ -610,6 +652,75 @@ def test_lease_next_action_uses_compatible_default_heartbeat_threshold(tmp_path)
     leased = store.lease_next_action("worker-a", lease_seconds=120)
 
     assert leased.action_id == action.action_id
+
+
+def test_open_global_decision_blocks_all_leases_until_resolved(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    decision = store.open_user_decision(
+        scope="global",
+        failure_key="safety:secret",
+        summary="confirmed secret exposure",
+    )
+
+    assert store.lease_next_action("worker-a", lease_seconds=120) is None
+
+    store.close_user_decision(decision["decision_id"], resolution="secret removed")
+    assert (
+        store.lease_next_action("worker-a", lease_seconds=120).action_id
+        == action.action_id
+    )
+
+
+def test_open_run_decision_blocks_only_matching_run_lease(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "blocked-run", revision=1)
+    project_run(store, "safe-run", revision=1)
+    blocked = store.enqueue_action(
+        action_request("blocked-run", revision=1, action_id="blocked-action")
+    )
+    safe = store.enqueue_action(
+        action_request("safe-run", revision=1, action_id="safe-action")
+    )
+    store.open_user_decision(
+        scope="run",
+        run_id="blocked-run",
+        failure_key="run:approval",
+        summary="run approval required",
+    )
+
+    assert (
+        store.lease_next_action("worker-a", lease_seconds=120).action_id
+        == safe.action_id
+    )
+    assert store.lease_next_action("worker-b", lease_seconds=120) is None
+    assert store.get_action(blocked.action_id).status == "pending"
+
+
+def test_decision_opened_after_lease_blocks_completion_transaction(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=1)
+    action = store.enqueue_action(action_request("run-1", revision=1))
+    store.lease_next_action("worker-a", lease_seconds=120)
+    store.open_user_decision(
+        scope="run",
+        run_id="run-1",
+        failure_key="run:late-gate",
+        summary="decision opened after lease",
+    )
+
+    with pytest.raises(RuntimeError, match="open user decision"):
+        store.complete_action(
+            action.action_id,
+            "worker-a",
+            ActionResult(
+                result_class=ActionResultClass.SUCCESS, summary="must not commit"
+            ),
+        )
+
+    assert store.count("action_attempts") == 0
+    assert store.get_action(action.action_id).status == "leased"
 
 
 def test_queued_lease_computes_deadline_after_store_lock_is_acquired(tmp_path):
@@ -1027,6 +1138,33 @@ def test_same_revision_projection_rejects_any_non_observation_change(
         store.upsert_run_projection(changed)
 
     assert store.get_run("run-1") == original
+
+
+def test_same_revision_projection_rejects_state_fingerprint_change(tmp_path):
+    store = migrated_store(tmp_path)
+    projection = {
+        "run_id": "run-1",
+        "revision": 5,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "state_fingerprint": "sha256:first",
+    }
+    store.upsert_run_projection(projection)
+
+    with pytest.raises(ValueError, match="same-revision run projection conflict"):
+        store.upsert_run_projection(
+            {**projection, "state_fingerprint": "sha256:changed"}
+        )
+
+    store.upsert_run_projection(
+        {
+            **projection,
+            "revision": 6,
+            "phase": "generating",
+            "state_fingerprint": "sha256:changed",
+        }
+    )
+    assert store.get_run("run-1")["state_fingerprint"] == "sha256:changed"
 
 
 def test_identical_same_revision_projection_updates_only_last_seen(tmp_path):
@@ -1743,7 +1881,7 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 7
+    assert store.pragma("user_version") == 8
 
 
 @pytest.mark.parametrize("legacy_version", [3, 4, 5])
@@ -1767,7 +1905,7 @@ def test_legacy_migration_normalizes_timestamps_before_finding_collapse(
         "SELECT value FROM store_metadata WHERE key = 'legacy_naive_timestamp_policy'"
     ).fetchone()[0]
     assert policy == "assume_utc"
-    assert store.pragma("user_version") == 7
+    assert store.pragma("user_version") == 8
 
 
 def test_invalid_legacy_timestamp_rolls_back_schema_version_and_data(tmp_path):

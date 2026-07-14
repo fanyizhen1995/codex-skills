@@ -1,5 +1,8 @@
 import json
+import multiprocessing
 import os
+import threading
+import time
 
 import pytest
 
@@ -415,6 +418,7 @@ def test_atomic_save_run_increments_revision_once_and_replaces_sibling_tempfile(
 
     saved = atomic_save_run(
         tmp_path,
+        "atomic-run",
         {
             "run_id": "atomic-run",
             "policy": "autonomous_knowledge",
@@ -446,7 +450,171 @@ def test_atomic_save_run_rejects_stale_expected_revision_without_writing(tmp_pat
 
     with pytest.raises(ValueError, match="stale run revision"):
         atomic_save_run(
-            tmp_path, {**original, "phase": "generating"}, expected_revision=4
+            tmp_path,
+            "stale-run",
+            {**original, "phase": "generating"},
+            expected_revision=4,
         )
 
     assert json.loads(run_path.read_text(encoding="utf-8")) == original
+
+
+def test_atomic_save_run_rejects_payload_id_different_from_target_directory(tmp_path):
+    run_dir = tmp_path / ".codex" / "loop-runs" / "directory-owner"
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.json"
+    original = {
+        "run_id": "directory-owner",
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "state_revision": 5,
+    }
+    run_path.write_text(json.dumps(original) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="run id.*directory"):
+        atomic_save_run(
+            tmp_path,
+            "directory-owner",
+            {**original, "run_id": "declared-other", "phase": "generating"},
+            expected_revision=5,
+        )
+
+    assert json.loads(run_path.read_text(encoding="utf-8")) == original
+    assert not (tmp_path / ".codex" / "loop-runs" / "declared-other").exists()
+
+
+def test_atomic_save_run_serializes_thread_cas_before_revision_read(
+    tmp_path, monkeypatch
+):
+    run_path = _seed_atomic_cas_run(tmp_path, revision=7)
+    first_read = threading.Event()
+    release_first = threading.Event()
+    read_count = 0
+    read_count_lock = threading.Lock()
+    results = []
+    from scripts.loop_supervisor import reconciler
+
+    real_read = reconciler._read_json_object
+
+    def gated_read(path):
+        nonlocal read_count
+        with read_count_lock:
+            read_count += 1
+            current = read_count
+        if current == 1:
+            first_read.set()
+            assert release_first.wait(timeout=5)
+        return real_read(path)
+
+    monkeypatch.setattr(reconciler, "_read_json_object", gated_read)
+
+    def write(phase):
+        try:
+            saved = atomic_save_run(
+                tmp_path,
+                "cas-run",
+                {
+                    "run_id": "cas-run",
+                    "policy": "autonomous_knowledge",
+                    "phase": phase,
+                },
+                expected_revision=7,
+            )
+            results.append(("success", saved["phase"]))
+        except ValueError as exc:
+            results.append(("stale", str(exc)))
+
+    first = threading.Thread(target=write, args=("generating",))
+    second = threading.Thread(target=write, args=("evaluating",))
+    first.start()
+    assert first_read.wait(timeout=5)
+    second.start()
+    try:
+        time.sleep(0.2)
+        assert read_count == 1
+    finally:
+        release_first.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert not first.is_alive() and not second.is_alive()
+    assert sorted(status for status, _ in results) == ["stale", "success"]
+    assert json.loads(run_path.read_text(encoding="utf-8"))["state_revision"] == 8
+
+
+def test_atomic_save_run_serializes_process_cas_before_revision_read(
+    tmp_path, monkeypatch
+):
+    run_path = _seed_atomic_cas_run(tmp_path, revision=11)
+    context = multiprocessing.get_context("fork")
+    first_read = context.Event()
+    release_first = context.Event()
+    read_count = context.Value("i", 0)
+    results = context.Queue()
+    from scripts.loop_supervisor import reconciler
+
+    real_read = reconciler._read_json_object
+
+    def gated_read(path):
+        with read_count.get_lock():
+            read_count.value += 1
+            current = read_count.value
+        if current == 1:
+            first_read.set()
+            assert release_first.wait(timeout=5)
+        return real_read(path)
+
+    monkeypatch.setattr(reconciler, "_read_json_object", gated_read)
+
+    def write(phase):
+        try:
+            saved = atomic_save_run(
+                tmp_path,
+                "cas-run",
+                {
+                    "run_id": "cas-run",
+                    "policy": "autonomous_knowledge",
+                    "phase": phase,
+                },
+                expected_revision=11,
+            )
+            results.put(("success", saved["phase"]))
+        except ValueError as exc:
+            results.put(("stale", str(exc)))
+
+    first = context.Process(target=write, args=("generating",))
+    second = context.Process(target=write, args=("evaluating",))
+    first.start()
+    assert first_read.wait(timeout=5)
+    second.start()
+    try:
+        time.sleep(0.2)
+        assert read_count.value == 1
+    finally:
+        release_first.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert first.exitcode == 0 and second.exitcode == 0
+    outcomes = [results.get(timeout=2), results.get(timeout=2)]
+    assert sorted(status for status, _ in outcomes) == ["stale", "success"]
+    assert json.loads(run_path.read_text(encoding="utf-8"))["state_revision"] == 12
+
+
+def _seed_atomic_cas_run(tmp_path, *, revision):
+    run_dir = tmp_path / ".codex" / "loop-runs" / "cas-run"
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.json"
+    run_path.write_text(
+        json.dumps(
+            {
+                "run_id": "cas-run",
+                "policy": "autonomous_knowledge",
+                "phase": "planning",
+                "state_revision": revision,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return run_path

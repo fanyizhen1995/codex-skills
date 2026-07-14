@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -9,11 +8,8 @@ import sys
 import pytest
 
 from scripts.harness_loop_supervisor import (
-    ALLOWED_RESTART_SESSIONS,
     SupervisorConfig,
-    restart_service,
     run_supervisor_once,
-    write_service_runtime_metadata,
 )
 from scripts.loop_supervisor.models import ActionType
 from scripts.loop_supervisor.reconciler import (
@@ -150,35 +146,15 @@ def test_watch_cli_can_stop_after_one_reconcile_tick(tmp_path):
     assert state["last_tick_at"].endswith("Z")
 
 
-def test_service_runtime_metadata_compatibility_is_retained(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "scripts.harness_loop_supervisor._git_head", lambda cwd: "abc123"
-    )
-    code_path = (
-        tmp_path / "apps" / "loop_dashboard" / "backend" / "loop_dashboard" / "main.py"
-    )
-    code_path.parent.mkdir(parents=True)
-    code_path.write_text("APP = 'fixture'\n", encoding="utf-8")
-
-    payload = write_service_runtime_metadata(
-        tmp_path,
-        service_name="loop-dashboard",
-        command="python3 -m uvicorn loop_dashboard.main:app",
-        host="127.0.0.1",
-        port=8766,
-        tmux_session="loop-dashboard",
-        cwd=tmp_path,
-        pid=os.getpid(),
+def test_wrapper_has_no_direct_process_or_service_restart_execution_path():
+    source = (REPO_ROOT / "scripts" / "harness_loop_supervisor.py").read_text(
+        encoding="utf-8"
     )
 
-    assert payload["service"] == "loop-dashboard"
-    assert payload["git_head"] == "abc123"
-
-
-def test_restart_cli_allowlist_compatibility_is_retained(tmp_path):
-    with pytest.raises(ValueError):
-        restart_service(SupervisorConfig(project_root=tmp_path), "unknown-session")
-    assert "npm run dev" in ALLOWED_RESTART_SESSIONS["personal-wiki-crawler-frontend"]
+    assert "restart_service" not in source
+    assert "ALLOWED_RESTART_SESSIONS" not in source
+    assert "tmux" not in source
+    assert "subprocess" not in source
 
 
 def test_wrapper_repeated_tick_does_not_append_legacy_or_sqlite_transition(tmp_path):
@@ -227,6 +203,32 @@ def test_run_scoped_decision_does_not_block_independent_continuation(tmp_path):
     assert store.count("actions") == 1
 
 
+def test_reconcile_honors_existing_store_decisions_before_desired_actions(tmp_path):
+    seed_run(tmp_path, "blocked")
+    seed_run(tmp_path, "safe")
+    store = migrated_store(tmp_path)
+    store.open_user_decision(
+        scope="run",
+        run_id="blocked",
+        failure_key="existing:run-gate",
+        summary="existing run decision",
+    )
+
+    run_scoped = reconcile_once(tmp_path, store)
+
+    assert run_scoped.action_for("blocked") is None
+    assert run_scoped.action_for("safe").action_type is ActionType.RUN_PLANNER
+
+    store.open_user_decision(
+        scope="global",
+        failure_key="existing:global-gate",
+        summary="existing global decision",
+    )
+    globally_blocked = reconcile_once(tmp_path, store)
+
+    assert globally_blocked.queued_actions == []
+
+
 def test_secret_exposure_is_global_and_blocks_independent_continuation(tmp_path):
     seed_run(tmp_path, "secret-run", unsafe_secret=True)
     seed_stopped_budget_run(tmp_path, "otherwise-safe")
@@ -269,7 +271,7 @@ def test_resolved_failure_reopens_when_same_global_condition_recurs(tmp_path):
     reconcile_once(tmp_path, store)
     recurring = json.loads(run_path.read_text(encoding="utf-8"))
     recurring["unsafe_secret"] = True
-    atomic_save_run(tmp_path, recurring, expected_revision=1)
+    atomic_save_run(tmp_path, "secret-run", recurring, expected_revision=1)
 
     result = reconcile_once(tmp_path, store)
 
@@ -367,6 +369,37 @@ def test_explicit_same_revision_state_conflict_is_run_scoped(tmp_path):
     assert store.count("transitions") == 0
 
 
+def test_same_revision_continuation_identity_change_conflicts_by_fingerprint(tmp_path):
+    run_path = seed_stopped_budget_run(
+        tmp_path,
+        "fingerprint-run",
+        parent_counter=14,
+        lineage_id="lineage-a",
+        commit="commit-a",
+    )
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run["state_revision"] = 3
+    run_path.write_text(json.dumps(run, indent=2) + "\n", encoding="utf-8")
+    store = migrated_store(tmp_path)
+    reconcile_once(tmp_path, store)
+    changed = json.loads(run_path.read_text(encoding="utf-8"))
+    changed.update(
+        {
+            "parent_task_counter": 15,
+            "git_head": "commit-b",
+            "head": "commit-c",
+            "previous_commit": "commit-d",
+        }
+    )
+    run_path.write_text(json.dumps(changed, indent=2) + "\n", encoding="utf-8")
+
+    result = reconcile_once(tmp_path, store)
+
+    assert result.decision_for("fingerprint-run")["scope"] == "run"
+    assert store.get_run("fingerprint-run")["revision"] == 3
+    assert store.count("actions") == 1
+
+
 def test_discovery_reads_root_and_contained_non_symlink_worktree(tmp_path):
     seed_run(tmp_path, "root-run", worktree=".")
     worktree = tmp_path / ".worktrees" / "child"
@@ -396,6 +429,35 @@ def test_discovery_rejects_symlinked_worktree_and_escaped_run_file(tmp_path):
     assert sum(record.ownership_failure for record in records) == 2
 
 
+@pytest.mark.parametrize(
+    "broken_link",
+    ["worktrees", "runs_root", "run_directory", "run_json"],
+)
+def test_broken_symlink_is_global_repository_ownership_failure(tmp_path, broken_link):
+    missing = tmp_path / "missing-target"
+    if broken_link == "worktrees":
+        (tmp_path / ".worktrees").symlink_to(missing, target_is_directory=True)
+    elif broken_link == "runs_root":
+        codex = tmp_path / ".codex"
+        codex.mkdir()
+        (codex / "loop-runs").symlink_to(missing, target_is_directory=True)
+    elif broken_link == "run_directory":
+        runs_root = tmp_path / ".codex" / "loop-runs"
+        runs_root.mkdir(parents=True)
+        (runs_root / "broken-run").symlink_to(missing, target_is_directory=True)
+    else:
+        run_dir = tmp_path / ".codex" / "loop-runs" / "broken-run"
+        run_dir.mkdir(parents=True)
+        (run_dir / "run.json").symlink_to(missing / "run.json")
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store)
+
+    assert any(record.ownership_failure for record in result.run_records)
+    assert len(result.open_user_decisions) == 1
+    assert result.open_user_decisions[0]["scope"] == "global"
+
+
 def test_invalid_json_is_run_scoped_but_ownership_failure_is_global(tmp_path):
     invalid = tmp_path / ".codex" / "loop-runs" / "invalid" / "run.json"
     invalid.parent.mkdir(parents=True)
@@ -412,6 +474,24 @@ def test_invalid_json_is_run_scoped_but_ownership_failure_is_global(tmp_path):
     assert result.decision_for("invalid")["scope"] == "run"
     assert any(decision["scope"] == "global" for decision in result.open_user_decisions)
     assert store.count("failures") == 2
+
+
+@pytest.mark.parametrize("declared_run_id", ["declared-other", None])
+def test_payload_run_id_must_match_run_directory_basename(tmp_path, declared_run_id):
+    run_path = seed_run(tmp_path, "directory-owner")
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    if declared_run_id is None:
+        payload.pop("run_id")
+    else:
+        payload["run_id"] = declared_run_id
+    run_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store)
+
+    assert len(result.open_user_decisions) == 1
+    assert result.open_user_decisions[0]["scope"] == "global"
+    assert result.run_records[0].ownership_failure is True
 
 
 def test_reconciler_ignores_legacy_auditor_control_files(tmp_path):

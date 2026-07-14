@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import tempfile
-from typing import Any
+from typing import Any, Iterator, TextIO
 
 from scripts.harness_loop_contracts import validate_run_id
 
@@ -47,6 +49,18 @@ _STATE_SUMMARY_KEYS = (
     "irreversible_operation_required",
     "explicit_global_stop",
     "supervisor_signals",
+)
+_FINGERPRINT_OBSERVATION_KEYS = frozenset(
+    {
+        "state_revision",
+        "generated_at",
+        "heartbeat_at",
+        "last_heartbeat_at",
+        "last_seen_at",
+        "last_tick_at",
+        "observed_at",
+        "updated_at",
+    }
 )
 
 
@@ -100,6 +114,7 @@ class ReconcileResult:
 
 def atomic_save_run(
     repo_root: Path,
+    run_id: str,
     payload: Mapping[str, Any],
     *,
     expected_revision: int | None = None,
@@ -108,12 +123,33 @@ def atomic_save_run(
     if not isinstance(payload, Mapping):
         raise TypeError("payload must be a mapping")
     root = Path(repo_root).resolve()
-    run_id = str(payload.get("run_id") or "")
     validate_run_id(run_id)
+    declared_run_id = str(payload.get("run_id") or "")
+    if declared_run_id != run_id:
+        raise ValueError(
+            f"run id {declared_run_id!r} does not match target directory {run_id!r}"
+        )
     target = root / ".codex" / "loop-runs" / run_id / "run.json"
     _require_contained_non_symlink(target, root, allow_missing_leaf=True)
     target.parent.mkdir(parents=True, exist_ok=True)
     _require_contained_non_symlink(target.parent, root)
+
+    with _exclusive_run_write_lock(root, run_id):
+        return _atomic_save_run_locked(
+            target,
+            payload,
+            run_id=run_id,
+            expected_revision=expected_revision,
+        )
+
+
+def _atomic_save_run_locked(
+    target: Path,
+    payload: Mapping[str, Any],
+    *,
+    run_id: str,
+    expected_revision: int | None,
+) -> dict[str, Any]:
 
     current_revision = -1
     if target.exists():
@@ -153,18 +189,33 @@ def atomic_save_run(
     return saved
 
 
+@contextmanager
+def _exclusive_run_write_lock(root: Path, run_id: str) -> Iterator[TextIO]:
+    lock_path = root / ".codex" / "loop-locks" / f"{run_id}.lock"
+    _require_contained_non_symlink(lock_path, root, allow_missing_leaf=True)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    _require_contained_non_symlink(lock_path.parent, root)
+    handle = lock_path.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield handle
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
 def discover_run_records(project_root: Path) -> list[RunRecord]:
     """Discover root and direct non-symlink worktree runs without path escape."""
     root = Path(project_root).resolve()
     records: list[RunRecord] = []
     records.extend(_records_under_repo(root, root))
     worktrees_root = root / ".worktrees"
-    if worktrees_root.exists():
-        if worktrees_root.is_symlink():
-            records.append(
-                _ownership_record(worktrees_root, root, "worktrees root is a symlink")
-            )
-        else:
+    if worktrees_root.is_symlink():
+        records.append(
+            _ownership_record(worktrees_root, root, "worktrees root is a symlink")
+        )
+    elif worktrees_root.exists():
+        if worktrees_root.is_dir():
             for worktree in sorted(
                 worktrees_root.iterdir(), key=lambda item: item.name
             ):
@@ -271,6 +322,11 @@ def reconcile_once(
     root = Path(project_root).resolve()
     if store.project_root != root:
         raise ValueError("store project root does not match reconciliation root")
+    open_decisions_by_id = {
+        str(item["decision_id"]): item
+        for item in store.fetch_all("user_decisions")
+        if item.get("status") == "open"
+    }
     records = discover_run_records(root)
     valid_records: list[RunRecord] = []
     decisions: list[dict[str, Any]] = []
@@ -416,10 +472,19 @@ def reconcile_once(
                     resolution="resolved",
                 )
 
-    global_stop = any(item.get("scope") == "global" for item in decisions) or any(
-        item.get("scope") == "global" and item.get("status") == "open"
-        for item in store.fetch_all("user_decisions")
-    )
+    for item in store.fetch_all("user_decisions"):
+        decision_id = str(item["decision_id"])
+        if item.get("status") == "open":
+            open_decisions_by_id[decision_id] = item
+        else:
+            open_decisions_by_id.pop(decision_id, None)
+    current_open_decisions = list(open_decisions_by_id.values())
+    global_stop = any(item.get("scope") == "global" for item in current_open_decisions)
+    blocked_run_ids = {
+        str(item.get("run_id") or "")
+        for item in current_open_decisions
+        if item.get("scope") == "run"
+    }
     child_sources = {
         str(
             record.payload.get("previous_run_id")
@@ -431,6 +496,8 @@ def reconcile_once(
     queued: list[ActionRequest] = []
     if not global_stop:
         for record in valid_records:
+            if record.run_id in blocked_run_ids:
+                continue
             action = desired_by_run.get(record.run_id)
             if action is None:
                 continue
@@ -452,6 +519,8 @@ def reconcile_once(
 
 def _records_under_repo(repo_root: Path, project_root: Path) -> list[RunRecord]:
     runs_root = repo_root / ".codex" / "loop-runs"
+    if runs_root.is_symlink():
+        return [_ownership_record(runs_root, repo_root, "loop-runs root is a symlink")]
     if not runs_root.exists():
         return []
     try:
@@ -460,15 +529,28 @@ def _records_under_repo(repo_root: Path, project_root: Path) -> list[RunRecord]:
         return [_ownership_record(runs_root, repo_root, str(exc))]
     records: list[RunRecord] = []
     for run_dir in sorted(runs_root.iterdir(), key=lambda item: item.name):
-        if not run_dir.is_dir() and not run_dir.is_symlink():
+        if run_dir.is_symlink():
+            records.append(
+                _ownership_record(run_dir, repo_root, "run directory is a symlink")
+            )
+            continue
+        if not run_dir.is_dir():
             continue
         path = run_dir / "run.json"
-        if not path.exists() and not path.is_symlink():
+        if path.is_symlink():
+            records.append(_ownership_record(path, repo_root, "run.json is a symlink"))
+            continue
+        if not path.exists():
             continue
         try:
             _require_contained_non_symlink(path, repo_root)
             payload = _read_json_object(path)
-            run_id = str(payload.get("run_id") or run_dir.name)
+            declared_run_id = payload.get("run_id")
+            if not isinstance(declared_run_id, str) or declared_run_id != run_dir.name:
+                raise PermissionError(
+                    f"run id {declared_run_id!r} does not match directory {run_dir.name!r}"
+                )
+            run_id = declared_run_id
             validate_run_id(run_id)
             declared_worktree = payload.get("worktree")
             if isinstance(declared_worktree, str) and declared_worktree:
@@ -544,6 +626,7 @@ def _project_run(
             raise ValueError("same-revision run state conflict")
         run = atomic_save_run(
             record.repo_root,
+            record.run_id,
             run,
             expected_revision=current_revision,
         )
@@ -579,6 +662,7 @@ def _projection(
     return {
         "run_id": record.run_id,
         "revision": revision,
+        "state_fingerprint": _state_fingerprint(run),
         "loop_lineage_id": str(run.get("loop_lineage_id") or record.run_id),
         "parent_run_id": str(
             run.get("previous_run_id") or run.get("parent_run_id") or ""
@@ -603,6 +687,11 @@ def _same_projection(existing: Mapping[str, Any], incoming: Mapping[str, Any]) -
         and str(existing.get("policy") or "") == str(incoming.get("policy") or "")
         and str(existing.get("phase") or "") == str(incoming.get("phase") or "")
         and str(existing.get("status") or "") == str(incoming.get("status") or "")
+        and (
+            not str(existing.get("state_fingerprint") or "")
+            or str(existing.get("state_fingerprint"))
+            == str(incoming.get("state_fingerprint") or "")
+        )
         and stored_summary.get("summary") == incoming.get("summary")
         and stored_summary.get("artifact_refs") == incoming.get("artifact_refs")
     )
@@ -676,6 +765,21 @@ def _state_revision(run: Mapping[str, Any]) -> int:
     if value < 0:
         raise ValueError("state_revision must be non-negative")
     return value
+
+
+def _state_fingerprint(run: Mapping[str, Any]) -> str:
+    canonical_state = {
+        key: value
+        for key, value in run.items()
+        if key not in _FINGERPRINT_OBSERVATION_KEYS
+    }
+    encoded = json.dumps(
+        canonical_state,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:

@@ -25,7 +25,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -189,6 +189,7 @@ _DDL = (
       phase TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT '',
       revision INTEGER NOT NULL CHECK (revision >= 0),
+      state_fingerprint TEXT NOT NULL DEFAULT '',
       summary_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -445,6 +446,7 @@ class SupervisorStore:
                 VALUES ('legacy_naive_timestamp_policy', 'assume_utc')
                 """
             )
+            self._ensure_run_state_fingerprint()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
             self._ensure_action_idempotency_aliases()
@@ -502,6 +504,16 @@ class SupervisorStore:
                     f"UPDATE {table} SET {assignments} WHERE rowid = ?",
                     (*[normalized[column] for column in columns], row["legacy_rowid"]),
                 )
+
+    def _ensure_run_state_fingerprint(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute("PRAGMA table_info(runs)").fetchall()
+        }
+        if "state_fingerprint" not in columns:
+            self._connection.execute(
+                "ALTER TABLE runs ADD COLUMN state_fingerprint TEXT NOT NULL DEFAULT ''"
+            )
 
     @staticmethod
     def _normalize_legacy_timestamp(value: object, *, allow_empty: bool) -> str:
@@ -888,7 +900,8 @@ class SupervisorStore:
                  AND r.revision = a.run_revision
                  AND r.phase = a.phase
                 LEFT JOIN workers AS owner ON owner.worker_id = a.lease_owner
-                WHERE a.status = 'pending'
+                WHERE (
+                  a.status = 'pending'
                    OR (
                      a.status IN ('leased', 'running')
                      AND a.lease_expires_at <= ?
@@ -897,6 +910,18 @@ class SupervisorStore:
                        OR owner.heartbeat_at < ?
                      )
                    )
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM user_decisions AS decisions
+                  WHERE decisions.status = 'open'
+                    AND (
+                      decisions.scope = 'global'
+                      OR (
+                        decisions.scope = 'run'
+                        AND decisions.run_id = a.run_id
+                      )
+                    )
+                )
                 ORDER BY a.priority ASC, a.created_at ASC, a.action_id ASC
                 LIMIT 1
                 """,
@@ -935,6 +960,16 @@ class SupervisorStore:
                         AND workers.heartbeat_at >= ?
                     )
                   )
+                ) AND NOT EXISTS (
+                  SELECT 1 FROM user_decisions AS decisions
+                  WHERE decisions.status = 'open'
+                    AND (
+                      decisions.scope = 'global'
+                      OR (
+                        decisions.scope = 'run'
+                        AND decisions.run_id = actions.run_id
+                      )
+                    )
                 )
                 """,
                 (
@@ -1030,6 +1065,22 @@ class SupervisorStore:
             ):
                 raise LeaseError(
                     f"action does not match current run revision and phase: {action_id}"
+                )
+            open_decision = self._connection.execute(
+                """
+                SELECT decision_id FROM user_decisions
+                WHERE status = 'open'
+                  AND (
+                    scope = 'global'
+                    OR (scope = 'run' AND run_id = ?)
+                  )
+                LIMIT 1
+                """,
+                (action["run_id"],),
+            ).fetchone()
+            if open_decision is not None:
+                raise LeaseError(
+                    f"open user decision blocks action completion: {action_id}"
                 )
             attempt_id = f"attempt-{uuid4().hex}"
             started_at = (
@@ -1131,6 +1182,9 @@ class SupervisorStore:
         parent_run_id = str(projection.get("parent_run_id", ""))
         policy = str(projection.get("policy", ""))
         status = str(projection.get("status", ""))
+        state_fingerprint = projection.get("state_fingerprint", "")
+        if not isinstance(state_fingerprint, str):
+            raise TypeError("state_fingerprint must be a string")
         with self._immediate_transaction():
             existing = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
@@ -1140,8 +1194,9 @@ class SupervisorStore:
                     """
                     INSERT INTO runs(
                       run_id, loop_lineage_id, parent_run_id, policy, phase, status,
-                      revision, summary_json, created_at, updated_at, last_seen_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      revision, state_fingerprint, summary_json, created_at,
+                      updated_at, last_seen_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         run_id,
@@ -1151,6 +1206,7 @@ class SupervisorStore:
                         phase,
                         status,
                         revision,
+                        state_fingerprint,
                         summary_json,
                         now,
                         now,
@@ -1170,6 +1226,7 @@ class SupervisorStore:
                         policy,
                         phase,
                         status,
+                        state_fingerprint,
                         summary_json,
                     )
                     stored_projection = (
@@ -1178,16 +1235,29 @@ class SupervisorStore:
                         str(existing["policy"]),
                         str(existing["phase"]),
                         str(existing["status"]),
+                        str(existing["state_fingerprint"]),
                         str(existing["summary_json"]),
                     )
-                    if incoming_projection != stored_projection:
+                    fingerprint_backfill = (
+                        not stored_projection[-2]
+                        and bool(incoming_projection[-2])
+                        and incoming_projection[:-2] == stored_projection[:-2]
+                        and incoming_projection[-1] == stored_projection[-1]
+                    )
+                    if (
+                        incoming_projection != stored_projection
+                        and not fingerprint_backfill
+                    ):
                         raise ValueError(
                             "same-revision run projection conflict: "
                             "only last_seen_at may change"
                         )
                     self._connection.execute(
-                        "UPDATE runs SET last_seen_at = ? WHERE run_id = ?",
-                        (now, run_id),
+                        """
+                        UPDATE runs SET state_fingerprint = ?, last_seen_at = ?
+                        WHERE run_id = ?
+                        """,
+                        (state_fingerprint, now, run_id),
                     )
                 else:
                     self._insert_transition(
@@ -1204,8 +1274,8 @@ class SupervisorStore:
                     self._connection.execute(
                         """
                         UPDATE runs SET loop_lineage_id = ?, parent_run_id = ?, policy = ?,
-                          phase = ?, status = ?, revision = ?, summary_json = ?,
-                          updated_at = ?, last_seen_at = ?
+                          phase = ?, status = ?, revision = ?, state_fingerprint = ?,
+                          summary_json = ?, updated_at = ?, last_seen_at = ?
                         WHERE run_id = ?
                         """,
                         (
@@ -1215,6 +1285,7 @@ class SupervisorStore:
                             phase,
                             status,
                             revision,
+                            state_fingerprint,
                             summary_json,
                             now,
                             now,
