@@ -13,6 +13,7 @@ from typing import Any
 
 from scripts.harness_loop_runtime_lock import (
     RunLockBusy,
+    RunLockToken,
     acquire_repository_mutation_lock,
     acquire_run_lock,
 )
@@ -20,9 +21,9 @@ from scripts.harness_loop_contracts import read_json_file
 
 from .executor import execute_action
 from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
-from .reconciler import _state_fingerprint, atomic_save_run
+from .reconciler import _state_fingerprint, atomic_save_run_locked
 from .registry import transition_for
-from .store import ActionRecord, LeaseError, SupervisorStore
+from .store import ActionRecord, SupervisorStore
 
 
 LEASE_SECONDS = 120
@@ -42,6 +43,7 @@ class WorkerResult:
     result_class: str = ""
     summary: str = ""
     interruption_evidence: str = ""
+    recovery_evidence: str = ""
 
 
 def request_stop(reason: str = "SIGTERM") -> None:
@@ -160,16 +162,18 @@ def _finalize_run_revision(
     project_root: Path,
     request: ActionRequest,
     before: dict[str, Any],
+    token: RunLockToken,
 ) -> None:
     after = _read_run_state(project_root, request.run_id)
     if _state_fingerprint(before) == _state_fingerprint(after):
         return
     revision = after.get("state_revision", 0)
     if revision == request.run_revision:
-        atomic_save_run(
+        atomic_save_run_locked(
             project_root,
             request.run_id,
             after,
+            token=token,
             expected_revision=request.run_revision,
             expected_fingerprint=_state_fingerprint(after),
         )
@@ -179,6 +183,35 @@ def _finalize_run_revision(
             f"bounded action produced invalid run revision {revision}; "
             f"expected {request.run_revision + 1}"
         )
+
+
+def _write_recovery_evidence(
+    project_root: Path,
+    request: ActionRequest,
+    worker_id: str,
+    error: BaseException | str,
+) -> str:
+    relative = Path(".codex") / "loop-runs" / request.run_id / (
+        f"worker-completion-failure-{request.action_id}.json"
+    )
+    path = project_root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    error_class = error.__class__.__name__ if isinstance(error, BaseException) else "LeaseLost"
+    payload = {
+        "action_id": request.action_id,
+        "run_id": request.run_id,
+        "worker_id": worker_id,
+        "error_class": error_class,
+        "summary": str(error),
+        "observed_at": datetime.now(UTC).isoformat(timespec="microseconds"),
+        "recoverable": True,
+    }
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    temporary.replace(path)
+    return relative.as_posix()
 
 
 def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
@@ -207,71 +240,107 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
         )
         heartbeat.start()
         interruption_evidence = ""
+        recovery_evidence = ""
+        outcome: WorkerResult | None = None
         try:
-            try:
-                with ExitStack() as locks:
-                    locks.enter_context(
-                        acquire_run_lock(root, request.run_id, owner=f"worker:{worker_id}")
+            with acquire_run_lock(
+                root,
+                request.run_id,
+                owner=f"worker:{worker_id}",
+                blocking=True,
+            ) as token:
+                if lease_lost.is_set():
+                    recovery_evidence = _write_recovery_evidence(
+                        root, request, worker_id, "action lease lost before execution"
                     )
-                    if _mutates_git(request):
-                        locks.enter_context(
-                            acquire_repository_mutation_lock(
-                                root,
-                                owner=f"worker:{worker_id}:{request.action_id}",
-                            )
-                        )
-                    before = _read_run_state(root, request.run_id)
-                    result = execute_action(request, root)
-                _finalize_run_revision(root, request, before)
-            except Exception as exc:
-                result = _failure_result(exc, action.action_id)
+                    outcome = WorkerResult(
+                        action_id=action.action_id,
+                        run_id=action.run_id,
+                        status="lease_lost",
+                        summary="action lease was lost before execution",
+                        recovery_evidence=recovery_evidence,
+                    )
+                else:
+                    try:
+                        with ExitStack() as locks:
+                            if _mutates_git(request):
+                                locks.enter_context(
+                                    acquire_repository_mutation_lock(
+                                        root,
+                                        owner=f"worker:{worker_id}:{request.action_id}",
+                                    )
+                                )
+                            before = _read_run_state(root, request.run_id)
+                            result = execute_action(request, root)
+                            _finalize_run_revision(root, request, before, token)
+                    except Exception as exc:
+                        result = _failure_result(exc, action.action_id)
 
-            if _stop_requested.is_set():
-                interruption_evidence = _write_interruption_evidence(
-                    root, request, worker_id
-                )
-                result = replace(
-                    result,
-                    artifact_paths=tuple(
-                        dict.fromkeys((*result.artifact_paths, interruption_evidence))
-                    ),
-                )
+                    if _stop_requested.is_set():
+                        interruption_evidence = _write_interruption_evidence(
+                            root, request, worker_id
+                        )
+                        result = replace(
+                            result,
+                            artifact_paths=tuple(
+                                dict.fromkeys(
+                                    (*result.artifact_paths, interruption_evidence)
+                                )
+                            ),
+                        )
+
+                    if lease_lost.is_set():
+                        recovery_evidence = _write_recovery_evidence(
+                            root,
+                            request,
+                            worker_id,
+                            "action lease lost before completion",
+                        )
+                        outcome = WorkerResult(
+                            action_id=action.action_id,
+                            run_id=action.run_id,
+                            status="lease_lost",
+                            result_class=result.result_class.value,
+                            summary="action lease was lost during execution",
+                            interruption_evidence=interruption_evidence,
+                            recovery_evidence=recovery_evidence,
+                        )
+                    else:
+                        try:
+                            store.complete_action(action.action_id, worker_id, result)
+                        except Exception as exc:
+                            recovery_evidence = _write_recovery_evidence(
+                                root, request, worker_id, exc
+                            )
+                            outcome = WorkerResult(
+                                action_id=action.action_id,
+                                run_id=action.run_id,
+                                status="lease_lost",
+                                result_class=result.result_class.value,
+                                summary=str(exc),
+                                interruption_evidence=interruption_evidence,
+                                recovery_evidence=recovery_evidence,
+                            )
+                        else:
+                            outcome = WorkerResult(
+                                action_id=action.action_id,
+                                run_id=action.run_id,
+                                status=(
+                                    "completed"
+                                    if result.result_class
+                                    is ActionResultClass.SUCCESS
+                                    else "failed"
+                                ),
+                                result_class=result.result_class.value,
+                                summary=result.summary,
+                                interruption_evidence=interruption_evidence,
+                            )
         finally:
             finished.set()
             heartbeat.join(timeout=max(1.0, HEARTBEAT_SECONDS + 1.0))
-
-        if lease_lost.is_set():
-            return WorkerResult(
-                action_id=action.action_id,
-                run_id=action.run_id,
-                status="lease_lost",
-                result_class=result.result_class.value,
-                summary="action lease was lost during execution",
-                interruption_evidence=interruption_evidence,
-            )
-        try:
-            store.complete_action(action.action_id, worker_id, result)
-        except LeaseError as exc:
-            return WorkerResult(
-                action_id=action.action_id,
-                run_id=action.run_id,
-                status="lease_lost",
-                result_class=result.result_class.value,
-                summary=str(exc),
-                interruption_evidence=interruption_evidence,
-            )
-        return WorkerResult(
-            action_id=action.action_id,
-            run_id=action.run_id,
-            status=(
-                "completed"
-                if result.result_class is ActionResultClass.SUCCESS
-                else "failed"
-            ),
-            result_class=result.result_class.value,
-            summary=result.summary,
-            interruption_evidence=interruption_evidence,
-        )
+        if outcome is None:
+            raise RuntimeError("worker action exited without a recorded outcome")
+        return outcome
 
 
 def _sigterm_handler(_signum: int, _frame: Any) -> None:

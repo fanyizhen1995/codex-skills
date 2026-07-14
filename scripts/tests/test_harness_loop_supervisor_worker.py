@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import subprocess
@@ -19,6 +20,7 @@ from scripts.loop_supervisor.models import (
 from scripts.loop_supervisor.store import SupervisorStore
 from scripts.loop_supervisor.reconciler import reconcile_once
 import scripts.harness_loop_orchestrator as legacy
+import scripts.loop_supervisor.reconciler as reconciler_module
 
 
 def _seed_action(
@@ -329,6 +331,170 @@ def test_demand_cleanup_remains_generic_and_waits_for_human_merge(
     assert final["next_action"] == "await_human_merge_confirmation"
 
 
+def test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Serialize worker and reconciler",
+        run_id="race-run",
+        confirm=True,
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        planner = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            "race-run"
+        )
+    assert planner is not None
+
+    legacy_written = threading.Event()
+    release_handler = threading.Event()
+    reconcile_attempted = threading.Event()
+    original_acquire = reconciler_module.acquire_run_lock
+
+    def same_revision_handler(
+        request: ActionRequest, root: Path
+    ) -> ActionResult:
+        run = legacy.load_run(root, request.run_id)
+        run["phase"] = "generating"
+        run["next_action"] = "run_generator"
+        run["task_id"] = "race-task"
+        legacy.save_run(root, run)
+        legacy_written.set()
+        assert release_handler.wait(timeout=3)
+        return _success("planner completed")
+
+    @contextmanager
+    def observed_reconcile_lock(*args: object, **kwargs: object):
+        reconcile_attempted.set()
+        with original_acquire(*args, **kwargs) as token:
+            yield token
+
+    monkeypatch.setattr(worker, "execute_action", same_revision_handler)
+    monkeypatch.setattr(
+        reconciler_module, "acquire_run_lock", observed_reconcile_lock
+    )
+    worker_result: list[object] = []
+    reconcile_result: list[object] = []
+
+    worker_thread = threading.Thread(
+        target=lambda: worker_result.append(worker.worker_once(tmp_path, "race-worker"))
+    )
+    worker_thread.start()
+    assert legacy_written.wait(timeout=2)
+
+    def reconcile_in_thread() -> None:
+        with SupervisorStore.open(tmp_path) as thread_store:
+            thread_store.migrate()
+            reconcile_result.append(
+                reconcile_once(tmp_path, thread_store, include_worktrees=False)
+            )
+
+    reconcile_thread = threading.Thread(target=reconcile_in_thread)
+    reconcile_thread.start()
+    assert reconcile_attempted.wait(timeout=2)
+    time.sleep(0.1)
+    assert reconcile_thread.is_alive()
+    assert reconcile_result == []
+
+    release_handler.set()
+    worker_thread.join(timeout=3)
+    reconcile_thread.join(timeout=3)
+    assert not worker_thread.is_alive()
+    assert not reconcile_thread.is_alive()
+
+    completed = worker_result[0]
+    reconciled = reconcile_result[0]
+    assert completed.status == "completed"
+    assert completed.status != "lease_lost"
+    run = legacy.load_run(tmp_path, "race-run")
+    assert run["state_revision"] == 1
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        planner_row = store.get_action(planner.action_id)
+        projected = store.get_run("race-run")
+        pending = [
+            row
+            for row in store.fetch_all("actions")
+            if row["run_id"] == "race-run" and row["status"] == "pending"
+        ]
+    assert planner_row.status == "completed"
+    assert projected["revision"] == 1
+    assert len(pending) == 1
+    assert pending[0]["action_type"] == ActionType.RUN_GENERATOR.value
+    assert reconciled.open_user_decisions == []
+
+
+def test_worker_waits_when_reconciler_holds_same_run_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Reconciler owns run lock first",
+        run_id="reconciler-first",
+        confirm=True,
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            "reconciler-first"
+        )
+    assert action is not None
+
+    reconcile_inside_projection = threading.Event()
+    release_reconciler = threading.Event()
+    handler_entered = threading.Event()
+    original_project = reconciler_module._project_run
+
+    def blocked_project(*args: object, **kwargs: object):
+        reconcile_inside_projection.set()
+        assert release_reconciler.wait(timeout=3)
+        return original_project(*args, **kwargs)
+
+    monkeypatch.setattr(reconciler_module, "_project_run", blocked_project)
+    monkeypatch.setattr(
+        worker,
+        "execute_action",
+        lambda _request, _root: (handler_entered.set(), _success())[1],
+    )
+    reconcile_result: list[object] = []
+    worker_result: list[object] = []
+
+    def reconcile_in_thread() -> None:
+        with SupervisorStore.open(tmp_path) as thread_store:
+            thread_store.migrate()
+            reconcile_result.append(
+                reconcile_once(tmp_path, thread_store, include_worktrees=False)
+            )
+
+    reconcile_thread = threading.Thread(target=reconcile_in_thread)
+    reconcile_thread.start()
+    assert reconcile_inside_projection.wait(timeout=2)
+    worker_thread = threading.Thread(
+        target=lambda: worker_result.append(
+            worker.worker_once(tmp_path, "reconciler-first-worker")
+        )
+    )
+    worker_thread.start()
+    time.sleep(0.1)
+    assert worker_thread.is_alive()
+    assert not handler_entered.is_set()
+
+    release_reconciler.set()
+    reconcile_thread.join(timeout=3)
+    worker_thread.join(timeout=3)
+    assert not reconcile_thread.is_alive()
+    assert not worker_thread.is_alive()
+    assert handler_entered.is_set()
+    assert worker_result[0].status == "completed"
+
+
 def test_worker_heartbeat_renews_worker_and_action_lease(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -475,6 +641,12 @@ def test_worker_rechecks_store_guards_when_completing(
     result = worker.worker_once(tmp_path, "worker-guard")
 
     assert result.status == "lease_lost"
+    assert result.recovery_evidence
+    evidence = json.loads(
+        (tmp_path / result.recovery_evidence).read_text(encoding="utf-8")
+    )
+    assert evidence["action_id"] == action.action_id
+    assert evidence["error_class"] == "LeaseError"
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
         row = next(item for item in store.fetch_all("actions") if item["action_id"] == action.action_id)

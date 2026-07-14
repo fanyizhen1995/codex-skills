@@ -18,10 +18,12 @@ from scripts.loop_supervisor.models import ActionType
 from scripts.loop_supervisor.reconciler import (
     _state_fingerprint,
     atomic_save_run,
+    atomic_save_run_locked,
     desired_action_for_run,
     discover_run_records,
     reconcile_once,
 )
+from scripts.harness_loop_runtime_lock import acquire_run_lock
 from scripts.loop_supervisor.store import SupervisorStore
 
 
@@ -89,6 +91,34 @@ def migrated_store(project_root: Path) -> SupervisorStore:
     store = SupervisorStore.open(project_root)
     store.migrate()
     return store
+
+
+def test_locked_atomic_save_requires_active_matching_run_lock_token(tmp_path):
+    path = seed_run(tmp_path, "locked-save")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    with acquire_run_lock(
+        tmp_path, "locked-save", owner="test:locked-save", blocking=True
+    ) as token:
+        saved = atomic_save_run_locked(
+            tmp_path,
+            "locked-save",
+            payload,
+            token=token,
+            expected_revision=0,
+            expected_fingerprint=_state_fingerprint(payload),
+        )
+
+    assert saved["state_revision"] == 1
+    with pytest.raises(ValueError, match="active run lock token"):
+        atomic_save_run_locked(
+            tmp_path,
+            "locked-save",
+            saved,
+            token=token,
+            expected_revision=1,
+            expected_fingerprint=_state_fingerprint(saved),
+        )
 
 
 def test_once_cli_opens_sqlite_reconciler_and_writes_bounded_state(tmp_path):

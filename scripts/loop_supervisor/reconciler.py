@@ -19,6 +19,11 @@ import sys
 from typing import Any, Iterator
 
 from scripts.harness_loop_contracts import validate_run_id
+from scripts.harness_loop_runtime_lock import (
+    RunLockToken,
+    acquire_run_lock,
+    validate_run_lock_token,
+)
 
 from .models import ActionRequest, ActionType
 from .registry import transition_for
@@ -126,10 +131,33 @@ def atomic_save_run(
     expected_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     """Persist one accepted run transition with a durable atomic replacement."""
+    root = Path(repo_root).resolve()
+    with _exclusive_run_write_lock(root, run_id) as token:
+        return atomic_save_run_locked(
+            root,
+            run_id,
+            payload,
+            token=token,
+            expected_revision=expected_revision,
+            expected_fingerprint=expected_fingerprint,
+        )
+
+
+def atomic_save_run_locked(
+    repo_root: Path,
+    run_id: str,
+    payload: Mapping[str, Any],
+    *,
+    token: RunLockToken,
+    expected_revision: int | None = None,
+    expected_fingerprint: str | None = None,
+) -> dict[str, Any]:
+    """Persist one run transition while a validated shared run lock is held."""
     if not isinstance(payload, Mapping):
         raise TypeError("payload must be a mapping")
     root = Path(repo_root).resolve()
     validate_run_id(run_id)
+    validate_run_lock_token(token, root, run_id)
     declared_run_id = str(payload.get("run_id") or "")
     if declared_run_id != run_id:
         raise ValueError(
@@ -140,21 +168,20 @@ def atomic_save_run(
     with _open_run_directory(root, run_id, create=True):
         pass
 
-    with _exclusive_run_write_lock(root, run_id):
-        with _open_run_directory(root, run_id, create=False) as (
-            runs_fd,
+    with _open_run_directory(root, run_id, create=False) as (
+        runs_fd,
+        run_fd,
+    ):
+        _require_same_directory_entry(runs_fd, run_id, run_fd)
+        return _atomic_save_run_locked(
             run_fd,
-        ):
-            _require_same_directory_entry(runs_fd, run_id, run_fd)
-            return _atomic_save_run_locked(
-                run_fd,
-                target,
-                payload,
-                run_id=run_id,
-                expected_revision=expected_revision,
-                expected_fingerprint=expected_fingerprint,
-                runs_fd=runs_fd,
-            )
+            target,
+            payload,
+            run_id=run_id,
+            expected_revision=expected_revision,
+            expected_fingerprint=expected_fingerprint,
+            runs_fd=runs_fd,
+        )
 
 
 def _atomic_save_run_locked(
@@ -224,24 +251,16 @@ def _atomic_save_run_locked(
 
 
 @contextmanager
-def _exclusive_run_write_lock(root: Path, run_id: str) -> Iterator[int]:
+def _exclusive_run_write_lock(root: Path, run_id: str) -> Iterator[RunLockToken]:
     lock_path = root / ".codex" / "loop-locks" / f"{run_id}.lock"
     _require_contained_non_symlink(lock_path, root, allow_missing_leaf=True)
-    with _open_directory_chain(root, (".codex", "loop-locks"), create=True) as lock_fd:
-        fd = os.open(
-            f"{run_id}.lock",
-            os.O_RDWR | os.O_CREAT | _O_NOFOLLOW | _O_CLOEXEC,
-            0o600,
-            dir_fd=lock_fd,
-        )
-        _yield_locked_fd(fd)
-        try:
-            yield fd
-        except BaseException:
-            _release_locked_fd(fd, primary_exception=True)
-            raise
-        else:
-            _release_locked_fd(fd, primary_exception=False)
+    with acquire_run_lock(
+        root,
+        run_id,
+        owner="reconciler:atomic-save",
+        blocking=True,
+    ) as token:
+        yield token
 
 
 @contextmanager
@@ -563,6 +582,76 @@ def reconcile_once(
         )
 
 
+def _secure_reread_run(project_root: Path, record: RunRecord) -> RunRecord:
+    run_dir = record.repo_root / ".codex" / "loop-runs" / record.run_id
+    try:
+        with _open_run_directory(record.repo_root, record.run_id, create=False) as (
+            runs_fd,
+            run_fd,
+        ):
+            _require_same_directory_entry(runs_fd, record.run_id, run_fd)
+            refreshed = _record_from_run_fd(
+                record.repo_root,
+                project_root,
+                run_dir,
+                run_fd,
+            )
+    except (OSError, PermissionError, ValueError) as exc:
+        ownership = isinstance(exc, PermissionError) or "ownership" in str(exc)
+        return RunRecord(
+            run_id=record.run_id,
+            repo_root=record.repo_root,
+            run_json_path=run_dir / "run.json",
+            payload={},
+            valid=False,
+            error=f"secure run reread failed: {exc}",
+            ownership_failure=ownership,
+            directory_run_id=record.run_id,
+        )
+    if refreshed is not None:
+        return refreshed
+    return RunRecord(
+        run_id=record.run_id,
+        repo_root=record.repo_root,
+        run_json_path=run_dir / "run.json",
+        payload={},
+        valid=False,
+        error="secure run reread found no run.json",
+        directory_run_id=record.run_id,
+    )
+
+
+def _record_invalid_run_decision(
+    store: SupervisorStore,
+    record: RunRecord,
+    decisions: list[dict[str, Any]],
+) -> None:
+    scope = "global" if record.ownership_failure else "run"
+    failure_key = _failure_key(scope, record.run_id, record.error)
+    _record_failure_once(
+        store,
+        failure_key,
+        run_id=record.run_id if scope == "run" else "",
+        error_class="repository_ownership" if scope == "global" else "invalid_json",
+        summary=record.error,
+    )
+    opened = store.open_user_decision(
+        scope=scope,
+        run_id=record.run_id,
+        failure_key=failure_key,
+        summary=record.error,
+        required_decision=(
+            "Restore trustworthy repository ownership before reconciliation."
+            if scope == "global"
+            else "Repair or archive the invalid run file."
+        ),
+    )
+    if not any(
+        item.get("decision_id") == opened.get("decision_id") for item in decisions
+    ):
+        decisions.append(opened)
+
+
 def _reconcile_once_locked(
     root: Path,
     store: SupervisorStore,
@@ -579,39 +668,28 @@ def _reconcile_once_locked(
     valid_records: list[RunRecord] = []
     decisions: list[dict[str, Any]] = []
 
-    for record in records:
-        if not record.valid:
-            scope = "global" if record.ownership_failure else "run"
-            failure_key = _failure_key(scope, record.run_id, record.error)
-            _record_failure_once(
-                store,
-                failure_key,
-                run_id=record.run_id if scope == "run" else "",
-                error_class="repository_ownership"
-                if scope == "global"
-                else "invalid_json",
-                summary=record.error,
-            )
-            opened = store.open_user_decision(
-                scope=scope,
-                run_id=record.run_id,
-                failure_key=failure_key,
-                summary=record.error,
-                required_decision=(
-                    "Restore trustworthy repository ownership before reconciliation."
-                    if scope == "global"
-                    else "Repair or archive the invalid run file."
-                ),
-            )
-            if not any(
-                item.get("decision_id") == opened.get("decision_id")
-                for item in decisions
-            ):
-                decisions.append(opened)
+    for index, record in enumerate(records):
+        if not record.valid and (
+            record.ownership_failure or not record.directory_run_id
+        ):
+            _record_invalid_run_decision(store, record, decisions)
             continue
         try:
-            projected = _project_run(root, store, record)
-        except (TypeError, ValueError) as exc:
+            with acquire_run_lock(
+                record.repo_root,
+                record.directory_run_id,
+                owner="reconciler:project-run",
+                blocking=True,
+            ) as token:
+                if record.run_id != record.directory_run_id:
+                    record = replace(record, run_id=record.directory_run_id)
+                record = _secure_reread_run(root, record)
+                records[index] = record
+                if not record.valid:
+                    _record_invalid_run_decision(store, record, decisions)
+                    continue
+                projected = _project_run(root, store, record, token=token)
+        except (OSError, TypeError, ValueError) as exc:
             failure_key = _failure_key("run", record.run_id, str(exc))
             _record_failure_once(
                 store,
@@ -969,7 +1047,11 @@ def _same_open_directory(expected: os.stat_result, directory_fd: int) -> bool:
 
 
 def _project_run(
-    project_root: Path, store: SupervisorStore, record: RunRecord
+    project_root: Path,
+    store: SupervisorStore,
+    record: RunRecord,
+    *,
+    token: RunLockToken,
 ) -> RunRecord:
     run = dict(record.payload)
     incoming_revision = _state_revision(run)
@@ -994,10 +1076,11 @@ def _project_run(
     ):
         if "state_revision" in run:
             raise ValueError("same-revision run state conflict")
-        run = atomic_save_run(
+        run = atomic_save_run_locked(
             record.repo_root,
             record.run_id,
             run,
+            token=token,
             expected_revision=current_revision,
             expected_fingerprint=_state_fingerprint(record.payload),
         )

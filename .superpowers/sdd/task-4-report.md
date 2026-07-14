@@ -53,6 +53,15 @@ The dispatcher rejects `ask_user` and terminal `no_op`. Executor source and runt
 - GREEN: the integration test runs four distinct Reconcile/Worker actions (`RUN_ARTIFACT_HYGIENE`, `COMMIT`, `PUSH`, `CLEANUP`) from real fake artifacts, records one commit and one injected push, and verifies the completed-task ledger. It never enters `passed_waiting_human_merge`.
 - GREEN: demand cleanup still uses generic `run_cleanup` and ends at `passed_waiting_human_merge/await_human_merge_confirmation`.
 
+## Critical Run-Lock Race Fix
+
+- RED: Reconciler could observe a Worker's legacy same-revision phase write after the handler released the run lock but before revision finalize and Store completion, producing a same-revision conflict or stale projection.
+- GREEN: Worker now holds one blocking `RunLockToken` across handler execution, fingerprint-CAS revision finalize, lease-loss check, and `store.complete_action`. Heartbeat remains active through completion; a lost lease never completes the action.
+- GREEN: Reconciler keeps project→run lock order and performs secure dirfd reread, projection, Store upsert, and legacy revision upgrade while holding the same blocking per-run lock. Invalid JSON discovery for a concrete run is reread under lock; ownership failures remain failures.
+- GREEN: `atomic_save_run_locked` requires an active matching token and retains containment, no-follow dirfd traversal, fingerprint CAS, atomic replace, and fsync checks. The token is invalid immediately after context release, avoiding recursive flock and bare unlocked writes.
+- GREEN: completion or lease-loss failure writes `worker-completion-failure-<action-id>.json` recovery evidence and returns `lease_lost`; it cannot report success silently.
+- GREEN: both concurrency directions pass: Reconciler blocks through Worker finalize+completion, and Worker blocks while Reconciler projects the run. The tests verify completed action status, file/projected revision `+1`, one next action, and no decision or lease loss.
+
 ## Worker And Recovery Evidence
 
 - `worker_once()` leases at most one action and leaves the next queued action pending.
@@ -81,16 +90,19 @@ python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_executors.py scr
 16 passed in 0.69s
 
 python3 -m unittest scripts.tests.test_harness_loop_orchestrator -v
-Ran 202 tests in 15.107s - OK
+Ran 202 tests in 10.879s - OK
 
 python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_registry.py scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_supervisor.py
-69 passed in 2.60s
+72 passed in 2.99s
 
 python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_runtime_lock.py
 19 passed in 0.95s
 
 python3 -m pytest -q scripts/tests/test_harness_loop_supervisor*.py
-219 passed in 8.62s
+222 passed in 9.14s
+
+for i in $(seq 1 10); do python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock scripts/tests/test_harness_loop_supervisor_worker.py::test_worker_waits_when_reconciler_holds_same_run_lock || exit 1; done
+20 concurrency tests passed across 10 consecutive rounds
 
 ruff check scripts/loop_supervisor/registry.py scripts/loop_supervisor/executor.py scripts/loop_supervisor/worker.py scripts/harness_loop_orchestrator.py scripts/tests/test_harness_loop_supervisor_registry.py scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_supervisor.py
 All checks passed
@@ -110,5 +122,6 @@ Scoped commit message: `feat(harness): execute supervisor actions through worker
 
 - Resolved: the two Critical Task 1/4 registry concerns are covered by exact transition rules, Executor import guards, Worker integration, and commit-to-PUSH reconciliation tests.
 - Resolved: the two Critical real-chain concerns are covered by the four-action autonomous integration test, Worker revision CAS, and demand cleanup regression.
+- Resolved: the Critical finalize/completion race is covered by a shared blocking run-lock token, locked atomic save, bidirectional concurrency tests, and recoverable completion-failure evidence.
 - Remaining scope is unchanged: Task 5 and Task 6 own full recovery and Reviewer policy.
 - No service or live-run restart was required; no live `.codex/loop-runs` or wiki content was modified.
