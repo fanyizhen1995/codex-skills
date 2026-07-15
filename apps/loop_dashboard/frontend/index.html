@@ -10,147 +10,76 @@
     <header class="topbar">
       <div>
         <h1>Loop Dashboard</h1>
-        <p class="subtitle">本地只读运行监控</p>
+        <p class="subtitle">项目级 Supervisor 控制面与任务运行历史</p>
       </div>
-      <div class="poll-state" id="poll-state" aria-live="polite">等待同步</div>
+      <div class="top-status" id="top-status" aria-live="polite">
+        <span class="status-chip">等待同步</span>
+      </div>
     </header>
+    <div class="project-strip" id="project-status" data-testid="project-status">正在读取项目状态...</div>
 
-    <section class="project-strip" data-testid="project-status" aria-label="项目状态">
-      <div id="project-status-content" class="project-strip-content">
-        <div class="muted">正在读取项目状态...</div>
-      </div>
-    </section>
-
-    <section class="supervisor-strip" aria-label="全局 Agent">
-      <section class="panel supervisor-panel" data-testid="supervisor-panel" id="supervisor-panel">
-        <div id="supervisor-content" class="supervisor-stack">
-          <div class="supervisor-hero">
-            <div>
-              <h2>全局 Agent：Loop Supervisor</h2>
-              <p class="supervisor-summary">正在读取 Supervisor 数据。Supervisor 是全局控制面，独立于任务列表。</p>
-            </div>
-            <span class="badge status-waiting">不可用</span>
-          </div>
-          <div class="empty">正在读取 Supervisor 状态...</div>
-        </div>
-      </section>
-    </section>
-
-    <main class="workbench" id="app">
-      <aside class="column column-left" aria-label="项目和运行列表">
-        <section class="panel runs-panel" aria-labelledby="run-list-title">
-          <div class="section-heading">
-            <h2 id="run-list-title">运行列表</h2>
-          </div>
-          <div class="run-list" data-testid="run-list" id="run-list" aria-live="polite">
-            <div class="empty">暂无运行记录</div>
-          </div>
-          <div class="completed-runs is-hidden" data-testid="completed-runs" id="completed-runs" aria-hidden="true"></div>
-        </section>
+    <div class="layout">
+      <aside class="sidebar" aria-label="项目控制面和运行历史">
+        <h2 class="sidebar-title">项目控制面</h2>
+        <button class="nav-item is-active" id="supervisor-nav" type="button">
+          <span class="nav-title"><span>Loop Supervisor</span><span class="status-text good" id="supervisor-nav-status">不可用</span></span>
+          <span class="nav-meta">统一决策 · Worker 执行 · Reviewer 审视</span>
+        </button>
+        <h2 class="sidebar-title history-title">运行历史</h2>
+        <div id="run-list" class="run-list" data-testid="run-list"><div class="empty-state">正在读取运行记录...</div></div>
+        <div id="run-list-pager"></div>
       </aside>
 
-      <section class="column column-main" aria-label="运行详情">
-        <section class="panel detail-panel" data-testid="run-detail" id="run-detail" aria-live="polite">
-          <div id="run-detail-heading" class="detail-heading"></div>
-          <div id="run-detail-content" class="empty">请选择一个运行</div>
-          <div class="detail-tabs" data-testid="detail-tabs" id="detail-tabs" role="tablist" aria-label="运行详情视图">
-            <button type="button" role="tab" data-tab="overview" aria-controls="tab-overview">概览</button>
-            <button type="button" role="tab" data-tab="children" aria-controls="tab-children">子任务</button>
-            <button type="button" role="tab" data-tab="agents" aria-controls="tab-agents">Agent结果</button>
-            <button type="button" role="tab" data-tab="acceptance" aria-controls="tab-acceptance">验收</button>
-            <button type="button" role="tab" data-tab="auditor" aria-controls="tab-auditor">审计与 Skill</button>
-            <button type="button" role="tab" data-tab="logs" aria-controls="tab-logs">日志</button>
-            <button type="button" role="tab" data-tab="diagnostics" aria-controls="tab-diagnostics">阻塞诊断</button>
-            <button type="button" role="tab" data-tab="artifacts" aria-controls="tab-artifacts">产物</button>
-          </div>
-
-          <div class="tab-panels">
-            <section class="tab-panel" data-testid="tab-overview" id="tab-overview" role="tabpanel">
-              <div class="section-heading compact-heading">
-                <h2 id="flow-title">流程图</h2>
+      <main class="main">
+        <section id="supervisor-view" data-testid="supervisor-panel" aria-labelledby="supervisor-title">
+          <div id="supervisor-content">
+            <section class="hero">
+              <div class="hero-copy">
+                <h2 id="supervisor-title">Loop Supervisor</h2>
+                <p class="subtitle">唯一控制角色。负责 reconcile、恢复、Reviewer、服务保活、决策执行和 Worker 调度。</p>
               </div>
-              <div class="flow-diagram" data-testid="flow-diagram" id="flow-diagram">
-                <div class="empty">等待运行数据</div>
-              </div>
+              <div class="hero-actions" id="supervisor-hero-status"><span class="status-chip">正在读取</span></div>
             </section>
 
-            <section class="tab-panel" data-testid="tab-children" id="tab-children" role="tabpanel" hidden>
-              <div id="children-content">
-                <div class="empty">暂无子任务</div>
-              </div>
-            </section>
-
-            <section class="tab-panel" data-testid="tab-agents" id="tab-agents" role="tabpanel" hidden>
-              <div class="section-heading compact-heading">
-                <h2 id="agents-title">Agent 结果</h2>
-              </div>
-              <div class="agent-cards" data-testid="agent-cards" id="agent-cards">
-                <div class="empty">等待 Agent 数据</div>
-              </div>
-            </section>
-
-            <section class="tab-panel" data-testid="tab-acceptance" id="tab-acceptance" role="tabpanel" hidden>
-              <div id="acceptance-content">
-                <div class="empty">暂无结构化验收场景</div>
-              </div>
-            </section>
-
-            <section class="tab-panel" data-testid="tab-auditor" id="tab-auditor" role="tabpanel" hidden>
-              <div id="auditor-content">
-                <div class="empty">暂无审计与 Skill 数据</div>
-              </div>
-            </section>
-
-            <section class="tab-panel" data-testid="tab-logs" id="tab-logs" role="tabpanel" hidden>
-              <div class="filters" aria-label="日志过滤">
-                <label class="filter-control">
-                  <span>类型</span>
-                  <select data-testid="log-kind-filter" id="log-kind-filter">
-                    <option value="all">全部</option>
-                    <option value="stdout">stdout</option>
-                    <option value="stderr">stderr</option>
-                    <option value="artifact">artifact</option>
-                    <option value="log">log</option>
-                    <option value="skill">skill</option>
-                    <option value="agent">agent</option>
-                    <option value="tool">tool</option>
-                  </select>
-                </label>
-                <label class="filter-control">
-                  <span>Agent</span>
-                  <select data-testid="agent-filter" id="agent-filter">
-                    <option value="all">全部</option>
-                    <option value="planner">planner</option>
-                    <option value="generator">generator</option>
-                    <option value="evaluator">evaluator</option>
-                  </select>
-                </label>
-                <label class="filter-control">
-                  <span>关键词</span>
-                  <input data-testid="log-keyword-filter" id="log-keyword-filter" type="search" placeholder="输入关键词">
-                </label>
-              </div>
-              <div class="log-list" data-testid="log-list" id="log-list">
-                <div class="empty">暂无日志</div>
-              </div>
-            </section>
-
-            <section class="tab-panel" data-testid="tab-diagnostics" id="tab-diagnostics" role="tabpanel" hidden>
-              <div class="blocked-diagnostics" data-testid="blocked-diagnostics" id="blocked-diagnostics">
-                <div class="empty">暂无阻塞诊断</div>
-              </div>
-            </section>
-
-            <section class="tab-panel" data-testid="tab-artifacts" id="tab-artifacts" role="tabpanel" hidden>
-              <div id="artifact-content">
-                <div class="empty">暂无产物路径</div>
-              </div>
-            </section>
+            <nav class="tabs" role="tablist" aria-label="Supervisor 详情">
+              <button class="tab is-active" type="button" role="tab" aria-selected="true" data-supervisor-tab="overview">概览</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="services">服务</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="recovery">任务恢复</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="reviewer">Reviewer</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="decisions">决策</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="skills">Skill 治理</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="config">配置</button>
+            </nav>
+            <div id="supervisor-panel-content" class="view-panel" role="tabpanel"><div class="empty-state">正在读取 Supervisor 数据...</div></div>
           </div>
         </section>
-      </section>
-    </main>
 
+        <section id="run-view" class="is-hidden" data-testid="run-detail" aria-labelledby="run-title">
+          <section class="hero">
+            <div class="hero-copy">
+              <h2 id="run-title">运行详情</h2>
+              <p class="subtitle" id="run-subtitle">请选择一条运行记录</p>
+            </div>
+            <div class="hero-actions" id="run-hero-status"></div>
+          </section>
+          <div id="run-overview"></div>
+          <nav class="tabs" role="tablist" aria-label="运行详情">
+            <button class="tab is-active" type="button" role="tab" aria-selected="true" data-run-tab="overview">概览</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="children">子任务</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="agents">Agent 结果</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="acceptance">验收</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="logs">日志</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="diagnostics">阻塞诊断</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="artifacts">产物</button>
+          </nav>
+          <div id="run-toolbar"></div>
+          <div id="run-panel-content" class="view-panel" role="tabpanel"><div class="empty-state">请选择一条运行记录</div></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/pagination.js" defer></script>
+    <script src="/assets/supervisor.js" defer></script>
     <script src="/assets/app.js" defer></script>
   </body>
 </html>

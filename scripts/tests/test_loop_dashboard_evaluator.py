@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -75,6 +76,76 @@ def _scenario_statuses(payload: dict) -> dict[str, str]:
 
 
 class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
+    def test_supervisor_unification_scenario_dispatches_to_browser_owner(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            output_dir = Path(tmp) / "output"
+            (repo_root / "scripts").mkdir(parents=True)
+            browser_script = repo_root / "scripts" / "loop_dashboard_supervisor_playwright.py"
+            browser_script.write_text("# fixture browser owner\n", encoding="utf-8")
+
+            def run_child(command, **_kwargs):
+                result_path = Path(command[command.index("--result-json") + 1])
+                result_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "pass",
+                            "scenario_id": "LOOP-SUPERVISOR-UNIFICATION-BROWSER-E2E",
+                            "summary": "browser pass",
+                            "checked": ["desktop", "mobile"],
+                            "browser_evidence": {"desktop_screenshot": "desktop.png"},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return subprocess.CompletedProcess(command, 0, stdout="child stdout", stderr="")
+
+            with patch("scripts.loop_dashboard_evaluator.subprocess.run", side_effect=run_child) as run:
+                status = evaluator.run_loop_supervisor_unification_evaluator(
+                    repo_root,
+                    output_dir,
+                    port=9876,
+                )
+
+            self.assertEqual(status, 0)
+            command = run.call_args.args[0]
+            self.assertIn(str(browser_script), command)
+            self.assertIn("--port", command)
+            self.assertEqual(json.loads((output_dir / "result.json").read_text())["status"], "pass")
+
+    def test_supervisor_unification_browser_owner_has_real_fixture_contract(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        owner_path = repo_root / "scripts" / "loop_dashboard_supervisor_playwright.py"
+        scenario_path = (
+            repo_root
+            / "docs"
+            / "harness"
+            / "evaluator-scenarios"
+            / "loop-supervisor-unification-01.json"
+        )
+
+        owner = owner_path.read_text(encoding="utf-8")
+        scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+
+        self.assertIn("SupervisorStore.open", owner)
+        self.assertIn("LOOP_DASHBOARD_CURSOR_SECRET", owner)
+        for collection in ("actions", "reviews", "user_decisions", "inventory", "events.jsonl", ".stdout.log"):
+            self.assertIn(collection, owner)
+        for count in ("ACTION_COUNT = 26", "REVIEW_COUNT = 26", "DECISION_COUNT = 26", "SKILL_COUNT = 26", "EVENT_COUNT = 26", "LOG_COUNT = 26"):
+            self.assertIn(count, owner)
+        for viewport in ('"width": 1440, "height": 1000', '"width": 390, "height": 844'):
+            self.assertIn(viewport, owner)
+        for behavior in ("下一页", "第 21-26 条，共 26 条", "action-001", "scrollWidth", "refresh", "log-detail"):
+            self.assertIn(behavior, owner)
+        self.assertEqual(scenario["task_id"], "loop-supervisor-unification-01")
+        self.assertTrue(scenario["must_simulate"])
+        serialized = json.dumps(scenario, ensure_ascii=False)
+        self.assertIn("pagination.js -> supervisor.js -> app.js", serialized)
+        self.assertIn("20/50/100", serialized)
+        self.assertIn("--scenario loop-supervisor-unification-01", serialized)
+
     def test_isolated_dashboard_child_injects_evaluator_cursor_secret(self) -> None:
         from scripts import loop_dashboard_evaluator as evaluator
 

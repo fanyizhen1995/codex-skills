@@ -32,6 +32,8 @@ except ModuleNotFoundError:
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
 LOOP_SUPERVISOR_SCENARIO = "loop-supervisor-01"
 LOOP_SUPERVISOR_BROWSER_SCENARIO_ID = "LOOP-SUPERVISOR-BROWSER-E2E"
+LOOP_SUPERVISOR_UNIFICATION_SCENARIO = "loop-supervisor-unification-01"
+LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID = "LOOP-SUPERVISOR-UNIFICATION-BROWSER-E2E"
 GOVERNANCE_TASK_ID = "ai-infra-loop-governance-dev-01"
 GOVERNANCE_PARENT_RUN_ID = "ai-infra-loop-governance-dev"
 GOVERNANCE_EXPANSION_RUN_ID = "ai-infra-expansion-2026-07-07-r10"
@@ -94,6 +96,12 @@ def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     output_dir = args.output_dir.resolve()
+    if args.scenario == LOOP_SUPERVISOR_UNIFICATION_SCENARIO:
+        return run_loop_supervisor_unification_evaluator(
+            repo_root,
+            output_dir,
+            port=args.port,
+        )
     if args.scenario == LOOP_SUPERVISOR_SCENARIO:
         return run_loop_supervisor_evaluator(repo_root, output_dir, port=args.port)
     if args.scenario:
@@ -239,6 +247,79 @@ def run_loop_supervisor_evaluator(repo_root: Path, output_dir: Path, *, port: in
     finally:
         if server is not None:
             terminate_process(server)
+
+
+def run_loop_supervisor_unification_evaluator(
+    repo_root: Path,
+    output_dir: Path,
+    *,
+    port: int | None = None,
+) -> int:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    browser_result = output_dir / "supervisor-browser-result.json"
+    command = [
+        sys.executable,
+        str(repo_root / "scripts" / "loop_dashboard_supervisor_playwright.py"),
+        "--repo-root",
+        str(repo_root),
+        "--output-dir",
+        str(output_dir),
+        "--result-json",
+        str(browser_result),
+    ]
+    if port is not None:
+        command.extend(["--port", str(port)])
+    completed = subprocess.run(
+        command,
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        child = json.loads(browser_result.read_text(encoding="utf-8"))
+        if not isinstance(child, dict):
+            raise TypeError("browser result must be an object")
+    except (OSError, TypeError, json.JSONDecodeError) as exc:
+        child = {
+            "status": "fail",
+            "scenario_id": LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID,
+            "summary": f"Browser evaluator did not produce a valid result: {exc}",
+            "checked": [],
+            "browser_evidence": {},
+        }
+    status = "pass" if completed.returncode == 0 and child.get("status") == "pass" else "fail"
+    result = {
+        "status": status,
+        "task_id": LOOP_SUPERVISOR_UNIFICATION_SCENARIO,
+        "scenario_id": LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID,
+        "summary": str(child.get("summary") or "Loop Supervisor unification browser evaluation completed."),
+        "scenario_results": [
+            {
+                "scenario_id": LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID,
+                "status": status,
+                "summary": str(child.get("summary") or "Browser evaluation completed."),
+                "evidence": list(child.get("checked") or []),
+            }
+        ],
+        "checked": list(child.get("checked") or []),
+        "browser_evidence": dict(child.get("browser_evidence") or {}),
+        "rerun_commands": [
+            "python3 scripts/loop_dashboard_evaluator.py --repo-root . "
+            "--output-dir .codex/loop-dashboard-eval/loop-supervisor-unification-01 "
+            "--scenario loop-supervisor-unification-01"
+        ],
+        "child_stdout": completed.stdout,
+        "child_stderr": completed.stderr,
+        "child_returncode": completed.returncode,
+    }
+    if child.get("diagnostics"):
+        result["diagnostics"] = child["diagnostics"]
+    write_json(output_dir / "result.json", result)
+    write_summary(output_dir / "summary.md", result)
+    if status != "pass":
+        print("loop supervisor unification evaluator failed", file=sys.stderr)
+    return 0 if status == "pass" else 1
 
 
 def run_governance_evaluator(

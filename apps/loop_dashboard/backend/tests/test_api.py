@@ -441,7 +441,7 @@ def test_api_handles_non_string_run_kind(tmp_path: Path) -> None:
     assert detail.json()["run_kind"] == "single"
 
 
-def test_api_and_static_page_expose_auditor_and_skill_dashboard(tmp_path: Path) -> None:
+def test_api_preserves_historical_audit_data_while_static_page_uses_skill_governance(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
     write_json(
@@ -493,7 +493,8 @@ def test_api_and_static_page_expose_auditor_and_skill_dashboard(tmp_path: Path) 
     assert payload["skill_inventory"]["total_project_skills"] == 1
     assert payload["skill_inventory"]["items"][0]["name"] == "loop-helper"
     assert index.status_code == 200
-    assert "审计与 Skill" in index.text
+    assert "Skill 治理" in index.text
+    assert "审计与 Skill" not in index.text
 
 
 def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monkeypatch) -> None:

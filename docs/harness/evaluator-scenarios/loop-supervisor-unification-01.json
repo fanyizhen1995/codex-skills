@@ -1,0 +1,48 @@
+{
+  "task_id": "loop-supervisor-unification-01",
+  "must_simulate": true,
+  "user_scenarios": [
+    {
+      "scenario_id": "LOOP-SUPERVISOR-UNIFICATION-BROWSER-E2E",
+      "user_goal": "作为操作者，在统一 Loop Dashboard 中使用七个 Supervisor 页签和七个运行详情页签，并在真实游标分页下稳定查看完整中文记录。",
+      "prerequisites": [
+        "Evaluator 使用 Task 6 SupervisorStore.open 初始化临时 SQLite，不读取 live/main 运行状态。",
+        "Evaluator 为隔离 backend 显式设置自己的 LOOP_DASHBOARD_CURSOR_SECRET。",
+        "前端静态加载顺序固定为 pagination.js -> supervisor.js -> app.js，分页大小固定为 20/50/100。"
+      ],
+      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-unification-01 --scenario loop-supervisor-unification-01",
+      "steps": [
+        "初始化临时 Supervisor SQLite，并分别写入 26 条 actions、reviews、user decisions 和 Skill inventory 行。",
+        "创建含 26 条 events 和 26 个 logs 的普通运行记录，日志正文只允许在显式展开后请求。",
+        "在 1440x1000 Chromium 中依次检查七个 Supervisor 页签和七个运行详情页签。",
+        "在任务恢复第一页确认只有已访问页码 1，点击下一页后确认第 21-26 条，共 26 条且页码 2 才出现。",
+        "刷新后恢复任务恢复页签、第二页、运行 ID 过滤器和游标历史；插入新动作后第二页内容保持不变。",
+        "确认运行详情加载不预取全部日志，日志列表不含正文，显式展开后才请求 bounded log detail。",
+        "在 390x844 Chromium 中检查单列布局、内部可滚动 tabs/table 和 document 无横向溢出。",
+        "保存 desktop 与 mobile 截图，并检查截图 canvas 不是空白。"
+      ],
+      "expected_outcomes": [
+        "Supervisor 是运行列表外唯一项目级控制角色。",
+        "Supervisor 页签严格为概览、服务、任务恢复、Reviewer、决策、Skill 治理、配置。",
+        "运行详情页签严格为概览、子任务、Agent 结果、验收、日志、阻塞诊断、产物。",
+        "Auditor、orchestrator 和 auto-resume 不作为独立角色出现。",
+        "未知数字页不能跳转；下一页记录游标后才暴露对应数字页。",
+        "刷新恢复 tab/page/filter/history，快照中的第二页不受新插入记录影响。",
+        "所有不可用数据明确显示暂无数据、未启用或不可用，不显示假成功。",
+        "桌面和移动截图中文字完整，无页面级横向溢出或重叠。"
+      ],
+      "failure_signals": [
+        "Evaluator 依赖 ambient cursor secret 或连接 live service。",
+        "loadSelectedRun 预取全部 events/logs，或日志列表假定 content 字段存在。",
+        "未访问的数字页可点击，刷新丢失游标历史，或新记录改变已打开第二页。",
+        "浏览器可见独立 Auditor、orchestrator 或 auto-resume 角色。",
+        "desktop/mobile 截图空白、文本截断、控件重叠或 document-level overflow。"
+      ],
+      "cleanup": [
+        "停止隔离 dashboard 子进程。",
+        "移除临时 fixture 目录；仅 evaluator artifact 保留在指定 output-dir。"
+      ],
+      "automation_hint": "playwright"
+    }
+  ]
+}
