@@ -805,6 +805,24 @@ def test_managed_runtime_binds_fingerprint_to_each_child_launch(
     assert second_payload["git_head"] == second_launch_head
 
 
+def test_supervisor_worker_fingerprint_includes_legacy_orchestrator_dependency(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    supervisor_module = tmp_path / "scripts/loop_supervisor/executors.py"
+    supervisor_module.parent.mkdir(parents=True)
+    supervisor_module.write_text("VALUE = 'worker'\n", encoding="utf-8")
+    orchestrator = tmp_path / "scripts/harness_loop_orchestrator.py"
+    orchestrator.write_text("VALUE = 'before'\n", encoding="utf-8")
+
+    before = services._service_code_fingerprint(tmp_path, "supervisor-worker")
+    orchestrator.write_text("VALUE = 'after'\n", encoding="utf-8")
+    after = services._service_code_fingerprint(tmp_path, "supervisor-worker")
+
+    assert before != after
+
+
 def test_managed_runtime_child_runs_shell_template_without_execing_cd(
     tmp_path: Path,
     monkeypatch,
