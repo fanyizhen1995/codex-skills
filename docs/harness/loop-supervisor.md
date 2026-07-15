@@ -98,17 +98,28 @@ active leases, and held loop locks:
 python3 -m scripts.loop_supervisor.cli rebuild-db --project-root /home/fyz/codex-skills --confirm
 ```
 
-The command builds and validates a sibling replacement first, copies the current
-database and sidecars to an external timestamped backup, then atomically replaces
-the database. It first acquires the exclusive runtime-database maintenance lock,
+The command builds and validates a sibling replacement first, copies the original
+database/WAL/SHM triad to an external timestamped forensic backup, then atomically
+replaces the database. It first acquires the exclusive runtime-database maintenance lock,
 then holds the reconcile and repository mutation locks through the quiescence
 check, replacement build, swap, validation, and rollback. Every runtime SQLite
 connection acquires the shared side of the maintenance lock before opening the
 database and holds it through close; canonical Supervisor heartbeat persistence
 uses the same shared lock. A waiting Worker therefore opens the replacement
 inode after swap instead of writing a lease heartbeat to the archived database.
-Any failure restores the prior database and sidecars. Detailed operational
-history can be compacted after the retention period:
+For an existing live database, rebuild is supported only on Linux with the
+standard POSIX SQLite Unix VFS and `fcntl.lockf` byte-range locks. The WAL read
+slot probe fails closed when these runtime preconditions are unavailable. It is
+an early rejection check only: `PRAGMA wal_checkpoint(TRUNCATE)` returning
+exactly `(0, 0, 0)` remains the authoritative safety gate.
+
+After that checkpoint succeeds, rebuild switches the live database to DELETE
+journal mode, validates it without sidecars, and writes
+`rollback-supervisor.db` beside the forensic triad. Any post-swap failure stages
+that standalone rollback file on the live filesystem and restores it with one
+atomic `os.replace`; WAL/SHM restore ordering is never part of live recovery.
+The original triad remains forensic evidence only. Detailed operational history
+can be compacted after the retention period:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli retention --project-root /home/fyz/codex-skills --retention-days 90

@@ -449,7 +449,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
     def test_task_and_evaluator_commands_use_current_loop_runtime_surface(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         tasks = json.loads((repo_root / "tasks.json").read_text(encoding="utf-8"))
-        commands = {
+        executable_contracts = {
             f"task:{task['id']}": str(task.get("verify") or "")
             for task in tasks["tasks"]
         }
@@ -458,8 +458,12 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         ):
             payload = json.loads(path.read_text(encoding="utf-8"))
             for scenario in payload.get("user_scenarios", []):
-                commands[f"scenario:{path.name}:{scenario['scenario_id']}"] = str(
-                    scenario.get("entrypoint") or ""
+                executable_contracts[
+                    f"scenario:{path.name}:{scenario['scenario_id']}"
+                ] = json.dumps(
+                    scenario,
+                    ensure_ascii=False,
+                    sort_keys=True,
                 )
         removed_commands = (
             "harness_loop_orchestrator.py run ",
@@ -471,12 +475,15 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             "scripts.tests.test_harness_loop_auditor",
             "scripts.tests.test_harness_loop_auto_resume",
             "tmux has-session -t loop-auto-resume",
+            "loop-auto-resume",
+            "run_auditor(",
+            "run_demand_multi",
         )
 
         violations = {
-            name: [item for item in removed_commands if item in command]
-            for name, command in commands.items()
-            if any(item in command for item in removed_commands)
+            name: [item for item in removed_commands if item in contract]
+            for name, contract in executable_contracts.items()
+            if any(item in contract for item in removed_commands)
         }
         self.assertEqual(violations, {})
 

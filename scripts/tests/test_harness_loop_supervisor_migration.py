@@ -6,6 +6,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1770,6 +1771,102 @@ sys.stdin.read()
         reader.wait(timeout=5)
 
 
+def test_rebuild_db_checkpoint_result_remains_authoritative_when_preflight_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    writer = sqlite3.connect(database, isolation_level=None)
+    writer.execute("PRAGMA wal_autocheckpoint=0")
+    writer.execute("CREATE TABLE checkpoint_authority_probe(value TEXT NOT NULL)")
+    writer.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    writer.execute(
+        "INSERT INTO checkpoint_authority_probe(value) VALUES ('reader-snapshot')"
+    )
+    reader_code = """
+import sqlite3
+import sys
+
+connection = sqlite3.connect(sys.argv[1], isolation_level=None)
+connection.execute("BEGIN")
+connection.execute("SELECT * FROM checkpoint_authority_probe").fetchall()
+print("ready", flush=True)
+sys.stdin.read()
+"""
+    reader = subprocess.Popen(
+        [sys.executable, "-c", reader_code, str(database)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert reader.stdout is not None
+    assert reader.stdout.readline().strip() == "ready"
+    writer.execute(
+        "INSERT INTO checkpoint_authority_probe(value) VALUES ('after-snapshot')"
+    )
+    writer.close()
+    live_paths = [database, Path(str(database) + "-wal"), Path(str(database) + "-shm")]
+    before = {path.name: path.read_bytes() for path in live_paths}
+    monkeypatch.setattr(
+        supervisor_cli, "_assert_no_live_wal_read_snapshot", lambda _database: None
+    )
+
+    try:
+        with pytest.raises(MigrationValidationError, match="checkpoint did not truncate"):
+            supervisor_cli._rebuild_db(tmp_path)
+        assert database.read_bytes() == before[database.name]
+        wal = Path(str(database) + "-wal")
+        assert wal.read_bytes() == before[wal.name]
+    finally:
+        if reader.stdin is not None:
+            reader.stdin.close()
+        reader.wait(timeout=5)
+
+
+@pytest.mark.parametrize(
+    ("platform", "os_name", "lockf", "expected"),
+    [
+        ("darwin", "posix", fcntl.lockf, "Linux"),
+        ("linux", "nt", fcntl.lockf, "POSIX"),
+        ("linux", "posix", None, "fcntl"),
+    ],
+)
+def test_wal_lock_preflight_fails_closed_on_unsupported_runtime(
+    platform: str,
+    os_name: str,
+    lockf: object,
+    expected: str,
+) -> None:
+    with pytest.raises(MigrationValidationError, match=expected):
+        supervisor_cli._assert_supported_wal_lock_runtime(
+            platform=platform,
+            os_name=os_name,
+            lockf=lockf,
+        )
+
+
+def test_wal_lock_preflight_checks_runtime_before_touching_lock_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "supervisor.db"
+    Path(str(database) + "-shm").write_bytes(b"\x00" * 256)
+
+    def reject_runtime(**_kwargs: object) -> None:
+        raise MigrationValidationError("unsupported WAL lock runtime")
+
+    def touch_lock_bytes(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("lock bytes must not be touched")
+
+    monkeypatch.setattr(
+        supervisor_cli, "_assert_supported_wal_lock_runtime", reject_runtime
+    )
+    monkeypatch.setattr(supervisor_cli.fcntl, "lockf", touch_lock_bytes)
+
+    with pytest.raises(MigrationValidationError, match="unsupported WAL lock runtime"):
+        supervisor_cli._assert_no_live_wal_read_snapshot(database)
+
+
 def test_rebuild_db_crash_before_replace_leaves_old_database_reopenable(
     tmp_path: Path,
 ) -> None:
@@ -1831,6 +1928,93 @@ cli._rebuild_db(root)
     assert row == ("old-live-db",)
 
 
+def test_rebuild_db_crash_after_rollback_replace_leaves_standalone_old_database(
+    tmp_path: Path,
+) -> None:
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    seed_code = """
+import os
+import sqlite3
+import sys
+
+connection = sqlite3.connect(sys.argv[1], isolation_level=None)
+connection.execute("PRAGMA journal_mode=WAL")
+connection.execute("PRAGMA wal_autocheckpoint=0")
+connection.execute("CREATE TABLE rollback_crash_probe(value TEXT NOT NULL)")
+connection.execute("INSERT INTO rollback_crash_probe(value) VALUES ('old-live-db')")
+os._exit(0)
+"""
+    seeded = subprocess.run(
+        [sys.executable, "-c", seed_code, str(database)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert seeded.returncode == 0, seeded.stderr
+    forensic_paths = [
+        database,
+        Path(str(database) + "-wal"),
+        Path(str(database) + "-shm"),
+    ]
+    assert all(path.is_file() for path in forensic_paths)
+    forensic_before = {path.name: path.read_bytes() for path in forensic_paths}
+    rebuild_code = """
+import os
+import sys
+from pathlib import Path
+from scripts.loop_supervisor import cli
+from scripts.loop_supervisor.migration import MigrationValidationError
+
+root = Path(sys.argv[1])
+database = root / ".codex/supervisor/supervisor.db"
+real_replace = os.replace
+
+def reject_replacement(_database):
+    raise MigrationValidationError("force rollback")
+
+def crash_after_rollback_replace(source, destination):
+    source_path = Path(source)
+    if Path(destination) == database and ".rebuild-" not in source_path.name:
+        real_replace(source, destination)
+        os._exit(74)
+    return real_replace(source, destination)
+
+cli._validate_replacement_database = reject_replacement
+cli.os.replace = crash_after_rollback_replace
+cli._rebuild_db(root)
+"""
+    crashed = subprocess.run(
+        [sys.executable, "-c", rebuild_code, str(tmp_path)],
+        cwd=Path(__file__).resolve().parents[2],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert crashed.returncode == 74, crashed.stderr
+    backup_root = tmp_path.parent / f".{tmp_path.name}-supervisor-snapshots"
+    backups = tuple(backup_root.glob("db-rebuild-*"))
+    assert len(backups) == 1
+    for name in ("supervisor.db", "supervisor.db-wal"):
+        assert (backups[0] / name).read_bytes() == forensic_before[name]
+    assert (backups[0] / "supervisor.db-shm").is_file()
+    assert (backups[0] / "rollback-supervisor.db").is_file()
+    assert not Path(str(database) + "-wal").exists()
+    assert not Path(str(database) + "-shm").exists()
+    reopened = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        row = reopened.execute("SELECT value FROM rollback_crash_probe").fetchone()
+        journal_mode = reopened.execute("PRAGMA journal_mode").fetchone()
+        integrity = reopened.execute("PRAGMA quick_check").fetchone()
+    finally:
+        reopened.close()
+    assert row == ("old-live-db",)
+    assert journal_mode == ("delete",)
+    assert integrity == ("ok",)
+
+
 def test_rebuild_db_creates_database_when_live_database_is_absent(
     tmp_path: Path,
 ) -> None:
@@ -1862,6 +2046,7 @@ def test_rebuild_db_atomically_swaps_valid_replacement(tmp_path: Path) -> None:
     assert result["status"] == "completed"
     assert result["migration"]["validated"] is True
     assert Path(result["backup_path"], "supervisor.db").is_file()
+    assert Path(result["backup_path"], "rollback-supervisor.db").is_file()
     assert not tuple(
         (tmp_path / ".codex/supervisor").glob(".supervisor.db.rebuild-*")
     )
@@ -1877,6 +2062,10 @@ def test_rebuild_db_post_swap_failure_restores_live_database(
     store = _open_store(tmp_path)
     store.close()
     database = tmp_path / ".codex/supervisor/supervisor.db"
+    connection = sqlite3.connect(database, isolation_level=None)
+    connection.execute("CREATE TABLE rollback_state_probe(value TEXT NOT NULL)")
+    connection.execute("INSERT INTO rollback_state_probe(value) VALUES ('preserved')")
+    connection.close()
     before = database.read_bytes()
 
     def reject_replacement(_database: Path) -> None:
@@ -1889,7 +2078,23 @@ def test_rebuild_db_post_swap_failure_restores_live_database(
     with pytest.raises(MigrationValidationError, match="post-swap validation failed"):
         supervisor_cli._rebuild_db(tmp_path)
 
-    assert database.read_bytes() == before
+    backup_root = tmp_path.parent / f".{tmp_path.name}-supervisor-snapshots"
+    backups = tuple(backup_root.glob("db-rebuild-*"))
+    assert len(backups) == 1
+    assert (backups[0] / "supervisor.db").read_bytes() == before
+    assert (backups[0] / "rollback-supervisor.db").is_file()
+    assert not Path(str(database) + "-wal").exists()
+    assert not Path(str(database) + "-shm").exists()
+    restored = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        value = restored.execute("SELECT value FROM rollback_state_probe").fetchone()
+        journal_mode = restored.execute("PRAGMA journal_mode").fetchone()
+        integrity = restored.execute("PRAGMA quick_check").fetchone()
+    finally:
+        restored.close()
+    assert value == ("preserved",)
+    assert journal_mode == ("delete",)
+    assert integrity == ("ok",)
     assert not tuple(
         (tmp_path / ".codex/supervisor").glob(".supervisor.db.rebuild-*")
     )

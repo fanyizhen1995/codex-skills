@@ -37,6 +37,9 @@ from .store import SupervisorStore
 from .worker import clear_stop_request, worker_watch
 
 
+_UNSET = object()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Operate the unified Loop Supervisor.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -251,6 +254,7 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
     replacement = supervisor / f".supervisor.db.rebuild-{uuid4().hex}"
     database = supervisor / "supervisor.db"
     database_names = ("supervisor.db", "supervisor.db-wal", "supervisor.db-shm")
+    rollback_database = backup / "rollback-supervisor.db"
     backed_up: list[str] = []
     swapped = False
     report = None
@@ -286,20 +290,15 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
                 backed_up.append(name)
         if live_database_present:
             _checkpoint_and_validate_live_database(database)
+            _copy_standalone_database(database, rollback_database)
         os.replace(replacement, database)
         swapped = True
         _validate_replacement_database(database)
     except BaseException:
-        if backup.exists() and (backup / "supervisor.db").is_file():
-            for name in database_names[1:]:
-                (supervisor / name).unlink(missing_ok=True)
-            restore = supervisor / f".supervisor.db.restore-{uuid4().hex}"
-            shutil.copy2(backup / "supervisor.db", restore)
+        if rollback_database.is_file():
+            restore = supervisor / f".supervisor.db.rollback-{uuid4().hex}"
+            _copy_standalone_database(rollback_database, restore)
             os.replace(restore, database)
-            for name in database_names[1:]:
-                source = backup / name
-                if source.is_file():
-                    shutil.copy2(source, supervisor / name)
         elif swapped:
             database.unlink(missing_ok=True)
         raise
@@ -313,6 +312,9 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
         "status": "completed",
         "backup_path": backup.as_posix(),
         "backed_up_database_files": backed_up,
+        "rollback_database": (
+            rollback_database.as_posix() if rollback_database.is_file() else ""
+        ),
         "migration": report.as_dict(),
     }
 
@@ -328,7 +330,31 @@ def _store_at(root: Path, database: Path) -> SupervisorStore:
     return SupervisorStore(Path(root).resolve(), connection, None)
 
 
+def _assert_supported_wal_lock_runtime(
+    *,
+    platform: str | None = None,
+    os_name: str | None = None,
+    lockf: object = _UNSET,
+) -> None:
+    actual_platform = sys.platform if platform is None else platform
+    actual_os_name = os.name if os_name is None else os_name
+    actual_lockf = getattr(fcntl, "lockf", None) if lockf is _UNSET else lockf
+    if actual_platform != "linux":
+        raise MigrationValidationError(
+            "live database rebuild requires Linux SQLite Unix-VFS lock semantics"
+        )
+    if actual_os_name != "posix":
+        raise MigrationValidationError(
+            "live database rebuild requires a POSIX runtime"
+        )
+    if not callable(actual_lockf):
+        raise MigrationValidationError(
+            "live database rebuild requires fcntl.lockf byte-range locking"
+        )
+
+
 def _assert_no_live_wal_read_snapshot(database: Path) -> None:
+    _assert_supported_wal_lock_runtime()
     shm = Path(str(database) + "-shm")
     if not shm.exists():
         return
@@ -340,7 +366,8 @@ def _assert_no_live_wal_read_snapshot(database: Path) -> None:
     except FileNotFoundError:
         return
     try:
-        # SQLite's Unix WAL VFS reserves bytes 123-127 for the five read slots.
+        # This advisory preflight avoids mutating SHM for a known reader. The
+        # SQLite checkpoint result below remains the authoritative safety gate.
         for offset in range(123, 128):
             try:
                 fcntl.lockf(
@@ -366,6 +393,33 @@ def _assert_no_live_wal_read_snapshot(database: Path) -> None:
         os.close(descriptor)
 
 
+def _copy_standalone_database(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    with destination.open("rb") as handle:
+        os.fsync(handle.fileno())
+    _validate_standalone_database(destination)
+
+
+def _validate_standalone_database(database: Path) -> None:
+    if database.is_symlink() or not database.is_file():
+        raise MigrationValidationError(f"standalone database is unsafe: {database}")
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        integrity = connection.execute("PRAGMA quick_check").fetchone()
+        journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0])
+    finally:
+        connection.close()
+    if (
+        integrity is None
+        or str(integrity[0]).lower() != "ok"
+        or journal_mode.lower() != "delete"
+    ):
+        raise MigrationValidationError(
+            f"standalone database validation failed: {database}"
+        )
+
+
 def _checkpoint_and_validate_live_database(database: Path) -> None:
     if not database.is_file() or database.is_symlink():
         raise MigrationValidationError(f"live database is missing or unsafe: {database}")
@@ -375,6 +429,8 @@ def _checkpoint_and_validate_live_database(database: Path) -> None:
         journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0])
         if journal_mode.lower() == "wal":
             checkpoint = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            # Byte-lock probing is only an early rejection optimization. SQLite
+            # owns the authoritative determination that every WAL frame is safe.
             if checkpoint is None or tuple(int(value) for value in checkpoint) != (0, 0, 0):
                 raise MigrationValidationError(
                     f"rebuild checkpoint did not truncate cleanly: {checkpoint}"
@@ -402,18 +458,7 @@ def _checkpoint_and_validate_live_database(database: Path) -> None:
         raise MigrationValidationError(
             "live database is not standalone after checkpoint; SQLite sidecars remain"
         )
-    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
-    try:
-        integrity = connection.execute("PRAGMA quick_check").fetchone()
-        journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0])
-    finally:
-        connection.close()
-    if (
-        integrity is None
-        or str(integrity[0]).lower() != "ok"
-        or journal_mode.lower() != "delete"
-    ):
-        raise MigrationValidationError("live database standalone validation failed")
+    _validate_standalone_database(database)
 
 
 def _assert_rebuild_quiescent(root: Path) -> None:

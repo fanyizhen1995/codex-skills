@@ -7,27 +7,27 @@
       "user_goal": "Verify that an autonomous stopped-budget run is continued and executed without competing owners, while the Dashboard reports honest reachability, version freshness, data freshness, and current decisions.",
       "prerequisites": [
         "Fixture repository has a stopped_budget autonomous run with parent-17 complete and one completion carried since the last audit.",
-        "Supervisor, loop-auto-resume, and Loop Dashboard can run against isolated fixture artifacts."
+        "Supervisor, Worker, and Loop Dashboard can run against isolated fixture artifacts."
       ],
       "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-runtime-continuation-hardening-01 --scenario loop-supervisor-01",
       "steps": [
         "Run Supervisor and verify it creates exactly one confirmed continuation but does not execute an existing run.",
-        "Run two auto-resume executors and verify the per-run lock permits only one execution.",
-        "Complete semantic parent-18 and verify the carried two-parent Auditor cadence triggers.",
+        "Run two Workers and verify the atomic action lease permits only one bounded execution.",
+        "Complete semantic parent-18 and verify the carried two-parent Reviewer cadence triggers.",
         "Commit a wiki-only update and verify service reachability remains online while code fingerprints remain fresh.",
         "Verify push-result and freshness-target artifacts are produced from the autonomous commit.",
         "Open the Dashboard and inspect Supervisor metrics, decisions, freshness, and run history."
       ],
       "expected_outcomes": [
         "The continuation is created once with semantic_parent_task_next=18 and completed_since_last_audit=1.",
-        "Only loop-auto-resume executes existing runs and lock contention is visible as a skip rather than duplicate work.",
+        "Only one Worker leases and executes the existing run action; contention cannot duplicate work.",
         "在线服务 uses reachability/tmux evidence and version freshness is displayed separately.",
         "The current decision says 暂无待处理决策 when open_count is zero; stale worktree history remains historical.",
         "push-result.json and a target-specific freshness record bind the run, task, commit, changed wiki paths, and trusted live evidence.",
-        "Four semantic parent tasks proceed without manual phase advancement, with Auditor invoked after every two completed parent tasks."
+        "Four semantic parent tasks proceed without manual phase advancement, with Reviewer scheduled after every two completed parent tasks."
       ],
       "failure_signals": [
-        "Supervisor invokes Planner, Generator, Evaluator, or auto-resume for an existing run.",
+        "Supervisor directly invokes Planner, Generator, or Evaluator instead of queueing a bounded Worker action.",
         "Two executors enter the same run concurrently.",
         "A wiki-only commit makes all services appear offline or stale.",
         "A historical worktree decision appears as the current required decision.",
