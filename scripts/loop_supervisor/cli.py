@@ -252,7 +252,6 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
     database = supervisor / "supervisor.db"
     database_names = ("supervisor.db", "supervisor.db-wal", "supervisor.db-shm")
     backed_up: list[str] = []
-    sidecars_moved: list[str] = []
     swapped = False
     report = None
     try:
@@ -264,6 +263,19 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
             store._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             store._connection.execute("PRAGMA journal_mode=DELETE")
 
+        live_database_present = database.exists()
+        if database.is_symlink() or (
+            live_database_present and not database.is_file()
+        ):
+            raise MigrationValidationError(f"live database path is unsafe: {database}")
+        if not live_database_present and any(
+            (supervisor / name).exists() for name in database_names[1:]
+        ):
+            raise MigrationValidationError(
+                "live database is missing but orphaned SQLite sidecars remain"
+            )
+        if live_database_present:
+            _assert_no_live_wal_read_snapshot(database)
         backup.mkdir(parents=True, exist_ok=False)
         for name in database_names:
             source = supervisor / name
@@ -272,26 +284,24 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
             if source.is_file():
                 shutil.copy2(source, backup / name)
                 backed_up.append(name)
-        for name in database_names[1:]:
-            source = supervisor / name
-            if source.is_file():
-                source.unlink()
-                sidecars_moved.append(name)
+        if live_database_present:
+            _checkpoint_and_validate_live_database(database)
         os.replace(replacement, database)
         swapped = True
         _validate_replacement_database(database)
     except BaseException:
         if backup.exists() and (backup / "supervisor.db").is_file():
+            for name in database_names[1:]:
+                (supervisor / name).unlink(missing_ok=True)
             restore = supervisor / f".supervisor.db.restore-{uuid4().hex}"
             shutil.copy2(backup / "supervisor.db", restore)
             os.replace(restore, database)
-        elif swapped:
-            database.unlink(missing_ok=True)
-        if backup.exists():
-            for name in sidecars_moved:
+            for name in database_names[1:]:
                 source = backup / name
                 if source.is_file():
                     shutil.copy2(source, supervisor / name)
+        elif swapped:
+            database.unlink(missing_ok=True)
         raise
     finally:
         for suffix in ("", "-wal", "-shm"):
@@ -318,6 +328,94 @@ def _store_at(root: Path, database: Path) -> SupervisorStore:
     return SupervisorStore(Path(root).resolve(), connection, None)
 
 
+def _assert_no_live_wal_read_snapshot(database: Path) -> None:
+    shm = Path(str(database) + "-shm")
+    if not shm.exists():
+        return
+    if shm.is_symlink() or not shm.is_file():
+        raise MigrationValidationError(f"unsafe SQLite shared-memory path: {shm}")
+    flags = os.O_RDWR | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(shm, flags)
+    except FileNotFoundError:
+        return
+    try:
+        # SQLite's Unix WAL VFS reserves bytes 123-127 for the five read slots.
+        for offset in range(123, 128):
+            try:
+                fcntl.lockf(
+                    descriptor,
+                    fcntl.LOCK_EX | fcntl.LOCK_NB,
+                    1,
+                    offset,
+                    os.SEEK_SET,
+                )
+            except BlockingIOError as exc:
+                raise MigrationValidationError(
+                    "rebuild checkpoint is busy; a live SQLite read snapshot is active"
+                ) from exc
+            else:
+                fcntl.lockf(
+                    descriptor,
+                    fcntl.LOCK_UN,
+                    1,
+                    offset,
+                    os.SEEK_SET,
+                )
+    finally:
+        os.close(descriptor)
+
+
+def _checkpoint_and_validate_live_database(database: Path) -> None:
+    if not database.is_file() or database.is_symlink():
+        raise MigrationValidationError(f"live database is missing or unsafe: {database}")
+    connection = sqlite3.connect(database, timeout=0, isolation_level=None)
+    try:
+        connection.execute("PRAGMA busy_timeout=0")
+        journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0])
+        if journal_mode.lower() == "wal":
+            checkpoint = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if checkpoint is None or tuple(int(value) for value in checkpoint) != (0, 0, 0):
+                raise MigrationValidationError(
+                    f"rebuild checkpoint did not truncate cleanly: {checkpoint}"
+                )
+        elif journal_mode.lower() != "delete":
+            raise MigrationValidationError(
+                f"unsupported live database journal mode: {journal_mode}"
+            )
+        standalone_mode = str(
+            connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+        )
+        if standalone_mode.lower() != "delete":
+            raise MigrationValidationError(
+                f"live database did not become standalone: {standalone_mode}"
+            )
+    except sqlite3.OperationalError as exc:
+        raise MigrationValidationError(
+            f"rebuild checkpoint is busy or failed: {exc}"
+        ) from exc
+    finally:
+        connection.close()
+
+    sidecars = (Path(str(database) + "-wal"), Path(str(database) + "-shm"))
+    if any(path.exists() for path in sidecars):
+        raise MigrationValidationError(
+            "live database is not standalone after checkpoint; SQLite sidecars remain"
+        )
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        integrity = connection.execute("PRAGMA quick_check").fetchone()
+        journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0])
+    finally:
+        connection.close()
+    if (
+        integrity is None
+        or str(integrity[0]).lower() != "ok"
+        or journal_mode.lower() != "delete"
+    ):
+        raise MigrationValidationError("live database standalone validation failed")
+
+
 def _assert_rebuild_quiescent(root: Path) -> None:
     state_path = root / ".codex" / "supervisor" / "supervisor-state.json"
     if state_path.is_symlink():
@@ -339,6 +437,7 @@ def _assert_rebuild_quiescent(root: Path) -> None:
 
     database = root / ".codex" / "supervisor" / "supervisor.db"
     if database.is_file() and not database.is_symlink():
+        _assert_no_live_wal_read_snapshot(database)
         connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
         connection.row_factory = sqlite3.Row
         try:

@@ -853,9 +853,24 @@ def _scan_user_decisions(
             existing = decisions.get(identity)
             if name.startswith("archived-"):
                 archived_source_state = candidate.get("archived_run_state")
+                private_provenance = {
+                    "_archived_source_evidence",
+                    "_archived_source_run_state",
+                    "_archived_run_state",
+                }
+                existing_display = {
+                    key: value
+                    for key, value in (existing or {}).items()
+                    if key not in private_provenance
+                }
+                candidate_display = {
+                    key: value
+                    for key, value in candidate.items()
+                    if key not in private_provenance
+                }
                 candidate = {
-                    **(existing or {}),
-                    **candidate,
+                    **existing_display,
+                    **candidate_display,
                     "status": "archived",
                     "_archived_source_evidence": {
                         "source_path": path.relative_to(root).as_posix(),

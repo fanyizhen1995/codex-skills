@@ -446,6 +446,40 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             gate_entrypoint,
         )
 
+    def test_task_and_evaluator_commands_use_current_loop_runtime_surface(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        tasks = json.loads((repo_root / "tasks.json").read_text(encoding="utf-8"))
+        commands = {
+            f"task:{task['id']}": str(task.get("verify") or "")
+            for task in tasks["tasks"]
+        }
+        for path in sorted(
+            (repo_root / "docs/harness/evaluator-scenarios").glob("*.json")
+        ):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for scenario in payload.get("user_scenarios", []):
+                commands[f"scenario:{path.name}:{scenario['scenario_id']}"] = str(
+                    scenario.get("entrypoint") or ""
+                )
+        removed_commands = (
+            "harness_loop_orchestrator.py run ",
+            "harness_loop_orchestrator.py run-demand-multi",
+            "harness_loop_orchestrator.py run-autonomous",
+            "harness_loop_phase2_smoke.py",
+            "harness_loop_phase3_smoke.py",
+            "harness_ai_infra_meta_loop_smoke.py",
+            "scripts.tests.test_harness_loop_auditor",
+            "scripts.tests.test_harness_loop_auto_resume",
+            "tmux has-session -t loop-auto-resume",
+        )
+
+        violations = {
+            name: [item for item in removed_commands if item in command]
+            for name, command in commands.items()
+            if any(item in command for item in removed_commands)
+        }
+        self.assertEqual(violations, {})
+
     @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]

@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import threading
 from datetime import datetime, timedelta, timezone
@@ -775,6 +776,55 @@ def test_archived_compatibility_does_not_inherit_open_row_state_evidence(
     _write_jsonl(
         tmp_path / ".codex/supervisor/archived-user-decisions.jsonl",
         [archived_row],
+    )
+    store = _open_store(tmp_path)
+    try:
+        migrate_jsonl(tmp_path, store, dry_run=False)
+        result = reconcile_once(tmp_path, store, include_worktrees=False)
+    finally:
+        store.close()
+
+    assert len(result.open_user_decisions) == 1
+    assert result.open_user_decisions[0]["scope"] == "run"
+
+
+def test_archived_compatibility_does_not_inherit_duplicate_row_state_evidence(
+    tmp_path: Path,
+) -> None:
+    run_id = "archive-duplicate-state-only"
+    _seed_run(
+        tmp_path,
+        run_id,
+        parent_counter=0,
+        completed=[],
+        phase="stopped_blocked",
+        next_action="inspect_blocked_diagnostics",
+    )
+    run = json.loads(
+        (tmp_path / f".codex/loop-runs/{run_id}/run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    failure_key = f"unsupported_state:{run_id}:run-state:unsupported-state"
+    archived = {
+        "decision_id": "archive-duplicate-state-only-decision",
+        "failure_key": failure_key,
+        "affected_runs": [run_id],
+        "status": "archived",
+        "opened_at": "2026-07-14T00:00:00Z",
+        "archived_at": "2026-07-14T01:00:00Z",
+        "archived_run_state": {
+            "revision": 1,
+            "fingerprint": _state_fingerprint(run),
+        },
+    }
+    duplicate_without_state = {
+        key: value for key, value in archived.items() if key != "archived_run_state"
+    }
+    duplicate_without_state["archived_at"] = "2026-07-14T02:00:00Z"
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/archived-user-decisions.jsonl",
+        [archived, duplicate_without_state],
     )
     store = _open_store(tmp_path)
     try:
@@ -1669,6 +1719,134 @@ def test_rebuild_db_build_failure_preserves_live_database(
 
     assert database.is_file()
     assert database.read_bytes() == before
+
+
+def test_rebuild_db_busy_dashboard_snapshot_aborts_without_live_mutation(
+    tmp_path: Path,
+) -> None:
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    writer = sqlite3.connect(database, isolation_level=None)
+    writer.execute("PRAGMA wal_autocheckpoint=0")
+    writer.execute("CREATE TABLE dashboard_snapshot_probe(value TEXT NOT NULL)")
+    writer.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    writer.execute(
+        "INSERT INTO dashboard_snapshot_probe(value) VALUES ('reader-snapshot')"
+    )
+    reader_code = """
+import sqlite3
+import sys
+
+connection = sqlite3.connect(sys.argv[1], isolation_level=None)
+connection.execute("BEGIN")
+connection.execute("SELECT * FROM dashboard_snapshot_probe").fetchall()
+print("ready", flush=True)
+sys.stdin.read()
+"""
+    reader = subprocess.Popen(
+        ["python3", "-c", reader_code, str(database)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert reader.stdout is not None
+    assert reader.stdout.readline().strip() == "ready"
+    writer.execute(
+        "INSERT INTO dashboard_snapshot_probe(value) VALUES ('after-snapshot')"
+    )
+    writer.close()
+    live_paths = [database, Path(str(database) + "-wal"), Path(str(database) + "-shm")]
+    before = {path.name: path.read_bytes() for path in live_paths}
+
+    try:
+        with pytest.raises(MigrationValidationError, match="snapshot|checkpoint|busy"):
+            supervisor_cli._rebuild_db(tmp_path)
+        after = {path.name: path.read_bytes() for path in live_paths}
+        assert after == before
+    finally:
+        if reader.stdin is not None:
+            reader.stdin.close()
+        reader.wait(timeout=5)
+
+
+def test_rebuild_db_crash_before_replace_leaves_old_database_reopenable(
+    tmp_path: Path,
+) -> None:
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    seed_code = """
+import os
+import sqlite3
+import sys
+
+connection = sqlite3.connect(sys.argv[1], isolation_level=None)
+connection.execute("PRAGMA journal_mode=WAL")
+connection.execute("PRAGMA wal_autocheckpoint=0")
+connection.execute("CREATE TABLE rebuild_crash_probe(value TEXT NOT NULL)")
+connection.execute("INSERT INTO rebuild_crash_probe(value) VALUES ('old-live-db')")
+os._exit(0)
+"""
+    seeded = subprocess.run(
+        ["python3", "-c", seed_code, str(database)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert seeded.returncode == 0, seeded.stderr
+    assert Path(str(database) + "-wal").is_file()
+    rebuild_code = """
+import os
+import sys
+from pathlib import Path
+from scripts.loop_supervisor import cli
+
+root = Path(sys.argv[1])
+database = root / ".codex/supervisor/supervisor.db"
+real_replace = os.replace
+
+def crash_before_replace(source, destination):
+    if Path(destination) == database and ".rebuild-" in Path(source).name:
+        os._exit(73)
+    return real_replace(source, destination)
+
+cli.os.replace = crash_before_replace
+cli._rebuild_db(root)
+"""
+    crashed = subprocess.run(
+        ["python3", "-c", rebuild_code, str(tmp_path)],
+        cwd=Path(__file__).resolve().parents[2],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert crashed.returncode == 73, crashed.stderr
+    reopened = sqlite3.connect(database)
+    try:
+        row = reopened.execute("SELECT value FROM rebuild_crash_probe").fetchone()
+    finally:
+        reopened.close()
+    assert row == ("old-live-db",)
+
+
+def test_rebuild_db_creates_database_when_live_database_is_absent(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/run-decisions.jsonl", [_decision(1)]
+    )
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    assert not database.exists()
+
+    result = supervisor_cli._rebuild_db(tmp_path)
+
+    assert result["status"] == "completed"
+    with SupervisorStore.open(tmp_path) as rebuilt:
+        assert rebuilt.database_integrity_ok()
+        assert rebuilt.count("transitions") == 1
 
 
 def test_rebuild_db_atomically_swaps_valid_replacement(tmp_path: Path) -> None:
