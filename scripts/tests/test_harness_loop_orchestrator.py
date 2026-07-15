@@ -6,11 +6,12 @@ import tempfile
 import unittest
 import json
 import subprocess
-import contextlib
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Mapping
 from unittest.mock import patch
+
+import pytest
 
 import scripts.harness_loop_orchestrator as harness_loop_orchestrator
 from scripts.harness_loop_contracts import (
@@ -38,6 +39,23 @@ from scripts.harness_loop_orchestrator import (
     save_run,
     status_for_run,
 )
+
+
+def test_public_orchestrator_parser_rejects_removed_runtime_commands() -> None:
+    parser = harness_loop_orchestrator._build_parser()
+    removed_commands = (
+        ["run", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
+        ["run-demand-multi", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
+        ["run-autonomous", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
+        ["run-auditor", "--run-id", "run-1", "--driver", "fake"],
+    )
+    for command in removed_commands:
+        with pytest.raises(SystemExit):
+            parser.parse_args(command)
+
+    assert callable(harness_loop_orchestrator.run_bounded_planner)
+    assert callable(harness_loop_orchestrator.run_bounded_generator)
+    assert callable(harness_loop_orchestrator.run_bounded_evaluator)
 
 
 def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
@@ -75,30 +93,6 @@ def call_cli(argv: list[str]) -> int:
     with patch.dict(os.environ, {"HARNESS_LEGACY_MULTI_ROUND_TEST_COMPAT": "1"}):
         with redirect_stdout(io.StringIO()):
             return main(argv)
-
-
-def test_multi_round_cli_is_deprecated_and_points_to_supervisor() -> None:
-    stderr = io.StringIO()
-    with contextlib.redirect_stderr(stderr):
-        result = main(
-            [
-                "run-autonomous",
-                "--repo-root",
-                ".",
-                "--run-id",
-                "legacy-run",
-                "--planner-driver",
-                "fake",
-                "--generator-driver",
-                "fake",
-                "--evaluator-driver",
-                "fake",
-            ]
-        )
-
-    assert result == 2
-    assert "deprecated" in stderr.getvalue().lower()
-    assert "Supervisor" in stderr.getvalue()
 
 
 def remove_fake_evaluator_attempts(eval_dir: Path) -> None:
@@ -5972,93 +5966,6 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
             self.assertEqual(status["phase"], "stopped_blocked")
             self.assertEqual(calls, ["scope", "supply_chain"])
-
-    def test_cli_run_autonomous_accepts_fake_drivers(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo_root = Path(tmp)
-            init_git_repo(repo_root)
-            create_preflight_run(
-                repo_root=repo_root,
-                mode="autonomous-knowledge",
-                requirement="Expand wiki",
-                run_id="demo-run",
-                domain="ai_infra",
-                confirm=True,
-            )
-            seed_no_action_loop_state(repo_root, "ai_infra")
-
-            for generator_driver in ("fake",):
-                with self.subTest(generator_driver=generator_driver):
-                    self.assertEqual(
-                        call_cli(
-                            [
-                                "run-autonomous",
-                                "--repo-root",
-                                str(repo_root),
-                                "--run-id",
-                                "demo-run",
-                                "--planner-driver",
-                                "fake",
-                                "--generator-driver",
-                                generator_driver,
-                                "--evaluator-driver",
-                                "fake",
-                                "--max-eval-attempts",
-                                "2",
-                                "--max-tasks",
-                                "3",
-                            ]
-                        ),
-                        0,
-                    )
-                    run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
-                    self.assertEqual(run["phase"], "stopped_no_action")
-
-    def test_cli_run_autonomous_accepts_expanded_fake_drivers_with_expanded_policy(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo_root = Path(tmp)
-            init_git_repo(repo_root)
-            policy_file = self._seed_policy_fixture(
-                repo_root,
-                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
-            )
-            create_preflight_run(
-                repo_root=repo_root,
-                mode="autonomous-knowledge",
-                requirement="Expand wiki",
-                run_id="expanded-run",
-                domain="ai_infra",
-                confirm=True,
-                policy_file=policy_file,
-            )
-            seed_candidate_loop_state(repo_root, "ai_infra")
-
-            for generator_driver in ("fake-expanded-code", "fake-missing-evidence"):
-                with self.subTest(generator_driver=generator_driver):
-                    self.assertEqual(
-                        call_cli(
-                            [
-                                "run-autonomous",
-                                "--repo-root",
-                                str(repo_root),
-                                "--run-id",
-                                "expanded-run",
-                                "--planner-driver",
-                                "fake",
-                                "--generator-driver",
-                                generator_driver,
-                                "--evaluator-driver",
-                                "fake",
-                                "--max-eval-attempts",
-                                "2",
-                                "--max-tasks",
-                                "1",
-                            ]
-                        ),
-                        0,
-                    )
-                    run = read_json_file(run_dir_for(repo_root, "expanded-run") / "run.json")
-                    self.assertIn(run["phase"], {"stopped_no_action", "stopped_blocked", "stopped_budget"})
 
     def test_create_preflight_run_accepts_explicit_task_id_for_fake_planner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

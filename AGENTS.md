@@ -72,11 +72,19 @@ python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
 
 密钥文件属于已忽略的运行时状态；重启时复用，禁止提交或每次重新生成。Loop Dashboard 访问：`http://127.0.0.1:8766`。它无登录能力，只读展示 `.codex/loop-runs` 和 evaluator artifacts；只在可信网络中绑定 `0.0.0.0`。
 
+Loop 运行时统一由 Supervisor 和 Worker 两个长驻进程组成。标准命令、迁移、回滚和健康检查见 `docs/harness/loop-supervisor.md`。不要启动独立 auto-resume watcher，也不要从 legacy harness CLI 运行多轮 loop 或 Auditor。Task 10 完成切换门禁前，Task 9 代码不得停止或替换现有 live executor。
+
+```bash
+python3 -m scripts.loop_supervisor.cli watch --project-root /home/fyz/codex-skills
+python3 -m scripts.loop_supervisor.cli worker --project-root /home/fyz/codex-skills --worker-id worker-01
+```
+
 ### 启动后检查
 ```bash
 curl --noproxy '*' http://127.0.0.1:8765/api/health
 curl --noproxy '*' -I http://127.0.0.1:5173/
 curl --noproxy '*' http://127.0.0.1:8766/api/health
+python3 -m scripts.loop_supervisor.cli health --project-root /home/fyz/codex-skills
 curl --noproxy '*' -X POST http://127.0.0.1:8765/api/accelerator-candidates/999999999/trust-source
 ```
 

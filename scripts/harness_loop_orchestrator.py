@@ -6409,6 +6409,7 @@ def run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> A
             "inspect_autonomous_dirty_paths": _resume_autonomous_dirty_path_block,
             "inspect_required_evidence": _resume_autonomous_required_evidence_block,
             "inspect_autonomous_commit": _resume_autonomous_commit_block,
+            "retry_autonomous_push": _resume_autonomous_push_block,
         }.get(str(run.get("next_action") or ""))
         if recovery is None or not recovery(repo_root, run):
             raise RuntimeError("no bounded generator-result recovery matched")
@@ -6564,11 +6565,6 @@ def _build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
     evaluate.add_argument("--max-attempts", type=int, default=2)
 
-    audit = subparsers.add_parser("run-auditor", help="Run the Loop Auditor step.")
-    audit.add_argument("--repo-root", default=".")
-    audit.add_argument("--run-id", required=True)
-    audit.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-
     artifact_hygiene = subparsers.add_parser("artifact-hygiene", help="Run artifact hygiene for generated artifacts.")
     artifact_hygiene.add_argument("--repo-root", default=".")
     artifact_hygiene.add_argument("--run-id", required=True)
@@ -6576,49 +6572,6 @@ def _build_parser() -> argparse.ArgumentParser:
     cleanup = subparsers.add_parser("cleanup", help="Run cleanup for retained loop artifacts.")
     cleanup.add_argument("--repo-root", default=".")
     cleanup.add_argument("--run-id", required=True)
-
-    run = subparsers.add_parser("run", help="Run the planner/generator/evaluator loop.")
-    run.add_argument("--repo-root", default=".")
-    run.add_argument("--run-id", required=True)
-    run.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
-    run.add_argument("--generator-driver", choices=("fake", "codex-exec"), required=True)
-    run.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
-    run.add_argument("--max-eval-attempts", type=int, default=2)
-
-    run_demand_multi_parser = subparsers.add_parser("run-demand-multi", help="Run demand-development parent/child loop.")
-    run_demand_multi_parser.add_argument("--repo-root", default=".")
-    run_demand_multi_parser.add_argument("--run-id", required=True)
-    run_demand_multi_parser.add_argument("--planner-driver", choices=("fake", "fake-blocked", "fake-failed", "codex-exec"), required=True)
-    run_demand_multi_parser.add_argument(
-        "--generator-driver",
-        choices=(
-            "fake",
-            "fake-fail-child-2-once",
-            "fake-dirty-path",
-            "fake-timeout",
-            "fake-invalid-json",
-            "fake-missing-artifact",
-            "fake-stop-after-child-1",
-            "codex-exec",
-        ),
-        required=True,
-    )
-    run_demand_multi_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
-    run_demand_multi_parser.add_argument("--max-eval-attempts", type=int, default=2)
-    run_demand_multi_parser.add_argument("--max-children", type=int, default=3)
-
-    run_autonomous_parser = subparsers.add_parser("run-autonomous", help="Run the autonomous knowledge loop.")
-    run_autonomous_parser.add_argument("--repo-root", default=".")
-    run_autonomous_parser.add_argument("--run-id", required=True)
-    run_autonomous_parser.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
-    run_autonomous_parser.add_argument(
-        "--generator-driver",
-        choices=("fake", "fake-denylist", "fake-dependency", "fake-expanded-code", "fake-missing-evidence", "codex-exec"),
-        required=True,
-    )
-    run_autonomous_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
-    run_autonomous_parser.add_argument("--max-eval-attempts", type=int, default=2)
-    run_autonomous_parser.add_argument("--max-tasks", type=int, default=3)
 
     transition_meta_parser = subparsers.add_parser(
         "transition-meta",
@@ -6641,17 +6594,6 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    if (
-        args.command in {"run", "run-demand-multi", "run-autonomous"}
-        and os.environ.get("HARNESS_LEGACY_MULTI_ROUND_TEST_COMPAT") != "1"
-    ):
-        print(
-            "deprecated: multi-round orchestrator execution is test-only; "
-            "use the Loop Supervisor instead: "
-            f"python3 scripts/harness_loop_supervisor.py --watch --project-root {args.repo_root}",
-            file=sys.stderr,
-        )
-        return 2
     if args.command == "preflight":
         payload = create_preflight_run(
             repo_root=args.repo_root,
@@ -6685,13 +6627,6 @@ def main(argv: list[str] | None = None) -> int:
                 max_attempts=args.max_attempts,
             )
             payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "run-auditor":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:run-auditor"):
-            report_path = run_auditor(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-            payload = {
-                **status_for_run(repo_root=args.repo_root, run_id=args.run_id),
-                "audit_report_path": str(Path(report_path).resolve().relative_to(Path(args.repo_root).resolve())),
-            }
     elif args.command == "artifact-hygiene":
         with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:artifact-hygiene"):
             run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
@@ -6700,35 +6635,6 @@ def main(argv: list[str] | None = None) -> int:
         with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:cleanup"):
             run_cleanup(repo_root=args.repo_root, run_id=args.run_id)
             payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "run":
-        payload = run_loop(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            planner_driver=args.planner_driver,
-            generator_driver=args.generator_driver,
-            evaluator_driver=args.evaluator_driver,
-            max_eval_attempts=args.max_eval_attempts,
-        )
-    elif args.command == "run-demand-multi":
-        payload = run_demand_multi(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            planner_driver=args.planner_driver,
-            generator_driver=args.generator_driver,
-            evaluator_driver=args.evaluator_driver,
-            max_eval_attempts=args.max_eval_attempts,
-            max_children=args.max_children,
-        )
-    elif args.command == "run-autonomous":
-        payload = run_autonomous(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            planner_driver=args.planner_driver,
-            generator_driver=args.generator_driver,
-            evaluator_driver=args.evaluator_driver,
-            max_eval_attempts=args.max_eval_attempts,
-            max_tasks=args.max_tasks,
-        )
     elif args.command == "transition-meta":
         payload = transition_meta_loop_to_expansion(
             repo_root=args.repo_root,

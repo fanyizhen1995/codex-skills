@@ -123,6 +123,10 @@ def _watch_error_state(config: SupervisorConfig, error: Exception) -> dict[str, 
 
 
 def main(argv: list[str] | None = None) -> int:
+    print(
+        "deprecated: use python3 -m scripts.loop_supervisor.cli watch|once",
+        file=sys.stderr,
+    )
     parser = argparse.ArgumentParser(
         description="Run the SQLite Loop Supervisor once or in watch mode."
     )

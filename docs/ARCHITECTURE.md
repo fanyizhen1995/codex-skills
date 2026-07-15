@@ -25,6 +25,7 @@
 - **`personal-wiki/apps/crawler_workbench/backend/`**：FastAPI 应用。`api.py` 暴露端点，`fetch_service.py` 抓取 source，`ingest.py` 管理审批和 ingest，`wiki_cli.py` 调用 wiki CLI。
 - **`personal-wiki/apps/crawler_workbench/frontend/`**：React/Vite UI，按页面和组件拆分，使用 `/api` 代理访问 backend。
 - **`harness-step4-evaluator-gates/`**：本地拉下来的 Step4 skill/template 源。它不是运行时目标；安装后运行时归本仓库 `scripts/`、`docs/harness/` 和 `.codex/evaluations/templates/` 所有。
+- **`scripts/loop_supervisor/`**：统一 loop 控制面。Supervisor 负责 reconcile、transition policy、恢复、Reviewer 和队列；Worker 只租约并执行 bounded action；SQLite 是可由 run artifacts 重建的运行时投影。
 - **`docs/superpowers/`**：设计和计划记录。已提交的 spec/plan 是当前 harness evaluator 安装的来源。
 
 ## 依赖方向规则
@@ -33,6 +34,8 @@
 - frontend 只能通过 API 类型和 HTTP 端点访问 backend，不直接读写 repo 文件。
 - `raw/` 是事实来源，`wiki/` 是 curated 层。curated 页面必须通过 `source_refs` 或正文引用回 raw 证据。
 - Step4 hook driver 必须在没有 repo-side runtime 的目录里安全 no-op，避免影响其他项目。
+- loop transition policy 只能来自 `scripts/loop_supervisor/registry.py`；Worker、迁移兼容层和测试不得维护第二套 actionable phase 列表。
+- `scripts/harness_loop_orchestrator.py` 只保留 Worker 依赖的低层执行原语和非多轮兼容命令，不是公开运行角色；独立 auto-resume 和 Auditor runtime 已移除。
 
 ## 主要数据流
 ### Personal Wiki CLI
@@ -43,6 +46,9 @@
 
 ### Step4 Evaluator
 交互式 Codex session 结束触发 Stop hook -> `scripts/harness_evaluator_hook_driver.py` 解析 session/task 状态 -> 创建 evaluator bundle -> `harness_evaluator_orchestrator.py` 运行 read-only evaluator 或 shell scenario -> `result.json` 和 `summary.md` 写入 `.codex/evaluations/tasks/<task-id>/...`。
+
+### Loop Supervisor
+`run.json` 和 retained transition artifacts -> Supervisor reconcile -> SQLite run/action/recovery/review projection -> Worker 原子租约 -> 单个 bounded primitive -> result/evidence -> 下一次 reconcile。Reviewer cadence 从稳定 lineage 的 semantic-parent completion records 重建，每两个 parent 触发一次 project-global read-only review。JSONL 迁移必须逐行读取，先在 Git index 外保存快照，再验证 count、first/last timestamp、decision status、run projection 和 cadence；shadow compare 增加用户介入时禁止切换。
 
 ## 待人工确认
 - 部分 historical skill 的原始设计动机只能从 README 和提交历史推断，需要维护者补充更精确的背景。

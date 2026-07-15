@@ -463,6 +463,49 @@ def discover_run_records(
     ]
 
 
+def infer_loop_lineages(records: Sequence[RunRecord]) -> dict[str, str]:
+    """Infer stable semantic lineages for legacy continuation chains."""
+    by_id = {record.run_id: record for record in records if record.valid}
+    result: dict[str, str] = {}
+
+    def has_semantic_parent_evidence(run: Mapping[str, Any]) -> bool:
+        counter = run.get("parent_task_counter")
+        if isinstance(counter, int) and not isinstance(counter, bool) and counter > 0:
+            return True
+        values: list[str] = []
+        for key in ("completed_semantic_parent_ids", "semantic_parent_ids", "_autonomous_completed_task_ids"):
+            raw = run.get(key)
+            if isinstance(raw, list):
+                values.extend(str(value) for value in raw if isinstance(value, str))
+        return any(re.search(r"parent-(\d+)", value) for value in values)
+
+    def resolve(run_id: str, trail: frozenset[str] = frozenset()) -> str:
+        if run_id in result:
+            return result[run_id]
+        if run_id in trail:
+            return run_id
+        record = by_id[run_id]
+        explicit = str(record.payload.get("loop_lineage_id") or "")
+        if explicit:
+            result[run_id] = explicit
+            return explicit
+        previous = str(record.payload.get("previous_run_id") or "")
+        if previous not in by_id:
+            result[run_id] = run_id
+            return run_id
+        lineage = resolve(previous, trail | {run_id})
+        if has_semantic_parent_evidence(record.payload) and not has_semantic_parent_evidence(
+            by_id[previous].payload
+        ):
+            lineage = run_id
+        result[run_id] = lineage
+        return lineage
+
+    for run_id in by_id:
+        resolve(run_id)
+    return result
+
+
 def _records_under_worktrees(root: Path, root_fd: int) -> list[RunRecord]:
     worktrees_root = root / ".worktrees"
     try:
@@ -681,12 +724,21 @@ def _reconcile_once_locked(
     include_worktrees: bool,
     run_locks: ExitStack,
 ) -> ReconcileResult:
+    existing_decisions = store.fetch_all("user_decisions")
     open_decisions_by_id = {
         str(item["decision_id"]): item
-        for item in store.fetch_all("user_decisions")
+        for item in existing_decisions
         if item.get("status") == "open"
     }
+    archived_legacy_run_ids = {
+        str(item.get("run_id") or "")
+        for item in existing_decisions
+        if item.get("status") == "closed"
+        and item.get("resolution") == "archived during legacy migration"
+        and str(item.get("failure_key") or "").startswith("unsupported_state:")
+    }
     records = discover_run_records(root, include_worktrees=include_worktrees)
+    inferred_lineages = infer_loop_lineages(records)
     valid_records: list[RunRecord] = []
     decisions: list[dict[str, Any]] = []
     tokens_by_run: dict[str, RunLockToken] = {}
@@ -720,7 +772,13 @@ def _reconcile_once_locked(
             if not record.valid:
                 _record_invalid_run_decision(store, record, decisions)
                 continue
-            projected = _project_run(root, store, record, token=token)
+            projected = _project_run(
+                root,
+                store,
+                record,
+                token=token,
+                loop_lineage_id=inferred_lineages.get(record.run_id, record.run_id),
+            )
             tokens_by_run[projected.run_id] = token
         except (OSError, TypeError, ValueError) as exc:
             failure_key = _failure_key("run", record.run_id, str(exc))
@@ -774,6 +832,17 @@ def _reconcile_once_locked(
                 )
             )
             observed_decision_keys.add(failure_key)
+            desired_by_run[record.run_id] = None
+            continue
+
+        action = desired_by_run[record.run_id]
+        if (
+            action is not None
+            and action.action_type is ActionType.ASK_USER
+            and record.run_id in archived_legacy_run_ids
+            and run.get("phase") == "stopped_blocked"
+            and run.get("next_action") == "inspect_blocked_diagnostics"
+        ):
             desired_by_run[record.run_id] = None
             continue
 
@@ -1124,6 +1193,7 @@ def _project_run(
     record: RunRecord,
     *,
     token: RunLockToken,
+    loop_lineage_id: str = "",
 ) -> RunRecord:
     run = dict(record.payload)
     if run.get("phase") in {"audit_pending", "auditing", "audit_blocked"}:
@@ -1174,7 +1244,13 @@ def _project_run(
             expected_fingerprint=_state_fingerprint(record.payload),
         )
         incoming_revision = int(run["state_revision"])
-        projection = _projection(project_root, record, run, incoming_revision)
+        projection = _projection(
+            project_root,
+            record,
+            run,
+            incoming_revision,
+            loop_lineage_id=loop_lineage_id,
+        )
         record = RunRecord(
             run_id=record.run_id,
             repo_root=record.repo_root,
@@ -1223,6 +1299,8 @@ def _projection(
     record: RunRecord,
     run: Mapping[str, Any],
     revision: int,
+    *,
+    loop_lineage_id: str = "",
 ) -> dict[str, Any]:
     policy = str(run.get("policy") or "")
     phase = str(run.get("phase") or "")
@@ -1241,7 +1319,9 @@ def _projection(
         "repo_relative_root": record.repo_root.resolve().relative_to(project_root).as_posix()
         or ".",
         "state_fingerprint": _state_fingerprint(run),
-        "loop_lineage_id": str(run.get("loop_lineage_id") or record.run_id),
+        "loop_lineage_id": str(
+            run.get("loop_lineage_id") or loop_lineage_id or record.run_id
+        ),
         "parent_run_id": str(
             run.get("previous_run_id") or run.get("parent_run_id") or ""
         ),

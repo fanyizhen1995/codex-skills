@@ -57,7 +57,7 @@ class MutableClock:
 
 
 def migrated_store(tmp_path: Path, clock: MutableClock | None = None) -> SupervisorStore:
-    store = SupervisorStore.open(tmp_path, clock=clock)
+    store = SupervisorStore.open(tmp_path, clock=clock or MutableClock())
     store.migrate()
     return store
 

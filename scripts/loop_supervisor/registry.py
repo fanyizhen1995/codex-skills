@@ -80,6 +80,26 @@ _registry.update(
             True,
             user_escalation=False,
         ),
+        ("autonomous_knowledge", "stopped_blocked", "inspect_autonomous_dirty_paths"): TransitionRule(
+            ActionType.RECOVER_GENERATOR_RESULT,
+            True,
+            user_escalation=False,
+        ),
+        ("autonomous_knowledge", "stopped_blocked", "inspect_required_evidence"): TransitionRule(
+            ActionType.RECOVER_GENERATOR_RESULT,
+            True,
+            user_escalation=False,
+        ),
+        ("autonomous_knowledge", "stopped_blocked", "inspect_autonomous_commit"): TransitionRule(
+            ActionType.RECOVER_GENERATOR_RESULT,
+            True,
+            user_escalation=False,
+        ),
+        ("autonomous_knowledge", "stopped_blocked", "retry_autonomous_push"): TransitionRule(
+            ActionType.RECOVER_GENERATOR_RESULT,
+            True,
+            user_escalation=False,
+        ),
         ("demand_development", "planned", "run_planner"): TransitionRule(ActionType.RUN_PLANNER, True),
         ("demand_development", "planned", "run_generator"): TransitionRule(ActionType.RUN_GENERATOR, True),
         ("demand_development", "evaluating", "run_evaluator"): TransitionRule(ActionType.RUN_EVALUATOR, False),
