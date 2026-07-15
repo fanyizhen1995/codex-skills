@@ -1,0 +1,87 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-2",
+  "layer": "network-storage-cluster",
+  "candidate": {
+    "title": "Dayu Paratus DPU software-stack and cloud-integration boundary evidence",
+    "source_type": "hardware",
+    "vendor": "dayu",
+    "model": "paratus-dpu",
+    "sku_or_memory_variant": "software-stack-boundary",
+    "identity_key": "hardware:dayu:paratus-dpu:software-stack-boundary"
+  },
+  "identity_keys": [
+    {
+      "title": "Dayu Paratus 1.0 product page",
+      "source_type": "hardware",
+      "vendor": "dayu",
+      "model": "paratus-1.0",
+      "sku_or_memory_variant": "software-stack-boundary",
+      "identity_key": "hardware:dayu:paratus-1-0:software-stack-boundary",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md"
+    },
+    {
+      "title": "Dayu Paratus 2.0 product page",
+      "source_type": "hardware",
+      "vendor": "dayu",
+      "model": "paratus-2.0",
+      "sku_or_memory_variant": "software-stack-boundary",
+      "identity_key": "hardware:dayu:paratus-2-0:software-stack-boundary",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus2/20260628T060445547733Z-www-dayudpu-com-product-paratus2-24678a2fdd.md"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Read the two existing local Dayu product-page captures for Paratus 1.0 and Paratus 2.0. The June 27 and July 6 Paratus 1.0 captures share the same content hash as the selected June 28 Paratus 1.0 source, and the June 27 Paratus 2.0 capture shares the same content hash as the selected June 28 Paratus 2.0 source. No new external fetch was used.",
+    "wiki_search": "Searched Network Storage Cluster Infrastructure, Compute Accelerator Parameter Comparison, AI Infra Coverage Map, coverage-map.json, loop-state.json, ingest.md, and prior parent/r10 gap proofs for Dayu, Paratus, DPDK, SPDK, OpenStack, Kubernetes, HPRT, FPGA, RDMA, Corigine, Yusur, Resnics, Asterfusion, JaguarMicro, and BlueField. Before this run-local task, Dayu appeared as crawl-inventory and no-parameter comparison evidence only, while prior DPU/SmartNIC slices had already covered the other vendors.",
+    "domain_index_scan": "ai_infra wiki/index.md routes this work to Network Storage Cluster Infrastructure, Compute Accelerator Parameter Comparison, and AI Infra Coverage Map. No standalone Dayu product page is needed because the source supports only a bounded qualitative boundary update.",
+    "structured_catalog_scan": "data/compute_accelerators schema, SKU, observation, and resolved files have no Dayu structured row. The selected Dayu captures contain qualitative software, offload, and cloud-integration wording but no schema-supported numeric fields with explicit product boundaries.",
+    "prior_manifest_scan": "Parent-1 covers Corigine Agilio CX; parent-3 covers Yusur K2-Pro and SWIFT-2200N Pro; parent-7 covers Resnics Stargate-N2025; parent-9 covers Asterfusion Helium and CX102S-DPU; parent-15 covers JaguarMicro Yunxiao; parent-18 covers NVIDIA BlueField-4; r10 task-3 covers Resnics Stargate-N1025 and Stargate-S1100. Parent-21 covers Huawei Atlas 800T A3 aggregate fields. None of these promote Dayu Paratus software/offload or OpenStack/Kubernetes integration facts."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "manifest-ai-infra-expansion-continuation-20260708-parent-22-gap-proof.json",
+      "result": "This run-local task mirrors semantic parent-22 for harness binding and preserves the same Dayu-only boundary."
+    },
+    {
+      "target": "prior DPU/SmartNIC parent manifests",
+      "result": "Corigine, Yusur, Resnics, Asterfusion, JaguarMicro, and BlueField DPU/SmartNIC slices are referenced only as duplicate boundaries and are not modified as new task-2 evidence."
+    },
+    {
+      "target": "data/compute_accelerators schema, SKU, observation, and resolved data",
+      "result": "No Dayu structured catalog files are changed because the selected raw text has no schema-supported numeric fields."
+    },
+    {
+      "target": "wiki/references/compute-accelerator-parameter-comparison.md",
+      "result": "Dayu remains in raw comparison and boundary text only; no Dayu resolved catalog row is added."
+    }
+  ],
+  "gap_reason": "The local Dayu Paratus captures contain product-page text that improves the partial network-storage-cluster and hardware-accelerator boundary for DPU software/offload and cloud integration. Paratus 1.0 supports Linux on ARM SoC with DPDK/SPDK development kits, virtualization-network components, storage-client components, and OpenStack/Kubernetes integration components for bare-metal, VM, and container cloud services. Paratus 2.0 keeps the same software development/runtime environment while adding ARM SoC + FPGA architecture, FPGA network data-path processing, Dayu HPRT RDMA-adjacent protocol wording, end-to-end network data encryption wording, and upper-layer application behavior-analysis wording. The sources do not expose schema-supported numeric fields, measured performance, benchmark, production-operation, SLO, incident, or protocol-level storage-fabric proof.",
+  "promoted_boundaries": [
+    {
+      "product": "Dayu Paratus 1.0",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+      "boundary": "Qualitative DPU software-stack and cloud-integration evidence only."
+    },
+    {
+      "product": "Dayu Paratus 2.0",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus2/20260628T060445547733Z-www-dayudpu-com-product-paratus2-24678a2fdd.md",
+      "boundary": "Qualitative DPU architecture/software boundary evidence only."
+    }
+  ],
+  "non_promoted_boundaries": [
+    "No Dayu structured compute_accelerators SKU, observation, or resolved field is added.",
+    "No Dayu network bandwidth, memory capacity, host interface, power, IOPS, latency, packet rate, throughput, benchmark, production-operation, training-throughput, inference-throughput, service-SLO, availability, incident, or protocol-level storage-fabric claim is promoted.",
+    "No crawler backend, crawler frontend, Loop Dashboard, harness, package, source-profile, or subscription file is modified."
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-22-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-22-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.parent-22.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ]
+}

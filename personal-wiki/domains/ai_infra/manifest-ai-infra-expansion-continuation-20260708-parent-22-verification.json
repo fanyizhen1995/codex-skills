@@ -1,0 +1,150 @@
+{
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-22-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-2-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-22-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.parent-22.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md"
+  ],
+  "curated_paths": [
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/compute-accelerator-parameter-comparison.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+  ],
+  "delegated_live_evidence": [
+    "trusted-live-evidence/service-availability.json",
+    "trusted-live-evidence/crawler-workbench-freshness.json",
+    "trusted-live-evidence/search-api-visibility.json",
+    "trusted-live-evidence/frontend-visibility.json",
+    "trusted-live-evidence/loop-dashboard-freshness.json"
+  ],
+  "domain": "ai_infra",
+  "generated_at": "2026-07-10T09:36:45Z",
+  "non_promoted_claims": [
+    "No Dayu structured compute_accelerators SKU, observation, or resolved field was added.",
+    "No Dayu network bandwidth, memory, host-interface, power, IOPS, latency, packet-rate, throughput, benchmark, production-operation, training-throughput, inference-throughput, service-SLO, availability, incident, deployment, or protocol-level storage-fabric claim was promoted.",
+    "No new external source was fetched and no crawler subscription/source-profile changed.",
+    "No crawler backend, crawler frontend, Loop Dashboard, harness, package, or dependency file changed."
+  ],
+  "raw_sources": [
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/compute-accelerators-dayu-paratus2/20260628T060445547733Z-www-dayudpu-com-product-paratus2-24678a2fdd.md"
+  ],
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008",
+  "semantic_parent_task_id": "ai-infra-expansion-continuation-20260708-parent-22",
+  "status": "pass",
+  "summary": "Promoted bounded Dayu Paratus qualitative DPU software/offload and cloud-integration boundary evidence from existing local raw captures only.",
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-2",
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "Rebuilt ai_infra wiki index; output path personal-wiki/domains/ai_infra/wiki/index.md."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "summary": "Rebuilt ai_infra backlinks; output path personal-wiki/domains/ai_infra/wiki/backlinks.json."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "summary": "coverage-map.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "summary": "loop-state.json parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-22-gap-proof.json",
+      "status": "pass",
+      "summary": "Semantic parent-22 gap proof parses as JSON."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-2-gap-proof.json",
+      "status": "pass",
+      "summary": "Run-local task-2 gap proof parses as JSON."
+    },
+    {
+      "command": "validate_gap_proof_file parent-22 with expected_task_id ai-infra-expansion-continuation-20260708-parent-22",
+      "status": "pass",
+      "summary": "Gap proof validator returned no findings for the semantic parent manifest."
+    },
+    {
+      "command": "validate_gap_proof_file task-2 with expected_task_id ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-2",
+      "status": "pass",
+      "summary": "Gap proof validator returned no findings for the run-local task manifest."
+    },
+    {
+      "command": "validate_coverage_map_payload and validate_loop_state_payload",
+      "status": "pass",
+      "summary": "Coverage map and loop-state contract validators completed without findings."
+    },
+    {
+      "command": "validate_planner_output_payload on planner-output.json",
+      "status": "pass",
+      "summary": "Planner output contract validator completed without findings."
+    },
+    {
+      "command": "rg Dayu/Paratus/parent-22 terms across curated pages, coverage-map, loop-state, and ingest log",
+      "status": "pass",
+      "summary": "Dayu Paratus, DPDK/SPDK, HPRT, OpenStack/Kubernetes, and caveat terms are visible in the expected task artifacts."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "summary": "No whitespace errors in ai_infra domain diff."
+    },
+    {
+      "command": "structured catalog absence check for Dayu/Paratus under data/compute_accelerators/{skus,observations,resolved}",
+      "status": "pass",
+      "summary": "No Dayu or Paratus structured SKU, observation, or resolved entry exists."
+    },
+    {
+      "command": "semantic boundary check for Dayu qualitative-only wording and caveats",
+      "status": "pass",
+      "summary": "Curated artifacts retain no-structured-field, benchmark, production-operation, SLO, and protocol-level storage-fabric caveats."
+    },
+    {
+      "command": "git diff --quiet -- personal-wiki/domains/ai_infra/data/compute_accelerators",
+      "status": "pass",
+      "summary": "Structured accelerator catalog files are unchanged for this Dayu boundary task."
+    },
+    {
+      "command": "prior DPU/SmartNIC duplicate-boundary proof check",
+      "status": "pass",
+      "summary": "Task-2 gap proof names Corigine, Yusur, Resnics, Asterfusion, JaguarMicro, and BlueField only as prior boundary context and records that no Dayu structured catalog row was added."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "summary": "No blocked auth-marker strings found in declared changed files."
+    },
+    {
+      "command": "code/dependency applicability check",
+      "status": "pass",
+      "summary": "No crawler backend, crawler frontend, Loop Dashboard, harness, package, or dependency file changed; backend/frontend/dashboard/harness tests are not applicable for this wiki-only task."
+    },
+    {
+      "command": "delegated trusted live evidence manifest entries for service/search/frontend/crawler/dashboard visibility",
+      "status": "delegated",
+      "summary": "No tmux, uvicorn, npm, Vite, localhost socket probe, or long-lived service command was run by the generator. Live semantic checks are delegated through required-evidence-manifest.json for orchestrator capture."
+    },
+    {
+      "command": "commit and push evidence",
+      "status": "delegated",
+      "summary": "No git commit or push was run; generator-result.json leaves commit empty per user instruction and delegates commit/push to the orchestrator after gates pass."
+    }
+  ]
+}

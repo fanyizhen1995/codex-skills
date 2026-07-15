@@ -42,6 +42,8 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-yusur-swift-2200n/20260628T060700719790Z-www-yusur-tech-product-swift-swift2200n-7afeac0475.md
   - ../../raw/crawler/compute-accelerators-asterfusion-helium-dpu/20260706T204116820726Z-asterfusion-com-product-helium-dpu-121181ec67.md
   - ../../raw/crawler/compute-accelerators-asterfusion-cx102s-dpu/20260706T204116541565Z-asterfusion-com-product-cx102s-dpu-b77dd4635a.md
+  - ../../raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md
+  - ../../raw/crawler/compute-accelerators-dayu-paratus2/20260628T060445547733Z-www-dayudpu-com-product-paratus2-24678a2fdd.md
   - ../../manifest-ai-infra-expansion-2026-07-07-r10-task-3-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-1-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-3-gap-proof.json
@@ -49,6 +51,7 @@ source_refs:
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-9-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-15-gap-proof.json
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
+  - ../../manifest-ai-infra-expansion-continuation-20260708-parent-22-gap-proof.json
   - ../../raw/crawler/nccl-aws-hpc-blog/20260705T041042318130Z-aws-amazon-com-blogs-hpc-the-complete-picture-unified-monitoring-for-aws-parallel-computin-ba8cb4538e.md
   - ../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md
@@ -140,6 +143,21 @@ NVMe-oF, GPUDirect Storage, block/file/object support, rapid data access, and
 high-performance inference, but those are retained here as boundary context and
 not generalized into catalog storage fields, protocol-level storage-fabric
 behavior, benchmark results, operations evidence, or SLO claims.
+Continuation parent 22 adds Dayu Paratus as a qualitative DPU software-stack
+and cloud-integration boundary from local product pages. Paratus 1.0 is Dayu's
+first DPU product and is described as using Linux on ARM SoC plus DPDK and SPDK
+development kits so users can move host-side functions onto the DPU; the same
+page records virtualization-network components, storage-client components, and
+OpenStack/Kubernetes integration components for bare-metal, VM, and container
+cloud services. Paratus 2.0 keeps the same software development/runtime
+environment while adding an ARM SoC + FPGA architecture, FPGA network data-path
+processing, Dayu HPRT RDMA-adjacent protocol wording, end-to-end network
+data-encryption wording, and upper-layer application behavior-analysis wording.
+Use Dayu only as product-page boundary evidence for DPU offload, software
+runtime, and cloud-integration surfaces. It is not protocol-level
+storage-fabric proof, measured performance, benchmark evidence,
+production-operation evidence, service-SLO evidence, incident evidence, or a
+structured catalog row.
 
 N2025 SR-IOV, RDMA, P4/session/protocol, storage-offload, line-rate,
 low-latency, benchmark, and production-operation text remains product-page
@@ -213,6 +231,9 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
 - local DPU/SmartNIC/NVMe-oF product captures only for product-specific storage or offload signals.
 - NVIDIA BlueField-4 DPU and CMX/STX context only as product-boundary evidence for AI-factory networking/storage/security adjacency, not as benchmark or production-operation proof.
+- Dayu Paratus 1.0 and 2.0 only as product-page boundary evidence for DPU
+  software/offload and OpenStack/Kubernetes cloud-integration components, not
+  as storage-fabric, benchmark, operations, SLO, or deployment proof.
 
 Do not use this page to claim complete production incident readiness, product-specific benchmark leadership, or full non-NVIDIA fabric operations. Those remain future gaps.
 
@@ -231,6 +252,9 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [AWS Trainium2 raw capture](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md)
 - [NVIDIA BlueField platform raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
 - [Continuation parent-18 NVIDIA BlueField-4 gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json)
+- [Dayu Paratus 1.0 raw capture](../../raw/crawler/compute-accelerators-dayu-paratus1/20260628T060445164573Z-www-dayudpu-com-product-paratus1-70c58cfadc.md)
+- [Dayu Paratus 2.0 raw capture](../../raw/crawler/compute-accelerators-dayu-paratus2/20260628T060445547733Z-www-dayudpu-com-product-paratus2-24678a2fdd.md)
+- [Continuation parent-22 Dayu Paratus gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-22-gap-proof.json)
 - [Resnics Stargate-N2025 raw capture](../../raw/crawler/compute-accelerators-resnics-stargate-n2025/20260628T060657411423Z-www-resnics-com-product-stargate-n2025-dpu-f2feeec038.md)
 - [Resnics Stargate-S1100 raw capture](../../raw/crawler/compute-accelerators-resnics-stargate-s1100/20260628T060657808728Z-www-resnics-com-product-stargate-s1100-nvme-of-e3a4fe3da7.md)
 - [Corigine Agilio CX raw capture](../../raw/crawler/compute-accelerators-corigine-agilio-cx-pdf/20260628T060444859456Z-storage-corigine-com-cn-uploadfiles-pdf-2022-01-24-1-agilio-20cx-202x25gbe-20smartnic-20-e-a138a8aa07.md)
