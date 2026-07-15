@@ -961,6 +961,9 @@ def test_log_detail_traverses_lexical_task_root_without_resolving_it(
 def test_log_list_rejects_cross_task_evaluation_alias(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["task_id"] = "task-a"
+    write_json(run_dir / "run.json", run_data)
     write_json(
         run_dir / "evaluator-result.json",
         {
@@ -992,6 +995,9 @@ def test_log_detail_rejects_cross_task_evaluation_alias_after_issue(
 ) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["task_id"] = "task-a"
+    write_json(run_dir / "run.json", run_data)
     write_json(
         run_dir / "evaluator-result.json",
         {
@@ -1021,6 +1027,177 @@ def test_log_detail_rejects_cross_task_evaluation_alias_after_issue(
 
     assert detail.status_code == 404
     assert "replacement evaluation secret" not in detail.text
+
+
+@pytest.mark.parametrize(
+    ("evaluator_task_id", "target_parts"),
+    [
+        (".", ()),
+        ("..", ("..",)),
+        ("./victim", ("victim",)),
+        ("nested/victim", ("nested", "victim")),
+        ("nested\\victim", ("nested\\victim",)),
+        ("victim/", ("victim",)),
+        ("victim", ("victim",)),
+    ],
+)
+def test_log_list_rejects_noncanonical_or_cross_run_evaluator_task_ids(
+    tmp_path: Path,
+    evaluator_task_id: str,
+    target_parts: tuple[str, ...],
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["task_id"] = "owner-task"
+    write_json(run_dir / "run.json", run_data)
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": evaluator_task_id,
+            "final_bundle_id": "bundle-1",
+        },
+    )
+    tasks_dir = tmp_path / ".codex" / "evaluations" / "tasks"
+    write_json(
+        tasks_dir.joinpath(*target_parts) / "bundle-1" / "result.json",
+        {"stdout": "cross-task-owner-secret\n"},
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        response = client.get("/api/runs/demo-run/logs")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert "cross-task-owner-secret" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("bundle_id", "target_parts"),
+    [
+        (".", ()),
+        ("..", ("..",)),
+        ("./bundle", ("bundle",)),
+        ("nested/bundle", ("nested", "bundle")),
+        ("nested\\bundle", ("nested\\bundle",)),
+        ("bundle/", ("bundle",)),
+    ],
+)
+def test_log_list_rejects_noncanonical_bundle_ids(
+    tmp_path: Path,
+    bundle_id: str,
+    target_parts: tuple[str, ...],
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["task_id"] = "owner-task"
+    write_json(run_dir / "run.json", run_data)
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": "owner-task",
+            "final_bundle_id": bundle_id,
+        },
+    )
+    task_dir = tmp_path / ".codex" / "evaluations" / "tasks" / "owner-task"
+    write_json(
+        task_dir.joinpath(*target_parts) / "result.json",
+        {"stdout": "bundle-alias-secret\n"},
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        response = client.get("/api/runs/demo-run/logs")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert "bundle-alias-secret" not in response.text
+
+
+@pytest.mark.parametrize("bundle_id", [None, False, 0, []])
+def test_log_list_rejects_non_string_bundle_ids(
+    tmp_path: Path,
+    bundle_id: object,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["task_id"] = "owner-task"
+    write_json(run_dir / "run.json", run_data)
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": "owner-task",
+            "final_bundle_id": bundle_id,
+        },
+    )
+    write_json(
+        tmp_path
+        / ".codex"
+        / "evaluations"
+        / "tasks"
+        / "owner-task"
+        / "bundle-1"
+        / "result.json",
+        {"stdout": "malformed-bundle-secret\n"},
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        response = client.get("/api/runs/demo-run/logs")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert "malformed-bundle-secret" not in response.text
+
+
+@pytest.mark.parametrize(
+    "replacement_task_id",
+    [".", "./owner-task", "nested/owner-task", "owner-task/", "other-task"],
+)
+def test_log_detail_revalidates_evaluator_task_against_run_metadata(
+    tmp_path: Path,
+    replacement_task_id: str,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_path = run_dir / "run.json"
+    run_data = json.loads(run_path.read_text(encoding="utf-8"))
+    run_data["task_id"] = "owner-task"
+    write_json(run_path, run_data)
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": "owner-task",
+            "final_bundle_id": "bundle-1",
+        },
+    )
+    write_json(
+        tmp_path
+        / ".codex"
+        / "evaluations"
+        / "tasks"
+        / "owner-task"
+        / "bundle-1"
+        / "result.json",
+        {"stdout": "owned task output\n"},
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        run_data["task_id"] = replacement_task_id
+        write_json(run_path, run_data)
+
+        detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert detail.status_code == 404
 
 
 def test_log_detail_reads_same_leaf_descriptor_during_swap(
@@ -1208,6 +1385,9 @@ def test_log_detail_fails_closed_when_final_bundle_reference_changes(
 ) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    run_data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    run_data["task_id"] = "task-a"
+    write_json(run_dir / "run.json", run_data)
     evaluator_path = run_dir / "evaluator-result.json"
     write_json(
         evaluator_path,

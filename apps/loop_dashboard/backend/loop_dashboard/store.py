@@ -369,7 +369,10 @@ class LoopDashboardStore:
         evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if not isinstance(evaluator, dict):
             evaluator = {}
-        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        _, rich_evaluator = self._rich_evaluator_result(
+            evaluator,
+            expected_task_id=run_data.get("task_id"),
+        )
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         run_kind = self._run_kind(run_data)
@@ -1737,7 +1740,10 @@ class LoopDashboardStore:
         evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if isinstance(evaluator, dict):
             diagnostics.extend(self._evaluator_diagnostics(evaluator, run_dir / "evaluator-result.json"))
-            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            rich_path, rich_evaluator = self._rich_evaluator_result(
+                evaluator,
+                expected_task_id=run_data.get("task_id"),
+            )
             if rich_path is not None and rich_evaluator is not None:
                 diagnostics.extend(self._evaluator_diagnostics(rich_evaluator, rich_path))
         for filename, kind in (
@@ -1819,10 +1825,16 @@ class LoopDashboardStore:
         }
 
     def _acceptance_summary_for_run_dir(self, run_dir: Path) -> dict[str, Any]:
+        run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
+        if not isinstance(run_data, dict):
+            run_data = {}
         evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if not isinstance(evaluator, dict):
             evaluator = {}
-        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        _, rich_evaluator = self._rich_evaluator_result(
+            evaluator,
+            expected_task_id=run_data.get("task_id"),
+        )
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         return self._acceptance_summary(evaluator, rich_evaluator, self._scenario_contract(evaluator))
@@ -1863,7 +1875,10 @@ class LoopDashboardStore:
         evaluator = self._read_json(child.source.run_dir / "evaluator-result.json", allowed_root=child.source.run_dir)
         if not isinstance(evaluator, dict):
             evaluator = {}
-        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        _, rich_evaluator = self._rich_evaluator_result(
+            evaluator,
+            expected_task_id=run_data.get("task_id"),
+        )
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         governance_artifacts = self._governance_artifacts(child.source.run_dir, evaluator)
@@ -2408,6 +2423,10 @@ class LoopDashboardStore:
         evaluator_path = run_dir / "evaluator-result.json"
         evaluator = self._read_json_secure(evaluator_path, run_dir)
         if isinstance(evaluator, dict):
+            run_data = self._read_json_secure(run_dir / "run.json", run_dir)
+            run_task_id = (
+                run_data.get("task_id") if isinstance(run_data, dict) else None
+            )
             handles.extend(
                 self._inline_log_handles(
                     run_id,
@@ -2419,26 +2438,33 @@ class LoopDashboardStore:
                     budget,
                 )
             )
-            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            rich_path, rich_evaluator = self._rich_evaluator_result(
+                evaluator,
+                expected_task_id=run_task_id,
+            )
             if rich_path is not None and rich_evaluator is not None:
-                rich_chain = self._rich_evaluator_reference_chain(
-                    evaluator_path,
-                    evaluator,
-                    rich_path,
+                evaluator_task_id = self._canonical_id_component(
+                    evaluator.get("task_id")
                 )
-                handles.extend(
-                    self._inline_log_handles(
-                        run_id,
-                        run_dir,
-                        rich_evaluator,
+                if evaluator_task_id is not None:
+                    rich_chain = self._rich_evaluator_reference_chain(
+                        evaluator_path,
+                        evaluator,
                         rich_path,
-                        rich_path.parent,
-                        seen,
-                        budget,
-                        evaluator_task_id=str(evaluator.get("task_id") or ""),
-                        reference_chain=rich_chain,
                     )
-                )
+                    handles.extend(
+                        self._inline_log_handles(
+                            run_id,
+                            run_dir,
+                            rich_evaluator,
+                            rich_path,
+                            rich_path.parent,
+                            seen,
+                            budget,
+                            evaluator_task_id=evaluator_task_id,
+                            reference_chain=rich_chain,
+                        )
+                    )
             scenario_path = evaluator.get("scenario_command_results_path")
             if isinstance(scenario_path, str) and scenario_path:
                 scenario_result = self._resolve_artifact_reference(
@@ -2804,13 +2830,20 @@ class LoopDashboardStore:
 
         source_root = safe_run_dir
         if handle.evaluator_task_id:
+            run_task_id = self._canonical_id_component(
+                run_data.get("task_id") if isinstance(run_data, dict) else None
+            )
             evaluator = self._read_json_secure(
                 safe_run_dir / "evaluator-result.json",
                 safe_run_dir,
             )
             if (
-                not isinstance(evaluator, dict)
-                or evaluator.get("task_id") != handle.evaluator_task_id
+                self._canonical_id_component(handle.evaluator_task_id)
+                != handle.evaluator_task_id
+                or run_task_id != handle.evaluator_task_id
+                or not isinstance(evaluator, dict)
+                or self._canonical_id_component(evaluator.get("task_id"))
+                != handle.evaluator_task_id
             ):
                 return None
             task_dir = self._safe_task_evaluation_dir(handle.evaluator_task_id)
@@ -2912,10 +2945,11 @@ class LoopDashboardStore:
                     return False
 
                 if step.kind == "latest_bundle":
-                    if payload.get("final_bundle_id"):
+                    if payload.get("final_bundle_id", "") != "":
                         return False
                     current_target, _current_payload = self._rich_evaluator_result(
-                        payload
+                        payload,
+                        expected_task_id=handle.evaluator_task_id,
                     )
                 else:
                     current_reference = self._json_pointer_value(
@@ -2927,11 +2961,11 @@ class LoopDashboardStore:
                     if step.kind == "final_bundle":
                         if task_dir is None:
                             return False
-                        bundle_path = Path(current_reference)
-                        if bundle_path.is_absolute() or ".." in bundle_path.parts:
+                        bundle_id = self._canonical_id_component(current_reference)
+                        if bundle_id is None:
                             return False
                         current_target = self._safe_regular_file_lexical(
-                            task_dir / bundle_path / "result.json",
+                            task_dir / bundle_id / "result.json",
                             task_dir,
                         )
                     else:
@@ -3277,6 +3311,22 @@ class LoopDashboardStore:
         )
         return hashlib.sha256(serialized.encode()).hexdigest()[:24]
 
+    @staticmethod
+    def _canonical_id_component(value: Any) -> str | None:
+        if (
+            not isinstance(value, str)
+            or not value
+            or value in {".", ".."}
+            or "/" in value
+            or "\\" in value
+            or "\0" in value
+        ):
+            return None
+        path = Path(value)
+        if path.parts != (value,) or path.name != value:
+            return None
+        return value
+
     def _collect_logs(self, run_dir: Path) -> list[LogEntry]:
         logs: list[LogEntry] = []
         for pattern in LOG_GLOBS:
@@ -3297,7 +3347,15 @@ class LoopDashboardStore:
         evaluator = self._read_json(evaluator_path, allowed_root=run_dir)
         if isinstance(evaluator, dict):
             logs.extend(self._inline_logs(evaluator, evaluator_path, run_dir))
-            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
+            rich_path, rich_evaluator = self._rich_evaluator_result(
+                evaluator,
+                expected_task_id=(
+                    run_data.get("task_id")
+                    if isinstance(run_data, dict)
+                    else None
+                ),
+            )
             if rich_path is not None and rich_evaluator is not None:
                 logs.extend(self._inline_logs(rich_evaluator, rich_path, rich_path.parent))
             scenario_path = evaluator.get("scenario_command_results_path")
@@ -3511,33 +3569,33 @@ class LoopDashboardStore:
             return Event("skill", source, self._trim(redact_text(name or json.dumps(payload, ensure_ascii=False)), 180), timestamp)
         return None
 
-    def _rich_evaluator_result(self, evaluator: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
-        task_id = evaluator.get("task_id")
-        if not isinstance(task_id, str) or not task_id:
+    def _rich_evaluator_result(
+        self,
+        evaluator: dict[str, Any],
+        *,
+        expected_task_id: Any,
+    ) -> tuple[Path | None, dict[str, Any] | None]:
+        task_id = self._canonical_id_component(evaluator.get("task_id"))
+        if task_id is None or task_id != self._canonical_id_component(
+            expected_task_id
+        ):
             return None, None
         task_dir = self._safe_task_evaluation_dir(task_id)
         if task_dir is None:
             return None, None
         final_bundle_id = evaluator.get("final_bundle_id")
-        if isinstance(final_bundle_id, str) and final_bundle_id:
-            bundle_path = Path(final_bundle_id)
-            final_result = (
-                task_dir / bundle_path / "result.json"
-                if not bundle_path.is_absolute()
-                and ".." not in bundle_path.parts
-                else None
-            )
-            safe_final_result = self._safe_file_under(final_result, task_dir) if final_result is not None else None
+        if final_bundle_id != "" and "final_bundle_id" in evaluator:
+            bundle_id = self._canonical_id_component(final_bundle_id)
+            if bundle_id is None:
+                return None, None
+            final_result = task_dir / bundle_id / "result.json"
+            safe_final_result = self._safe_file_under(final_result, task_dir)
             if safe_final_result is not None:
                 payload = self._read_json_secure(safe_final_result, task_dir)
                 if isinstance(payload, dict):
                     return safe_final_result, payload
             return None, None
-        candidates = self._descendant_named_files(
-            task_dir,
-            "result.json",
-            limit=self._log_discovery_max_entries,
-        )
+        candidates = self._direct_evaluator_result_files(task_dir)
         if not candidates:
             return None, None
         latest = max(candidates, key=lambda path: self._descriptor_mtime(path, task_dir))
@@ -3557,9 +3615,12 @@ class LoopDashboardStore:
         if task_dir is None:
             return ()
         bundle_id = evaluator.get("final_bundle_id")
-        if isinstance(bundle_id, str) and bundle_id:
+        if bundle_id != "" and "final_bundle_id" in evaluator:
+            canonical_bundle_id = self._canonical_id_component(bundle_id)
+            if canonical_bundle_id is None:
+                return ()
             kind = "final_bundle"
-            reference_value = bundle_id
+            reference_value = canonical_bundle_id
         else:
             kind = "latest_bundle"
             reference_value = ""
@@ -3576,46 +3637,40 @@ class LoopDashboardStore:
         )
 
     def _safe_task_evaluation_dir(self, task_id: str) -> Path | None:
-        task_path = Path(task_id)
-        if task_path.is_absolute() or ".." in task_path.parts:
+        canonical_task_id = self._canonical_id_component(task_id)
+        if canonical_task_id is None:
             return None
         tasks_root = self.project_root / ".codex" / "evaluations" / "tasks"
-        return self._safe_dir_under(tasks_root / task_path, tasks_root)
+        return self._safe_dir_under(tasks_root / canonical_task_id, tasks_root)
 
-    def _descendant_named_files(
-        self,
-        root: Path,
-        filename: str,
-        *,
-        limit: int,
-    ) -> list[Path]:
-        directories = [root]
+    def _direct_evaluator_result_files(self, task_dir: Path) -> list[Path]:
+        try:
+            directory_fd = self._open_directory_descriptor(task_dir)
+        except OSError:
+            return []
         matches: list[Path] = []
         inspected = 0
-        while directories:
-            directory = directories.pop()
-            try:
-                directory_fd = self._open_directory_descriptor(directory)
-            except OSError:
-                continue
-            try:
-                with os.scandir(directory_fd) as entries:
-                    for entry in entries:
-                        inspected += 1
-                        if inspected > limit:
-                            raise SnapshotCapacityError(
-                                "evaluator result discovery entry budget exceeded"
-                            )
-                        path = directory / entry.name
-                        if entry.is_dir(follow_symlinks=False):
-                            directories.append(path)
-                        elif (
-                            entry.name == filename
-                            and entry.is_file(follow_symlinks=False)
-                        ):
-                            matches.append(path)
-            finally:
-                os.close(directory_fd)
+        try:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    inspected += 1
+                    if inspected > self._log_discovery_max_entries:
+                        raise SnapshotCapacityError(
+                            "evaluator result discovery entry budget exceeded"
+                        )
+                    bundle_id = self._canonical_id_component(entry.name)
+                    if bundle_id is None or not entry.is_dir(
+                        follow_symlinks=False
+                    ):
+                        continue
+                    result_path = self._safe_regular_file_lexical(
+                        task_dir / bundle_id / "result.json",
+                        task_dir,
+                    )
+                    if result_path is not None:
+                        matches.append(result_path)
+        finally:
+            os.close(directory_fd)
         return matches
 
     def _descriptor_mtime(self, path: Path, root: Path) -> float:
