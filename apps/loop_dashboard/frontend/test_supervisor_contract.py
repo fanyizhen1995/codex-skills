@@ -45,6 +45,17 @@ def source_function_block(source: str, name: str) -> str:
     return match.group("body")
 
 
+def source_method_block(source: str, name: str) -> str:
+    match = re.search(
+        rf"(?:async\s+)?{re.escape(name)}\([^)]*\)\s*\{{"
+        rf"(?P<body>.*?)(?=\n\s*(?:async\s+)?[A-Za-z_]\w*\([^)]*\)\s*\{{|\n\s*\}}\n\s*\}}\)|\Z)",
+        source,
+        re.S,
+    )
+    assert match, f"missing method {name}"
+    return match.group("body")
+
+
 def css_rule_block(selector: str) -> str:
     css = (FRONTEND_ROOT / "styles.css").read_text(encoding="utf-8")
     match = re.search(rf"{re.escape(selector)}\s*\{{(?P<body>.*?)\}}", css, re.S)
@@ -188,6 +199,40 @@ def test_supervisor_mock_regions_use_real_sources_and_honest_health():
     for label in ("活动运行", "待执行动作", "最近 Reviewer", "需要用户", "数据可读", "健康状态不可用"):
         assert label in SUPERVISOR_JS
     assert 'setHealth(true, "Supervisor 正常")' not in SUPERVISOR_JS
+
+
+def test_diagnostic_severity_map_and_filter_options_cover_authoritative_values():
+    expected = (
+        "critical", "error", "must_fix", "major", "warning", "should_fix",
+        "minor", "observe", "info",
+    )
+
+    assert "const DIAGNOSTIC_SEVERITIES" in APP_JS
+    assert "DIAGNOSTIC_SEVERITY_OPTIONS" in APP_JS
+    assert "DIAGNOSTIC_SEVERITY_OPTIONS" in source_function_block(APP_JS, "buildRunToolbar")
+    assert '[["", "全部严重性"], ["critical", "严重"], ["major", "重要"], ["minor", "一般"]]' not in APP_JS
+    for value in expected:
+        assert re.search(rf"{re.escape(value)}:\s*\{{\s*label:\s*\"[^\"]+\"", APP_JS), value
+    severity_label = source_function_block(APP_JS, "severityLabel")
+    severity_tone = source_function_block(APP_JS, "severityTone")
+    assert "DIAGNOSTIC_SEVERITIES[value]" in severity_label
+    assert "DIAGNOSTIC_SEVERITIES[value]" in severity_tone
+
+
+def test_supervisor_mock_fields_render_real_current_review_and_pending_decision_data():
+    overview = source_method_block(SUPERVISOR_JS, "renderOverview")
+    reviewer = source_method_block(SUPERVISOR_JS, "renderReviewer")
+    decisions = source_method_block(SUPERVISOR_JS, "renderDecisions")
+    action_summary = source_function_block(SUPERVISOR_JS, "actionSummary")
+
+    assert "actionStatusLabel(item.status)" in action_summary
+    assert "item.recovery_tier" in action_summary
+    assert '"最近结论"' in reviewer
+    assert "firstPage(\"/api/supervisor/reviews\"" in reviewer
+    assert '"待决摘要"' in decisions
+    assert "firstPage(\"/api/supervisor/decision-required\"" in decisions
+    assert "decisionStatusLabel(pendingDecision.status)" in decisions
+    assert "recentReview ? reviewDecisionLabel(recentReview.decision) : \"不可用\"" in overview
 
 
 def test_run_detail_collections_and_log_content_are_lazy():

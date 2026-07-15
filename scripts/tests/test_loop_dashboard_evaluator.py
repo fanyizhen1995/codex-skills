@@ -157,8 +157,18 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             "many-run/tab URL bound",
             "delayed-services transition",
             "attempt page 21",
+            "visible run/tab pager pressure",
+            "freshness cursor and degraded health",
         ):
             self.assertIn(assertion, owner)
+        self.assertIn("FIXTURE_RUN_COUNT = 5", owner)
+        self.assertIn("FRESHNESS_COUNT = 103", owner)
+        self.assertIn('f"fixture-run-{index:03d}"', owner)
+        self.assertIn("freshness-hidden-stale", owner)
+        self.assertIn("visible run/tab pager pressure", owner)
+        self.assertIn("freshness cursor and degraded health", owner)
+        self.assertNotIn("new window.LoopPagination.CursorPager", owner)
+        self.assertIn('"--no-access-log"', owner)
         self.assertEqual(scenario["task_id"], "loop-supervisor-unification-01")
         self.assertTrue(scenario["must_simulate"])
         serialized = json.dumps(scenario, ensure_ascii=False)

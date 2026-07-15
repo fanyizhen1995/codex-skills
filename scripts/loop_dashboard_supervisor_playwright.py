@@ -25,6 +25,8 @@ SKILL_COUNT = 26
 EVENT_COUNT = 26
 LOG_COUNT = 26
 ATTEMPT_COUNT = 421
+FIXTURE_RUN_COUNT = 5
+FRESHNESS_COUNT = 103
 RUN_ID = "dashboard-parent-001"
 CHILD_RUN_ID = "dashboard-run-001"
 TASK_ID = "task-8-browser"
@@ -130,6 +132,7 @@ def seed_fixture(repo_root: Path, project_root: Path) -> None:
     store.close()
     seed_supervisor_sqlite(project_root)
     seed_run(project_root)
+    seed_pager_fixture_runs(project_root)
 
 
 def seed_supervisor_sqlite(project_root: Path) -> None:
@@ -313,18 +316,37 @@ def seed_supervisor_sqlite(project_root: Path) -> None:
             ),
         )
     freshness = [
-        ("freshness-dashboard", "loop-dashboard", "fresh", "Dashboard API 与运行产物一致", {"lag_seconds": 2}),
-        ("freshness-crawler", "crawler-workbench", "stale", "Crawler 最近同步已过期", {"lag_seconds": 420}),
-        ("freshness-worker", "supervisor-worker", "unavailable", "Worker freshness 不可用", {"reason": "无 heartbeat"}),
+        ("freshness-dashboard", "loop-dashboard", "fresh", "Dashboard API 与运行产物一致", {"lag_seconds": 2}, "2026-07-15T12:28:00Z"),
+        ("freshness-crawler", "crawler-workbench", "stale", "Crawler 最近同步已过期", {"lag_seconds": 420}, "2026-07-15T12:28:00Z"),
+        ("freshness-worker", "supervisor-worker", "unavailable", "Worker freshness 不可用", {"reason": "无 heartbeat"}, "2026-07-15T12:28:00Z"),
     ]
-    for check_id, target, status, summary, details in freshness:
+    freshness.extend(
+        (
+            f"freshness-{index:03d}",
+            f"freshness-target-{index:03d}",
+            "fresh",
+            f"freshness target {index:03d} 已通过",
+            {"lag_seconds": index},
+            "2026-07-15T12:28:00Z",
+        )
+        for index in range(1, FRESHNESS_COUNT - 3)
+    )
+    freshness.append((
+        "freshness-hidden-stale",
+        "freshness-hidden-stale-target",
+        "stale",
+        "隐藏在 freshness 第二页的过期检查必须令全局健康降级。",
+        {"lag_seconds": 420},
+        "2026-07-15T10:00:00Z",
+    ))
+    for check_id, target, status, summary, details, created_at in freshness:
         connection.execute(
             """
             INSERT INTO freshness_checks(
               check_id, target, status, summary, details_json, checked_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, '2026-07-15T12:28:00Z', '2026-07-15T12:28:00Z')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (check_id, target, status, summary, json.dumps(details, ensure_ascii=False)),
+            (check_id, target, status, summary, json.dumps(details, ensure_ascii=False), created_at, created_at),
         )
     inventory = [
         {
@@ -547,6 +569,33 @@ def seed_child_run(project_root: Path) -> None:
     seed_task_contract(child_dir, f"{TASK_ID}-child")
 
 
+def seed_pager_fixture_runs(project_root: Path) -> None:
+    for index in range(1, FIXTURE_RUN_COUNT + 1):
+        run_id = f"fixture-run-{index:03d}"
+        run_dir = project_root / ".codex" / "loop-runs" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_json(
+            run_dir / "run.json",
+            {
+                "run_id": run_id,
+                "run_kind": "single",
+                "policy": "demand_development",
+                "phase": "planned",
+                "task_id": f"task-8-pager-{index:03d}",
+                "requirement": f"可见夹具运行 {index:03d}，用于通过真实 sidebar 和运行页签压力测试分页状态上限。",
+                "attempts": {"planner": 1, "generator": 0, "evaluator": 0},
+                "last_result": "none",
+                "next_action": "run_generator",
+                "updated_at": f"2026-07-15T13:{index:02d}:00Z",
+                "reader_summary": {
+                    "purpose": "真实 UI 分页状态边界验证。",
+                    "current_progress": "等待在可见运行页签中加载分页集合。",
+                    "next_step": "打开下一个运行页签。",
+                },
+            },
+        )
+
+
 def insert_newer_action(project_root: Path) -> None:
     connection = sqlite3.connect(project_root / ".codex" / "supervisor" / "supervisor.db")
     connection.execute(
@@ -581,6 +630,7 @@ def start_dashboard(repo_root: Path, fixture_root: Path, port: int) -> subproces
             "127.0.0.1",
             "--port",
             str(port),
+            "--no-access-log",
         ],
         cwd=repo_root,
         env=env,
@@ -662,12 +712,20 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             supervisor_panel = desktop.locator("#supervisor-panel-content")
             expect(supervisor_panel).to_contain_text("活动运行")
             expect(supervisor_panel).to_contain_text("Task 7 未提供活动运行聚合")
+            expect(supervisor_panel).to_contain_text("状态：待执行")
+            expect(supervisor_panel).to_contain_text("恢复 Tier 2")
             expect(desktop.locator("#top-status")).to_contain_text("Supervisor 降级")
             if not any(
                 urlparse(url).path == "/api/supervisor/services" and parse_qs(urlparse(url).query).get("cursor")
                 for url in request_urls
             ):
                 raise AssertionError("complete health did not request hidden service pages")
+            if not any(
+                urlparse(url).path == "/api/supervisor/services/freshness" and parse_qs(urlparse(url).query).get("cursor")
+                for url in request_urls
+            ):
+                raise AssertionError("complete health did not request hidden freshness pages")
+            expect(desktop.locator("#supervisor-hero-status")).to_contain_text("100 / 103 freshness 通过")
 
             desktop.evaluate("window.__armDelayedServices()")
             with desktop.expect_request(
@@ -675,7 +733,11 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 and parse_qs(urlparse(request.url).query).get("page_size") == ["100"]
             ):
                 desktop.get_by_role("tab", name="服务", exact=True).click()
-            desktop.locator(f'[data-run-id="{RUN_ID}"]').click()
+            parent_run = desktop.locator(f'[data-run-id="{RUN_ID}"]')
+            if not parent_run.is_visible():
+                desktop.locator(".sidebar").get_by_role("button", name="下一页", exact=True).click()
+            expect(parent_run).to_be_visible()
+            parent_run.click()
             expect(desktop.locator("#run-title")).to_have_text(RUN_ID)
             desktop.wait_for_timeout(850)
             expect(desktop.locator("#top-status")).to_contain_text("运行需要修复")
@@ -695,12 +757,17 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 "Reviewer",
                 "Reviewer 结论 001：当前方向有效，技术阻塞可由 Supervisor 自动恢复，不需要伪造成功状态。",
             )
+            expect(supervisor_panel).to_contain_text("最近结论")
+            expect(supervisor_panel).to_contain_text("Reviewer 结论 001：当前方向有效，技术阻塞可由 Supervisor 自动恢复，不需要伪造成功状态。")
             verify_collection_pagination(
                 desktop,
                 supervisor_panel,
                 "决策",
                 "决策 001：仅影响当前 run，不创建项目级停止。",
             )
+            expect(supervisor_panel).to_contain_text("待决摘要")
+            expect(supervisor_panel).to_contain_text("待决状态")
+            expect(supervisor_panel).to_contain_text("需要用户")
             verify_collection_pagination(desktop, supervisor_panel, "Skill 治理", "dashboard-skill-001")
 
             # stale-response: delayed unfiltered recovery response must not replace the latest filter.
@@ -811,17 +878,16 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             expect(desktop.get_by_role("tab", name="任务恢复", exact=True)).to_have_attribute("aria-selected", "true")
             expect(desktop.get_by_label("运行 ID")).to_have_value(RUN_ID)
             expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
-            desktop.get_by_role("tab", name="Reviewer", exact=True).click()
-            expect(supervisor_panel.get_by_label("每页条数")).to_have_value("50")
-            desktop.get_by_role("tab", name="任务恢复", exact=True).click()
-            expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
-            session_bound = assert_global_pager_bound(desktop)
             url_state = desktop.url
             if len(url_state) > 1200 or "cursor=" in url_state or "eyJwYXls" in url_state:
                 raise AssertionError(f"pager URL is not compact: {url_state}")
             desktop.screenshot(path=str(desktop_path), full_page=True)
             desktop_pixels = canvas_pixel_check(desktop_path)
             desktop_overflow = document_overflow(desktop)
+            session_bound = exercise_visible_run_tab_pager_bound(desktop)
+            url_state = desktop.url
+            if len(url_state) > 1200 or "cursor=" in url_state or "eyJwYXls" in url_state:
+                raise AssertionError(f"pager URL is not compact after visible pager pressure: {url_state}")
 
             direct_requests: list[str] = []
             run_page = browser.new_page(viewport={"width": 1440, "height": 1000})
@@ -872,6 +938,7 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 run_page.get_by_role("tab", name="概览", exact=True).click()
                 expect(run_panel).to_contain_text("自动修复后复验")
                 run_page.get_by_label("类型").select_option("transition")
+                expect(run_panel.locator(f'[data-pager-key="run-{RUN_ID}-overview"]')).to_have_count(1)
                 expect(run_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
                 run_panel.get_by_role("button", name="下一页", exact=True).click()
                 expect(run_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
@@ -884,6 +951,7 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 detail_prefix = f"/api/runs/{RUN_ID}/logs/"
                 details_before = request_path_count(direct_requests, detail_prefix)
                 run_page.get_by_role("tab", name="日志", exact=True).click()
+                expect(run_panel.locator(f'[data-pager-key="run-{RUN_ID}-logs"]')).to_have_count(1)
                 expect(run_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
                 if request_path_count(direct_requests, detail_prefix) != details_before:
                     raise AssertionError("log list fetched detail before explicit expansion")
@@ -906,8 +974,10 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             mobile = browser.new_page(viewport={"width": 390, "height": 844})
             try:
                 mobile.goto(dashboard_url, wait_until="networkidle")
+                mobile_panel = mobile.locator("#supervisor-panel-content")
+                expect(mobile_panel).to_contain_text("活动运行", timeout=15_000)
                 mobile.get_by_role("tab", name="服务", exact=True).click()
-                expect(mobile.locator("#supervisor-panel-content .table-wrap").first).to_be_visible()
+                expect(mobile_panel.locator(".table-wrap").first).to_be_visible(timeout=15_000)
                 mobile.screenshot(path=str(mobile_path), full_page=True)
                 mobile_pixels = canvas_pixel_check(mobile_path)
                 mobile_overflow = document_overflow(mobile)
@@ -949,8 +1019,10 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                     "page-21 reload restores the retained offset window",
                     "many-run/tab URL bound uses one dashboard token",
                     "delayed-services transition cannot overwrite run UI",
-                    "attempt page 21 remains reachable through exact envelopes",
-                ],
+                "attempt page 21 remains reachable through exact envelopes",
+                "visible run/tab pager pressure retained the 24-pager state bound",
+                "freshness cursor and degraded health covered an unhealthy row after page one",
+            ],
             }
         except Exception:
             try:
@@ -1019,15 +1091,6 @@ def request_path_count(request_urls: list[str], prefix: str) -> int:
 def assert_global_pager_bound(page) -> dict[str, int]:
     metrics = page.evaluate(
         """() => {
-          for (let index = 0; index < 40; index += 1) {
-            const pager = new window.LoopPagination.CursorPager({
-              key: `run-many-${index}-tab-${index % 7}`,
-              endpoint: "/api/runs",
-              container: document.createElement("div"),
-              renderItems: () => {},
-            });
-            pager.persistState();
-          }
           const url = new URL(window.location.href);
           const token = url.searchParams.get("dashboard_state");
           const raw = sessionStorage.getItem(`loop-dashboard-state:${token}`) || "";
@@ -1050,17 +1113,41 @@ def assert_global_pager_bound(page) -> dict[str, int]:
     return metrics
 
 
+def exercise_visible_run_tab_pager_bound(page) -> dict[str, int]:
+    from playwright.sync_api import expect
+
+    tabs = (
+        ("子任务", "children"), ("验收", "acceptance"), ("日志", "logs"),
+        ("阻塞诊断", "diagnostics"), ("产物", "artifacts"), ("概览", "overview"),
+    )
+    run_ids = [f"fixture-run-{index:03d}" for index in range(FIXTURE_RUN_COUNT, 0, -1)]
+    previous = page.locator(".sidebar").get_by_role("button", name="上一页", exact=True)
+    if previous.is_enabled():
+        previous.click()
+    for run_id in run_ids:
+        button = page.locator(f'[data-run-id="{run_id}"]')
+        expect(button).to_be_visible()
+        button.click()
+        expect(page.locator("#run-title")).to_have_text(run_id)
+        expect(page.locator(f'[data-pager-key="run-{run_id}-overview"]')).to_have_count(1)
+        for tab_name, tab_key in tabs:
+            page.get_by_role("tab", name=tab_name, exact=True).click()
+            expect(page.locator(f'[data-pager-key="run-{run_id}-{tab_key}"]')).to_have_count(1)
+    return assert_global_pager_bound(page)
+
+
 def verify_collection_pagination(page, panel, tab_name: str, first_id: str) -> None:
     from playwright.sync_api import expect
 
     page.get_by_role("tab", name=tab_name, exact=True).click()
     expect(panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
-    expect(panel.get_by_text(first_id, exact=True)).to_be_visible()
+    first_row_value = panel.locator("tbody").get_by_text(first_id, exact=True)
+    expect(first_row_value).to_be_visible()
     if panel.get_by_role("button", name="2", exact=True).count() != 0:
         raise AssertionError(f"{tab_name} exposed unknown page 2")
     panel.get_by_role("button", name="下一页", exact=True).click()
     expect(panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
-    expect(panel.get_by_text(first_id, exact=True)).not_to_be_visible()
+    expect(first_row_value).not_to_be_visible()
 
 
 def refresh_and_assert(page, panel) -> None:

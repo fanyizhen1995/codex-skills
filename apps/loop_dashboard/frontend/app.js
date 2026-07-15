@@ -20,6 +20,21 @@
     ["", "全部状态"], ["pass", "通过"], ["passed", "通过"], ["fail", "失败"],
     ["failed", "失败"], ["blocked", "阻塞"], ["pending", "等待"], ["partial", "部分完成"],
   ];
+  const DIAGNOSTIC_SEVERITIES = Object.freeze({
+    critical: { label: "严重", tone: "bad" },
+    error: { label: "错误", tone: "bad" },
+    must_fix: { label: "必须修复", tone: "bad" },
+    major: { label: "重要", tone: "warn" },
+    warning: { label: "警告", tone: "warn" },
+    should_fix: { label: "建议修复", tone: "warn" },
+    minor: { label: "一般", tone: "neutral" },
+    observe: { label: "观察", tone: "neutral" },
+    info: { label: "信息", tone: "neutral" },
+  });
+  const DIAGNOSTIC_SEVERITY_OPTIONS = [
+    ["", "全部严重性"],
+    ...Object.entries(DIAGNOSTIC_SEVERITIES).map(([value, metadata]) => [value, metadata.label]),
+  ];
   const state = {
     view: "supervisor",
     selectedRunId: "",
@@ -341,7 +356,7 @@
     if (config.filters.includes("kind")) toolbar.append(selectFilter("kind", "类型", [["", "全部类型"], ["transition", "状态变化"], ["agent", "Agent"], ["skill", "Skill"], ["tool", "工具"]]));
     if (config.filters.includes("status")) toolbar.append(selectFilter("status", "状态", config.filterOptions || ACCEPTANCE_STATUS_OPTIONS));
     if (config.filters.includes("stream")) toolbar.append(selectFilter("stream", "日志流", [["", "全部日志"], ["stdout", "stdout"], ["stderr", "stderr"]]));
-    if (config.filters.includes("severity")) toolbar.append(selectFilter("severity", "严重性", [["", "全部严重性"], ["critical", "严重"], ["major", "重要"], ["minor", "一般"]]));
+    if (config.filters.includes("severity")) toolbar.append(selectFilter("severity", "严重性", DIAGNOSTIC_SEVERITY_OPTIONS));
     if (config.query) {
       const label = node("label", "filter-control");
       const input = node("input", "control");
@@ -733,17 +748,11 @@
   }
 
   function severityLabel(value) {
-    const labels = {
-      critical: "严重", must_fix: "必须修复", major: "重要", should_fix: "建议修复", minor: "一般", info: "信息",
-    };
-    return labels[value] || "严重性不可用";
+    return DIAGNOSTIC_SEVERITIES[value]?.label || "严重性不可用";
   }
 
   function severityTone(value) {
-    if (["critical", "must_fix"].includes(value)) return "bad";
-    if (["major", "should_fix"].includes(value)) return "warn";
-    if (["minor", "info"].includes(value)) return "neutral";
-    return "neutral";
+    return DIAGNOSTIC_SEVERITIES[value]?.tone || "neutral";
   }
 
   function actionLabel(value) {

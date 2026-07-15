@@ -207,7 +207,7 @@
       content.append(metrics([
         ["活动运行", "不可用"],
         ["待执行动作", valueText(pendingActions.total)],
-        ["最近 Reviewer", recentReview ? reviewDecisionLabel(recentReview.decision) : "暂无数据"],
+        ["最近 Reviewer", recentReview ? reviewDecisionLabel(recentReview.decision) : "不可用"],
         ["需要用户", valueText(required.total)],
       ]));
       content.append(node("div", "metric-disclosure", "活动运行：Task 7 未提供活动运行聚合，不能用运行总数代替。"));
@@ -318,15 +318,18 @@
     async renderReviewer(request, signal, options) {
       const summary = await this.loadSummary(signal);
       const health = await this.loadHealthEvidence(signal);
+      const latestPage = await firstPage("/api/supervisor/reviews", {}, signal);
       if (!this.isCurrentRequest(request, signal)) return;
       this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
       this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
+      const latestReview = latestPage.items[0];
       const fragment = document.createDocumentFragment();
       fragment.append(metrics([
         ["审视范围", "项目全局"],
         ["常规节奏", "不可用"],
         ["审视记录", valueText(summary.counts?.reviews)],
         ["finding 总数", valueText(summary.counts?.review_findings)],
+        ["最近结论", latestReview ? `${reviewDecisionLabel(latestReview.decision)}：${text(latestReview.summary, "暂无 Reviewer 摘要")}` : "不可用"],
       ]));
       const host = pagerSection(fragment, "Reviewer 历史", "结论、证据范围和请求动作均来自 Reviewer 记录");
       this.panel.replaceChildren(fragment);
@@ -352,11 +355,17 @@
     async renderDecisions(request, signal, options) {
       const summary = await this.loadSummary(signal);
       const health = await this.loadHealthEvidence(signal);
+      const pendingPage = await firstPage("/api/supervisor/decision-required", {}, signal);
       if (!this.isCurrentRequest(request, signal)) return;
       this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
       this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
+      const pendingDecision = pendingPage.items[0];
       const wrapper = node("section", "section");
       wrapper.append(sectionHeading("决策", "人工决策默认只影响单个 run"));
+      wrapper.append(metrics([
+        ["待决摘要", pendingDecision ? text(pendingDecision.summary, "暂无说明") : "不可用"],
+        ["待决状态", pendingDecision ? decisionStatusLabel(pendingDecision.status) : "不可用"],
+      ]));
       const status = selectControl("决策状态", [["", "全部决策"], ["open", "需要用户"], ["closed", "已解决"]]);
       const toolbar = node("div", "toolbar");
       toolbar.append(status.label);
@@ -696,6 +705,7 @@
     wrapper.append(
       node("strong", "", actionTypeLabel(item.action_type)),
       node("div", "cell-detail", `${text(item.run_id, "无 run")} · ${text(item.action_id)}`),
+      node("div", "cell-detail", `状态：${actionStatusLabel(item.status)} · 恢复 Tier ${text(item.recovery_tier, "不可用")}`),
       node("div", "full-text", text(objectValue(item.payload).summary, "暂无动作说明")),
     );
     return wrapper;
