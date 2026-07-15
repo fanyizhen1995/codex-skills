@@ -16,9 +16,12 @@ from typing import Any, Generic, Mapping, Sequence, TypeVar
 CURSOR_VERSION = 1
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_CURSOR_CHARS = 4096
+MAX_CURSOR_DECODED_BYTES = 2048
 DEFAULT_SNAPSHOT_TTL_SECONDS = 300
 DEFAULT_MAX_SNAPSHOTS = 128
 DEFAULT_MAX_SNAPSHOT_ITEMS = 10_000
+DEFAULT_MAX_SNAPSHOT_ROW_BYTES = 256 * 1024
+DEFAULT_MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
 
 
 class CursorError(ValueError):
@@ -27,6 +30,10 @@ class CursorError(ValueError):
 
 class PageSizeError(ValueError):
     """Raised when a collection page size is outside the API contract."""
+
+
+class SnapshotCapacityError(RuntimeError):
+    """Raised when a bounded server-side snapshot cannot be retained safely."""
 
 
 @dataclass(frozen=True)
@@ -62,11 +69,18 @@ class Page(Generic[T]):
 
 
 @dataclass(frozen=True)
+class SnapshotRow:
+    item: dict[str, Any]
+    timestamp: str
+    pagination_id: str
+
+
+@dataclass(frozen=True)
 class CollectionSnapshot:
     snapshot_id: str
     endpoint: str
     filter_fingerprint: str
-    items: tuple[dict[str, Any], ...]
+    rows: tuple[SnapshotRow, ...]
     created_at: float
     expires_at: float
 
@@ -79,15 +93,28 @@ class CursorCodec:
         snapshot_ttl_seconds: int = DEFAULT_SNAPSHOT_TTL_SECONDS,
         max_snapshots: int = DEFAULT_MAX_SNAPSHOTS,
         max_snapshot_items: int = DEFAULT_MAX_SNAPSHOT_ITEMS,
+        max_snapshot_row_bytes: int = DEFAULT_MAX_SNAPSHOT_ROW_BYTES,
+        max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES,
     ) -> None:
         if not isinstance(secret, bytes) or not secret:
             raise ValueError("cursor secret must be non-empty bytes")
-        if snapshot_ttl_seconds <= 0 or max_snapshots <= 0 or max_snapshot_items <= 0:
+        if any(
+            value <= 0
+            for value in (
+                snapshot_ttl_seconds,
+                max_snapshots,
+                max_snapshot_items,
+                max_snapshot_row_bytes,
+                max_snapshot_bytes,
+            )
+        ):
             raise ValueError("snapshot bounds must be positive")
         self._secret = secret
         self._snapshot_ttl_seconds = snapshot_ttl_seconds
         self._max_snapshots = max_snapshots
         self._max_snapshot_items = max_snapshot_items
+        self._max_snapshot_row_bytes = max_snapshot_row_bytes
+        self._max_snapshot_bytes = max_snapshot_bytes
         self._snapshots: OrderedDict[str, CollectionSnapshot] = OrderedDict()
         self._snapshot_lock = RLock()
 
@@ -100,7 +127,13 @@ class CursorCodec:
         serialized = self._serialize(payload_data)
         signature = hmac.new(self._secret, serialized, hashlib.sha256).hexdigest()
         envelope = self._serialize({"payload": payload_data, "signature": signature})
-        return base64.urlsafe_b64encode(envelope).decode().rstrip("=")
+        cursor = base64.urlsafe_b64encode(envelope).decode().rstrip("=")
+        if (
+            len(envelope) > MAX_CURSOR_DECODED_BYTES
+            or len(cursor) > MAX_CURSOR_CHARS
+        ):
+            raise SnapshotCapacityError("encoded cursor size limit exceeded")
+        return cursor
 
     def decode(self, cursor: str) -> CursorPayload:
         if not isinstance(cursor, str) or not cursor:
@@ -110,6 +143,8 @@ class CursorCodec:
         try:
             padding = "=" * (-len(cursor) % 4)
             raw = base64.b64decode(cursor + padding, altchars=b"-_", validate=True)
+            if len(raw) > MAX_CURSOR_DECODED_BYTES:
+                raise CursorError("decoded cursor size limit exceeded")
             envelope = json.loads(raw)
             payload = envelope["payload"]
             signature = envelope["signature"]
@@ -144,26 +179,52 @@ class CursorCodec:
         endpoint: str,
         filter_fingerprint: str,
         items: Sequence[dict[str, Any]],
+        *,
+        timestamp_key: str,
+        primary_key: str,
     ) -> CollectionSnapshot:
         if len(items) > self._max_snapshot_items:
-            raise CursorError(
-                f"collection exceeds snapshot limit {self._max_snapshot_items}"
-            )
+            raise SnapshotCapacityError("snapshot item limit exceeded")
+        copied_items = copy.deepcopy(list(items))
+        total_bytes = 0
+        for item in copied_items:
+            row_bytes = len(self._serialize(item))
+            if row_bytes > self._max_snapshot_row_bytes:
+                raise SnapshotCapacityError("snapshot row byte budget exceeded")
+            total_bytes += row_bytes
+            if total_bytes > self._max_snapshot_bytes:
+                raise SnapshotCapacityError("snapshot total byte budget exceeded")
+        source_positions = [
+            _position(item, timestamp_key, primary_key) for item in copied_items
+        ]
+        position_counts: dict[tuple[str, str], int] = {}
+        for position in source_positions:
+            position_counts[position] = position_counts.get(position, 0) + 1
+        occurrences: dict[tuple[str, str], int] = {}
+        rows: list[SnapshotRow] = []
+        for item, position in zip(copied_items, source_positions, strict=True):
+            occurrence = occurrences.get(position, 0)
+            occurrences[position] = occurrence + 1
+            pagination_id = position[1]
+            if position_counts[position] > 1:
+                pagination_id = f"{position[1]}\x1f{occurrence:012d}"
+            rows.append(SnapshotRow(item, position[0], pagination_id))
+        rows.sort(key=_row_position, reverse=True)
         now = time.monotonic()
         snapshot = CollectionSnapshot(
             snapshot_id=secrets.token_urlsafe(18),
             endpoint=endpoint,
             filter_fingerprint=filter_fingerprint,
-            items=tuple(copy.deepcopy(list(items))),
+            rows=tuple(rows),
             created_at=now,
             expires_at=now + self._snapshot_ttl_seconds,
         )
         with self._snapshot_lock:
             self._prune_snapshots(now)
+            if len(self._snapshots) >= self._max_snapshots:
+                raise SnapshotCapacityError("snapshot capacity exhausted")
             self._snapshots[snapshot.snapshot_id] = snapshot
             self._snapshots.move_to_end(snapshot.snapshot_id)
-            while len(self._snapshots) > self._max_snapshots:
-                self._snapshots.popitem(last=False)
         return snapshot
 
     def get_snapshot(self, payload: CursorPayload) -> CollectionSnapshot:
@@ -184,6 +245,10 @@ class CursorCodec:
     def discard_snapshot(self, snapshot_id: str) -> None:
         with self._snapshot_lock:
             self._snapshots.pop(snapshot_id, None)
+
+    def reap_expired(self) -> None:
+        with self._snapshot_lock:
+            self._prune_snapshots(time.monotonic())
 
     def _prune_snapshots(self, now: float) -> None:
         expired = [
@@ -269,22 +334,24 @@ def paginate_items(
         )
 
     if payload is None:
-        ordered = sorted(
-            items,
-            key=lambda item: _position(item, timestamp_key, primary_key),
-            reverse=True,
-        )
-        if not ordered:
+        if not items:
             return Page([], None, None, page_size, 0, False)
-        collection_snapshot = codec.create_snapshot(endpoint, fingerprint, ordered)
-        snapshot = _position(ordered[0], timestamp_key, primary_key)
+        collection_snapshot = codec.create_snapshot(
+            endpoint,
+            fingerprint,
+            items,
+            timestamp_key=timestamp_key,
+            primary_key=primary_key,
+        )
+        ordered = list(collection_snapshot.rows)
+        snapshot = _row_position(ordered[0])
         total = len(ordered)
         snapshot_id = collection_snapshot.snapshot_id
         direction = "next"
         boundary: tuple[str, str] | None = None
     else:
         collection_snapshot = codec.get_snapshot(payload)
-        ordered = list(collection_snapshot.items)
+        ordered = list(collection_snapshot.rows)
         snapshot = (
             payload.snapshot_timestamp,
             payload.snapshot_primary_key,
@@ -297,26 +364,20 @@ def paginate_items(
         boundary = (payload.timestamp, payload.primary_key)
 
     eligible = [
-        item
-        for item in ordered
-        if _position(item, timestamp_key, primary_key) <= snapshot
+        row for row in ordered if _row_position(row) <= snapshot
     ]
     if boundary is None:
         candidates = eligible
     elif direction == "next":
         candidates = [
-            item
-            for item in eligible
-            if _position(item, timestamp_key, primary_key) < boundary
+            row for row in eligible if _row_position(row) < boundary
         ]
     else:
         candidates = sorted(
             (
-                item
-                for item in eligible
-                if _position(item, timestamp_key, primary_key) > boundary
+                row for row in eligible if _row_position(row) > boundary
             ),
-            key=lambda item: _position(item, timestamp_key, primary_key),
+            key=_row_position,
         )
 
     selected = list(candidates[: page_size + 1])[:page_size]
@@ -325,15 +386,23 @@ def paginate_items(
     if not selected:
         return Page([], None, None, page_size, total, False)
 
-    first_position = _position(selected[0], timestamp_key, primary_key)
-    last_position = _position(selected[-1], timestamp_key, primary_key)
+    first_position = _row_position(selected[0])
+    last_position = _row_position(selected[-1])
     next_cursor = None
     previous_cursor = None
+
+    def encode_page_cursor(cursor_payload: CursorPayload) -> str:
+        try:
+            return codec.encode(cursor_payload)
+        except Exception:
+            if payload is None:
+                codec.discard_snapshot(snapshot_id)
+            raise
+
     if any(
-        _position(item, timestamp_key, primary_key) < last_position
-        for item in eligible
+        _row_position(row) < last_position for row in eligible
     ):
-        next_cursor = codec.encode(
+        next_cursor = encode_page_cursor(
             _cursor_payload(
                 endpoint,
                 fingerprint,
@@ -346,10 +415,9 @@ def paginate_items(
             )
         )
     if any(
-        _position(item, timestamp_key, primary_key) > first_position
-        for item in eligible
+        _row_position(row) > first_position for row in eligible
     ):
-        previous_cursor = codec.encode(
+        previous_cursor = encode_page_cursor(
             _cursor_payload(
                 endpoint,
                 fingerprint,
@@ -361,14 +429,17 @@ def paginate_items(
                 snapshot_id,
             )
         )
-    return Page(
-        selected,
+    page = Page(
+        [copy.deepcopy(row.item) for row in selected],
         next_cursor,
         previous_cursor,
         page_size,
         total,
         next_cursor is not None,
     )
+    if page.next_cursor is None and page.previous_cursor is None:
+        codec.discard_snapshot(snapshot_id)
+    return page
 
 
 def _cursor_payload(
@@ -425,3 +496,7 @@ def _position(
             f"paged items require string {timestamp_key} and {primary_key}"
         )
     return timestamp, key
+
+
+def _row_position(row: SnapshotRow) -> tuple[str, str]:
+    return row.timestamp, row.pagination_id

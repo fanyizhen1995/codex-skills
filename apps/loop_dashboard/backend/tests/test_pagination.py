@@ -8,7 +8,9 @@ import pytest
 from loop_dashboard.pagination import (
     CursorCodec,
     CursorError,
+    CursorPayload,
     PageSizeError,
+    SnapshotCapacityError,
     paginate_items,
 )
 
@@ -162,6 +164,51 @@ def test_snapshot_survives_backdated_same_timestamp_inserts_and_deletions() -> N
     assert reverse_pages[-1].items == first.items
 
 
+def test_duplicate_source_positions_cross_page_boundaries_without_skips() -> None:
+    codec = CursorCodec(b"test-secret")
+    items = [
+        {
+            "item_id": "duplicate-source-id",
+            "updated_at": "2026-07-15T00:00:00Z",
+            "occurrence": index,
+        }
+        for index in range(45)
+    ]
+
+    pages = []
+    cursor = None
+    while not pages or cursor:
+        page = paginate_items(
+            items,
+            endpoint="duplicates",
+            page_size=20,
+            cursor=cursor,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=codec,
+        )
+        pages.append(page)
+        cursor = page.next_cursor
+
+    assert [item["occurrence"] for page in pages for item in page.items] == list(
+        reversed(range(45))
+    )
+    assert all(page.total == 45 for page in pages)
+
+    reverse = paginate_items(
+        [],
+        endpoint="duplicates",
+        page_size=20,
+        cursor=pages[-1].previous_cursor,
+        filters={},
+        timestamp_key="updated_at",
+        primary_key="item_id",
+        codec=codec,
+    )
+    assert reverse.items == pages[-2].items
+
+
 def test_cursor_rejects_tampering_collection_filter_and_page_size_mismatch() -> None:
     codec = CursorCodec(b"test-secret")
     first = paginate_items(
@@ -222,6 +269,63 @@ def test_cursor_rejects_oversized_input_before_decode() -> None:
         CursorCodec(b"test-secret").decode("A" * 5000)
 
 
+def test_cursor_rejects_oversized_encoded_and_decoded_envelopes() -> None:
+    codec = CursorCodec(b"test-secret")
+    payload = CursorPayload(
+        version=1,
+        endpoint="x" * 5000,
+        filter_fingerprint="filters",
+        page_size=20,
+        timestamp="2026-07-15T00:00:00Z",
+        primary_key="item-1",
+        direction="next",
+        snapshot_timestamp="2026-07-15T00:00:00Z",
+        snapshot_primary_key="item-1",
+        snapshot_total=1,
+        snapshot_id="snapshot-1",
+    )
+
+    with pytest.raises(SnapshotCapacityError, match="encoded cursor size"):
+        codec.encode(payload)
+    with pytest.raises(CursorError, match="decoded cursor size"):
+        codec.decode("A" * 3000)
+
+
+def test_failed_cursor_encoding_releases_new_snapshot_capacity() -> None:
+    codec = CursorCodec(b"test-secret", max_snapshots=1)
+    oversized_key_items = [
+        {
+            "item_id": "x" * 3000,
+            "updated_at": f"2026-07-15T00:{index:02d}:00Z",
+        }
+        for index in range(25)
+    ]
+
+    with pytest.raises(SnapshotCapacityError, match="encoded cursor size"):
+        paginate_items(
+            oversized_key_items,
+            endpoint="oversized-key",
+            page_size=20,
+            cursor=None,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=codec,
+        )
+
+    page = paginate_items(
+        _items(25),
+        endpoint="normal-after-failure",
+        page_size=20,
+        cursor=None,
+        filters={},
+        timestamp_key="updated_at",
+        primary_key="item_id",
+        codec=codec,
+    )
+    assert page.next_cursor is not None
+
+
 def test_snapshot_sessions_have_ttl_and_capacity_bounds(monkeypatch) -> None:
     now = [100.0]
     monkeypatch.setattr("loop_dashboard.pagination.time.monotonic", lambda: now[0])
@@ -240,6 +344,29 @@ def test_snapshot_sessions_have_ttl_and_capacity_bounds(monkeypatch) -> None:
         primary_key="item_id",
         codec=codec,
     )
+    with pytest.raises(SnapshotCapacityError, match="snapshot capacity"):
+        paginate_items(
+            _items(25),
+            endpoint="runs-b",
+            page_size=20,
+            cursor=None,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=codec,
+        )
+    assert paginate_items(
+        [],
+        endpoint="runs-a",
+        page_size=20,
+        cursor=first.next_cursor,
+        filters={},
+        timestamp_key="updated_at",
+        primary_key="item_id",
+        codec=codec,
+    ).items
+
+    now[0] = 102.0
     second = paginate_items(
         _items(25),
         endpoint="runs-b",
@@ -250,10 +377,9 @@ def test_snapshot_sessions_have_ttl_and_capacity_bounds(monkeypatch) -> None:
         primary_key="item_id",
         codec=codec,
     )
-
     with pytest.raises(CursorError, match="unavailable or expired"):
         paginate_items(
-            _items(25),
+            [],
             endpoint="runs-a",
             page_size=20,
             cursor=first.next_cursor,
@@ -262,18 +388,62 @@ def test_snapshot_sessions_have_ttl_and_capacity_bounds(monkeypatch) -> None:
             primary_key="item_id",
             codec=codec,
         )
+    assert second.next_cursor is not None
 
-    now[0] = 102.0
-    with pytest.raises(CursorError, match="unavailable or expired"):
+
+def test_snapshot_row_count_and_serialized_byte_budgets_are_capacity_errors() -> None:
+    with pytest.raises(SnapshotCapacityError, match="item limit"):
         paginate_items(
-            _items(25),
-            endpoint="runs-b",
+            _items(2),
+            endpoint="item-limit",
             page_size=20,
-            cursor=second.next_cursor,
+            cursor=None,
             filters={},
             timestamp_key="updated_at",
             primary_key="item_id",
-            codec=codec,
+            codec=CursorCodec(b"test-secret", max_snapshot_items=1),
+        )
+
+    oversized = [
+        {
+            "item_id": "large",
+            "updated_at": "2026-07-15T00:00:00Z",
+            "body": "x" * 100,
+        }
+    ]
+    with pytest.raises(SnapshotCapacityError, match="row byte budget"):
+        paginate_items(
+            oversized,
+            endpoint="row-bytes",
+            page_size=20,
+            cursor=None,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=CursorCodec(b"test-secret", max_snapshot_row_bytes=64),
+        )
+
+    with pytest.raises(SnapshotCapacityError, match="total byte budget"):
+        paginate_items(
+            [
+                {
+                    "item_id": f"item-{index}",
+                    "updated_at": "2026-07-15T00:00:00Z",
+                    "body": "x" * 40,
+                }
+                for index in range(2)
+            ],
+            endpoint="total-bytes",
+            page_size=20,
+            cursor=None,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=CursorCodec(
+                b"test-secret",
+                max_snapshot_row_bytes=256,
+                max_snapshot_bytes=150,
+            ),
         )
 
 

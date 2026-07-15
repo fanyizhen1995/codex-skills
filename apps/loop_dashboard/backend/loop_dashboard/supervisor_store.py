@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -180,19 +180,26 @@ class SQLitePageSession:
     total: int
     expires_at: float
     lock: RLock = field(default_factory=RLock)
+    closed: bool = False
 
     def close(self) -> None:
-        try:
-            self.connection.rollback()
-        finally:
-            self.connection.close()
+        with self.lock:
+            if self.closed:
+                return
+            try:
+                self.connection.rollback()
+            finally:
+                self.connection.close()
+                self.closed = True
 
 
 class SQLiteSnapshotRegistry:
+    """Owns read transactions for one single-process Dashboard namespace."""
+
     def __init__(
         self,
         *,
-        ttl_seconds: int = DEFAULT_SQLITE_SNAPSHOT_TTL_SECONDS,
+        ttl_seconds: float = DEFAULT_SQLITE_SNAPSHOT_TTL_SECONDS,
         max_sessions: int = DEFAULT_MAX_SQLITE_SNAPSHOTS,
     ) -> None:
         if ttl_seconds <= 0 or max_sessions <= 0:
@@ -201,10 +208,29 @@ class SQLiteSnapshotRegistry:
         self._max_sessions = max_sessions
         self._sessions: OrderedDict[str, SQLitePageSession] = OrderedDict()
         self._lock = RLock()
+        self._owners = 0
+
+    def acquire_owner(self) -> None:
+        with self._lock:
+            self._owners += 1
+
+    def release_owner(self) -> None:
+        sessions: list[SQLitePageSession] = []
+        with self._lock:
+            if self._owners > 0:
+                self._owners -= 1
+            if self._owners == 0:
+                sessions = list(self._sessions.values())
+                self._sessions.clear()
+        for session in sessions:
+            session.close()
+
+    def deadline(self) -> float:
+        return time.monotonic() + self._ttl_seconds
 
     def add(self, session: SQLitePageSession) -> SQLitePageSession:
         with self._lock:
-            self._prune(time.monotonic())
+            self._prune_locked(time.monotonic())
             self._sessions[session.snapshot_id] = session
             self._sessions.move_to_end(session.snapshot_id)
             while len(self._sessions) > self._max_sessions:
@@ -221,27 +247,38 @@ class SQLiteSnapshotRegistry:
         filter_fingerprint: str,
     ) -> SQLitePageSession:
         with self._lock:
-            self._prune(time.monotonic())
-            session = self._sessions.get(payload.snapshot_id)
-            if session is None:
+            self._prune_locked(time.monotonic())
+            return self._validated_session(
+                payload,
+                table=table,
+                endpoint=endpoint,
+                filter_fingerprint=filter_fingerprint,
+            )
+
+    @contextmanager
+    def lease(
+        self,
+        payload: CursorPayload,
+        *,
+        table: str,
+        endpoint: str,
+        filter_fingerprint: str,
+    ):
+        with self._lock:
+            self._prune_locked(time.monotonic())
+            session = self._validated_session(
+                payload,
+                table=table,
+                endpoint=endpoint,
+                filter_fingerprint=filter_fingerprint,
+            )
+            session.lock.acquire()
+        try:
+            if session.closed:
                 raise CursorError("cursor snapshot is unavailable or expired")
-            if (
-                session.table != table
-                or session.endpoint != endpoint
-                or session.filter_fingerprint != filter_fingerprint
-            ):
-                raise CursorError("cursor snapshot collection mismatch")
-            if (
-                session.snapshot != (
-                    payload.snapshot_timestamp,
-                    payload.snapshot_primary_key,
-                )
-                or session.snapshot_sequence != payload.snapshot_sequence
-                or session.total != payload.snapshot_total
-            ):
-                raise CursorError("cursor snapshot metadata mismatch")
-            self._sessions.move_to_end(payload.snapshot_id)
-            return session
+            yield session
+        finally:
+            session.lock.release()
 
     def discard(self, snapshot_id: str) -> None:
         with self._lock:
@@ -256,7 +293,11 @@ class SQLiteSnapshotRegistry:
         for session in sessions:
             session.close()
 
-    def _prune(self, now: float) -> None:
+    def reap_expired(self) -> None:
+        with self._lock:
+            self._prune_locked(time.monotonic())
+
+    def _prune_locked(self, now: float) -> None:
         expired = [
             snapshot_id
             for snapshot_id, session in self._sessions.items()
@@ -266,9 +307,36 @@ class SQLiteSnapshotRegistry:
             session = self._sessions.pop(snapshot_id)
             session.close()
 
+    def _validated_session(
+        self,
+        payload: CursorPayload,
+        *,
+        table: str,
+        endpoint: str,
+        filter_fingerprint: str,
+    ) -> SQLitePageSession:
+        session = self._sessions.get(payload.snapshot_id)
+        if session is None:
+            raise CursorError("cursor snapshot is unavailable or expired")
+        if (
+            session.table != table
+            or session.endpoint != endpoint
+            or session.filter_fingerprint != filter_fingerprint
+        ):
+            raise CursorError("cursor snapshot collection mismatch")
+        if (
+            session.snapshot
+            != (payload.snapshot_timestamp, payload.snapshot_primary_key)
+            or session.snapshot_sequence != payload.snapshot_sequence
+            or session.total != payload.snapshot_total
+        ):
+            raise CursorError("cursor snapshot metadata mismatch")
+        self._sessions.move_to_end(payload.snapshot_id)
+        return session
+
 
 _SQLITE_SNAPSHOT_REGISTRIES: OrderedDict[
-    tuple[str, str], SQLiteSnapshotRegistry
+    tuple[str, str, float, int], SQLiteSnapshotRegistry
 ] = OrderedDict()
 _SQLITE_SNAPSHOT_REGISTRIES_LOCK = RLock()
 _SQLITE_SNAPSHOT_REGISTRY_LIMIT = 64
@@ -282,18 +350,29 @@ class SupervisorDashboardStore:
         project_root: Path | str,
         *,
         cursor_codec: CursorCodec | None = None,
+        snapshot_ttl_seconds: float = DEFAULT_SQLITE_SNAPSHOT_TTL_SECONDS,
+        max_snapshot_sessions: int = DEFAULT_MAX_SQLITE_SNAPSHOTS,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.db_path = self.project_root / ".codex" / "supervisor" / "supervisor.db"
         self._cursor_codec = cursor_codec or CursorCodec(
             secrets.token_bytes(32)
         )
-        registry_key = (str(self.db_path), self._cursor_codec.namespace)
+        registry_key = (
+            str(self.db_path),
+            self._cursor_codec.namespace,
+            snapshot_ttl_seconds,
+            max_snapshot_sessions,
+        )
         with _SQLITE_SNAPSHOT_REGISTRIES_LOCK:
             self._sqlite_snapshots = _SQLITE_SNAPSHOT_REGISTRIES.get(registry_key)
             if self._sqlite_snapshots is None:
-                self._sqlite_snapshots = SQLiteSnapshotRegistry()
+                self._sqlite_snapshots = SQLiteSnapshotRegistry(
+                    ttl_seconds=snapshot_ttl_seconds,
+                    max_sessions=max_snapshot_sessions,
+                )
                 _SQLITE_SNAPSHOT_REGISTRIES[registry_key] = self._sqlite_snapshots
+            self._sqlite_snapshots.acquire_owner()
             _SQLITE_SNAPSHOT_REGISTRIES.move_to_end(registry_key)
             while (
                 len(_SQLITE_SNAPSHOT_REGISTRIES)
@@ -301,6 +380,16 @@ class SupervisorDashboardStore:
             ):
                 _key, evicted = _SQLITE_SNAPSHOT_REGISTRIES.popitem(last=False)
                 evicted.close_all()
+        self.closed = False
+
+    def reap_expired(self) -> None:
+        self._sqlite_snapshots.reap_expired()
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        self._sqlite_snapshots.release_owner()
 
     def summary(self) -> dict[str, Any]:
         try:
@@ -363,13 +452,12 @@ class SupervisorDashboardStore:
                 raise CursorError("cursor snapshot sequence is invalid")
         try:
             if payload is not None:
-                session = self._sqlite_snapshots.get(
+                with self._sqlite_snapshots.lease(
                     payload,
                     table=table,
                     endpoint=endpoint,
                     filter_fingerprint=fingerprint,
-                )
-                with session.lock:
+                ) as session:
                     return self._page_from_sqlite_session(
                         session,
                         payload=payload,
@@ -698,9 +786,7 @@ class SupervisorDashboardStore:
                 snapshot=snapshot,
                 snapshot_sequence=snapshot_sequence,
                 total=total,
-                expires_at=(
-                    time.monotonic() + DEFAULT_SQLITE_SNAPSHOT_TTL_SECONDS
-                ),
+                expires_at=self._sqlite_snapshots.deadline(),
             )
             self._sqlite_snapshots.add(session)
             registered = True

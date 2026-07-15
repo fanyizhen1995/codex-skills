@@ -1,10 +1,25 @@
 import json
+import os
 from pathlib import Path
+import shutil
 
 from fastapi.testclient import TestClient
+import pytest
 
 from loop_dashboard import main
 from loop_dashboard.main import create_app
+from loop_dashboard.store import LoopDashboardStore
+
+
+TEST_CURSOR_SECRET = b"task-7-dashboard-test-secret-32-bytes"
+
+
+def create_test_app(project_root: Path, **kwargs):
+    return create_app(
+        project_root=project_root,
+        cursor_secret=TEST_CURSOR_SECRET,
+        **kwargs,
+    )
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -43,6 +58,24 @@ def append_jsonl(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def test_app_requires_explicit_random_cursor_secret(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("LOOP_DASHBOARD_CURSOR_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="LOOP_DASHBOARD_CURSOR_SECRET"):
+        create_app(project_root=tmp_path)
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        create_app(project_root=tmp_path, cursor_secret=b"short")
+
+    app = create_app(
+        project_root=tmp_path,
+        cursor_secret=b"explicit-test-cursor-secret-32-bytes",
+    )
+    assert app.state.store is not None
 
 
 def seed_supervisor_artifacts(repo_root: Path) -> None:
@@ -173,7 +206,7 @@ def seed_supervisor_artifacts(repo_root: Path) -> None:
 
 def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     assert client.get("/api/health").json()["status"] == "ok"
     assert client.get("/api/projects/current").json()["project_root"] == str(tmp_path.resolve())
@@ -186,7 +219,7 @@ def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
 
 
 def test_supervisor_api_returns_honest_missing_state(tmp_path: Path) -> None:
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     payload = client.get("/api/supervisor").json()
 
@@ -201,7 +234,7 @@ def test_supervisor_api_does_not_fall_back_to_non_utf8_legacy_state(tmp_path: Pa
     (supervisor_dir / "supervisor-state.json").write_bytes(
         b'{"status": "healthy", "last_error": "token=state-secret", "broken": "\xff"}'
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     response = client.get("/api/supervisor")
 
@@ -215,7 +248,7 @@ def test_supervisor_api_does_not_fall_back_to_non_utf8_legacy_state(tmp_path: Pa
 
 def test_supervisor_api_ignores_legacy_json_and_jsonl_artifacts(tmp_path: Path) -> None:
     seed_supervisor_artifacts(tmp_path)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     assert client.get("/api/supervisor").json()["status"] == "unavailable"
     for route in (
@@ -247,7 +280,7 @@ def test_supervisor_auditor_route_is_removed(tmp_path: Path) -> None:
         '{"run_id": "demo-run", "verdict": "stop", "reason": "token=newest-audit-secret"',
         encoding="utf-8",
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     response = client.get("/api/supervisor/auditor")
 
@@ -259,7 +292,7 @@ def test_supervisor_api_does_not_parse_malformed_legacy_jsonl(tmp_path: Path) ->
     recovery_path = tmp_path / ".codex" / "supervisor" / "recovery-attempts.jsonl"
     with recovery_path.open("a", encoding="utf-8") as handle:
         handle.write('{"summary": "Authorization: Bearer malformed-secret"\n')
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     response = client.get("/api/supervisor/recovery")
 
@@ -274,7 +307,7 @@ def test_supervisor_api_does_not_parse_malformed_legacy_jsonl(tmp_path: Path) ->
 
 def test_run_list_excludes_supervisor_global_artifacts(tmp_path: Path) -> None:
     seed_supervisor_artifacts(tmp_path)
-    runs = TestClient(create_app(project_root=tmp_path)).get("/api/runs").json()["items"]
+    runs = TestClient(create_test_app(project_root=tmp_path)).get("/api/runs").json()["items"]
 
     assert all(run["run_id"] != "loop-supervisor" for run in runs)
 
@@ -283,7 +316,7 @@ def test_api_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
     (run_dir / "dangling.log").symlink_to(run_dir / "missing-target.log")
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     response = client.get("/api/runs/demo-run/events")
 
@@ -312,7 +345,7 @@ def test_api_events_skip_dangling_session_symlink(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     response = client.get("/api/runs/demo-run/events")
 
@@ -325,7 +358,7 @@ def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
     seed_minimal_run(worktree_root)
     run_dir = worktree_root / ".codex" / "loop-runs" / "demo-run"
     (run_dir / "planner-attempt-1.stdout.log").write_text("Planner history log\n", encoding="utf-8")
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     runs = client.get("/api/runs").json()["items"]
     detail = client.get("/api/runs/demo-run").json()
@@ -341,7 +374,7 @@ def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
 
 
 def test_api_returns_404_for_missing_run_and_traversal_run_id(tmp_path: Path) -> None:
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     missing = client.get("/api/runs/missing")
     traversal = client.get("/api/runs/%2E%2E%2Foutside")
@@ -356,7 +389,7 @@ def test_api_returns_invalid_run_detail_for_listed_malformed_and_empty_runs(tmp_
     broken.mkdir(parents=True)
     (broken / "run.json").write_text("{bad json", encoding="utf-8")
     (tmp_path / ".codex" / "loop-runs" / "empty-run").mkdir(parents=True)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     runs = client.get("/api/runs").json()["items"]
     broken_detail = client.get("/api/runs/broken-run")
@@ -396,7 +429,7 @@ def test_api_handles_non_string_run_kind(tmp_path: Path) -> None:
             "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
         },
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     runs = client.get("/api/runs")
     detail = client.get("/api/runs/weird-run")
@@ -446,7 +479,7 @@ def test_api_and_static_page_expose_auditor_and_skill_dashboard(tmp_path: Path) 
         "---\nname: loop-helper\ndescription: Use when testing loop dashboard skill inventory.\n---\n",
         encoding="utf-8",
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     detail = client.get("/api/runs/demo-run")
     index = client.get("/")
@@ -471,7 +504,7 @@ def test_static_serving_prefers_vite_dist_index_and_assets(tmp_path: Path, monke
     (frontend_dir / "index.html").write_text('<script src="/src/main.tsx"></script>', encoding="utf-8")
     monkeypatch.setattr(main, "_frontend_root", lambda: frontend_dir)
 
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     index = client.get("/")
     asset = client.get("/assets/app-built.js")
@@ -543,7 +576,7 @@ def seed_parent_child_api_run(repo_root: Path) -> None:
 
 def test_api_returns_parent_child_fields(tmp_path: Path) -> None:
     seed_parent_child_api_run(tmp_path)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     runs = client.get("/api/runs").json()["items"]
     detail = client.get("/api/runs/api-parent").json()
@@ -603,7 +636,7 @@ def test_run_list_and_detail_collections_use_page_contract(tmp_path: Path) -> No
             ],
         },
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     first = client.get("/api/runs?page_size=20").json()
     assert set(first) == {
@@ -658,6 +691,85 @@ def test_run_list_and_detail_collections_use_page_contract(tmp_path: Path) -> No
         }
 
 
+def test_acceptance_duplicate_source_ids_paginate_forward_and_reverse(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "scenario_results": [
+                {
+                    "scenario_id": "duplicate-scenario",
+                    "status": "fail",
+                    "summary": "same scenario",
+                    "occurrence": index,
+                }
+                for index in range(45)
+            ],
+        },
+    )
+    client = TestClient(create_test_app(project_root=tmp_path))
+
+    pages = []
+    cursor = None
+    while not pages or cursor:
+        response = client.get(
+            "/api/runs/demo-run/acceptance",
+            params={"cursor": cursor} if cursor else None,
+        )
+        assert response.status_code == 200
+        pages.append(response.json())
+        cursor = pages[-1]["next_cursor"]
+
+    assert [len(page["items"]) for page in pages] == [20, 20, 5]
+    assert {item["acceptance_id"] for page in pages for item in page["items"]} == {
+        "duplicate-scenario"
+    }
+    reverse = client.get(
+        "/api/runs/demo-run/acceptance",
+        params={"cursor": pages[-1]["previous_cursor"]},
+    ).json()
+    assert reverse["items"] == pages[-2]["items"]
+
+
+def test_run_cursor_is_validated_before_lookup_and_survives_run_deletion(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "scenario_results": [
+                {
+                    "scenario_id": f"scenario-{index:03d}",
+                    "status": "fail",
+                    "summary": f"scenario {index}",
+                }
+                for index in range(25)
+            ],
+        },
+    )
+    client = TestClient(create_test_app(project_root=tmp_path))
+    first = client.get("/api/runs/demo-run/acceptance").json()
+    shutil.rmtree(run_dir)
+
+    malformed = client.get("/api/runs/missing/acceptance?cursor=bad")
+    second = client.get(
+        "/api/runs/demo-run/acceptance",
+        params={"cursor": first["next_cursor"]},
+    )
+
+    assert malformed.status_code == 400
+    assert second.status_code == 200
+    assert second.json()["total"] == 25
+    assert len(second.json()["items"]) == 5
+
+
 def test_log_list_omits_bodies_and_detail_is_opaque_redacted_and_bounded(
     tmp_path: Path,
 ) -> None:
@@ -665,7 +777,7 @@ def test_log_list_omits_bodies_and_detail_is_opaque_redacted_and_bounded(
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
     log_path = run_dir / "generator-attempt-1.stdout.log"
     log_path.write_text("token=top-secret\n" + "界" * 30_000, encoding="utf-8")
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     logs = client.get("/api/runs/demo-run/logs?page_size=20").json()
     item = next(item for item in logs["items"] if item["stream"] == "stdout")
@@ -707,7 +819,7 @@ def test_log_detail_revalidates_symlinks_regular_files_and_run_ownership(
     run_a = tmp_path / ".codex" / "loop-runs" / "run-a"
     log_path = run_a / "generator-attempt-1.stderr.log"
     log_path.write_text("failure\n", encoding="utf-8")
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     item = client.get("/api/runs/run-a/logs").json()["items"][0]
 
     assert client.get(f"/api/runs/run-b/logs/{item['log_id']}").status_code == 404
@@ -736,7 +848,7 @@ def test_log_discovery_rejects_every_lexical_symlink_component(tmp_path: Path) -
             "stdout_path": "linked-logs/nested.stdout.log",
         },
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     logs = client.get("/api/runs/demo-run/logs").json()
 
@@ -753,7 +865,7 @@ def test_log_detail_reads_same_leaf_descriptor_during_swap(
     log_path.write_text("inside\n", encoding="utf-8")
     outside = tmp_path / "outside.log"
     outside.write_text("outside-secret\n", encoding="utf-8")
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     item = client.get("/api/runs/demo-run/logs").json()["items"][0]
     original_open = __import__("os").open
     swapped = False
@@ -792,7 +904,7 @@ def test_log_detail_reads_through_open_ancestor_descriptor_during_swap(
         run_dir / "evaluator-result.json",
         {"status": "fail", "stdout_path": "logs/nested.stdout.log"},
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     item = client.get("/api/runs/demo-run/logs").json()["items"][0]
     original_open = __import__("os").open
     swapped = False
@@ -831,7 +943,7 @@ def test_log_detail_does_not_follow_ancestor_swapped_during_os_open(
         run_dir / "evaluator-result.json",
         {"status": "fail", "stdout_path": "logs/nested.stdout.log"},
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     item = client.get("/api/runs/demo-run/logs").json()["items"][0]
     original_open = __import__("os").open
     swapped = False
@@ -857,6 +969,41 @@ def test_log_detail_does_not_follow_ancestor_swapped_during_os_open(
     assert "replacement-secret" not in response.text
 
 
+def test_log_detail_traverses_from_trusted_project_descriptor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    log_path = run_dir / "generator-attempt-1.stdout.log"
+    log_path.write_text("trusted content\n", encoding="utf-8")
+    outside_root = tmp_path / "outside-root"
+    outside_log = outside_root / "loop-runs" / "demo-run" / log_path.name
+    outside_log.parent.mkdir(parents=True)
+    outside_log.write_text("project-ancestor-secret\n", encoding="utf-8")
+    client = TestClient(create_test_app(project_root=tmp_path))
+    item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+    codex_dir = tmp_path / ".codex"
+    original_open = __import__("os").open
+    swapped = False
+
+    def racing_open(path, flags, *args, **kwargs):
+        nonlocal swapped
+        if path == ".codex" and kwargs.get("dir_fd") is not None and not swapped:
+            swapped = True
+            codex_dir.rename(tmp_path / ".codex-original")
+            codex_dir.symlink_to(outside_root, target_is_directory=True)
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr("loop_dashboard.store.os.open", racing_open)
+
+    response = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert swapped is True
+    assert response.status_code == 404
+    assert "project-ancestor-secret" not in response.text
+
+
 def test_inline_log_ids_include_json_position_and_revalidate_provenance(
     tmp_path: Path,
 ) -> None:
@@ -873,7 +1020,7 @@ def test_inline_log_ids_include_json_position_and_revalidate_provenance(
             ],
         },
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/runs/demo-run/logs").json()
     inline_items = [item for item in page["items"] if item["stream"] == "stdout"]
@@ -904,7 +1051,7 @@ def test_log_detail_redacts_compound_secret_keys(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     item = client.get("/api/runs/demo-run/logs").json()["items"][0]
 
     detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}").json()
@@ -928,7 +1075,7 @@ def test_issued_log_handle_survives_event_and_artifact_discovery(tmp_path: Path)
     (run_dir / "generator-attempt-1.stdout.log").write_text(
         "stable handle\n", encoding="utf-8"
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     item = client.get("/api/runs/demo-run/logs").json()["items"][0]
 
     assert client.get("/api/runs/demo-run/events").status_code == 200
@@ -949,7 +1096,7 @@ def test_event_classification_uses_bounded_scan_beyond_first_line(tmp_path: Path
         + "planner agent completed\n",
         encoding="utf-8",
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     events = client.get("/api/runs/demo-run/events").json()["items"]
     kinds = {event["kind"] for event in events}
@@ -975,9 +1122,9 @@ def test_run_cursor_secret_and_snapshot_are_shared_across_app_instances(
                 "next_action": "run_generator",
             },
         )
-    first_client = TestClient(create_app(project_root=tmp_path))
+    first_client = TestClient(create_test_app(project_root=tmp_path))
     first = first_client.get("/api/runs").json()
-    second_client = TestClient(create_app(project_root=tmp_path))
+    second_client = TestClient(create_test_app(project_root=tmp_path))
 
     second = second_client.get(
         "/api/runs", params={"cursor": first["next_cursor"]}
@@ -998,7 +1145,7 @@ def test_event_ids_are_content_stable_not_list_indexes(tmp_path: Path) -> None:
             "timestamp": "2026-07-15T00:00:00Z",
         },
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     event = next(
         item
@@ -1008,3 +1155,114 @@ def test_event_ids_are_content_stable_not_list_indexes(tmp_path: Path) -> None:
 
     assert ":" not in event["event_id"]
     assert len(event["event_id"]) == 24
+
+
+def test_event_api_declares_retention_and_total_matches_exposed_snapshot(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    for index in range(1100):
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "event_type": "transition",
+                "summary": f"event {index}",
+                "timestamp": f"2026-07-15T00:00:{index:04d}Z",
+            },
+        )
+    client = TestClient(create_test_app(project_root=tmp_path))
+
+    response = client.get("/api/runs/demo-run/events")
+    first = response.json()
+    items = list(first["items"])
+    cursor = first["next_cursor"]
+    while cursor:
+        page = client.get(
+            "/api/runs/demo-run/events",
+            params={"cursor": cursor},
+        ).json()
+        items.extend(page["items"])
+        cursor = page["next_cursor"]
+
+    assert response.headers["X-Loop-Event-Retention"] == (
+        "structured=last-1000-lines-within-1048576-bytes;"
+        "sessions=last-200-events-from-newest-128-files-within-"
+        "2097152-bytes-each;logs=newest-1000"
+    )
+    assert len(items) == first["total"]
+    messages = {item["message"] for item in items}
+    assert "event 1099" in messages
+    assert "event 0" not in messages
+
+
+def test_session_event_candidates_are_sorted_by_freshness_before_retention(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    sessions_dir = tmp_path / ".codex" / "sessions"
+    for index in range(129):
+        path = sessions_dir / f"session-{index:03d}.jsonl"
+        append_jsonl(
+            path,
+            {
+                "run_id": "other-run",
+                "type": "agent_message",
+                "message": f"other {index}",
+            },
+        )
+        os.utime(path, (index + 1, index + 1))
+    discovery_order = list(sessions_dir.rglob("*.jsonl"))
+    newest = discovery_order[128]
+    newest.write_text(
+        json.dumps(
+            {
+                "run_id": "demo-run",
+                "type": "agent_message",
+                "message": "newest retained session",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    os.utime(newest, (1000, 1000))
+
+    events = LoopDashboardStore(tmp_path).get_events("demo-run")
+
+    assert events is not None
+    assert any(item["message"] == "newest retained session" for item in events)
+
+
+def test_snapshot_capacity_returns_status_error_not_cursor_400(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "scenario_results": [
+                {
+                    "scenario_id": "large-scenario",
+                    "status": "fail",
+                    "summary": "x" * 500,
+                }
+            ],
+        },
+    )
+    client = TestClient(
+        create_test_app(
+            project_root=tmp_path,
+            max_snapshot_row_bytes=128,
+        )
+    )
+
+    response = client.get("/api/runs/demo-run/acceptance")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "capacity_exceeded",
+        "error": {
+            "code": "snapshot_capacity_exceeded",
+            "message": "snapshot row byte budget exceeded",
+        },
+    }

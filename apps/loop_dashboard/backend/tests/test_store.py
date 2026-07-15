@@ -2138,7 +2138,7 @@ def test_log_handle_registry_expires_and_caps_issued_handles(
     store = LoopDashboardStore(
         tmp_path,
         log_handle_ttl_seconds=1,
-        log_handle_max_entries=1,
+        log_handle_max_entries=20,
     )
 
     page = store.page_logs(
@@ -2150,10 +2150,130 @@ def test_log_handle_registry_expires_and_caps_issued_handles(
     assert page is not None
     items = page["items"]
     assert len(items) >= 2
-    for item in items[:-1]:
-        assert store.get_log_detail("handle-run", item["log_id"]) is None
-    retained = items[-1]
-    assert store.get_log_detail("handle-run", retained["log_id"]) is not None
+    for item in items:
+        assert store.get_log_detail("handle-run", item["log_id"]) is not None
 
     now[0] = 102.0
-    assert store.get_log_detail("handle-run", retained["log_id"]) is None
+    for item in items:
+        assert store.get_log_detail("handle-run", item["log_id"]) is None
+
+
+def test_log_paging_issues_only_returned_page_handles(tmp_path: Path) -> None:
+    seed_run(tmp_path, "paged-logs", "generating")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "paged-logs"
+    for index in range(45):
+        (run_dir / f"worker-{index:03d}-attempt-1.stdout.log").write_text(
+            f"log {index}\n",
+            encoding="utf-8",
+        )
+    store = LoopDashboardStore(tmp_path, log_handle_max_entries=100)
+
+    first = store.page_logs(
+        "paged-logs",
+        page_size=20,
+        cursor=None,
+        filters={},
+    )
+    assert first is not None
+    first_ids = {item["log_id"] for item in first["items"]}
+    assert set(store._log_handles._records) == first_ids
+    assert all(
+        store.get_log_detail("paged-logs", log_id) is not None
+        for log_id in first_ids
+    )
+
+    second = store.page_logs(
+        "paged-logs",
+        page_size=20,
+        cursor=first["next_cursor"],
+        filters={},
+    )
+    assert second is not None
+    second_ids = {item["log_id"] for item in second["items"]}
+    assert set(store._log_handles._records) == first_ids | second_ids
+    assert all(
+        store.get_log_detail("paged-logs", log_id) is not None
+        for log_id in second_ids
+    )
+
+
+def test_log_page_fails_capacity_instead_of_returning_evicted_ids(
+    tmp_path: Path,
+) -> None:
+    seed_run(tmp_path, "small-handle-registry", "generating")
+    store = LoopDashboardStore(tmp_path, log_handle_max_entries=1)
+
+    with pytest.raises(RuntimeError, match="log handle capacity"):
+        store.page_logs(
+            "small-handle-registry",
+            page_size=20,
+            cursor=None,
+            filters={},
+        )
+
+
+def test_log_discovery_enforces_entry_and_inline_byte_budgets(tmp_path: Path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "budget-run"
+    write_json(
+        run_dir / "run.json",
+        {
+            "run_id": "budget-run",
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "budget-run",
+            "requirement": "budget logs",
+            "attempts": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+        },
+    )
+    for index in range(3):
+        (run_dir / f"worker-{index}-attempt-1.stdout.log").write_text(
+            "file log\n",
+            encoding="utf-8",
+        )
+    entry_limited = LoopDashboardStore(
+        tmp_path,
+        log_discovery_max_entries=2,
+    )
+
+    with pytest.raises(RuntimeError, match="log discovery entry budget"):
+        entry_limited.page_logs(
+            "budget-run",
+            page_size=20,
+            cursor=None,
+            filters={},
+        )
+
+    for path in run_dir.glob("*.log"):
+        path.unlink()
+    write_json(
+        run_dir / "evaluator-result.json",
+        {"status": "fail", "stdout": "x" * 11},
+    )
+    inline_limited = LoopDashboardStore(
+        tmp_path,
+        log_inline_max_bytes=10,
+    )
+    with pytest.raises(RuntimeError, match="inline log byte budget"):
+        inline_limited.page_logs(
+            "budget-run",
+            page_size=20,
+            cursor=None,
+            filters={},
+        )
+
+
+def test_log_reader_rejects_cross_task_root_symlink_alias(tmp_path: Path) -> None:
+    task_a = tmp_path / ".codex" / "loop-runs" / "task-a"
+    task_b = tmp_path / ".codex" / "loop-runs" / "task-b"
+    task_a.mkdir(parents=True)
+    task_b.mkdir(parents=True)
+    secret = task_b / "worker-attempt-1.stdout.log"
+    secret.write_text("cross-task-secret\n", encoding="utf-8")
+    alias = task_a / "other-task"
+    alias.symlink_to(task_b, target_is_directory=True)
+    store = LoopDashboardStore(tmp_path)
+
+    with pytest.raises(OSError):
+        store._read_regular_descriptor(secret, alias, 1024)

@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sqlite3
+import threading
+import time
 
 from fastapi.testclient import TestClient
 import pytest
 
 from loop_dashboard.main import create_app
-from loop_dashboard.supervisor_store import SupervisorDashboardStore
+from loop_dashboard.supervisor_store import (
+    SQLitePageSession,
+    SQLiteSnapshotRegistry,
+    SupervisorDashboardStore,
+)
 from scripts.loop_supervisor.store import SCHEMA_VERSION, SupervisorStore
 
 
@@ -20,6 +26,111 @@ PAGE_KEYS = {
     "total",
     "has_more",
 }
+TEST_CURSOR_SECRET = b"task-7-dashboard-test-secret-32-bytes"
+
+
+def create_test_app(project_root: Path, **kwargs):
+    return create_app(
+        project_root=project_root,
+        cursor_secret=TEST_CURSOR_SECRET,
+        **kwargs,
+    )
+
+
+class _LockCheckingConnection:
+    def __init__(self, lock: threading.RLock) -> None:
+        self.lock = lock
+        self.closed = False
+
+    def rollback(self) -> None:
+        assert self.lock._is_owned()  # type: ignore[attr-defined]
+
+    def close(self) -> None:
+        assert self.lock._is_owned()  # type: ignore[attr-defined]
+        self.closed = True
+
+
+def _sqlite_page_session(
+    connection,
+    *,
+    expires_at: float,
+    lock: threading.RLock | None = None,
+) -> SQLitePageSession:
+    return SQLitePageSession(
+        snapshot_id="snapshot-test",
+        connection=connection,
+        table="actions",
+        endpoint="supervisor-actions",
+        filter_fingerprint="filters",
+        filters={},
+        predicates=(),
+        snapshot=("2026-07-15T00:00:00Z", "action-1"),
+        snapshot_sequence=1,
+        total=1,
+        expires_at=expires_at,
+        lock=lock or threading.RLock(),
+    )
+
+
+def test_sqlite_snapshot_reaper_waits_for_page_lock_before_closing(
+    monkeypatch,
+) -> None:
+    now = [100.0]
+    monkeypatch.setattr("loop_dashboard.supervisor_store.time.monotonic", lambda: now[0])
+    registry = SQLiteSnapshotRegistry(ttl_seconds=1, max_sessions=2)
+    session_lock = threading.RLock()
+    connection = _LockCheckingConnection(session_lock)
+    session = _sqlite_page_session(
+        connection,
+        expires_at=101.0,
+        lock=session_lock,
+    )
+    registry.add(session)
+    session_lock.acquire()
+    now[0] = 102.0
+    reaper = threading.Thread(target=registry.reap_expired)
+
+    reaper.start()
+    time.sleep(0.02)
+    assert reaper.is_alive()
+    assert connection.closed is False
+    session_lock.release()
+    reaper.join(timeout=1)
+
+    assert reaper.is_alive() is False
+    assert connection.closed is True
+
+
+def test_app_periodically_reaps_idle_sqlite_snapshots_and_closes_on_shutdown(
+    tmp_path: Path,
+) -> None:
+    connection = _seed_supervisor_database(tmp_path, action_count=25)
+    app = create_app(
+        project_root=tmp_path,
+        cursor_secret=TEST_CURSOR_SECRET,
+        sqlite_snapshot_ttl_seconds=0.03,
+        reaper_interval_seconds=0.01,
+    )
+
+    with TestClient(app) as client:
+        first = client.get("/api/supervisor/actions").json()
+        payload = app.state.supervisor_store._cursor_codec.decode(
+            first["next_cursor"]
+        )
+        session = app.state.supervisor_store._sqlite_snapshots.get(
+            payload,
+            table="actions",
+            endpoint="supervisor-actions",
+            filter_fingerprint=payload.filter_fingerprint,
+        )
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and not session.closed:
+            time.sleep(0.01)
+        assert session.closed is True
+
+    assert app.state.supervisor_store.closed is True
+    assert app.state.store.closed is True
+    connection.close()
 
 
 def _open_seeded_database(project_root: Path) -> sqlite3.Connection:
@@ -170,7 +281,7 @@ def _assert_page(payload: dict, *, total: int | None = None) -> None:
 
 def test_supervisor_routes_are_sqlite_backed_and_paginated(tmp_path: Path) -> None:
     connection = _seed_supervisor_database(tmp_path)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     summary = client.get("/api/supervisor").json()
     assert summary["status"] == "available"
@@ -210,7 +321,7 @@ def test_supervisor_routes_are_sqlite_backed_and_paginated(tmp_path: Path) -> No
 
 def test_sqlite_cursor_is_stable_under_backdated_inserts(tmp_path: Path) -> None:
     connection = _seed_supervisor_database(tmp_path)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     first = client.get("/api/supervisor/actions?page_size=20").json()
     first_ids = {item["action_id"] for item in first["items"]}
@@ -251,7 +362,7 @@ def test_sqlite_snapshot_survives_deletion_and_supports_reverse_navigation(
     tmp_path: Path,
 ) -> None:
     connection = _seed_supervisor_database(tmp_path, action_count=45)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
     first = client.get("/api/supervisor/actions?page_size=20").json()
     expected_ids = [f"action-{index:03d}" for index in range(44, -1, -1)]
 
@@ -292,7 +403,7 @@ def test_sqlite_snapshot_survives_deletion_and_supports_reverse_navigation(
 
 def test_invalid_cursor_filter_and_page_size_are_400(tmp_path: Path) -> None:
     connection = _seed_supervisor_database(tmp_path)
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     assert client.get("/api/supervisor/actions?cursor=bad").status_code == 400
     assert client.get("/api/supervisor/actions?cursor=").status_code == 400
@@ -316,7 +427,7 @@ def test_missing_sqlite_is_honestly_unavailable_without_jsonl_fallback(tmp_path:
     (supervisor_dir / "run-decisions.jsonl").write_text(
         '{"decision_id":"legacy-success"}\n', encoding="utf-8"
     )
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     summary = client.get("/api/supervisor").json()
     page = client.get("/api/supervisor/decisions").json()
@@ -344,7 +455,7 @@ def test_incompatible_sqlite_schema_is_reported_without_migration(tmp_path: Path
     connection.commit()
     connection.close()
     before = db_path.read_bytes()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     summary = client.get("/api/supervisor").json()
     page = client.get("/api/supervisor/actions").json()
@@ -360,7 +471,7 @@ def test_missing_contract_column_is_schema_incompatible(tmp_path: Path) -> None:
     connection.execute("ALTER TABLE actions DROP COLUMN payload_json")
     connection.commit()
     connection.close()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/supervisor/actions").json()
 
@@ -373,7 +484,7 @@ def test_missing_membership_trigger_is_schema_incompatible(tmp_path: Path) -> No
     connection.execute("DROP TRIGGER row_sequence_actions_insert")
     connection.commit()
     connection.close()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/supervisor/actions").json()
 
@@ -392,7 +503,7 @@ def test_noop_membership_trigger_is_schema_incompatible(tmp_path: Path) -> None:
     )
     connection.commit()
     connection.close()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/supervisor/actions").json()
 
@@ -416,7 +527,7 @@ def test_disabled_membership_trigger_is_schema_incompatible_even_with_coverage(
     )
     connection.commit()
     connection.close()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/supervisor/actions").json()
 
@@ -431,7 +542,7 @@ def test_missing_row_sequence_coverage_is_schema_incompatible(tmp_path: Path) ->
     )
     connection.commit()
     connection.close()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/supervisor/actions").json()
 
@@ -482,7 +593,7 @@ def test_action_attempt_log_is_bound_to_its_run_attempt_and_fixed_stream(
         (json.dumps([relative_log_path]),),
     )
     connection.commit()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     page = client.get("/api/runs/run-1/logs").json()
     attempt_log = next(
@@ -540,7 +651,7 @@ def test_sqlite_json_recursively_redacts_compound_secret_keys(tmp_path: Path) ->
         (json.dumps(secret_payload),),
     )
     connection.commit()
-    client = TestClient(create_app(project_root=tmp_path))
+    client = TestClient(create_test_app(project_root=tmp_path))
 
     action = next(
         item
@@ -590,9 +701,9 @@ def test_sqlite_json_recursively_redacts_compound_secret_keys(tmp_path: Path) ->
 
 def test_sqlite_cursor_snapshot_is_shared_across_app_instances(tmp_path: Path) -> None:
     connection = _seed_supervisor_database(tmp_path, action_count=25)
-    first_client = TestClient(create_app(project_root=tmp_path))
+    first_client = TestClient(create_test_app(project_root=tmp_path))
     first = first_client.get("/api/supervisor/actions").json()
-    second_client = TestClient(create_app(project_root=tmp_path))
+    second_client = TestClient(create_test_app(project_root=tmp_path))
 
     second = second_client.get(
         "/api/supervisor/actions",
@@ -607,4 +718,37 @@ def test_sqlite_cursor_snapshot_is_shared_across_app_instances(tmp_path: Path) -
         "action-001",
         "action-000",
     ]
+    connection.close()
+
+
+def test_duplicate_skill_rows_paginate_forward_and_reverse(tmp_path: Path) -> None:
+    connection = _seed_supervisor_database(tmp_path)
+    connection.execute(
+        "UPDATE skill_snapshots SET total_skills = 45, snapshot_json = ? "
+        "WHERE snapshot_id = 'snapshot-1'",
+        (json.dumps({"inventory": [{"name": "same-skill"}] * 45}),),
+    )
+    connection.commit()
+    client = TestClient(create_test_app(project_root=tmp_path))
+
+    pages = []
+    cursor = None
+    while not pages or cursor:
+        response = client.get(
+            "/api/supervisor/skills/snapshot-1/rows",
+            params={"cursor": cursor} if cursor else None,
+        )
+        assert response.status_code == 200
+        pages.append(response.json())
+        cursor = pages[-1]["next_cursor"]
+
+    assert [len(page["items"]) for page in pages] == [20, 20, 5]
+    assert len(
+        {item["skill_id"] for page in pages for item in page["items"]}
+    ) == 1
+    reverse = client.get(
+        "/api/supervisor/skills/snapshot-1/rows",
+        params={"cursor": pages[-1]["previous_cursor"]},
+    ).json()
+    assert reverse["items"] == pages[-2]["items"]
     connection.close()

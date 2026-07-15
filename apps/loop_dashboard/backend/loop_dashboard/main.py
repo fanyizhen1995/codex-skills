@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import os
@@ -8,17 +10,24 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Callable
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .pagination import CursorCodec, CursorError, PageSizeError
+from .pagination import (
+    CursorCodec,
+    CursorError,
+    PageSizeError,
+    SnapshotCapacityError,
+)
 from .store import LoopDashboardStore
 from .supervisor_store import SupervisorDashboardStore
 
 
-_CURSOR_CODECS: OrderedDict[tuple[str, str], CursorCodec] = OrderedDict()
+_CURSOR_CODECS: OrderedDict[
+    tuple[str, str, int, int], CursorCodec
+] = OrderedDict()
 _CURSOR_CODECS_LOCK = RLock()
 _CURSOR_CODEC_LIMIT = 64
 
@@ -27,17 +36,29 @@ def create_app(
     project_root: Path | str | None = None,
     *,
     cursor_secret: bytes | str | None = None,
+    sqlite_snapshot_ttl_seconds: float = 300,
+    reaper_interval_seconds: float = 1,
+    max_snapshot_row_bytes: int = 256 * 1024,
+    max_snapshot_bytes: int = 16 * 1024 * 1024,
 ) -> FastAPI:
+    if reaper_interval_seconds <= 0:
+        raise ValueError("reaper interval must be positive")
     resolved_root = Path(project_root or os.getenv("LOOP_DASHBOARD_PROJECT_ROOT") or _discover_project_root()).resolve()
     resolved_secret = _resolve_cursor_secret(resolved_root, cursor_secret)
     codec_key = (
         str(resolved_root),
         hashlib.sha256(resolved_secret).hexdigest(),
+        max_snapshot_row_bytes,
+        max_snapshot_bytes,
     )
     with _CURSOR_CODECS_LOCK:
         cursor_codec = _CURSOR_CODECS.get(codec_key)
         if cursor_codec is None:
-            cursor_codec = CursorCodec(resolved_secret)
+            cursor_codec = CursorCodec(
+                resolved_secret,
+                max_snapshot_row_bytes=max_snapshot_row_bytes,
+                max_snapshot_bytes=max_snapshot_bytes,
+            )
             _CURSOR_CODECS[codec_key] = cursor_codec
         _CURSOR_CODECS.move_to_end(codec_key)
         while len(_CURSOR_CODECS) > _CURSOR_CODEC_LIMIT:
@@ -55,10 +76,45 @@ def create_app(
     supervisor_store = SupervisorDashboardStore(
         resolved_root,
         cursor_codec=cursor_codec,
+        snapshot_ttl_seconds=sqlite_snapshot_ttl_seconds,
     )
-    app = FastAPI(title="Loop Dashboard", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        async def reap_idle_state() -> None:
+            while True:
+                await asyncio.sleep(reaper_interval_seconds)
+                store.reap_expired()
+                supervisor_store.reap_expired()
+
+        reaper = asyncio.create_task(reap_idle_state())
+        try:
+            yield
+        finally:
+            reaper.cancel()
+            await asyncio.gather(reaper, return_exceptions=True)
+            supervisor_store.close()
+            store.close()
+
+    app = FastAPI(title="Loop Dashboard", version="0.1.0", lifespan=lifespan)
     app.state.store = store
     app.state.supervisor_store = supervisor_store
+
+    @app.exception_handler(SnapshotCapacityError)
+    async def snapshot_capacity_error(
+        _request: Request,
+        exc: SnapshotCapacityError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "capacity_exceeded",
+                "error": {
+                    "code": "snapshot_capacity_exceeded",
+                    "message": str(exc),
+                },
+            },
+        )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -241,7 +297,12 @@ def create_app(
         return run
 
     @app.get("/api/runs/{run_id}/events")
-    def get_events(run_id: str, request: Request) -> dict:
+    def get_events(run_id: str, request: Request, response: Response) -> dict:
+        response.headers["X-Loop-Event-Retention"] = (
+            "structured=last-1000-lines-within-1048576-bytes;"
+            "sessions=last-200-events-from-newest-128-files-within-"
+            "2097152-bytes-each;logs=newest-1000"
+        )
         return _run_page(
             request,
             run_id,
@@ -354,21 +415,21 @@ def _resolve_cursor_secret(
     project_root: Path,
     configured: bytes | str | None,
 ) -> bytes:
-    value = configured or os.getenv("LOOP_DASHBOARD_CURSOR_SECRET")
+    del project_root
+    value = (
+        configured
+        if configured is not None
+        else os.getenv("LOOP_DASHBOARD_CURSOR_SECRET")
+    )
     if isinstance(value, str):
         value = value.encode()
-    if isinstance(value, bytes) and value:
-        return hashlib.sha256(value).digest()
-    try:
-        machine_seed = Path("/etc/machine-id").read_bytes().strip()
-    except OSError:
-        machine_seed = os.uname().nodename.encode()
-    return hashlib.sha256(
-        b"loop-dashboard-local-cursor\0"
-        + machine_seed
-        + b"\0"
-        + str(project_root).encode()
-    ).digest()
+    if not isinstance(value, bytes) or not value:
+        raise RuntimeError(
+            "LOOP_DASHBOARD_CURSOR_SECRET must be configured with random data"
+        )
+    if len(value) < 32:
+        raise ValueError("cursor secret must contain at least 32 bytes")
+    return hashlib.sha256(value).digest()
 
 
 def _supervisor_page(
