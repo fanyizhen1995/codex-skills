@@ -8,6 +8,8 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -24,7 +26,11 @@ from scripts.loop_supervisor.migration import (
 )
 from scripts.loop_supervisor.reconciler import _state_fingerprint, reconcile_once
 from scripts.loop_supervisor.store import SupervisorStore
-from scripts.harness_loop_runtime_lock import acquire_repository_mutation_lock
+from scripts.harness_loop_runtime_lock import (
+    acquire_repository_mutation_lock,
+    acquire_run_lock,
+    acquire_runtime_database_maintenance_lock,
+)
 from scripts.harness_loop_supervisor_state import build_supervisor_state
 
 
@@ -112,6 +118,18 @@ def _seed_run(
         },
     }
     (run_dir / "run.json").write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+
+@contextmanager
+def _hold_reconcile_lock(root: Path):
+    path = root / ".codex" / "supervisor" / "reconcile.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def test_migration_streams_repeated_ticks_and_preserves_first_last_count(
@@ -564,6 +582,68 @@ def test_migrated_archived_decision_stays_closed_after_reconcile(
         store.close()
 
     assert len(changed_result.open_user_decisions) == 1
+
+
+def test_live_migration_preserves_lineage_and_closes_obsolete_recovery_decision(
+    tmp_path: Path,
+) -> None:
+    _seed_run(
+        tmp_path,
+        "parent-22-live",
+        parent_counter=21,
+        completed=["parent-21"],
+        phase="stopped_blocked",
+        next_action="inspect_autonomous_generator",
+    )
+    run_path = tmp_path / ".codex/loop-runs/parent-22-live/run.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run.pop("state_revision")
+    run_path.write_text(json.dumps(run) + "\n", encoding="utf-8")
+    failure_key = "unsupported_state:parent-22-live:run-state:unsupported-state"
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/user-decisions.jsonl",
+        [
+            {
+                "schema_version": 1,
+                "decision_id": "parent-22-legacy-decision",
+                "failure_key": failure_key,
+                "affected_runs": ["parent-22-live"],
+                "status": "open",
+                "summary": "Legacy Supervisor could not recover Generator output.",
+                "required_user_decision": "Inspect the unsupported state.",
+                "opened_at": "2026-07-10T00:00:00Z",
+            }
+        ],
+    )
+    store = _open_store(tmp_path)
+    try:
+        migrate_jsonl(tmp_path, store, dry_run=False)
+        store._connection.execute(
+            "UPDATE runs SET loop_lineage_id = 'ai-infra-expansion-lineage' "
+            "WHERE run_id = 'parent-22-live'"
+        )
+
+        first = reconcile_once(tmp_path, store, include_worktrees=False)
+        second = reconcile_once(tmp_path, store, include_worktrees=False)
+        decisions = [
+            row
+            for row in store.fetch_all("user_decisions")
+            if row.get("run_id") == "parent-22-live"
+        ]
+        projection = store.get_run("parent-22-live")
+    finally:
+        store.close()
+
+    assert first.action_for("parent-22-live").action_type.value == "recover_generator_result"
+    assert second.action_for("parent-22-live").action_id == first.action_for(
+        "parent-22-live"
+    ).action_id
+    assert projection["loop_lineage_id"] == "ai-infra-expansion-lineage"
+    assert projection["revision"] == 0
+    assert "state_revision" not in json.loads(run_path.read_text(encoding="utf-8"))
+    assert len(decisions) == 1
+    assert decisions[0]["status"] == "closed"
+    assert decisions[0]["resolution"] == "registry now provides automatic recovery"
 
 
 def test_archived_compatibility_requires_exact_migrated_run_state(
@@ -1390,6 +1470,94 @@ def test_read_only_cli_commands_do_not_create_project_runtime_files(
     }
     assert after == before
     assert not (tmp_path / ".codex/supervisor").exists()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("migrate", "--dry-run"),
+        ("migrate",),
+        ("migrate", "--cleanup-legacy"),
+    ],
+)
+@pytest.mark.parametrize("held_lock", ["maintenance", "reconcile", "repository", "run"])
+def test_migrate_cli_fails_closed_before_reading_run_records_when_runtime_is_busy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command: tuple[str, ...],
+    held_lock: str,
+) -> None:
+    subprocess.run(
+        ["git", "init", "-q"], cwd=tmp_path, check=True, capture_output=True
+    )
+    _seed_run(tmp_path, "run-1", parent_counter=0, completed=[])
+
+    def fail_if_read(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("migration read a run record without quiescence")
+
+    monkeypatch.setattr(migration_module, "read_quiesced_run_records", fail_if_read)
+    lock = {
+        "maintenance": acquire_runtime_database_maintenance_lock(
+            tmp_path, owner="test-maintenance"
+        ),
+        "reconcile": _hold_reconcile_lock(tmp_path),
+        "repository": acquire_repository_mutation_lock(
+            tmp_path, owner="test-repository"
+        ),
+        "run": acquire_run_lock(tmp_path, "run-1", owner="test-run"),
+    }[held_lock]
+
+    with lock:
+        started = time.monotonic()
+        with pytest.raises(MigrationValidationError, match="requires quiescence"):
+            supervisor_cli.main(
+                [command[0], "--project-root", str(tmp_path), *command[1:]]
+            )
+        assert time.monotonic() - started < 1
+
+
+def test_migrate_cli_dry_run_keeps_legacy_sources_and_does_not_create_database(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    subprocess.run(
+        ["git", "init", "-q"], cwd=tmp_path, check=True, capture_output=True
+    )
+    source = tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl"
+    _write_jsonl(source, [_decision(1)])
+    before = source.read_bytes()
+
+    assert (
+        supervisor_cli.main(
+            ["migrate", "--project-root", str(tmp_path), "--dry-run"]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    assert source.read_bytes() == before
+    assert not (tmp_path / ".codex" / "supervisor" / "supervisor.db").exists()
+    assert not list(tmp_path.parent.glob(f".{tmp_path.name}-supervisor-snapshots"))
+
+
+def test_migrate_cli_cleanup_applies_then_removes_validated_legacy_sources(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    subprocess.run(
+        ["git", "init", "-q"], cwd=tmp_path, check=True, capture_output=True
+    )
+    source = tmp_path / ".codex" / "supervisor" / "run-decisions.jsonl"
+    _write_jsonl(source, [_decision(1)])
+
+    assert (
+        supervisor_cli.main(
+            ["migrate", "--project-root", str(tmp_path), "--cleanup-legacy"]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    assert not source.exists()
+    assert (tmp_path / ".codex" / "supervisor" / "supervisor.db").is_file()
 
 
 def test_migration_counts_and_quarantines_corrupt_rows_with_source_timestamps(

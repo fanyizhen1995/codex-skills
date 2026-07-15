@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -18,7 +18,7 @@ from typing import Any
 from uuid import uuid4
 
 from scripts.harness_loop_agents import run_codex_prompt, validate_owned_regular_file
-from scripts.harness_loop_contracts import validate_run_id
+from scripts.harness_loop_contracts import SUPERVISOR_TERMINAL_PHASES, validate_run_id
 
 from .models import (
     ActionOwner,
@@ -40,8 +40,10 @@ from .reviewer_safety import (
 )
 from .reviewer_outbox import (
     ApplicationCutpoint,
+    ReviewSupersededError,
     apply_review_outbox,
     repair_resumable_review_projection,
+    resumable_review_application_target_ids,
 )
 from .store import LeaseError, SupervisorStore
 
@@ -111,6 +113,21 @@ class _DueLineage:
     representative_run: Mapping[str, Any]
 
 
+@dataclass(frozen=True)
+class _ReviewScope:
+    lineages: tuple[str, ...]
+    evidence_runs: tuple[Mapping[str, Any], ...]
+    target_runs: tuple[Mapping[str, Any], ...]
+
+    @property
+    def evidence_context_run_ids(self) -> tuple[str, ...]:
+        return tuple(str(row["run_id"]) for row in self.evidence_runs)
+
+    @property
+    def target_run_ids(self) -> tuple[str, ...]:
+        return tuple(str(row["run_id"]) for row in self.target_runs)
+
+
 def review_due_lineages(store: SupervisorStore, now: datetime) -> list[str]:
     """Return lineages with two unreviewed semantic-parent completions."""
     current = _coerce_datetime(now)
@@ -121,10 +138,26 @@ def schedule_due_reviews(
     store: SupervisorStore,
     *,
     now: datetime | None = None,
+    busy_run_ids: Collection[str] = (),
 ) -> list[ActionRequest]:
     """Coalesce due lineages and queue project-global non-Worker reviews."""
     current = _coerce_datetime(now or store.current_time())
-    due = _due_lineage_states(store, current)
+    busy_ids = {str(run_id) for run_id in busy_run_ids if str(run_id)}
+    busy_lineages = {
+        str(row.get("loop_lineage_id") or row.get("run_id") or "")
+        for row in _decoded_store_rows(store, "runs")
+        if str(row.get("run_id") or "") in busy_ids
+    }
+    _release_stale_pending_review_reservations(
+        store,
+        current,
+        protected_lineage_ids=busy_lineages,
+    )
+    due = [
+        item
+        for item in _due_lineage_states(store, current)
+        if item.lineage_id not in busy_lineages
+    ]
     groups: list[list[_DueLineage]] = []
     for item in due:
         if not groups or item.due_at - groups[-1][0].due_at > REVIEW_COALESCE_WINDOW:
@@ -140,6 +173,13 @@ def schedule_due_reviews(
         not_before = due_at + REVIEW_COALESCE_WINDOW
         representative = min(group, key=lambda item: item.lineage_id).representative_run
         pending = _pending_review_for_window(store, due_at)
+        if pending is not None:
+            pending_payload = _json_object(pending.get("payload"))
+            pending_lineages = set(
+                _string_list(pending_payload.get("triggering_lineages"))
+            )
+            if pending_lineages & busy_lineages:
+                pending = None
         if pending is not None:
             pending_payload = _json_object(pending.get("payload"))
             lineages = sorted(
@@ -166,6 +206,14 @@ def schedule_due_reviews(
             "triggering_lineages": lineages,
             "cadence_positions": positions,
         }
+        retry_generation = _review_retry_generation(
+            store,
+            lineages,
+            positions,
+            representative,
+        )
+        if retry_generation:
+            identity["reservation_generation"] = retry_generation
         reservation_id = (
             str(pending["reservation_id"])
             if pending is not None
@@ -250,6 +298,87 @@ def _pending_review_for_window(
     return min(candidates, key=lambda item: (item[0], str(item[1]["action_id"])))[1]
 
 
+def _review_retry_generation(
+    store: SupervisorStore,
+    lineages: Sequence[str],
+    positions: Mapping[str, int],
+    representative: Mapping[str, Any],
+) -> int:
+    expected_lineages = sorted(lineages)
+    expected_positions = dict(positions)
+    released = [
+        row
+        for row in store.fetch_all("review_reservations")
+        if row.get("status") == "released"
+        and _json_list(row.get("lineages_json")) == expected_lineages
+        and _json_object(row.get("positions_json")) == expected_positions
+    ]
+    actions = {
+        str(row["action_id"]): row for row in store.fetch_all("actions")
+    }
+    generations: list[int] = []
+    for reservation in released:
+        action = actions.get(str(reservation["action_id"]))
+        if action is None:
+            continue
+        payload = _json_object(action.get("payload_json"))
+        generation = payload.get("reservation_generation", 0)
+        if not isinstance(generation, int) or isinstance(generation, bool):
+            continue
+        generations.append(generation)
+        if (
+            str(action["run_id"]) == str(representative["run_id"])
+            and int(action["run_revision"]) == int(representative["revision"])
+            and str(action["policy"]) == str(representative["policy"])
+            and str(action["phase"]) == str(representative["phase"])
+            and str(action["repo_relative_root"])
+            == str(representative.get("repo_relative_root") or ".")
+        ):
+            return generation
+    return max(generations, default=-1) + 1
+
+
+def _release_stale_pending_review_reservations(
+    store: SupervisorStore,
+    now: datetime,
+    *,
+    protected_lineage_ids: Collection[str] = (),
+) -> None:
+    protected = set(protected_lineage_ids)
+    pending = store.pending_review_reservations()
+    if not pending:
+        return
+    runs = _decoded_store_rows(store, "runs")
+    payloads = _run_payloads(store.project_root, runs)
+    completions = _semantic_parent_completions(runs, payloads)
+    reviewed = _reviewed_cadence_positions(store)
+    for row in pending:
+        payload = _json_object(row.get("payload"))
+        lineages = set(_string_list(payload.get("triggering_lineages")))
+        if lineages & protected:
+            continue
+        positions = row.get("positions")
+        position_lineages = set(positions) if isinstance(positions, Mapping) else set()
+        valid: set[str] = set()
+        if isinstance(positions, Mapping):
+            for lineage_id in lineages:
+                position = positions.get(lineage_id)
+                items = completions.get(lineage_id, ())
+                if (
+                    isinstance(position, int)
+                    and not isinstance(position, bool)
+                    and position > reviewed.get(lineage_id, 0)
+                    and position <= len(items)
+                    and items[position - 1][1] <= now
+                ):
+                    valid.add(lineage_id)
+        if valid != lineages or position_lineages != lineages:
+            store.release_review_reservation(
+                str(row["reservation_id"]),
+                reason="stale Reviewer cadence scope",
+            )
+
+
 def build_review_evidence(
     project_root: Path,
     store: SupervisorStore,
@@ -263,7 +392,9 @@ def build_review_evidence(
     if not lineages:
         raise ValueError("triggering_lineages must not be empty")
 
-    runs = _decoded_store_rows(store, "runs")
+    all_runs = _decoded_store_rows(store, "runs")
+    scope = _review_scope(all_runs, lineages)
+    runs = list(scope.evidence_runs)
     run_payloads = _run_payloads(root, runs)
     completions = _semantic_parent_completions(runs, run_payloads)
     reviewed_positions = _reviewed_cadence_positions(store)
@@ -313,26 +444,35 @@ def build_review_evidence(
         "commits_pushes": _commit_push_evidence(runs, run_payloads, store),
         "domain_output_metrics": _domain_output_metrics(agent_summaries),
         "failures_recoveries": {
-            "failures": _decoded_store_rows(store, "failures"),
+            "failures": _scoped_rows(
+                _decoded_store_rows(store, "failures"), scope.evidence_context_run_ids
+            ),
             "recovery_actions": [
                 row
-                for row in _decoded_store_rows(store, "actions")
+                for row in _scoped_rows(
+                    _decoded_store_rows(store, "actions"),
+                    scope.evidence_context_run_ids,
+                )
                 if int(row.get("recovery_tier") or 0) > 0
                 or str(row.get("action_type") or "").startswith("recover_")
                 or row.get("action_type") == ActionType.RUN_ALTERNATE_RECOVERY.value
             ],
-            "attempts": _decoded_store_rows(store, "action_attempts"),
+            "attempts": _scoped_action_attempts(
+                store, scope.evidence_context_run_ids
+            ),
         },
         "services_freshness": {
             "services": _decoded_store_rows(store, "services"),
             "freshness_checks": _decoded_store_rows(store, "freshness_checks"),
         },
         "user_decisions": {
-            "decisions": _decoded_store_rows(store, "user_decisions"),
+            "decisions": _scoped_decisions(store, scope.evidence_context_run_ids),
             "blocked_run_ids": sorted(
                 {
                     str(row.get("run_id") or "")
-                    for row in store.fetch_all("user_decisions")
+                    for row in _scoped_decisions(
+                        store, scope.evidence_context_run_ids
+                    )
                     if row.get("status") == "open" and row.get("scope") == "run"
                 }
             ),
@@ -364,7 +504,10 @@ def validate_review_payload(
     payload: Mapping[str, Any],
     *,
     expected_evidence_hashes: Sequence[str] | None = None,
+    skill_governance_evidence_hash: str | None = None,
+    allow_legacy_skill_governance_without_hash: bool = False,
     allowed_run_ids: Sequence[str] | None = None,
+    allowed_finding_run_ids: Sequence[str] | None = None,
     allowed_skill_paths: Sequence[str] | None = None,
     reviewed_runs: Mapping[str, Mapping[str, Any]] | None = None,
     existing_findings: Sequence[Mapping[str, Any]] | None = None,
@@ -424,7 +567,14 @@ def validate_review_payload(
     findings = _validated_findings(
         payload.get("findings"),
         expected,
-        allowed_run_ids=set(allowed_run_ids or ()),
+        allowed_run_ids=set(
+            (
+                allowed_finding_run_ids
+                if allowed_finding_run_ids is not None
+                else allowed_run_ids
+            )
+            or ()
+        ),
         existing_findings=tuple(existing_findings or ()),
     )
     governance = _validated_skill_governance(
@@ -432,6 +582,27 @@ def validate_review_payload(
         expected_hashes=expected,
         allowed_skill_paths=set(allowed_skill_paths or ()),
     )
+    if governance and not allow_legacy_skill_governance_without_hash:
+        if (
+            not isinstance(skill_governance_evidence_hash, str)
+            or not _HASH_REF.fullmatch(skill_governance_evidence_hash)
+        ):
+            raise ValueError(
+                "non-empty Skill Governance requires its canonical evidence hash"
+            )
+        if expected and skill_governance_evidence_hash not in expected:
+            raise ValueError("Skill Governance evidence hash is not trusted")
+        if skill_governance_evidence_hash not in evidence_refs:
+            raise ValueError(
+                "review evidence_refs must include the Skill Governance evidence hash"
+            )
+        if any(
+            skill_governance_evidence_hash not in recommendation["evidence_refs"]
+            for recommendation in governance
+        ):
+            raise ValueError(
+                "each Skill Governance recommendation must include the Skill Governance evidence hash"
+            )
     interval = payload.get("next_review_after_parent_tasks")
     if interval != REVIEW_INTERVAL_PARENTS:
         raise ValueError("next_review_after_parent_tasks must be 2")
@@ -456,10 +627,12 @@ def apply_review_decision(
     *,
     lease_checkpoint: Callable[[], None] | None = None,
     application_cutpoint: ApplicationCutpoint | None = None,
+    allowed_run_ids: Sequence[str] | None = None,
 ) -> list[ActionRequest]:
     """Apply a validated decision through registry-owned Supervisor actions."""
     if not isinstance(review, SupervisorReview):
         raise TypeError("review must be a SupervisorReview")
+    _require_review_application_scope(review, allowed_run_ids)
     checkpoint = lease_checkpoint or (lambda: None)
     return apply_review_outbox(
         store,
@@ -511,6 +684,105 @@ def _review_from_persisted(payload: object) -> SupervisorReview:
     )
 
 
+def _publish_completed_review_findings(
+    store: SupervisorStore,
+    review: SupervisorReview,
+) -> None:
+    if not review.findings:
+        return
+    rows = {
+        str(row["review_id"]): row for row in store.fetch_all("reviews")
+    }
+    persisted = rows.get(review.review_id)
+    if persisted is None or persisted.get("status") != "review_complete":
+        raise RuntimeError("Reviewer findings require a completed review application")
+    store.record_review(
+        review_id=review.review_id,
+        trigger=str(persisted["trigger"]),
+        status="review_complete",
+        decision=review.decision.value,
+        summary=review.summary,
+        evidence_refs=tuple(str(value) for value in persisted["evidence"]),
+        findings=review.findings,
+        accepted_review=_persisted_review(review),
+        source_action_id=str(persisted.get("source_action_id") or ""),
+        idempotent_findings=True,
+    )
+
+
+def _publish_completed_skill_snapshot(
+    store: SupervisorStore,
+    review: SupervisorReview,
+    skill_evidence: Mapping[str, Any],
+    evidence_hash: str,
+) -> None:
+    rows = {
+        str(row["review_id"]): row
+        for row in _decoded_store_rows(store, "reviews")
+    }
+    persisted = rows.get(review.review_id)
+    if persisted is None or persisted.get("status") != "review_complete":
+        raise RuntimeError("Skill recommendations require a completed review application")
+    accepted = persisted.get("accepted_review")
+    if not isinstance(accepted, Mapping):
+        raise RuntimeError("Skill recommendations require a durable accepted review")
+    recommendations = _mutable_json(review.skill_governance)
+    if (
+        accepted.get("review_id") != review.review_id
+        or accepted.get("skill_governance") != recommendations
+    ):
+        raise RuntimeError("Skill recommendations do not match the accepted review")
+    if not recommendations:
+        return
+    snapshot = _mutable_json(skill_evidence)
+    if not isinstance(snapshot, dict):
+        raise TypeError("Skill governance evidence must be an object")
+    computed_hash = "sha256:" + hashlib.sha256(
+        _canonical_json({"section": "skill_governance", "value": snapshot})
+    ).hexdigest()
+    if evidence_hash != computed_hash:
+        raise RuntimeError("skill_governance evidence hash mismatch")
+    if evidence_hash not in review.evidence_refs:
+        raise RuntimeError("skill_governance evidence hash is not accepted")
+    snapshot["reviewer_recommendations"] = recommendations
+    store.record_skill_snapshot(
+        snapshot,
+        snapshot_id=f"skill-snapshot-{review.review_id}",
+    )
+
+
+def _publish_completed_skill_snapshot_from_evidence(
+    store: SupervisorStore,
+    review: SupervisorReview,
+    evidence_refs: Sequence[str],
+) -> None:
+    if not review.skill_governance:
+        return
+    skill_evidence: list[tuple[Mapping[str, Any], str]] = []
+    for evidence_ref in evidence_refs:
+        payload = _read_repo_json(store.project_root, evidence_ref)
+        evidence = payload.get("evidence")
+        if not isinstance(evidence, Mapping):
+            continue
+        candidate = evidence.get("skill_governance")
+        if isinstance(candidate, Mapping):
+            evidence_hashes = payload.get("evidence_hashes")
+            declared_hash = (
+                str(evidence_hashes.get("skill_governance") or "")
+                if isinstance(evidence_hashes, Mapping)
+                else ""
+            )
+            skill_evidence.append((candidate, declared_hash))
+    if len(skill_evidence) != 1:
+        raise RuntimeError("Accepted review lacks one durable skill evidence snapshot")
+    _publish_completed_skill_snapshot(
+        store,
+        review,
+        skill_evidence[0][0],
+        skill_evidence[0][1],
+    )
+
+
 def run_reviewer(
     context: ReviewerContext,
     *,
@@ -538,6 +810,8 @@ def run_reviewer(
     ).decode("utf-8")
     gate: ReviewSafetyGate | None = None
     accepted_review = False
+    review: SupervisorReview | None = None
+    accepted_ref = ""
 
     try:
         checkpoint()
@@ -575,10 +849,20 @@ def run_reviewer(
             raise RuntimeError(f"Reviewer execution did not pass: {status}")
         checkpoint()
         candidate = _read_owned_json(review_dir, candidate_path)
+        current_scope = _review_scope(
+            _decoded_store_rows(store, "runs"), context.triggering_lineages
+        )
         review = validate_review_payload(
             candidate,
             expected_evidence_hashes=tuple(bundle.evidence_hashes.values()),
-            allowed_run_ids=tuple(str(row["run_id"]) for row in store.fetch_all("runs")),
+            skill_governance_evidence_hash=bundle.evidence_hashes[
+                "skill_governance"
+            ],
+            allowed_run_ids=current_scope.target_run_ids,
+            allowed_finding_run_ids=tuple(
+                str(item["run_id"])
+                for item in bundle.evidence["objective_constraints"]
+            ),
             allowed_skill_paths=tuple(
                 str(item["path"])
                 for item in bundle.evidence["skill_governance"]["inventory"]
@@ -599,15 +883,6 @@ def run_reviewer(
         checkpoint()
         _write_json_atomic(accepted_path, candidate)
         accepted_ref = accepted_path.relative_to(context.project_root).as_posix()
-        skill_snapshot = bundle.as_dict()["evidence"]["skill_governance"]
-        skill_snapshot["reviewer_recommendations"] = json.loads(
-            json.dumps(candidate["skill_governance"])
-        )
-        checkpoint()
-        store.record_skill_snapshot(
-            skill_snapshot,
-            snapshot_id=f"skill-snapshot-{review.review_id}",
-        )
         checkpoint()
         store.record_review(
             review_id=review.review_id,
@@ -616,7 +891,6 @@ def run_reviewer(
             decision=review.decision.value,
             summary=review.summary,
             evidence_refs=[evidence_ref, accepted_ref],
-            findings=review.findings,
             accepted_review=_persisted_review(review),
             source_action_id=context.source_action_id,
         )
@@ -626,6 +900,16 @@ def run_reviewer(
             store,
             review,
             lease_checkpoint=checkpoint,
+            allowed_run_ids=current_scope.target_run_ids,
+        )
+        checkpoint()
+        _publish_completed_review_findings(store, review)
+        checkpoint()
+        _publish_completed_skill_snapshot(
+            store,
+            review,
+            bundle.evidence["skill_governance"],
+            bundle.evidence_hashes["skill_governance"],
         )
         return ReviewerExecutionResult(
             status="review_complete",
@@ -635,6 +919,19 @@ def run_reviewer(
             actions=tuple(actions),
             evidence_path=evidence_ref,
             accepted_review_path=accepted_ref,
+        )
+    except ReviewSupersededError as exc:
+        if review is None or not accepted_review:
+            raise
+        store.supersede_review_application(review.review_id, reason=str(exc))
+        return ReviewerExecutionResult(
+            status="review_degraded",
+            blocks_safe_runs=False,
+            review_id=review.review_id,
+            review=review,
+            evidence_path=evidence_ref,
+            accepted_review_path=accepted_ref,
+            error=str(exc),
         )
     except LeaseError:
         raise
@@ -685,11 +982,25 @@ def run_queued_reviewer(
         lineages = [str(run.get("loop_lineage_id") or action.run_id)]
     lease_seconds = timeout_seconds + 60
     persisted = store.resumable_review_for_action(action.action_id)
-    if persisted is not None:
-        repair_resumable_review_projection(
-            store,
-            _review_from_persisted(persisted["accepted_review"]),
-        )
+    persisted_review = (
+        _review_from_persisted(persisted["accepted_review"])
+        if persisted is not None
+        else None
+    )
+    persisted_target_run_ids: tuple[str, ...] = ()
+    persisted_superseded_error: ReviewSupersededError | None = None
+    if persisted_review is not None:
+        try:
+            persisted_target_run_ids = resumable_review_application_target_ids(
+                store, persisted_review
+            )
+            repair_resumable_review_projection(store, persisted_review)
+        except ReviewSupersededError as exc:
+            store.supersede_review_application(
+                persisted_review.review_id,
+                reason=str(exc),
+            )
+            persisted_superseded_error = exc
     with ActionLeaseGuard(
         store,
         action_id=action.action_id,
@@ -699,22 +1010,63 @@ def run_queued_reviewer(
         safety_checkpoint=lambda: require_review_safety_clear(store),
     ) as guard:
         if persisted is not None:
-            review = _review_from_persisted(persisted["accepted_review"])
-            actions = apply_review_decision(
-                store,
-                review,
-                lease_checkpoint=guard.checkpoint,
-            )
             evidence_refs = tuple(str(value) for value in persisted["evidence"])
-            result = ReviewerExecutionResult(
-                status="review_complete",
-                blocks_safe_runs=False,
-                review_id=review.review_id,
-                review=review,
-                actions=tuple(actions),
-                evidence_path=evidence_refs[0] if evidence_refs else "",
-                accepted_review_path=evidence_refs[1] if len(evidence_refs) > 1 else "",
-            )
+            assert persisted_review is not None
+            if persisted_superseded_error is None:
+                try:
+                    actions = apply_review_decision(
+                        store,
+                        persisted_review,
+                        lease_checkpoint=guard.checkpoint,
+                        allowed_run_ids=persisted_target_run_ids,
+                    )
+                    guard.checkpoint()
+                    _publish_completed_review_findings(store, persisted_review)
+                    guard.checkpoint()
+                    _publish_completed_skill_snapshot_from_evidence(
+                        store,
+                        persisted_review,
+                        evidence_refs,
+                    )
+                    result = ReviewerExecutionResult(
+                        status="review_complete",
+                        blocks_safe_runs=False,
+                        review_id=persisted_review.review_id,
+                        review=persisted_review,
+                        actions=tuple(actions),
+                        evidence_path=evidence_refs[0] if evidence_refs else "",
+                        accepted_review_path=(
+                            evidence_refs[1] if len(evidence_refs) > 1 else ""
+                        ),
+                    )
+                except ReviewSupersededError as exc:
+                    store.supersede_review_application(
+                        persisted_review.review_id,
+                        reason=str(exc),
+                    )
+                    result = ReviewerExecutionResult(
+                        status="review_degraded",
+                        blocks_safe_runs=False,
+                        review_id=persisted_review.review_id,
+                        review=persisted_review,
+                        evidence_path=evidence_refs[0] if evidence_refs else "",
+                        accepted_review_path=(
+                            evidence_refs[1] if len(evidence_refs) > 1 else ""
+                        ),
+                        error=str(exc),
+                    )
+            else:
+                result = ReviewerExecutionResult(
+                    status="review_degraded",
+                    blocks_safe_runs=False,
+                    review_id=persisted_review.review_id,
+                    review=persisted_review,
+                    evidence_path=evidence_refs[0] if evidence_refs else "",
+                    accepted_review_path=(
+                        evidence_refs[1] if len(evidence_refs) > 1 else ""
+                    ),
+                    error=str(persisted_superseded_error),
+                )
         else:
             result = run_reviewer(
                 ReviewerContext(
@@ -876,6 +1228,81 @@ def _semantic_parent_completions(
         lineage: sorted(items.items(), key=lambda item: (item[1], item[0]))
         for lineage, items in grouped.items()
     }
+
+
+def _review_scope(
+    runs: Sequence[Mapping[str, Any]],
+    triggering_lineages: Sequence[str],
+) -> _ReviewScope:
+    requested = tuple(sorted({str(value) for value in triggering_lineages if str(value)}))
+    known_lineages = {
+        str(row.get("loop_lineage_id") or row.get("run_id") or "")
+        for row in runs
+    }
+    unknown = set(requested) - known_lineages
+    if unknown:
+        raise ValueError(f"Reviewer triggering lineages are unknown: {sorted(unknown)}")
+    evidence_runs = tuple(runs)
+    return _ReviewScope(
+        lineages=requested,
+        evidence_runs=evidence_runs,
+        target_runs=tuple(row for row in evidence_runs if _is_active_run(row)),
+    )
+
+
+def _is_active_run(row: Mapping[str, Any]) -> bool:
+    return (
+        str(row.get("status") or "") != "terminal"
+        and str(row.get("phase") or "") not in SUPERVISOR_TERMINAL_PHASES
+    )
+
+
+def _scoped_rows(
+    rows: Sequence[Mapping[str, Any]],
+    run_ids: Sequence[str],
+) -> list[dict[str, Any]]:
+    allowed = set(run_ids)
+    return [dict(row) for row in rows if str(row.get("run_id") or "") in allowed]
+
+
+def _scoped_action_attempts(
+    store: SupervisorStore,
+    run_ids: Sequence[str],
+) -> list[dict[str, Any]]:
+    allowed = set(run_ids)
+    action_ids = {
+        str(row.get("action_id") or "")
+        for row in store.fetch_all("actions")
+        if str(row.get("run_id") or "") in allowed
+    }
+    return [
+        row
+        for row in _decoded_store_rows(store, "action_attempts")
+        if str(row.get("action_id") or "") in action_ids
+    ]
+
+
+def _scoped_decisions(store: SupervisorStore, run_ids: Sequence[str]) -> list[dict[str, Any]]:
+    allowed = set(run_ids)
+    return [
+        dict(row)
+        for row in store.fetch_all("user_decisions")
+        if str(row.get("scope") or "") == "global"
+        or str(row.get("run_id") or "") in allowed
+    ]
+
+
+def _require_review_application_scope(
+    review: SupervisorReview,
+    allowed_run_ids: Sequence[str] | None,
+) -> None:
+    if allowed_run_ids is None:
+        return
+    rejected = set(review.affected_run_ids) - set(allowed_run_ids)
+    if rejected:
+        raise ValueError(
+            f"review application exceeds active lineage scope: {sorted(rejected)}"
+        )
 
 
 def _completion_ids(payload: Mapping[str, Any]) -> list[str]:

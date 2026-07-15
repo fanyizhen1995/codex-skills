@@ -38,7 +38,10 @@ from .models import (
     RecoveryStage,
 )
 from .reconciler import _state_fingerprint, atomic_save_run_locked
-from .registry import recovery_transition_for, transition_for
+from .registry import (
+    recovery_transition_for,
+    transition_for,
+)
 from .store import ActionRecord, SupervisorStore
 
 
@@ -87,6 +90,12 @@ def _request_from_record(store: SupervisorStore, action: ActionRecord) -> Action
         for item in store.fetch_all("actions")
         if item["action_id"] == action.action_id
     )
+    payload = dict(action.payload)
+    default_driver = os.getenv("LOOP_SUPERVISOR_AGENT_DRIVER", "")
+    if default_driver:
+        if default_driver not in {"fake", "codex-exec"}:
+            raise ValueError("LOOP_SUPERVISOR_AGENT_DRIVER must be fake or codex-exec")
+        payload.setdefault("driver", default_driver)
     return ActionRequest(
         action_id=action.action_id,
         run_id=action.run_id,
@@ -100,7 +109,7 @@ def _request_from_record(store: SupervisorStore, action: ActionRecord) -> Action
         repo_relative_root=action.repo_relative_root,
         task_id=str(row.get("task_id") or ""),
         next_action=str(row.get("next_action") or ""),
-        payload=action.payload,
+        payload=payload,
     )
 
 
@@ -340,6 +349,7 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
             allowed_action_types={
                 action_type.value for action_type in executable_action_types()
             },
+            allowed_queue_owners={ActionOwner.WORKER.value},
         )
         if action is None:
             return WorkerResult(status="idle")
@@ -456,15 +466,21 @@ def worker_once(project_root: Path, worker_id: str) -> WorkerResult:
                                 legacy.validate_run_payload(
                                     transaction.staged_payload
                                 )
-                                saved = atomic_save_run_locked(
-                                    execution_root,
-                                    request.run_id,
-                                    transaction.staged_payload,
-                                    token=token,
-                                    expected_revision=request.run_revision,
-                                    expected_fingerprint=before_fingerprint,
+                                staged_fingerprint = _state_fingerprint(
+                                    transaction.staged_payload
                                 )
-                                after_fingerprint = _state_fingerprint(saved)
+                                if staged_fingerprint == before_fingerprint:
+                                    after_fingerprint = before_fingerprint
+                                else:
+                                    saved = atomic_save_run_locked(
+                                        execution_root,
+                                        request.run_id,
+                                        transaction.staged_payload,
+                                        token=token,
+                                        expected_revision=request.run_revision,
+                                        expected_fingerprint=before_fingerprint,
+                                    )
+                                    after_fingerprint = _state_fingerprint(saved)
                     except Exception as exc:
                         stop_heartbeat()
                         check_final_lease()
@@ -567,14 +583,19 @@ def _sigterm_handler(_signum: int, _frame: Any) -> None:
 def worker_watch(project_root: Path, worker_id: str, poll_seconds: float) -> None:
     if poll_seconds <= 0:
         raise ValueError("poll_seconds must be positive")
+    root = Path(project_root).resolve()
     previous_handler = None
     if threading.current_thread() is threading.main_thread():
         previous_handler = signal.signal(signal.SIGTERM, _sigterm_handler)
     try:
         while not _stop_requested.is_set():
-            result = worker_once(project_root, worker_id)
+            result = worker_once(root, worker_id)
             if result.status == "stopped":
                 break
+            if result.status == "idle":
+                with SupervisorStore.open(root) as store:
+                    store.migrate()
+                    store.touch_worker(worker_id)
             _stop_requested.wait(poll_seconds)
     finally:
         if previous_handler is not None:

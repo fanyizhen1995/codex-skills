@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -10,7 +11,7 @@ import secrets
 import sqlite3
 from threading import RLock
 import time
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .pagination import (
     CursorCodec,
@@ -29,6 +30,25 @@ from .redaction import is_sensitive_key, redact_text
 EXPECTED_SCHEMA_VERSION = 14
 DEFAULT_SQLITE_SNAPSHOT_TTL_SECONDS = 300
 DEFAULT_MAX_SQLITE_SNAPSHOTS = 64
+SERVICE_OBSERVATION_MAX_AGE_SECONDS = 60
+FRESHNESS_OBSERVATION_MAX_AGE_SECONDS = 600
+REQUIRED_SERVICE_IDS = frozenset(
+    {
+        "crawler-backend",
+        "crawler-frontend",
+        "loop-dashboard",
+        "loop-supervisor",
+        "supervisor-worker",
+    }
+)
+REQUIRED_FRESHNESS_TARGETS = frozenset({"wiki", "search", "dashboard"})
+CURRENT_FRESHNESS_SQL = """
+    SELECT check_id, target, status, summary, details_json, checked_at, created_at
+    FROM freshness_checks
+    WHERE target = ?
+    ORDER BY checked_at DESC, check_id DESC
+    LIMIT 1
+"""
 
 
 @dataclass(frozen=True)
@@ -353,12 +373,14 @@ class SupervisorDashboardStore:
         cursor_codec: CursorCodec | None = None,
         snapshot_ttl_seconds: float = DEFAULT_SQLITE_SNAPSHOT_TTL_SECONDS,
         max_snapshot_sessions: int = DEFAULT_MAX_SQLITE_SNAPSHOTS,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.db_path = self.project_root / ".codex" / "supervisor" / "supervisor.db"
         self._cursor_codec = cursor_codec or CursorCodec(
             secrets.token_bytes(32)
         )
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         registry_key = (
             str(self.db_path),
             self._cursor_codec.namespace,
@@ -429,6 +451,68 @@ class SupervisorDashboardStore:
         except sqlite3.Error as exc:
             return self._diagnostic_payload(
                 SupervisorStoreUnavailable(f"could not query Supervisor database: {exc}")
+            )
+
+    def health_snapshot(self) -> dict[str, Any]:
+        """Return bounded current service and latest-per-target freshness state."""
+        try:
+            with closing(self._connect()) as connection:
+                service_placeholders = ", ".join("?" for _ in REQUIRED_SERVICE_IDS)
+                services = connection.execute(
+                    f"""
+                    SELECT * FROM services
+                    WHERE service_id IN ({service_placeholders})
+                    ORDER BY service_id
+                    """,
+                    tuple(sorted(REQUIRED_SERVICE_IDS)),
+                ).fetchall()
+                freshness = []
+                for target in sorted(REQUIRED_FRESHNESS_TARGETS):
+                    row = connection.execute(
+                        CURRENT_FRESHNESS_SQL, (target,)
+                    ).fetchone()
+                    if row is not None:
+                        freshness.append(row)
+            now = self._utc_now()
+            decoded_services = [
+                self._service_health_projection(self._decoded_row(row), now)
+                for row in services
+            ]
+            decoded_freshness = [
+                self._freshness_health_projection(self._decoded_row(row), now)
+                for row in freshness
+            ]
+            service_ids = {str(item["service_id"]) for item in decoded_services}
+            freshness_targets = {
+                str(item["target"]) for item in decoded_freshness
+            }
+            missing_services = sorted(REQUIRED_SERVICE_IDS - service_ids)
+            missing_freshness = sorted(
+                REQUIRED_FRESHNESS_TARGETS - freshness_targets
+            )
+            diagnostics = []
+            if missing_services:
+                diagnostics.append(
+                    {"code": "missing_services", "items": missing_services}
+                )
+            if missing_freshness:
+                diagnostics.append(
+                    {"code": "missing_freshness", "items": missing_freshness}
+                )
+            return {
+                "status": "available",
+                "services": decoded_services,
+                "freshness": decoded_freshness,
+                "coverage_complete": not diagnostics,
+                "diagnostics": diagnostics,
+            }
+        except SupervisorStoreError as exc:
+            return self._health_diagnostic_payload(exc)
+        except sqlite3.Error as exc:
+            return self._health_diagnostic_payload(
+                SupervisorStoreUnavailable(
+                    f"could not query Supervisor health snapshot: {exc}"
+                )
             )
 
     def page(
@@ -1088,6 +1172,111 @@ class SupervisorDashboardStore:
                 decoded[key] = self._redact_value(value, key)
         return decoded
 
+    def _utc_now(self) -> datetime:
+        now = self._clock()
+        if not isinstance(now, datetime) or now.tzinfo is None:
+            raise ValueError("Supervisor health clock must return a timezone-aware datetime")
+        try:
+            offset = now.utcoffset()
+        except (TypeError, ValueError):
+            offset = None
+        if offset is None:
+            raise ValueError("Supervisor health clock must return a timezone-aware datetime")
+        return now.astimezone(timezone.utc)
+
+    def _service_health_projection(
+        self,
+        item: dict[str, Any],
+        now: datetime,
+    ) -> dict[str, Any]:
+        updated_state = self._observation_state(
+            item.get("updated_at"),
+            now,
+            SERVICE_OBSERVATION_MAX_AGE_SECONDS,
+        )
+        states = [updated_state]
+        if item.get("service_id") == "supervisor-worker":
+            states.append(
+                self._observation_state(
+                    item.get("heartbeat_at"),
+                    now,
+                    SERVICE_OBSERVATION_MAX_AGE_SECONDS,
+                )
+            )
+
+        reason = self._combined_observation_reason(states)
+        self._set_observation_details(item, reason)
+        if reason == "fresh":
+            return item
+        if item.get("service_id") == "supervisor-worker":
+            item["status"] = "stale" if reason == "expired" else "offline"
+        else:
+            item["status"] = "unhealthy"
+        return item
+
+    def _freshness_health_projection(
+        self,
+        item: dict[str, Any],
+        now: datetime,
+    ) -> dict[str, Any]:
+        reason = self._observation_state(
+            item.get("checked_at"),
+            now,
+            FRESHNESS_OBSERVATION_MAX_AGE_SECONDS,
+        )
+        self._set_observation_details(item, reason)
+        if reason != "fresh":
+            item["status"] = "stale"
+        return item
+
+    @staticmethod
+    def _combined_observation_reason(states: list[str]) -> str:
+        if "invalid_timestamp" in states:
+            return "invalid_timestamp"
+        if "future_timestamp" in states:
+            return "future_timestamp"
+        if "expired" in states:
+            return "expired"
+        return "fresh"
+
+    @staticmethod
+    def _set_observation_details(item: dict[str, Any], reason: str) -> None:
+        raw_details = item.get("details")
+        details = dict(raw_details) if isinstance(raw_details, dict) else {}
+        details["observation_fresh"] = reason == "fresh"
+        details["observation_reason"] = reason
+        item["details"] = details
+
+    @staticmethod
+    def _observation_state(
+        value: Any,
+        now: datetime,
+        max_age_seconds: int,
+    ) -> str:
+        if not isinstance(value, str) or not value:
+            return "invalid_timestamp"
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        try:
+            observed_at = datetime.fromisoformat(normalized)
+        except ValueError:
+            return "invalid_timestamp"
+        if observed_at.tzinfo is None:
+            return "invalid_timestamp"
+        try:
+            offset = observed_at.utcoffset()
+        except (TypeError, ValueError):
+            offset = None
+        if offset is None:
+            return "invalid_timestamp"
+        age_seconds = (
+            now - observed_at.astimezone(timezone.utc)
+        ).total_seconds()
+        if age_seconds < 0:
+            return "future_timestamp"
+        if age_seconds > max_age_seconds:
+            return "expired"
+        return "fresh"
+
     def _redact_value(self, value: Any, key: str = "") -> Any:
         if self._sensitive_key(key):
             return "[REDACTED]"
@@ -1168,6 +1357,18 @@ class SupervisorDashboardStore:
             "status": error.status,
             "schema_version": None,
             "counts": {},
+            "diagnostics": [
+                {"status": error.status, "message": redact_text(str(error))}
+            ],
+        }
+
+    @staticmethod
+    def _health_diagnostic_payload(error: SupervisorStoreError) -> dict[str, Any]:
+        return {
+            "status": error.status,
+            "services": [],
+            "freshness": [],
+            "coverage_complete": False,
             "diagnostics": [
                 {"status": error.status, "message": redact_text(str(error))}
             ],

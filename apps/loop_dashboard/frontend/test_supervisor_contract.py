@@ -158,7 +158,7 @@ def test_frontend_consumes_exact_page_envelopes_and_status_errors():
 
 def test_supervisor_tabs_use_task7_routes_and_selected_tab_loading():
     for endpoint in (
-        "/api/supervisor/services",
+        "/api/supervisor/health",
         "/api/supervisor/actions",
         "/api/supervisor/reviews",
         "/api/supervisor/decisions",
@@ -181,7 +181,11 @@ def test_supervisor_deactivation_aborts_view_requests_and_invalidates_generation
 
 
 def test_health_requires_complete_services_and_freshness_and_starts_neutral():
-    assert "fetchAllPages" in SUPERVISOR_JS
+    load_health = source_method_block(SUPERVISOR_JS, "loadHealthEvidence")
+    assert '"/api/supervisor/health"' in load_health
+    assert "fetchAllPages" not in load_health
+    assert "pageSize: 100" not in load_health
+    assert "fetchAllPages" not in SUPERVISOR_JS
     assert re.search(r"deriveHealth\([^)]*freshness[^)]*\)", SUPERVISOR_JS)
     assert "coverageComplete" in SUPERVISOR_JS
     assert "服务与 freshness 全量验证" in SUPERVISOR_JS
@@ -191,7 +195,6 @@ def test_health_requires_complete_services_and_freshness_and_starts_neutral():
 
 def test_supervisor_mock_regions_use_real_sources_and_honest_health():
     for endpoint in (
-        "/api/supervisor/services/freshness",
         "/api/supervisor/decision-required",
         "/api/supervisor/actions/${encodeURIComponent(actionId)}/attempts",
     ):
@@ -199,6 +202,39 @@ def test_supervisor_mock_regions_use_real_sources_and_honest_health():
     for label in ("活动运行", "待执行动作", "最近 Reviewer", "需要用户", "数据可读", "健康状态不可用"):
         assert label in SUPERVISOR_JS
     assert 'setHealth(true, "Supervisor 正常")' not in SUPERVISOR_JS
+
+
+def test_services_tab_uses_projected_health_rows_as_its_only_detail_source():
+    services = source_method_block(SUPERVISOR_JS, "renderServices")
+
+    assert "health.services.items.map" in services
+    assert "health.freshness.items.map" in services
+    assert 'endpoint: "/api/supervisor/services"' not in services
+    assert 'endpoint: "/api/supervisor/services/freshness"' not in services
+    assert "this.pager(" not in services
+    assert "loadPager(" not in services
+
+
+def test_service_rows_render_process_session_worker_and_freshness_evidence():
+    services = source_method_block(SUPERVISOR_JS, "renderServices")
+    for field in (
+        "details.reachable",
+        "details.tmux_session",
+        "details.tmux_session_exists",
+        "details.process_alive",
+        "item.process_id",
+        "item.heartbeat_at",
+        "details.workers",
+        "details.freshness",
+        "details.freshness_targets",
+    ):
+        assert field in services
+    assert services.count("const details = objectValue(item.details);") == 1
+    labels = source_function_block(SUPERVISOR_JS, "serviceHealthLabel")
+    names = source_function_block(SUPERVISOR_JS, "serviceNameLabel")
+    for value in ("unhealthy", "offline", "stale"):
+        assert f"{value}:" in labels
+    assert '"loop-supervisor": "Loop Supervisor"' in names
 
 
 def test_diagnostic_severity_map_and_filter_options_cover_authoritative_values():

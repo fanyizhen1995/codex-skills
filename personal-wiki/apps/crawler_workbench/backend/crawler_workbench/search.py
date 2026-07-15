@@ -10,7 +10,7 @@ import yaml
 from .settings import Settings
 
 
-BODY_EXCERPT_CHARS = 2_000
+SEARCH_INDEX_VERSION = 1
 
 
 def validate_domain(domain: str) -> None:
@@ -120,16 +120,22 @@ def search_wiki(
     ]
 
 
-def _search_index_state(db: sqlite3.Connection, domain: str | None) -> tuple[float, int] | None:
+def _search_index_state(
+    db: sqlite3.Connection, domain: str | None
+) -> tuple[float, int, int] | None:
     if domain is None:
         raise ValueError("domain is required for search index state lookup")
     row = db.execute(
-        "select source_mtime, source_count from wiki_search_index_state where domain = ?",
+        "select source_mtime, source_count, index_version from wiki_search_index_state where domain = ?",
         (domain,),
     ).fetchone()
     if row is None:
         return None
-    return (float(row["source_mtime"] or 0.0), int(row["source_count"] or 0))
+    return (
+        float(row["source_mtime"] or 0.0),
+        int(row["source_count"] or 0),
+        int(row["index_version"] or 0),
+    )
 
 
 def _search_index_stale(settings: Settings, db: sqlite3.Connection, domain: str | None) -> bool:
@@ -150,6 +156,7 @@ def _domain_search_index_stale(settings: Settings, db: sqlite3.Connection, domai
     latest_source_state = _latest_search_source_state(settings, db, domain)
     return (
         indexed_state is None
+        or indexed_state[2] != SEARCH_INDEX_VERSION
         or latest_source_state[0] != indexed_state[0]
         or latest_source_state[1] != indexed_state[1]
     )
@@ -199,14 +206,17 @@ def _record_search_index_state(settings: Settings, db: sqlite3.Connection, domai
         source_mtime, source_count = _latest_search_source_state(settings, db, item)
         db.execute(
             """
-            insert into wiki_search_index_state (domain, source_mtime, source_count, indexed_at)
-            values (?, ?, ?, current_timestamp)
+            insert into wiki_search_index_state (
+              domain, source_mtime, source_count, index_version, indexed_at
+            )
+            values (?, ?, ?, ?, current_timestamp)
             on conflict(domain) do update set
               source_mtime = excluded.source_mtime,
               source_count = excluded.source_count,
+              index_version = excluded.index_version,
               indexed_at = current_timestamp
             """,
-            (item, source_mtime, source_count),
+            (item, source_mtime, source_count, SEARCH_INDEX_VERSION),
         )
 
 
@@ -285,7 +295,7 @@ def _insert_wiki_page(settings: Settings, db: sqlite3.Connection, page: Path) ->
             page_domain,
             title,
             description,
-            body.strip()[:BODY_EXCERPT_CHARS],
+            body.strip(),
             source_refs,
             "",
         ),

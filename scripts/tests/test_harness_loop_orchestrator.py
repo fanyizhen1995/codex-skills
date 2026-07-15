@@ -88,6 +88,16 @@ def test_public_orchestrator_parser_rejects_removed_runtime_commands() -> None:
     assert all(not hasattr(harness_loop_orchestrator, name) for name in public_bypasses)
 
 
+def test_skill_invocation_prompt_names_canonical_hash_field_and_format() -> None:
+    prompt = harness_loop_orchestrator._skill_invocation_prompt("run-1", "planner")
+
+    assert 'artifact_sha256 with value "sha256:<64 lowercase hex>"' in prompt
+    assert "include invocation_id, skill_path, artifact_path, and artifact_sha256" in prompt
+    assert "Only report repository-owned skill files" in prompt
+    assert "repo-relative POSIX path" in prompt
+    assert "Do not report skills under ~/.codex" in prompt
+
+
 def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
     scenario_dir = repo_root / "docs" / "harness" / "evaluator-scenarios"
     scenario_dir.mkdir(parents=True, exist_ok=True)
@@ -1564,6 +1574,96 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
             self.assertIn(relative_path, dirty_result["ignored_paths"])
             self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
+
+    def test_check_autonomous_dirty_paths_ignores_supervisor_reviewer_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            reviewer_log = repo_root / ".codex" / "loop-supervisor-reviewer.log"
+            reviewer_log.parent.mkdir(parents=True)
+            reviewer_log.write_text("reviewer output\n", encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root, run, []
+            )
+
+            relative_path = reviewer_log.relative_to(repo_root).as_posix()
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertIn(relative_path, dirty_result["ignored_paths"])
+            self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
+
+    def test_dirty_path_recovery_replans_clean_fake_generator_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "fake-driver-cutover"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-3"
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": task_id,
+                    "next_action": "inspect_autonomous_dirty_paths",
+                    "last_result": "blocked",
+                }
+            )
+            save_run(repo_root, run)
+            run_dir = run_dir_for(repo_root, run_id)
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": ["knowledge/synthetic-parent-23.md"],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": ["knowledge/synthetic-parent-23.md"],
+                    "cleanup_required": False,
+                    "notes": "fake autonomous generator completed",
+                    "skill_invocations": [],
+                },
+            )
+            write_json_file(
+                run_dir / "evaluator-result.json",
+                {
+                    "status": "pass",
+                    "task_id": task_id,
+                    "driver": "fake",
+                    "returncode": 0,
+                    "stdout": "fake autonomous smoke pass\n",
+                    "stderr": "",
+                    "skill_invocations": [],
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_dirty_path_block(
+                repo_root, run
+            )
+
+            self.assertTrue(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "planning")
+            self.assertEqual(saved["next_action"], "run_autonomous_planner")
+            self.assertEqual(saved["last_result"], "none")
+            dirty_result = read_json_file(run_dir / "dirty-paths-result.json")
+            self.assertEqual(
+                dirty_result["recovery_outcome"],
+                "replan_clean_fake_generator_result",
+            )
 
     def test_autonomous_dirty_path_block_reenters_cleanup_when_only_runtime_log_is_dirty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4978,6 +5078,76 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["evaluator_scenarios"]["status"], "pass")
             self.assertEqual(payload["details"]["evaluator_scenarios"]["json"]["run_id"], "expanded-run")
             self.assertTrue(payload["details"]["evaluator_scenarios"]["json"]["logs_truncated"])
+
+    def test_capture_live_loop_dashboard_freshness_accepts_cursor_page_envelopes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-2",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def page(items: list[dict[str, object]]) -> dict[str, object]:
+                return {
+                    "items": items,
+                    "total": len(items),
+                    "page_size": 20,
+                    "has_more": False,
+                    "next_cursor": None,
+                    "previous_cursor": None,
+                }
+
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
+                if url.endswith("/api/runs/expanded-run"):
+                    body: object = {
+                        "run_id": "expanded-run",
+                        "project_root": str(repo_root),
+                        "source_path": ".codex/loop-runs/expanded-run",
+                        "phase": "stopped_blocked",
+                        "completed": True,
+                        "children_summary": {"total": 0},
+                    }
+                elif url.endswith("/api/runs/expanded-run/events"):
+                    body = page([{"event_id": "event-1", "message": "Evaluator passed"}])
+                elif url.endswith("/api/runs/expanded-run/logs"):
+                    body = page([{"log_id": "log-1", "source": "evaluator.log"}])
+                elif url.endswith("/api/projects/current"):
+                    body = {"project_root": str(repo_root)}
+                elif url.endswith("/api/runs"):
+                    body = page(
+                        [
+                            {
+                                "run_id": "expanded-run",
+                                "project_root": str(repo_root),
+                                "source_path": ".codex/loop-runs/expanded-run",
+                            }
+                        ]
+                    )
+                else:
+                    body = {}
+                return {"url": url, "status": "pass", "http_status": 200, "json": body}
+
+            with patch.object(
+                harness_loop_orchestrator, "_http_probe", side_effect=fake_probe
+            ):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "loop-dashboard-freshness",
+                    run=run,
+                    captured_at="2026-07-15T14:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["details"]["agent_actions"]["status"], "pass")
+            self.assertEqual(payload["details"]["agent_actions"]["json"]["run_id"], "expanded-run")
+            self.assertEqual(payload["details"]["evaluator_scenarios"]["status"], "pass")
+            self.assertEqual(payload["details"]["completed_history"]["status"], "pass")
 
     def test_capture_live_loop_dashboard_freshness_uses_longer_timeout_for_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

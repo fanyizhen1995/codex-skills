@@ -14,6 +14,7 @@ from scripts.loop_supervisor.models import (
     ActionResult,
     ActionResultClass,
     ActionType,
+    RecoveryStage,
 )
 from scripts.loop_supervisor.reconciler import reconcile_once
 from scripts.loop_supervisor.store import SupervisorStore
@@ -286,6 +287,296 @@ def test_success_closes_episode_and_recurrence_starts_new_episode(tmp_path: Path
     assert state["lifetime_count"] == 2
 
 
+def test_recovery_episodes_do_not_merge_distinct_task_phase_or_lineage(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.recovery import plan_recovery
+
+    store = migrated_store(tmp_path)
+    runs = [
+        recovery_run(),
+        {**recovery_run(), "task_id": "task-2"},
+        {**recovery_run(), "phase": "planned"},
+        {**recovery_run(), "loop_lineage_id": "lineage-2"},
+    ]
+
+    plans = [
+        plan_recovery(store, run, failed_result(index), jitter=lambda: 0.0)
+        for index, run in enumerate(runs, start=1)
+    ]
+
+    assert [plan.episode_attempts for plan in plans] == [1, 1, 1, 1]
+    assert len(episode_failures(store)) == 4
+
+
+def _semantic_request(
+    revision: int,
+    *,
+    action_id: str | None = None,
+    policy: str = "autonomous_knowledge",
+    next_action: str = "run_autonomous_planner",
+    task_id: str = "task-1",
+    idempotency_key: str | None = None,
+) -> ActionRequest:
+    return ActionRequest(
+        action_id=action_id or f"action-planner-{revision}",
+        run_id="run-1",
+        run_revision=revision,
+        policy=policy,
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key=idempotency_key
+        or f"planner:{revision}:{policy}:{next_action}:{task_id}",
+        task_id=task_id,
+        next_action=next_action,
+    )
+
+
+def _project_semantic_run(
+    store: SupervisorStore,
+    revision: int,
+    *,
+    lineage_id: str = "lineage-1",
+    policy: str = "autonomous_knowledge",
+) -> None:
+    store.upsert_run_projection(
+        {
+            "run_id": "run-1",
+            "revision": revision,
+            "loop_lineage_id": lineage_id,
+            "policy": policy,
+            "phase": "planning",
+            "status": "actionable",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("recovery_action_type", "queue_owner"),
+    [
+        (ActionType.RUN_ALTERNATE_RECOVERY, ActionOwner.WORKER),
+        (ActionType.RUN_REVIEWER, ActionOwner.REVIEWER),
+    ],
+)
+def test_revision_advance_replaces_queued_recovery_action_without_identity_conflict(
+    tmp_path: Path,
+    recovery_action_type: ActionType,
+    queue_owner: ActionOwner,
+) -> None:
+    from scripts.loop_supervisor.recovery import RecoveryPlan, _recovery_request
+
+    store = migrated_store(tmp_path)
+    plan = RecoveryPlan(
+        tier=3 if recovery_action_type is ActionType.RUN_REVIEWER else 2,
+        action_type=recovery_action_type,
+        strategy="review_recovery_exhaustion"
+        if recovery_action_type is ActionType.RUN_REVIEWER
+        else "replan_excluding_failed_approach",
+        failure_key="recovery:lineage-1:run-1:task-1:planning:run_planner:failure",
+        episode_number=1,
+        episode_attempts=3,
+        source_action_id="action-source",
+        stage=RecoveryStage.REVIEWER
+        if recovery_action_type is ActionType.RUN_REVIEWER
+        else RecoveryStage.ALTERNATE,
+    )
+    _project_semantic_run(store, 70)
+    old_request = _recovery_request(_semantic_request(70), plan)
+    store.enqueue_action(old_request)
+
+    _project_semantic_run(store, 71)
+    new_request = _recovery_request(_semantic_request(71), plan)
+    store.enqueue_action(new_request)
+
+    assert old_request.queue_owner is queue_owner
+    assert new_request.queue_owner is queue_owner
+    assert old_request.action_id != new_request.action_id
+    assert old_request.idempotency_key != new_request.idempotency_key
+    assert store.get_action(old_request.action_id).status == "cancelled"
+    leased = store.lease_next_action(
+        "revision-71-owner",
+        lease_seconds=120,
+        heartbeat_stale_seconds=60,
+        allowed_action_types={recovery_action_type.value},
+        allowed_queue_owners={queue_owner.value},
+    )
+    assert leased is not None
+    assert leased.action_id == new_request.action_id
+    assert leased.run_revision == 71
+
+
+def test_historical_completed_action_does_not_close_newer_episode(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.recovery import plan_recovery, recovery_action_for_run
+
+    store = migrated_store(tmp_path)
+    _project_semantic_run(store, 1)
+    historical = _semantic_request(1, action_id="action-historical-success")
+    store.enqueue_action(historical)
+    leased = store.lease_next_action(
+        "worker-history", lease_seconds=120, heartbeat_stale_seconds=60
+    )
+    assert leased is not None
+    store.complete_action(
+        historical.action_id,
+        "worker-history",
+        ActionResult(result_class=ActionResultClass.SUCCESS, summary="historical success"),
+    )
+    run = recovery_run()
+    plan_recovery(
+        store,
+        run,
+        {
+            **failed_result(1, action_type=ActionType.RUN_PLANNER),
+            "action_id": "action-current-failure",
+        },
+        jitter=lambda: 0.0,
+    )
+
+    recovery_action_for_run(store, run, _semantic_request(2))
+
+    state = json.loads(episode_failures(store)[0]["resolution"])
+    assert state["status"] == "open"
+    assert state["source_action_id"] == "action-current-failure"
+    assert "closed_by_attempt_id" not in state
+
+
+@pytest.mark.parametrize(
+    ("current_lineage", "current_policy", "current_next_action"),
+    [
+        ("lineage-2", "autonomous_knowledge", "run_autonomous_planner"),
+        ("lineage-1", "demand_development", "run_autonomous_planner"),
+        ("lineage-1", "autonomous_knowledge", "run_planner"),
+    ],
+)
+def test_failed_source_does_not_cross_semantic_identity_boundaries(
+    tmp_path: Path,
+    current_lineage: str,
+    current_policy: str,
+    current_next_action: str,
+) -> None:
+    from scripts.loop_supervisor.recovery import recovery_action_for_run
+
+    store = migrated_store(tmp_path)
+    original_run = recovery_run()
+    original_run.update(
+        {"phase": "planning", "next_action": "run_autonomous_planner"}
+    )
+    _project_semantic_run(store, 1)
+    original = recovery_action_for_run(store, original_run, _semantic_request(1))
+    assert original is not None
+    store.enqueue_action(original)
+    _complete_retryable_action(store, original.action_id, "worker-original")
+    assert recovery_action_for_run(store, original_run, _semantic_request(1)) is None
+
+    current_run = {
+        **original_run,
+        "loop_lineage_id": current_lineage,
+        "policy": current_policy,
+        "next_action": current_next_action,
+        "state_revision": 2,
+    }
+    _project_semantic_run(
+        store, 2, lineage_id=current_lineage, policy=current_policy
+    )
+    desired = _semantic_request(
+        2, policy=current_policy, next_action=current_next_action
+    )
+
+    selected = recovery_action_for_run(store, current_run, desired)
+
+    assert selected is not None
+    assert selected.action_id == desired.action_id
+    assert selected.run_revision == desired.run_revision
+    assert len(episode_failures(store)) == 1
+    assert json.loads(episode_failures(store)[0]["resolution"])["lineage_id"] == "lineage-1"
+
+
+def test_failed_source_without_episode_does_not_cross_lineage_change(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.recovery import recovery_action_for_run
+
+    store = migrated_store(tmp_path)
+    original_run = {
+        **recovery_run(),
+        "phase": "planning",
+        "next_action": "run_autonomous_planner",
+        "state_revision": 1,
+    }
+    _project_semantic_run(store, 1)
+    original = recovery_action_for_run(store, original_run, _semantic_request(1))
+    assert original is not None
+    store.enqueue_action(original)
+    _complete_retryable_action(store, original.action_id, "worker-original")
+    assert episode_failures(store) == []
+
+    current_run = {
+        **original_run,
+        "loop_lineage_id": "lineage-2",
+        "state_revision": 2,
+    }
+    _project_semantic_run(store, 2, lineage_id="lineage-2")
+    desired = _semantic_request(2)
+
+    selected = recovery_action_for_run(store, current_run, desired)
+
+    assert selected is not None
+    assert selected.action_id == desired.action_id
+    assert selected.run_revision == 2
+    assert episode_failures(store) == []
+    stored_source = next(
+        row
+        for row in store.fetch_all("actions")
+        if row["action_id"] == original.action_id
+    )
+    provenance = json.loads(stored_source["payload_json"])[
+        "recovery_semantic_identity"
+    ]
+    assert provenance["lineage_id"] == "lineage-1"
+
+
+def test_recovery_indexes_attempts_and_failures_once_per_reconcile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor.recovery import recovery_action_for_run
+
+    store = migrated_store(tmp_path)
+    _project_semantic_run(store, 1)
+    for index in range(5):
+        request = _semantic_request(
+            1,
+            action_id=f"action-history-{index}",
+            idempotency_key=f"history:{index}",
+            task_id=f"historical-task-{index}",
+        )
+        store.enqueue_action(request)
+        leased = store.lease_next_action(
+            f"worker-{index}", lease_seconds=120, heartbeat_stale_seconds=60
+        )
+        assert leased is not None
+        store.complete_action(
+            request.action_id,
+            f"worker-{index}",
+            ActionResult(result_class=ActionResultClass.SUCCESS, summary="done"),
+        )
+    calls: dict[str, int] = {}
+    original_fetch_all = store.fetch_all
+
+    def counting_fetch_all(table: str) -> list[dict[str, object]]:
+        calls[table] = calls.get(table, 0) + 1
+        return original_fetch_all(table)
+
+    monkeypatch.setattr(store, "fetch_all", counting_fetch_all)
+
+    recovery_action_for_run(store, recovery_run(), _semantic_request(1))
+
+    assert calls.get("actions") == 1
+    assert calls.get("action_attempts") == 1
+    assert calls.get("failures") == 1
+
+
 PARENT22_RUN_ID = "parent-22-structural-fixture"
 PARENT22_TASK_ID = "parent-22-task"
 
@@ -516,6 +807,123 @@ def test_parent22_timeout_artifacts_reconstruct_generator_result_then_evaluate(
     validate_generator_result_payload(payload)
 
 
+def test_recovered_generator_refreshes_stale_gap_proof_manifest_binding(
+    tmp_path: Path,
+) -> None:
+    import scripts.harness_loop_orchestrator as legacy
+    from scripts.loop_supervisor.recovery import (
+        inspect_partial_artifacts,
+        reconstruct_result_envelope,
+    )
+
+    run = seed_parent22_partial_fixture(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID
+    assessment = inspect_partial_artifacts(tmp_path, run, ActionType.RUN_GENERATOR)
+    generator_path = reconstruct_result_envelope(tmp_path, assessment)
+    generator_result = read_json_file(generator_path)
+    manifest_path = run_dir / "required-evidence-manifest.json"
+    manifest = read_json_file(manifest_path)
+    manifest["task_id"] = "parent-21-task"
+    manifest["items"][0]["task_id"] = "parent-21-task"
+    manifest["items"][0]["artifacts"] = ["gap-proofs/parent-21-task.json"]
+    _write_json(manifest_path, manifest)
+
+    refreshed = legacy._refresh_recovered_required_evidence_manifest(
+        tmp_path, run, generator_result
+    )
+
+    assert refreshed is True
+    updated = read_json_file(manifest_path)
+    assert updated["task_id"] == PARENT22_TASK_ID
+    gap_entry = next(
+        item for item in updated["items"] if item["evidence_id"] == "gap-proof"
+    )
+    assert gap_entry["task_id"] == PARENT22_TASK_ID
+    assert gap_entry["artifacts"] == [f"gap-proofs/{PARENT22_TASK_ID}.json"]
+
+
+def test_live_stopped_parent22_uses_registry_recovery_without_fresh_generator(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    run = seed_parent22_partial_fixture(tmp_path)
+    run.update(
+        {
+            "phase": "stopped_blocked",
+            "next_action": "inspect_autonomous_generator",
+            "last_result": "blocked",
+        }
+    )
+    _write_json(
+        tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID / "run.json",
+        run,
+    )
+    run_dir = tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID
+    planner = read_json_file(run_dir / "planner-output.json")
+    planner.pop("skill_invocations")
+    _write_json(run_dir / "planner-output.json", planner)
+    _write_json(run_dir / "generator-attempt-1.json", {"status": "timeout"})
+    (run_dir / "scenario-command-results.json").unlink()
+    _write_json(
+        run_dir / "dirty-paths-result.json",
+        {
+            "allowed": True,
+            "actual_paths": ["knowledge/prior-parent.md"],
+            "declared_paths": ["knowledge/prior-parent.md"],
+            "unexpected_paths": [],
+        },
+    )
+    _write_json(
+        run_dir / "required-evidence-manifest.json",
+        {"run_id": PARENT22_RUN_ID, "task_id": "prior-parent", "items": []},
+    )
+    _write_json(
+        tmp_path
+        / "personal-wiki"
+        / "domains"
+        / "ai_infra"
+        / "manifest-parent-22-verification.json",
+        {
+            "status": "pass",
+            "run_id": PARENT22_RUN_ID,
+            "task_id": PARENT22_TASK_ID,
+            "changed_paths": ["knowledge/parent-22.md"],
+            "raw_sources": [],
+            "curated_paths": ["knowledge/parent-22.md"],
+            "verify_results": [
+                {
+                    "command": "python3 -m pytest -q fixture",
+                    "status": "pass",
+                    "summary": "legacy verification passed",
+                }
+            ],
+        },
+    )
+    store = migrated_store(tmp_path)
+    action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+
+    assert action is not None
+    assert action.action_type is ActionType.RECOVER_GENERATOR_RESULT
+    assert "recovery_failure_key" not in action.payload
+
+    result = worker_once(tmp_path, "live-parent22-recovery-worker")
+    recovered = read_json_file(
+        tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID / "generator-result.json"
+    )
+    saved = read_json_file(
+        tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID / "run.json"
+    )
+
+    assert result.status == "completed"
+    assert result.action_id == action.action_id
+    assert recovered["recovery"]["recovered_from_attempts"] == [3, 4]
+    assert saved["phase"] == "evaluating"
+    assert saved["next_action"] == "run_autonomous_evaluator"
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_status", "expected_check"),
     [
@@ -631,6 +1039,118 @@ def _complete_recoverable_partial_action(
             error_class="TimeoutError",
         ),
     )
+
+
+def _advance_run_revision(root: Path, revision: int) -> None:
+    run_path = root / ".codex" / "loop-runs" / PARENT22_RUN_ID / "run.json"
+    run = read_json_file(run_path)
+    run["state_revision"] = revision
+    _write_json(run_path, run)
+
+
+def test_same_semantic_action_across_revisions_uses_one_recovery_episode(
+    tmp_path: Path,
+) -> None:
+    seed_parent22_partial_fixture(tmp_path)
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock)
+
+    run_path = tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID / "run.json"
+    planner_run = read_json_file(run_path)
+    planner_run.update(
+        {"phase": "planning", "next_action": "run_autonomous_planner"}
+    )
+    _write_json(run_path, planner_run)
+    _advance_run_revision(tmp_path, 70)
+    revision_70 = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+    assert revision_70 is not None
+    assert revision_70.action_type is ActionType.RUN_PLANNER
+    _complete_retryable_action(store, revision_70.action_id, "worker-70")
+
+    _advance_run_revision(tmp_path, 71)
+    assert reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    ) is None
+    clock.advance(seconds=60)
+    revision_71 = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+    assert revision_71 is not None
+    assert revision_71.action_id != revision_70.action_id
+    assert revision_71.action_type is ActionType.RUN_PLANNER
+    _complete_retryable_action(store, revision_71.action_id, "worker-71")
+
+    _advance_run_revision(tmp_path, 72)
+    assert reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    ) is None
+    clock.advance(seconds=120)
+    revision_72 = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+    assert revision_72 is not None
+    assert revision_72.action_id != revision_71.action_id
+    _complete_retryable_action(store, revision_72.action_id, "worker-72")
+
+    alternate = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+    assert alternate is not None
+    assert alternate.action_type is ActionType.RUN_ALTERNATE_RECOVERY
+    assert len(episode_failures(store)) == 1
+    assert json.loads(episode_failures(store)[0]["resolution"])["episode_attempts"] == 3
+
+    _advance_run_revision(tmp_path, 73)
+    replacement_alternate = reconcile_once(
+        tmp_path, store, include_worktrees=False
+    ).action_for(PARENT22_RUN_ID)
+    assert replacement_alternate is not None
+    assert replacement_alternate.action_type is ActionType.RUN_ALTERNATE_RECOVERY
+    assert replacement_alternate.action_id != alternate.action_id
+    assert store.get_action(alternate.action_id).status == "cancelled"
+
+    leased = store.lease_next_action(
+        "worker-alternate", lease_seconds=120, heartbeat_stale_seconds=60
+    )
+    assert leased is not None and leased.action_id == replacement_alternate.action_id
+    store.complete_action(
+        replacement_alternate.action_id,
+        "worker-alternate",
+        ActionResult(
+            result_class=ActionResultClass.TERMINAL_FAILURE,
+            summary="partial artifact recovery could not be proven",
+            failure_key="worker:alternate:unprovable",
+            error_class="partial_artifact_unprovable",
+        ),
+    )
+
+    reviewer = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+        PARENT22_RUN_ID
+    )
+    assert reviewer is not None
+    assert reviewer.action_type is ActionType.RUN_REVIEWER
+    assert len(episode_failures(store)) == 1
+
+    _advance_run_revision(tmp_path, 74)
+    replacement_reviewer = reconcile_once(
+        tmp_path, store, include_worktrees=False
+    ).action_for(PARENT22_RUN_ID)
+    assert replacement_reviewer is not None
+    assert replacement_reviewer.action_type is ActionType.RUN_REVIEWER
+    assert replacement_reviewer.action_id != reviewer.action_id
+    assert store.get_action(reviewer.action_id).status == "cancelled"
+    leased_reviewer = store.lease_next_action(
+        "reviewer-74",
+        lease_seconds=120,
+        heartbeat_stale_seconds=60,
+        allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
+    )
+    assert leased_reviewer is not None
+    assert leased_reviewer.action_id == replacement_reviewer.action_id
+    assert leased_reviewer.run_revision == 74
 
 
 def test_reconciler_retries_with_backoff_then_recovers_parent22_and_evaluates(
@@ -934,6 +1454,11 @@ def test_closed_recovery_episode_ignores_historical_failed_alternate_after_revie
         driver=accepted_driver,
     )
     assert result is not None and result.status == "review_complete"
+    if decision == "refocus":
+        projected_summary = json.loads(
+            store.get_run(PARENT22_RUN_ID)["summary"]["summary"]
+        )
+        assert projected_summary["loop_lineage_id"] == "ai-infra-lineage"
 
     post_review = reconcile_once(tmp_path, store, include_worktrees=False)
 

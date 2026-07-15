@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
@@ -934,8 +938,12 @@ def _skill_invocation_prompt(run_id: str, role: str) -> str:
         "use []. For each invocation, write a separate JSON evidence artifact under "
         f".codex/loop-runs/{run_id}/ with exactly schema_version=1, invocation_id, "
         f"run_id, task_id, role={role}, skill_path, and status=confirmed; then include "
-        "invocation_id, skill_path, artifact_path, and its lowercase sha256 hash in "
-        "skill_invocations. Do not infer skill use from logs or prose."
+        "invocation_id, skill_path, artifact_path, and artifact_sha256 with value "
+        '"sha256:<64 lowercase hex>" in skill_invocations. Only report repository-owned '
+        "skill files, and use a repo-relative POSIX path for skill_path. Do not report "
+        "skills under ~/.codex, ~/.agents, or any other external directory; those "
+        "invocations are outside this repository's evidence boundary. Do not infer "
+        "skill use from logs or prose."
     )
 
 
@@ -4630,6 +4638,9 @@ def _live_evidence_ids_from_manifest(manifest_payload: Mapping[str, Any]) -> set
 
 
 def _loop_dashboard_logs_detail(probe: Mapping[str, Any], *, run_id: str) -> dict[str, Any]:
+    paged = _loop_dashboard_scoped_page_detail(probe, run_id=run_id)
+    if paged is not None:
+        return paged
     payload = probe.get("json")
     if (
         probe.get("status") == "pass"
@@ -4648,6 +4659,29 @@ def _loop_dashboard_logs_detail(probe: Mapping[str, Any], *, run_id: str) -> dic
             "truncated_json": True,
         }
     return {**probe, "status": "blocked"}
+
+
+def _loop_dashboard_scoped_page_detail(
+    probe: Mapping[str, Any], *, run_id: str
+) -> dict[str, Any] | None:
+    payload = probe.get("json")
+    if probe.get("status") != "pass" or not isinstance(payload, Mapping):
+        return None
+    items = payload.get("items")
+    total = payload.get("total")
+    page_size = payload.get("page_size")
+    if (
+        not isinstance(items, list)
+        or not items
+        or not isinstance(total, int)
+        or isinstance(total, bool)
+        or total < len(items)
+        or not isinstance(page_size, int)
+        or isinstance(page_size, bool)
+        or page_size <= 0
+    ):
+        return None
+    return {**probe, "status": "pass", "json": {**payload, "run_id": run_id}}
 
 
 def _capture_live_evidence_payload(
@@ -4780,7 +4814,10 @@ def _capture_live_evidence_payload(
         details = {
             "current_run": current_run_detail,
             "child_tasks": {**child_tasks, "status": child_probe_status(child_tasks)},
-            "agent_actions": {
+            "agent_actions": _loop_dashboard_scoped_page_detail(
+                agent_actions, run_id=run_id
+            )
+            or {
                 **agent_actions,
                 "status": "pass"
                 if agent_actions.get("status") == "pass"
@@ -5268,6 +5305,12 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
         path.startswith(f".codex/loop-runs/{run_id}/")
         or path.startswith(".codex/loop-locks/")
         or path.startswith(".codex/supervisor/")
+        or path
+        in {
+            ".codex/loop-supervisor.log",
+            ".codex/loop-supervisor-worker.log",
+            ".codex/loop-supervisor-reviewer.log",
+        }
         or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
         or path in _autonomous_runtime_artifact_paths(run_id)
     )
@@ -5301,13 +5344,114 @@ def _resume_autonomous_dirty_path_block(repo_root: Path, run: dict[str, Any]) ->
         return False
     dirty_result = _check_autonomous_dirty_paths(repo_root, run, list(generator_result["changed_paths"]))
     write_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json", dirty_result)
+    if not dirty_result["allowed"] and _protect_recovered_unrelated_dirt(
+        repo_root, run, generator_result, dirty_result
+    ):
+        dirty_result = _check_autonomous_dirty_paths(
+            repo_root, run, list(generator_result["changed_paths"])
+        )
+        write_json_file(
+            run_dir_for(repo_root, run_id) / "dirty-paths-result.json",
+            dirty_result,
+        )
     if not dirty_result["allowed"]:
         return False
+    if _clean_fake_generator_result_requires_replan(
+        repo_root, run, generator_result, dirty_result
+    ):
+        dirty_result["recovery_outcome"] = "replan_clean_fake_generator_result"
+        write_json_file(
+            run_dir_for(repo_root, run_id) / "dirty-paths-result.json",
+            dirty_result,
+        )
+        current = load_run(repo_root, run_id)
+        current["baseline_dirty_paths"] = list(run.get("baseline_dirty_paths", []))
+        current["phase"] = "planning"
+        current["next_action"] = "run_autonomous_planner"
+        current["last_result"] = "none"
+        save_run(repo_root, current)
+        return True
     current = load_run(repo_root, run_id)
+    current["baseline_dirty_paths"] = list(run.get("baseline_dirty_paths", []))
     current["phase"] = "cleanup"
     current["next_action"] = "commit_autonomous_changes"
     current["last_result"] = "none"
     save_run(repo_root, current)
+    return True
+
+
+def _clean_fake_generator_result_requires_replan(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+    dirty_result: Mapping[str, Any],
+) -> bool:
+    changed_paths = generator_result.get("changed_paths")
+    if (
+        generator_result.get("notes") != "fake autonomous generator completed"
+        or generator_result.get("commit")
+        or not isinstance(changed_paths, list)
+        or not changed_paths
+    ):
+        return False
+    actual_paths = dirty_result.get("actual_paths")
+    if not isinstance(actual_paths, list) or set(changed_paths) & set(actual_paths):
+        return False
+    evaluator_path = run_dir_for(repo_root, str(run.get("run_id") or "")) / "evaluator-result.json"
+    try:
+        evaluator_result = read_json_file(evaluator_path)
+        validate_evaluator_result_payload(evaluator_result)
+    except Exception:
+        return False
+    return (
+        evaluator_result.get("driver") == "fake"
+        and evaluator_result.get("status") == "pass"
+        and evaluator_result.get("returncode") == 0
+        and evaluator_result.get("task_id") == generator_result.get("task_id")
+    )
+
+
+def _protect_recovered_unrelated_dirt(
+    repo_root: Path,
+    run: dict[str, Any],
+    generator_result: Mapping[str, Any],
+    dirty_result: Mapping[str, Any],
+) -> bool:
+    if not _recovered_artifact_hashes_match(repo_root, generator_result):
+        return False
+    changed_paths = [str(path) for path in generator_result.get("changed_paths", [])]
+    unexpected = dirty_result.get("unexpected_paths")
+    if not isinstance(unexpected, list) or not unexpected:
+        return False
+    protected = list(run.get("baseline_dirty_paths", []))
+    protected_paths = _baseline_dirty_relative_paths(run)
+    for value in unexpected:
+        if not isinstance(value, str) or not value or value in changed_paths:
+            return False
+        if value not in protected_paths:
+            protected.append(f"?? {value}")
+            protected_paths.add(value)
+    run["baseline_dirty_paths"] = protected
+    return True
+
+
+def _recovered_artifact_hashes_match(
+    repo_root: Path, generator_result: Mapping[str, Any]
+) -> bool:
+    recovery = generator_result.get("recovery")
+    if not isinstance(recovery, Mapping) or not recovery.get("recovered_from_attempts"):
+        return False
+    changed_paths = [str(path) for path in generator_result.get("changed_paths", [])]
+    artifact_hashes = recovery.get("artifact_hashes")
+    if not changed_paths or not isinstance(artifact_hashes, Mapping):
+        return False
+    for relative in changed_paths:
+        expected = str(artifact_hashes.get(relative) or "")
+        path = repo_root / relative
+        if not expected or not path.is_file() or path.is_symlink():
+            return False
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            return False
     return True
 
 
@@ -5326,6 +5470,7 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
         validate_generator_result_payload(generator_result)
     except Exception:
         return False
+    _refresh_recovered_required_evidence_manifest(repo_root, run, generator_result)
     required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
     if required_evidence:
         _materialize_embedded_required_evidence_manifest(repo_root, run, generator_result)
@@ -5345,6 +5490,75 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
     current["next_action"] = "commit_autonomous_changes"
     current["last_result"] = "none"
     save_run(repo_root, current)
+    return True
+
+
+def _refresh_recovered_required_evidence_manifest(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+) -> bool:
+    if not _recovered_artifact_hashes_match(repo_root, generator_result):
+        return False
+    run_id = str(run.get("run_id") or "")
+    task_id = str(run.get("task_id") or "")
+    run_dir = run_dir_for(repo_root, run_id)
+    manifest_path = run_dir / "required-evidence-manifest.json"
+    try:
+        manifest = read_json_file(manifest_path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    entries = manifest.get("items")
+    if entries is None:
+        entries = manifest.get("evidence")
+    if not isinstance(entries, list):
+        return False
+
+    candidates = [run_dir / "gap-proofs" / f"{task_id}.json"]
+    for value in generator_result.get("changed_paths", []):
+        if isinstance(value, str) and "gap-proof" in value and value.endswith(".json"):
+            candidates.append(repo_root / value)
+    artifact_ref = ""
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(repo_root.resolve())
+            if not validate_gap_proof_file(resolved, expected_task_id=task_id):
+                artifact_ref = (
+                    resolved.relative_to(run_dir).as_posix()
+                    if resolved == run_dir or run_dir in resolved.parents
+                    else resolved.relative_to(repo_root).as_posix()
+                )
+                break
+        except (OSError, ValueError):
+            continue
+    if not artifact_ref:
+        return False
+
+    gap_entry = next(
+        (
+            item
+            for item in entries
+            if isinstance(item, dict)
+            and _required_evidence_id(str(item.get("evidence_id") or "")) == "gap-proof"
+        ),
+        None,
+    )
+    if gap_entry is None:
+        return False
+    gap_entry.update(
+        {
+            "evidence_id": "gap-proof",
+            "task_id": task_id,
+            "status": "pass",
+            "summary": "Recovered current-task duplicate and gap proof.",
+            "artifacts": [artifact_ref],
+        }
+    )
+    manifest["run_id"] = run_id
+    manifest["task_id"] = task_id
+    manifest["generated_at"] = _timestamp()
+    write_json_file(manifest_path, manifest)
     return True
 
 
@@ -5512,7 +5726,9 @@ def _bounded_skill_invocations(
 
 
 def _bounded_driver(request: ActionRequest, role: str) -> str:
-    value = request.payload.get(f"{role}_driver", request.payload.get("driver", "fake"))
+    value = request.payload.get(
+        f"{role}_driver", request.payload.get("driver", "codex-exec")
+    )
     if not isinstance(value, str) or not value:
         raise ValueError(f"{role} driver must be a non-empty string")
     return value
@@ -5881,15 +6097,981 @@ def _run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResul
         )
 
 
+_CONTINUATION_PROVENANCE_FIELDS = (
+    "loop_lineage_id",
+    "previous_run_id",
+    "parent_run_id",
+    "previous_commit",
+)
+# These fields mirror reconciler fingerprint exclusions and may change without a
+# semantic run-state transition. Every other completed continuation field is exact.
+_CONTINUATION_OBSERVATION_FIELDS = frozenset(
+    {
+        "generated_at",
+        "heartbeat_at",
+        "last_heartbeat_at",
+        "last_seen_at",
+        "last_tick_at",
+        "observed_at",
+        "updated_at",
+    }
+)
+_CONTINUATION_PREFLIGHT_TIMESTAMP_RE = re.compile(
+    r"- Created At: `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`"
+)
+_CONTINUATION_PENDING_MAX_AGE_SECONDS = 24 * 60 * 60
+_CONTINUATION_STAGE_OWNER_FIELDS = frozenset(
+    {
+        "created_at",
+        "stage_device",
+        "stage_inode",
+        "preflight_sha256",
+        "partial_run_sha256",
+        "run_sha256",
+    }
+)
+
+
+def _expected_continuation_preflight(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> dict[str, Any]:
+    policy = str(source["policy"])
+    stop_conditions = list(source.get("stop_conditions", []))
+    if policy == "autonomous_knowledge":
+        stop_conditions = stop_conditions or [
+            "stopped_no_action",
+            "stopped_budget",
+            "stopped_blocked",
+        ]
+        phase = "planning"
+        next_action = "run_autonomous_planner"
+    else:
+        stop_conditions = stop_conditions or ["passed_waiting_human_merge"]
+        phase = "planned"
+        next_action = "run_planner"
+    expected = {
+        "run_id": continuation_run_id,
+        "policy": policy,
+        "phase": phase,
+        "task_id": "",
+        "domain": str(source.get("domain") or ""),
+        "branch": str(source.get("branch") or ""),
+        "worktree": str(repo_root.resolve()),
+        "requirement": str(source["requirement"]),
+        "constraints": list(source.get("constraints", [])),
+        "stop_conditions": stop_conditions,
+        "baseline_dirty_paths": list(source.get("baseline_dirty_paths", [])),
+        "allowed_paths": [],
+        "denylist_paths": [],
+        "attempts": {
+            "planner": 0,
+            "generator": 0,
+            "evaluator": 0,
+            "artifact_hygiene": 0,
+            "cleanup": 0,
+        },
+        "limits": default_limits(),
+        "last_result": "none",
+        "next_action": next_action,
+        "attempt_history": [],
+        "cleanup": {
+            "worktrees_removed": [],
+            "processes_stopped": [],
+            "retained_artifacts": [],
+        },
+    }
+    if policy == "autonomous_knowledge":
+        (
+            expected["allowed_paths"],
+            expected["denylist_paths"],
+            expected["manual_confirm_paths"],
+        ) = policy_patterns_for_run({}, domain=expected["domain"])
+    return expected
+
+
+def _continuation_stage_owner_base(
+    request: ActionRequest,
+    continuation_run_id: str,
+    identity: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "kind": "continuation-initial-publication",
+        "action_id": request.action_id,
+        "idempotency_key": request.idempotency_key,
+        "continuation_run_id": continuation_run_id,
+        "continuation_identity": dict(identity),
+    }
+
+
+def _sha256_ref(payload: bytes) -> str:
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _continuation_stage_owner(
+    owner_base: Mapping[str, Any],
+    stage_identity: os.stat_result,
+    preflight_bytes: bytes,
+    partial_run_bytes: bytes,
+    run_bytes: bytes,
+) -> dict[str, Any]:
+    return {
+        **owner_base,
+        "created_at": _timestamp(),
+        "stage_device": stage_identity.st_dev,
+        "stage_inode": stage_identity.st_ino,
+        "preflight_sha256": _sha256_ref(preflight_bytes),
+        "partial_run_sha256": _sha256_ref(partial_run_bytes),
+        "run_sha256": _sha256_ref(run_bytes),
+    }
+
+
+def _fsync_directory(path: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _write_fsynced_bytes(path: Path, payload: bytes) -> None:
+    with path.open("xb") as handle:
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _continuation_publish_cutpoint(name: str, stage_dir: Path) -> None:
+    del name, stage_dir
+
+
+def _continuation_cleanup_cutpoint(name: str, stage_dir: Path) -> None:
+    del name, stage_dir
+
+
+def _read_regular_file_at(directory_fd: int, name: str) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(name, flags, dir_fd=directory_fd)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise PermissionError(f"owned continuation staging file is not regular: {name}")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 64 * 1024):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def _same_directory_identity(actual: os.stat_result, owner: Mapping[str, Any]) -> bool:
+    return (
+        stat.S_ISDIR(actual.st_mode)
+        and actual.st_dev == owner.get("stage_device")
+        and actual.st_ino == owner.get("stage_inode")
+    )
+
+
+def _supervisor_project_root(
+    execution_root: Path, repo_relative_root: str
+) -> Path:
+    resolved_execution_root = execution_root.resolve()
+    if repo_relative_root == ".":
+        return resolved_execution_root
+    relative = Path(repo_relative_root)
+    candidate = resolved_execution_root
+    for _part in relative.parts:
+        if candidate.parent == candidate:
+            raise PermissionError("execution root cannot derive Supervisor project root")
+        candidate = candidate.parent
+    candidate = candidate.resolve()
+    if (candidate / relative).resolve() != resolved_execution_root:
+        raise PermissionError("execution root does not match trusted repository root")
+    return candidate
+
+
+def _rename_directory_noreplace(
+    source_name: str,
+    destination_name: str,
+    *,
+    source_directory_fd: int,
+    destination_directory_fd: int,
+) -> None:
+    if sys.platform != "linux":
+        raise PermissionError("atomic no-replace directory publication is unavailable")
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except (AttributeError, OSError) as exc:
+        raise PermissionError(
+            "atomic no-replace directory publication is unavailable"
+        ) from exc
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameat2(
+        source_directory_fd,
+        os.fsencode(source_name),
+        destination_directory_fd,
+        os.fsencode(destination_name),
+        1,  # RENAME_NOREPLACE
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+        raise PermissionError(
+            "continuation target appeared before atomic publication"
+        )
+    if error_number in {
+        errno.ENOSYS,
+        errno.EINVAL,
+        errno.EOPNOTSUPP,
+        errno.EXDEV,
+    }:
+        raise PermissionError(
+            "atomic no-replace directory publication is unavailable"
+        )
+    raise OSError(error_number, os.strerror(error_number), destination_name)
+
+
+def _validate_open_continuation_stage(
+    stage_fd: int,
+    owner: Mapping[str, Any],
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+    *,
+    run_name: str = "run.pending",
+    require_run: bool = False,
+    allow_partial_run: bool = True,
+) -> tuple[str, ...]:
+    if not _same_directory_identity(os.fstat(stage_fd), owner):
+        raise PermissionError("continuation staging directory identity changed")
+    entries = tuple(sorted(os.listdir(stage_fd)))
+    with_run = tuple(sorted(("preflight.md", run_name)))
+    allowed_entries = (with_run,) if require_run else (("preflight.md",), with_run)
+    if entries not in allowed_entries:
+        raise PermissionError("continuation staging directory content changed")
+    preflight = _read_regular_file_at(stage_fd, "preflight.md")
+    if _sha256_ref(preflight) != owner.get(
+        "preflight_sha256"
+    ) or not _continuation_preflight_bytes_match(
+        preflight, source, continuation_run_id
+    ):
+        raise PermissionError("continuation staging preflight content changed")
+    if run_name in entries:
+        run_hash = _sha256_ref(_read_regular_file_at(stage_fd, run_name))
+        expected_hashes = (
+            {expected_partial_run_hash, expected_run_hash}
+            if allow_partial_run
+            else {expected_run_hash}
+        )
+        if run_hash not in expected_hashes:
+            raise PermissionError("continuation staging run content changed")
+    return entries
+
+
+def _continuation_preflight_bytes_match(
+    payload: bytes,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> bool:
+    try:
+        actual = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    expected = _preflight_markdown(
+        run_id=continuation_run_id,
+        mode=str(source["policy"]),
+        requirement=str(source["requirement"]),
+    )
+    actual_normalized = _normalize_continuation_preflight_timestamp(actual)
+    expected_normalized = _normalize_continuation_preflight_timestamp(expected)
+    return actual_normalized is not None and actual_normalized == expected_normalized
+
+
+def _validate_continuation_stage_owner(
+    owner: Mapping[str, Any],
+    owner_base: Mapping[str, Any],
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+) -> None:
+    if set(owner) != set(owner_base) | _CONTINUATION_STAGE_OWNER_FIELDS:
+        raise PermissionError("continuation staging owner manifest changed")
+    if any(owner.get(key) != value for key, value in owner_base.items()):
+        raise PermissionError("continuation staging owner identity changed")
+    created_at = owner.get("created_at")
+    if not isinstance(created_at, str):
+        raise PermissionError("continuation staging owner timestamp is invalid")
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise PermissionError(
+            "continuation staging owner timestamp is invalid"
+        ) from exc
+    if created.tzinfo is None:
+        raise PermissionError("continuation staging owner timestamp is invalid")
+    age = (datetime.now(UTC) - created.astimezone(UTC)).total_seconds()
+    if age < -300 or age > _CONTINUATION_PENDING_MAX_AGE_SECONDS:
+        raise PermissionError("continuation staging owner has expired")
+    if owner.get("partial_run_sha256") != expected_partial_run_hash:
+        raise PermissionError("continuation staging partial run manifest changed")
+    if owner.get("run_sha256") != expected_run_hash:
+        raise PermissionError("continuation staging run manifest changed")
+    for key in ("stage_device", "stage_inode"):
+        value = owner.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise PermissionError("continuation staging directory identity is invalid")
+    preflight_hash = owner.get("preflight_sha256")
+    if not isinstance(preflight_hash, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", preflight_hash
+    ):
+        raise PermissionError("continuation staging preflight manifest changed")
+
+
+def _validate_owned_continuation_stage(
+    staging_fd: int,
+    stage_name: str,
+    owner: Mapping[str, Any],
+    owner_base: Mapping[str, Any],
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+    *,
+    require_run: bool = False,
+    allow_partial_run: bool = True,
+) -> tuple[int, tuple[str, ...]]:
+    _validate_continuation_stage_owner(
+        owner,
+        owner_base,
+        expected_partial_run_hash,
+        expected_run_hash,
+    )
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    stage_fd = os.open(stage_name, flags, dir_fd=staging_fd)
+    try:
+        entries = _validate_open_continuation_stage(
+            stage_fd,
+            owner,
+            source,
+            continuation_run_id,
+            expected_partial_run_hash,
+            expected_run_hash,
+            require_run=require_run,
+            allow_partial_run=allow_partial_run,
+        )
+        current = os.stat(stage_name, dir_fd=staging_fd, follow_symlinks=False)
+        if not _same_directory_identity(current, owner):
+            raise PermissionError("continuation staging directory identity changed")
+        return stage_fd, entries
+    except BaseException:
+        os.close(stage_fd)
+        raise
+
+
+def _cleanup_owned_continuation_stages(
+    staging_root: Path,
+    continuation_run_id: str,
+    owner_base: Mapping[str, Any],
+    source: Mapping[str, Any],
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+) -> None:
+    prefix = f"{continuation_run_id}-"
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    staging_fd = os.open(staging_root, flags)
+    try:
+        for sidecar_name in sorted(os.listdir(staging_fd)):
+            if not (
+                sidecar_name.startswith(prefix)
+                and sidecar_name.endswith(".owner.json")
+            ):
+                continue
+            try:
+                owner_payload = _read_regular_file_at(staging_fd, sidecar_name)
+                owner = json.loads(owner_payload.decode("utf-8"))
+            except (OSError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(owner, dict) or any(
+                owner.get(key) != value for key, value in owner_base.items()
+            ):
+                continue
+            stage_name = sidecar_name.removesuffix(".owner.json")
+            if not stage_name.startswith(prefix) or Path(stage_name).name != stage_name:
+                continue
+            stage_fd, entries = _validate_owned_continuation_stage(
+                staging_fd,
+                stage_name,
+                owner,
+                owner_base,
+                source,
+                continuation_run_id,
+                expected_partial_run_hash,
+                expected_run_hash,
+            )
+            try:
+                _continuation_cleanup_cutpoint(
+                    "before_cleanup_rmdir", staging_root / stage_name
+                )
+                _validate_open_continuation_stage(
+                    stage_fd,
+                    owner,
+                    source,
+                    continuation_run_id,
+                    expected_partial_run_hash,
+                    expected_run_hash,
+                )
+                current = os.stat(
+                    stage_name, dir_fd=staging_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(current, owner):
+                    raise PermissionError(
+                        "continuation staging directory identity changed"
+                    )
+            finally:
+                os.close(stage_fd)
+        os.fsync(staging_fd)
+    finally:
+        os.close(staging_fd)
+
+
+def _continuation_initial_artifacts(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> tuple[bytes, bytes, bytes]:
+    preflight_bytes = _preflight_markdown(
+        run_id=continuation_run_id,
+        mode=str(source["policy"]),
+        requirement=str(source["requirement"]),
+    ).encode("utf-8")
+    initial = _expected_continuation_preflight(
+        repo_root, source, continuation_run_id
+    )
+    initial["state_revision"] = 0
+    validate_run_payload(initial)
+    run_bytes = (json.dumps(initial, indent=2) + "\n").encode("utf-8")
+    midpoint = max(1, len(run_bytes) // 2)
+    return preflight_bytes, run_bytes[:midpoint], run_bytes
+
+
+def _recover_pending_continuation_publication_locked(
+    staging_fd: int,
+    runs_fd: int,
+    continuation_fd: int,
+    source: Mapping[str, Any],
+    owner_base: Mapping[str, Any],
+    continuation_run_id: str,
+    partial_run_hash: str,
+    run_hash: str,
+) -> bool:
+    continuation_identity = os.fstat(continuation_fd)
+    prefix = f"{continuation_run_id}-"
+    matching_sidecars: list[tuple[str, dict[str, Any]]] = []
+    for sidecar_name in sorted(os.listdir(staging_fd)):
+        if not (
+            sidecar_name.startswith(prefix)
+            and sidecar_name.endswith(".owner.json")
+        ):
+            continue
+        try:
+            owner_payload = _read_regular_file_at(staging_fd, sidecar_name)
+            owner = json.loads(owner_payload.decode("utf-8"))
+        except (OSError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(owner, dict) or any(
+            owner.get(key) != value for key, value in owner_base.items()
+        ):
+            continue
+        _validate_continuation_stage_owner(
+            owner,
+            owner_base,
+            partial_run_hash,
+            run_hash,
+        )
+        if _same_directory_identity(continuation_identity, owner):
+            matching_sidecars.append((sidecar_name, owner))
+    if not matching_sidecars:
+        return False
+    if len(matching_sidecars) != 1:
+        raise PermissionError("continuation pending publication owner is ambiguous")
+    sidecar_name, owner = matching_sidecars[0]
+    entries = _validate_open_continuation_stage(
+        continuation_fd,
+        owner,
+        source,
+        continuation_run_id,
+        partial_run_hash,
+        run_hash,
+        require_run=True,
+        allow_partial_run=False,
+    )
+    if entries != ("preflight.md", "run.pending"):
+        raise PermissionError("continuation pending publication is incomplete")
+    current = os.stat(
+        continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+    )
+    if not _same_directory_identity(current, owner):
+        raise PermissionError("continuation pending publication identity changed")
+    os.rename(
+        "run.pending",
+        "run.json",
+        src_dir_fd=continuation_fd,
+        dst_dir_fd=continuation_fd,
+    )
+    os.fsync(continuation_fd)
+    promoted_entries = _validate_open_continuation_stage(
+        continuation_fd,
+        owner,
+        source,
+        continuation_run_id,
+        partial_run_hash,
+        run_hash,
+        run_name="run.json",
+        require_run=True,
+        allow_partial_run=False,
+    )
+    if promoted_entries != ("preflight.md", "run.json"):
+        raise PermissionError("recovered continuation publication is incomplete")
+    current = os.stat(
+        continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+    )
+    if not _same_directory_identity(current, owner):
+        raise PermissionError("recovered continuation publication identity changed")
+    os.fsync(runs_fd)
+    os.unlink(sidecar_name, dir_fd=staging_fd)
+    os.fsync(staging_fd)
+    return True
+
+
+def _recover_pending_continuation_publication(
+    repo_root: Path,
+    supervisor_project_root: Path,
+    source: Mapping[str, Any],
+    request: ActionRequest,
+    identity: Mapping[str, Any],
+    continuation_run_id: str,
+) -> bool:
+    continuation_dir = run_dir_for(repo_root, continuation_run_id)
+    staging_root = repo_root / ".codex" / "loop-staging"
+    if staging_root.is_symlink() or not staging_root.is_dir():
+        return False
+    preflight_bytes, partial_run_bytes, run_bytes = _continuation_initial_artifacts(
+        repo_root, source, continuation_run_id
+    )
+    del preflight_bytes
+    partial_run_hash = _sha256_ref(partial_run_bytes)
+    run_hash = _sha256_ref(run_bytes)
+    owner_base = _continuation_stage_owner_base(
+        request, continuation_run_id, identity
+    )
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    staging_fd = os.open(staging_root, directory_flags)
+    runs_fd = os.open(continuation_dir.parent, directory_flags)
+    continuation_fd = os.open(
+        continuation_run_id, directory_flags, dir_fd=runs_fd
+    )
+    try:
+        from scripts.loop_supervisor.reconciler import _project_reconcile_lock
+
+        with _project_reconcile_lock(supervisor_project_root):
+            return _recover_pending_continuation_publication_locked(
+                staging_fd,
+                runs_fd,
+                continuation_fd,
+                source,
+                owner_base,
+                continuation_run_id,
+                partial_run_hash,
+                run_hash,
+            )
+    finally:
+        os.close(continuation_fd)
+        os.close(runs_fd)
+        os.close(staging_fd)
+
+
+def _publish_initial_continuation(
+    repo_root: Path,
+    supervisor_project_root: Path,
+    source: Mapping[str, Any],
+    request: ActionRequest,
+    identity: Mapping[str, Any],
+    continuation_run_id: str,
+) -> None:
+    continuation_dir = run_dir_for(repo_root, continuation_run_id)
+    runs_root = continuation_dir.parent
+    staging_root = repo_root / ".codex" / "loop-staging"
+    if staging_root.is_symlink():
+        raise PermissionError("continuation staging root is a symlink")
+    staging_root.mkdir(parents=True, exist_ok=True)
+    _fsync_directory(staging_root.parent)
+
+    preflight_bytes, partial_run_bytes, run_bytes = _continuation_initial_artifacts(
+        repo_root, source, continuation_run_id
+    )
+    midpoint = len(partial_run_bytes)
+    partial_run_hash = _sha256_ref(partial_run_bytes)
+    run_hash = _sha256_ref(run_bytes)
+    owner_base = _continuation_stage_owner_base(
+        request, continuation_run_id, identity
+    )
+    _cleanup_owned_continuation_stages(
+        staging_root,
+        continuation_run_id,
+        owner_base,
+        source,
+        partial_run_hash,
+        run_hash,
+    )
+    stage_dir = Path(
+        tempfile.mkdtemp(prefix=f"{continuation_run_id}-", dir=staging_root)
+    )
+    _write_fsynced_bytes(stage_dir / "preflight.md", preflight_bytes)
+    _fsync_directory(stage_dir)
+    stage_identity = os.stat(stage_dir, follow_symlinks=False)
+    owner = _continuation_stage_owner(
+        owner_base,
+        stage_identity,
+        preflight_bytes,
+        partial_run_bytes,
+        run_bytes,
+    )
+    sidecar = staging_root / f"{stage_dir.name}.owner.json"
+    owner_bytes = (json.dumps(owner, indent=2) + "\n").encode("utf-8")
+    _write_fsynced_bytes(sidecar, owner_bytes)
+    _fsync_directory(staging_root)
+
+    _continuation_publish_cutpoint("after_preflight", stage_dir)
+
+    run_path = stage_dir / "run.pending"
+    with run_path.open("xb") as handle:
+        handle.write(run_bytes[:midpoint])
+        handle.flush()
+        os.fsync(handle.fileno())
+        _fsync_directory(stage_dir)
+        _continuation_publish_cutpoint("partial_run_json", stage_dir)
+        handle.write(run_bytes[midpoint:])
+        handle.flush()
+        os.fsync(handle.fileno())
+    _fsync_directory(stage_dir)
+
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    staging_fd = os.open(staging_root, directory_flags)
+    runs_fd = os.open(runs_root, directory_flags)
+    stage_fd: int | None = None
+    try:
+        stage_fd, entries = _validate_owned_continuation_stage(
+            staging_fd,
+            stage_dir.name,
+            owner,
+            owner_base,
+            source,
+            continuation_run_id,
+            partial_run_hash,
+            run_hash,
+            require_run=True,
+            allow_partial_run=False,
+        )
+        if entries != ("preflight.md", "run.pending"):
+            raise PermissionError("continuation staging directory is incomplete")
+
+        _continuation_publish_cutpoint("before_publish", stage_dir)
+
+        entries = _validate_open_continuation_stage(
+            stage_fd,
+            owner,
+            source,
+            continuation_run_id,
+            partial_run_hash,
+            run_hash,
+            require_run=True,
+            allow_partial_run=False,
+        )
+        if entries != ("preflight.md", "run.pending"):
+            raise PermissionError("continuation staging directory is incomplete")
+        from scripts.loop_supervisor.reconciler import _project_reconcile_lock
+
+        with _project_reconcile_lock(supervisor_project_root):
+            directory_published = False
+            try:
+                try:
+                    os.stat(
+                        continuation_run_id,
+                        dir_fd=runs_fd,
+                        follow_symlinks=False,
+                    )
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise PermissionError(
+                        "continuation target appeared before atomic publication"
+                    )
+                current = os.stat(
+                    stage_dir.name, dir_fd=staging_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(current, owner):
+                    raise PermissionError(
+                        "continuation staging directory identity changed"
+                    )
+                _continuation_publish_cutpoint("before_stage_rename", stage_dir)
+                _rename_directory_noreplace(
+                    stage_dir.name,
+                    continuation_run_id,
+                    source_directory_fd=staging_fd,
+                    destination_directory_fd=runs_fd,
+                )
+                directory_published = True
+                published = os.stat(
+                    continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(published, owner):
+                    raise PermissionError(
+                        "published continuation directory identity changed"
+                    )
+                published_entries = _validate_open_continuation_stage(
+                    stage_fd,
+                    owner,
+                    source,
+                    continuation_run_id,
+                    partial_run_hash,
+                    run_hash,
+                    require_run=True,
+                    allow_partial_run=False,
+                )
+                if published_entries != ("preflight.md", "run.pending"):
+                    raise PermissionError(
+                        "published continuation directory is incomplete"
+                    )
+                os.fsync(stage_fd)
+                os.fsync(runs_fd)
+                os.fsync(staging_fd)
+                published = os.stat(
+                    continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(published, owner):
+                    raise PermissionError(
+                        "published continuation directory identity changed"
+                    )
+
+                _continuation_publish_cutpoint(
+                    "before_run_promotion", continuation_dir
+                )
+
+                os.rename(
+                    "run.pending",
+                    "run.json",
+                    src_dir_fd=stage_fd,
+                    dst_dir_fd=stage_fd,
+                )
+                directory_published = False
+                os.fsync(stage_fd)
+                promoted_entries = _validate_open_continuation_stage(
+                    stage_fd,
+                    owner,
+                    source,
+                    continuation_run_id,
+                    partial_run_hash,
+                    run_hash,
+                    run_name="run.json",
+                    require_run=True,
+                    allow_partial_run=False,
+                )
+                if promoted_entries != ("preflight.md", "run.json"):
+                    raise PermissionError(
+                        "promoted continuation directory is incomplete"
+                    )
+                published = os.stat(
+                    continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(published, owner):
+                    raise PermissionError(
+                        "promoted continuation directory identity changed"
+                    )
+                os.fsync(runs_fd)
+            except Exception:
+                if directory_published:
+                    try:
+                        current = os.stat(
+                            continuation_run_id,
+                            dir_fd=runs_fd,
+                            follow_symlinks=False,
+                        )
+                        entries = _validate_open_continuation_stage(
+                            stage_fd,
+                            owner,
+                            source,
+                            continuation_run_id,
+                            partial_run_hash,
+                            run_hash,
+                            require_run=True,
+                            allow_partial_run=False,
+                        )
+                        if (
+                            _same_directory_identity(current, owner)
+                            and entries == ("preflight.md", "run.pending")
+                        ):
+                            _rename_directory_noreplace(
+                                continuation_run_id,
+                                stage_dir.name,
+                                source_directory_fd=runs_fd,
+                                destination_directory_fd=staging_fd,
+                            )
+                            os.fsync(runs_fd)
+                            os.fsync(staging_fd)
+                    except Exception:
+                        pass
+                raise
+        os.unlink(sidecar.name, dir_fd=staging_fd)
+        os.fsync(staging_fd)
+    finally:
+        if stage_fd is not None:
+            os.close(stage_fd)
+        os.close(runs_fd)
+        os.close(staging_fd)
+
+
+def _validate_continuation_preflight_artifact(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> None:
+    preflight = run_dir_for(repo_root, continuation_run_id) / "preflight.md"
+    if preflight.is_symlink() or not preflight.is_file():
+        raise PermissionError(
+            "existing continuation target ownership state mismatch: preflight.md"
+        )
+    actual = preflight.read_text(encoding="utf-8")
+    expected = _preflight_markdown(
+        run_id=continuation_run_id,
+        mode=str(source["policy"]),
+        requirement=str(source["requirement"]),
+    )
+    actual_normalized = _normalize_continuation_preflight_timestamp(actual)
+    expected_normalized = _normalize_continuation_preflight_timestamp(expected)
+    if actual_normalized is None or actual_normalized != expected_normalized:
+        raise PermissionError(
+            "existing continuation target ownership state mismatch: preflight.md"
+        )
+
+
+def _normalize_continuation_preflight_timestamp(document: str) -> str | None:
+    lines = document.splitlines(keepends=True)
+    if len(lines) <= 4:
+        return None
+    metadata_line = lines[4]
+    line_ending = "\n" if metadata_line.endswith("\n") else ""
+    if not _CONTINUATION_PREFLIGHT_TIMESTAMP_RE.fullmatch(
+        metadata_line.removesuffix("\n")
+    ):
+        return None
+    lines[4] = "- Created At: `<observed>`" + line_ending
+    return "".join(lines)
+
+
+def _continuation_state_conflicts(
+    actual: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    *,
+    allow_observation_fields: bool,
+) -> list[str]:
+    actual_state = {
+        key: value
+        for key, value in actual.items()
+        if not allow_observation_fields or key not in _CONTINUATION_OBSERVATION_FIELDS
+    }
+    expected_state = dict(expected)
+    actual_state.setdefault("state_revision", 0)
+    return sorted(
+        key
+        for key in set(actual_state) | set(expected_state)
+        if actual_state.get(key) != expected_state.get(key)
+    )
+
+
+def _validate_existing_continuation_target(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation: Mapping[str, Any],
+    *,
+    continuation_run_id: str,
+    expected_provenance: Mapping[str, str],
+) -> bool:
+    expected = _expected_continuation_preflight(
+        repo_root, source, continuation_run_id
+    )
+    provenance_present = [
+        key for key in _CONTINUATION_PROVENANCE_FIELDS if key in continuation
+    ]
+    if provenance_present:
+        expected.update(expected_provenance)
+        expected["state_revision"] = 1
+    else:
+        expected["state_revision"] = 0
+    conflicting = _continuation_state_conflicts(
+        continuation,
+        expected,
+        allow_observation_fields=bool(provenance_present),
+    )
+    if conflicting:
+        raise PermissionError(
+            "existing continuation target ownership state mismatch: "
+            + ", ".join(conflicting)
+        )
+    _validate_continuation_preflight_artifact(
+        repo_root, source, continuation_run_id
+    )
+    return bool(provenance_present)
+
+
 def _run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
+        supervisor_project_root = _supervisor_project_root(
+            repo_root, request.repo_relative_root
+        )
         source = load_run(repo_root, request.run_id)
         if source["phase"] != "stopped_budget":
             raise RuntimeError("continuation requires stopped_budget phase")
         identity = request.payload.get("continuation_identity")
         if not isinstance(identity, Mapping):
             raise ValueError("continuation_identity payload is required")
+        trusted_lineage_id = request.payload.get("loop_lineage_id")
+        if not isinstance(trusted_lineage_id, str) or not trusted_lineage_id:
+            raise ValueError("continuation loop_lineage_id payload is required")
+        if identity.get("loop_lineage_id") != trusted_lineage_id:
+            raise ValueError("continuation lineage payload does not match identity")
+        if identity.get("source_run_id") != request.run_id:
+            raise ValueError("continuation source payload does not match action run")
+        for field in ("semantic_parent", "source_commit"):
+            if not isinstance(identity.get(field), str) or not identity[field]:
+                raise ValueError(f"continuation {field} payload is required")
         digest = hashlib.sha256(
             json.dumps(dict(identity), sort_keys=True).encode("utf-8")
         ).hexdigest()[:10]
@@ -5897,27 +7079,60 @@ def _run_bounded_continuation(repo_root: Path, request: ActionRequest) -> Action
             request.payload.get("continuation_run_id")
             or f"{request.run_id}-continuation-{digest}"
         )
-        target = run_dir_for(repo_root, continuation_run_id) / "run.json"
+        continuation_dir = run_dir_for(repo_root, continuation_run_id)
+        if continuation_dir.is_symlink():
+            raise PermissionError("existing continuation target directory is a symlink")
+        target = continuation_dir / "run.json"
+        if target.is_symlink():
+            raise PermissionError("existing continuation target is a symlink")
         if not target.exists():
-            create_preflight_run(
-                repo_root=repo_root,
-                mode=source["policy"],
-                requirement=source["requirement"],
-                run_id=continuation_run_id,
-                task_id="",
-                domain=str(source.get("domain") or ""),
-                constraints=list(source.get("constraints", [])),
-                stop_conditions=list(source.get("stop_conditions", [])),
-                confirm=True,
+            if continuation_dir.exists():
+                if not _recover_pending_continuation_publication(
+                    repo_root,
+                    supervisor_project_root,
+                    source,
+                    request,
+                    identity,
+                    continuation_run_id,
+                ):
+                    raise PermissionError(
+                        "existing continuation target directory has no owned run.json"
+                    )
+            else:
+                _publish_initial_continuation(
+                    repo_root,
+                    supervisor_project_root,
+                    source,
+                    request,
+                    identity,
+                    continuation_run_id,
+                )
+        continuation = load_run(repo_root, continuation_run_id)
+        expected_provenance = {
+            "loop_lineage_id": trusted_lineage_id,
+            "previous_run_id": request.run_id,
+            "parent_run_id": request.run_id,
+            "previous_commit": identity["source_commit"],
+        }
+        if not _validate_existing_continuation_target(
+            repo_root,
+            source,
+            continuation,
+            continuation_run_id=continuation_run_id,
+            expected_provenance=expected_provenance,
+        ):
+            from scripts.loop_supervisor import reconciler
+
+            expected_fingerprint = reconciler._state_fingerprint(continuation)
+            completed = dict(continuation)
+            completed.update(expected_provenance)
+            reconciler.atomic_save_run(
+                repo_root,
+                continuation_run_id,
+                completed,
+                expected_revision=0,
+                expected_fingerprint=expected_fingerprint,
             )
-            continuation = load_run(repo_root, continuation_run_id)
-            continuation["loop_lineage_id"] = str(
-                identity.get("loop_lineage_id") or request.run_id
-            )
-            continuation["previous_run_id"] = request.run_id
-            continuation["parent_run_id"] = request.run_id
-            continuation["previous_commit"] = str(identity.get("source_commit") or "")
-            save_run(repo_root, continuation)
         return _bounded_success(
             f"created continuation {continuation_run_id}",
             started_at=started_at,

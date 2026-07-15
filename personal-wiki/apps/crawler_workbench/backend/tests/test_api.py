@@ -9,6 +9,15 @@ from crawler_workbench.main import create_app
 from crawler_workbench.settings import Settings
 
 
+def test_default_app_honors_documented_repo_root_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_REPO_ROOT", str(tmp_path))
+
+    app = create_app()
+
+    assert app.state.settings.repo_root == tmp_path
+    assert app.state.settings.database_path == tmp_path / ".personal-wiki-workbench" / "workbench.sqlite3"
+
+
 def _insert_source_profile(db, source_id: str, schedule: str, auth_state: str = "ready", enabled: int = 1, next_run_at=None):
     db.execute(
         """

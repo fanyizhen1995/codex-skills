@@ -8,7 +8,11 @@ from typing import Callable, Mapping
 import scripts.harness_loop_orchestrator as legacy
 
 from .models import ActionRequest, ActionResult, ActionResultClass, ActionType
-from .recovery import inspect_partial_artifacts, reconstruct_result_envelope
+from .recovery import (
+    inspect_legacy_generator_artifacts,
+    inspect_partial_artifacts,
+    reconstruct_result_envelope,
+)
 from .registry import worker_executable_action_types
 
 
@@ -79,11 +83,23 @@ def _create_continuation(repo_root: Path, request: ActionRequest) -> ActionResul
 
 
 def _recover_generator_result(repo_root: Path, request: ActionRequest) -> ActionResult:
-    if not request.payload.get("recovery_failure_key"):
+    direct_generator_recovery = request.next_action in {
+        "inspect_autonomous_generator",
+        "run_autonomous_generator",
+        "run_generator",
+        "run_child_generator",
+    }
+    if not direct_generator_recovery:
         return _call_primitive("_run_bounded_generator_recovery", repo_root, request)
     run = legacy.load_run(repo_root, request.run_id)
     assessment = inspect_partial_artifacts(repo_root, run, ActionType.RUN_GENERATOR)
-    failure_key = str(request.payload.get("recovery_failure_key") or "")
+    legacy_direct_recovery = not request.payload.get("recovery_failure_key")
+    if legacy_direct_recovery and assessment.status != "recoverable":
+        assessment = inspect_legacy_generator_artifacts(repo_root, run)
+    failure_key = str(
+        request.payload.get("recovery_failure_key")
+        or f"recovery:{request.run_id}:{request.task_id}:run_generator:legacy_partial"
+    )
     if assessment.status != "recoverable":
         result_class = (
             ActionResultClass.POLICY_BLOCK

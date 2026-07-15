@@ -35,6 +35,25 @@ curl --noproxy '*' http://127.0.0.1:8766/api/health
 database integrity, WAL mode, and foreign-key enforcement. The Dashboard is
 read-only and remains separately available at `http://127.0.0.1:8766`.
 
+The watch loop separately projects managed-service endpoint, tmux process/PID,
+heartbeat, and running-code fingerprint evidence. Repository `HEAD` is never
+used as the running service version. Missing runtime metadata is reported as
+unverified, and a metadata fingerprint from an older process remains visible as
+the running version while the service is degraded.
+
+An unhealthy allowlisted service creates one project-scoped `restart_service`
+action keyed by a stable outage identity. Mutable observations during that outage
+coalesce into the same operation, and recovery cancels pending work before a later
+outage can receive a new identity. The Supervisor-owned Service Keeper serializes
+restart execution per service; watch mode keeps at most one nonblocking maintenance
+pass in flight, and Executor Workers never lease these actions. It may
+terminate an existing dead tmux session and start only the fixed runtime wrapper
+for Crawler backend/frontend, Loop Dashboard, or the Executor Worker. The wrapper,
+not the restart controller, publishes PID-bound heartbeat and running fingerprint
+metadata. The Service Keeper records one action attempt and publishes healthy
+state only after endpoint, a different replacement PID when an old PID existed,
+current heartbeat, and running version all verify independently.
+
 An open run-scoped decision pauses only its affected run. A global decision may
 pause all work only for the global stop conditions in the binding design.
 Archived or closed decisions do not block reconciliation.
@@ -46,8 +65,15 @@ failure does not create a user decision by itself.
 
 ## Migration and shadow gate
 
-Dry-run first. It streams JSONL line by line, inventories protected dirty paths,
-and does not remove legacy artifacts:
+Dry-run first. Before any normal `migrate` invocation reads a run record, the
+CLI non-blockingly acquires the exclusive runtime-database maintenance lock,
+the reconcile lock, the repository mutation lock, and every discovered run
+lock. A live Supervisor or Worker, or any held reconcile, repository, or run
+lock, fails closed with a diagnostic quiescence error rather than waiting or
+constructing a mixed snapshot. Dry-run uses only an in-memory control store:
+it streams JSONL line by line and inventories protected dirty paths, but does
+not create or change the SQLite database, a migration snapshot, quarantine
+output, or legacy artifacts:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli migrate --project-root /home/fyz/codex-skills --dry-run
@@ -65,17 +91,19 @@ python3 -m scripts.loop_supervisor.cli migrate --project-root /home/fyz/codex-sk
 python3 -m scripts.loop_supervisor.cli shadow-compare --project-root /home/fyz/codex-skills
 ```
 
-Apply writes a timestamped snapshot beside the repository, outside the Git
-index, before importing. It validates streamed row counts, compacted
-transitions, failure first/last/count, decision status, run projections, and
-Reviewer cadence. Blank, malformed, truncated, NUL-tailed, and invalid-timestamp
-records are counted and written to `migration-quarantine.jsonl` in that external
-snapshot; source timestamps are never replaced with wall clock. Legacy cleanup
-is a separate guarded operation and is allowed only after exact current-store
-validation and shadow comparison both pass. The migration report records each
-cleanup source's device/inode identity, byte size, and SHA-256. Cleanup holds
-the reconcile and repository mutation locks, rechecks that evidence immediately
-before deletion, and removes retained trees through no-follow descriptors:
+Apply keeps that same quiescence scope while it writes a timestamped snapshot
+beside the repository, outside the Git index, before importing. It validates
+streamed row counts, compacted transitions, failure first/last/count, decision
+status, run projections, and Reviewer cadence. Blank, malformed, truncated,
+NUL-tailed, and invalid-timestamp records are counted and written to
+`migration-quarantine.jsonl` in that external snapshot; source timestamps are
+never replaced with wall clock. Legacy cleanup is the apply-and-cleanup variant:
+it keeps the original quiescence scope through the shadow comparison, exact
+current-store validation, and deletion. It is allowed only after both validation
+and shadow comparison pass. The migration report records each cleanup source's
+device/inode identity, byte size, and SHA-256. Cleanup holds all of those locks,
+rechecks that evidence immediately before deletion, and removes retained trees
+through no-follow descriptors:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli migrate --project-root /home/fyz/codex-skills --cleanup-legacy

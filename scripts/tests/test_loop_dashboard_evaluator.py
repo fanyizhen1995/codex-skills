@@ -155,10 +155,11 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             "mobile table scrolling",
             "page-21 reload",
             "many-run/tab URL bound",
-            "delayed-services transition",
+            "delayed health transition",
             "attempt page 21",
             "visible run/tab pager pressure",
-            "freshness cursor and degraded health",
+            "current health uses the bounded health endpoint",
+            "stale current-health projection remains degraded",
         ):
             self.assertIn(assertion, owner)
         self.assertIn("FIXTURE_RUN_COUNT = 5", owner)
@@ -166,7 +167,9 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
         self.assertIn('f"fixture-run-{index:03d}"', owner)
         self.assertIn("freshness-hidden-stale", owner)
         self.assertIn("visible run/tab pager pressure", owner)
-        self.assertIn("freshness cursor and degraded health", owner)
+        self.assertIn('"/api/supervisor/health"', owner)
+        self.assertIn("current_health_established_without_raw_history", owner)
+        self.assertNotIn("complete health did not request hidden service pages", owner)
         self.assertNotIn("new window.LoopPagination.CursorPager", owner)
         self.assertIn('"--no-access-log"', owner)
         self.assertEqual(scenario["task_id"], "loop-supervisor-unification-01")

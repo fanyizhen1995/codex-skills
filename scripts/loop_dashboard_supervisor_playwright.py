@@ -72,8 +72,9 @@ def main() -> int:
                     "26 run events and 26 run logs paginated through exact Task 7 envelopes",
                     "stale requests were aborted or generation-rejected and structured Next failure rolled back",
                     "page-21 offset window restored with one globally bounded dashboard session token",
-                    "Supervisor deactivation cancelled delayed service responses before run selection",
-                    "complete service and freshness coverage included hidden unhealthy rows",
+                    "Supervisor deactivation cancelled delayed health responses before run selection",
+                    "current health used the bounded endpoint without paging raw service history",
+                    "stale current-health projection remained visibly degraded",
                     "page 2 stayed stable after a newer SQLite action was inserted",
                     "421 recovery attempts remained reachable through exact paged envelopes",
                     "log detail was fetched only after explicit expansion",
@@ -663,6 +664,44 @@ def wait_for_dashboard(
     raise RuntimeError(f"isolated dashboard did not become ready: {last_error}")
 
 
+def _capture_current_health_contract(page, request_urls: list[str]) -> dict[str, object]:
+    paths = [urlparse(url).path for url in request_urls]
+    health_request_count = paths.count("/api/supervisor/health")
+    raw_service_requests = paths.count("/api/supervisor/services")
+    raw_freshness_requests = paths.count("/api/supervisor/services/freshness")
+    if health_request_count < 1:
+        raise AssertionError("current health endpoint was not requested")
+    if raw_service_requests or raw_freshness_requests:
+        raise AssertionError("current health depended on raw service history paging")
+
+    payload = page.evaluate(
+        """async () => {
+          const response = await fetch('/api/supervisor/health');
+          if (!response.ok) throw new Error(`health request failed: ${response.status}`);
+          return response.json();
+        }"""
+    )
+    services = payload.get("services", []) if isinstance(payload, dict) else []
+    stale_service_ids = [
+        str(item.get("service_id", ""))
+        for item in services
+        if isinstance(item, dict) and item.get("status") == "stale"
+    ]
+    ui_status = page.locator("#top-status").inner_text().splitlines()[0].strip()
+    if "supervisor-worker" not in stale_service_ids or ui_status != "Supervisor 降级":
+        raise AssertionError("stale current-health projection appeared healthy")
+    return {
+        "requested_endpoint": "/api/supervisor/health",
+        "health_request_count": health_request_count,
+        "raw_service_history_requests_before_projection": raw_service_requests,
+        "raw_freshness_history_requests_before_projection": raw_freshness_requests,
+        "current_health_established_without_raw_history": True,
+        "stale_projection_honest": True,
+        "stale_service_ids": stale_service_ids,
+        "ui_status": ui_status,
+    }
+
+
 def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path) -> dict[str, object]:
     from playwright.sync_api import expect, sync_playwright
 
@@ -678,13 +717,13 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             (() => {
               const originalFetch = window.fetch.bind(window);
               let delayed = false;
-              let delayServices = false;
-              window.__armDelayedServices = () => { delayServices = true; };
+              let delayHealth = false;
+              window.__armDelayedHealth = () => { delayHealth = true; };
               window.fetch = (input, init) => {
                 const url = new URL(typeof input === "string" ? input : input.url, window.location.origin);
                 const response = originalFetch(input, init);
-                if (delayServices && url.pathname === "/api/supervisor/services") {
-                  delayServices = false;
+                if (delayHealth && url.pathname === "/api/supervisor/health") {
+                  delayHealth = false;
                   return response.then((value) => new Promise((resolve) => setTimeout(() => resolve(value), 700)));
                 }
                 if (!delayed && url.pathname === "/api/supervisor/actions"
@@ -715,22 +754,11 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             expect(supervisor_panel).to_contain_text("状态：待执行")
             expect(supervisor_panel).to_contain_text("恢复 Tier 2")
             expect(desktop.locator("#top-status")).to_contain_text("Supervisor 降级")
-            if not any(
-                urlparse(url).path == "/api/supervisor/services" and parse_qs(urlparse(url).query).get("cursor")
-                for url in request_urls
-            ):
-                raise AssertionError("complete health did not request hidden service pages")
-            if not any(
-                urlparse(url).path == "/api/supervisor/services/freshness" and parse_qs(urlparse(url).query).get("cursor")
-                for url in request_urls
-            ):
-                raise AssertionError("complete health did not request hidden freshness pages")
-            expect(desktop.locator("#supervisor-hero-status")).to_contain_text("100 / 103 freshness 通过")
+            health_contract = _capture_current_health_contract(desktop, request_urls)
 
-            desktop.evaluate("window.__armDelayedServices()")
+            desktop.evaluate("window.__armDelayedHealth()")
             with desktop.expect_request(
-                lambda request: urlparse(request.url).path == "/api/supervisor/services"
-                and parse_qs(urlparse(request.url).query).get("page_size") == ["100"]
+                lambda request: urlparse(request.url).path == "/api/supervisor/health"
             ):
                 desktop.get_by_role("tab", name="服务", exact=True).click()
             parent_run = desktop.locator(f'[data-run-id="{RUN_ID}"]')
@@ -742,13 +770,14 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             desktop.wait_for_timeout(850)
             expect(desktop.locator("#top-status")).to_contain_text("运行需要修复")
             if not desktop.locator("#supervisor-view").evaluate("node => node.classList.contains('is-hidden')"):
-                raise AssertionError("delayed-services transition restored Supervisor over the run view")
+                raise AssertionError("delayed health transition restored Supervisor over the run view")
             desktop.locator("#supervisor-nav").click()
             expect(desktop.get_by_role("tab", name="服务", exact=True)).to_have_attribute("aria-selected", "true")
             desktop.get_by_role("tab", name="服务", exact=True).click()
             expect(supervisor_panel).to_contain_text("Supervisor Worker")
-            expect(supervisor_panel).to_contain_text("Worker freshness 不可用")
-            expect(supervisor_panel).to_contain_text("Crawler 最近同步已过期")
+            expect(supervisor_panel).to_contain_text("心跳过期")
+            expect(supervisor_panel).to_contain_text("Crawler Backend")
+            expect(supervisor_panel).to_contain_text("异常")
             if supervisor_panel.get_by_text("managed-service-102", exact=True).count():
                 raise AssertionError("hidden unhealthy service unexpectedly appeared on the first service page")
             verify_collection_pagination(
@@ -1010,6 +1039,7 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 "global_session_bound": session_bound,
                 "attempt_page_21": ["attempt-action-001-401", "attempt-action-001-420"],
                 "request_count": len(request_urls) + len(direct_requests),
+                "health_contract": health_contract,
                 "assertions": [
                     "selected-tab-only direct URL request timing",
                     "tab independence after refresh",
@@ -1018,10 +1048,11 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                     "mobile table scrolling remains internal",
                     "page-21 reload restores the retained offset window",
                     "many-run/tab URL bound uses one dashboard token",
-                    "delayed-services transition cannot overwrite run UI",
+                    "delayed health transition cannot overwrite run UI",
                 "attempt page 21 remains reachable through exact envelopes",
                 "visible run/tab pager pressure retained the 24-pager state bound",
-                "freshness cursor and degraded health covered an unhealthy row after page one",
+                "current health uses the bounded health endpoint without raw history paging",
+                "stale current-health projection remains degraded",
             ],
             }
         except Exception:

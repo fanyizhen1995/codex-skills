@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sqlite3
@@ -488,6 +489,277 @@ def test_supervisor_routes_are_sqlite_backed_and_paginated(tmp_path: Path) -> No
     assert "action-secret" not in serialized_action
     assert "[REDACTED]" in serialized_action
     assert client.get("/api/supervisor/auditor").status_code == 404
+    connection.close()
+
+
+def test_supervisor_health_uses_latest_freshness_without_exporting_history(
+    tmp_path: Path,
+) -> None:
+    connection = _seed_supervisor_database(tmp_path)
+    connection.execute("DELETE FROM freshness_checks")
+    for service_id in (
+        "crawler-backend",
+        "crawler-frontend",
+        "loop-supervisor",
+        "supervisor-worker",
+    ):
+        connection.execute(
+            """
+            INSERT INTO services(
+              service_id, status, endpoint, details_json, created_at, updated_at
+            ) VALUES (?, 'healthy', '', '{}', '2026-07-15T00:00:00Z',
+                      '2026-07-15T00:00:00Z')
+            """,
+            (service_id,),
+        )
+    for index in range(150):
+        connection.execute(
+            """
+            INSERT INTO freshness_checks(
+              check_id, target, status, summary, details_json, checked_at, created_at
+            ) VALUES (?, 'wiki', 'stale', 'historical stale', '{}',
+                      '2026-07-14T00:00:00Z', '2026-07-14T00:00:00Z')
+            """,
+            (f"historical-wiki-{index:03d}",),
+        )
+    for target in ("wiki", "search", "dashboard"):
+        connection.execute(
+            """
+            INSERT INTO freshness_checks(
+              check_id, target, status, summary, details_json, checked_at, created_at
+            ) VALUES (?, ?, 'fresh', 'current fresh', '{}',
+                      '2026-07-16T00:00:00Z', '2026-07-16T00:00:00Z')
+            """,
+            (f"current-{target}", target),
+        )
+    connection.commit()
+    client = TestClient(
+        create_test_app(
+            project_root=tmp_path,
+            supervisor_clock=lambda: datetime(
+                2026, 7, 16, 0, 0, 0, tzinfo=timezone.utc
+            ),
+        )
+    )
+
+    response = client.get("/api/supervisor/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "available", payload
+    assert payload["coverage_complete"] is True
+    assert len(payload["services"]) == 5
+    assert len(payload["freshness"]) == 3
+    assert {item["target"]: item["status"] for item in payload["freshness"]} == {
+        "wiki": "fresh",
+        "search": "fresh",
+        "dashboard": "fresh",
+    }
+    assert "next_cursor" not in payload
+    latest_lookup_sql = """
+        SELECT check_id, target, status, summary, details_json, checked_at, created_at
+        FROM freshness_checks
+        WHERE target = ?
+        ORDER BY checked_at DESC, check_id DESC
+        LIMIT 1
+    """
+    plan = connection.execute(
+        "EXPLAIN QUERY PLAN " + latest_lookup_sql,
+        ("wiki",),
+    ).fetchall()
+    plan_text = " ".join(str(row[3]) for row in plan)
+    assert "USING INDEX freshness_checks_target_latest_idx" in plan_text
+    assert "SCAN freshness_checks" not in plan_text
+    assert "TEMP B-TREE" not in plan_text
+    assert "CURRENT_FRESHNESS_SQL" in (
+        SupervisorDashboardStore.health_snapshot.__code__.co_names
+    )
+    assert not any(
+        "ROW_NUMBER" in value
+        for value in SupervisorDashboardStore.health_snapshot.__code__.co_consts
+        if isinstance(value, str)
+    )
+    connection.close()
+
+
+def _seed_health_observation_times(
+    connection: sqlite3.Connection,
+    *,
+    service_observed_at: str,
+    freshness_checked_at: str,
+) -> None:
+    for service_id in (
+        "crawler-backend",
+        "crawler-frontend",
+        "loop-dashboard",
+        "loop-supervisor",
+        "supervisor-worker",
+    ):
+        connection.execute(
+            """
+            INSERT INTO services(
+              service_id, status, endpoint, heartbeat_at, details_json,
+              created_at, updated_at
+            ) VALUES (?, 'healthy', '', ?, '{}', ?, ?)
+            ON CONFLICT(service_id) DO UPDATE SET
+              status = 'healthy', heartbeat_at = excluded.heartbeat_at,
+              updated_at = excluded.updated_at
+            """,
+            (
+                service_id,
+                service_observed_at,
+                service_observed_at,
+                service_observed_at,
+            ),
+        )
+    connection.execute("DELETE FROM freshness_checks")
+    for target in ("wiki", "search", "dashboard"):
+        connection.execute(
+            """
+            INSERT INTO freshness_checks(
+              check_id, target, status, summary, details_json, checked_at, created_at
+            ) VALUES (?, ?, 'fresh', 'current fresh', '{}', ?, ?)
+            """,
+            (
+                f"current-{target}",
+                target,
+                freshness_checked_at,
+                freshness_checked_at,
+            ),
+        )
+    connection.commit()
+
+
+def test_supervisor_health_accepts_exact_utc_freshness_boundaries(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 16, 0, 0, 0, tzinfo=timezone.utc)
+    connection = _seed_supervisor_database(tmp_path)
+    _seed_health_observation_times(
+        connection,
+        service_observed_at="2026-07-16T07:59:00+08:00",
+        freshness_checked_at="2026-07-16T07:50:00+08:00",
+    )
+    client = TestClient(
+        create_test_app(project_root=tmp_path, supervisor_clock=lambda: now)
+    )
+
+    payload = client.get("/api/supervisor/health").json()
+
+    assert {item["status"] for item in payload["services"]} == {"healthy"}
+    assert {item["status"] for item in payload["freshness"]} == {"fresh"}
+    assert all(item["details"]["observation_fresh"] for item in payload["services"])
+    assert all(item["details"]["observation_fresh"] for item in payload["freshness"])
+    connection.close()
+
+
+def test_supervisor_health_degrades_expired_service_and_freshness_rows(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 7, 16, 0, 0, 0, tzinfo=timezone.utc)
+    connection = _seed_supervisor_database(tmp_path)
+    _seed_health_observation_times(
+        connection,
+        service_observed_at="2026-07-15T23:58:59Z",
+        freshness_checked_at="2026-07-15T23:49:59Z",
+    )
+    client = TestClient(
+        create_test_app(project_root=tmp_path, supervisor_clock=lambda: now)
+    )
+
+    payload = client.get("/api/supervisor/health").json()
+    services = {item["service_id"]: item for item in payload["services"]}
+    raw_services = client.get("/api/supervisor/services?page_size=20").json()
+    raw_freshness = client.get(
+        "/api/supervisor/services/freshness?page_size=20"
+    ).json()
+
+    assert services["crawler-backend"]["status"] == "unhealthy"
+    assert services["loop-supervisor"]["status"] == "unhealthy"
+    assert services["supervisor-worker"]["status"] == "stale"
+    assert {item["status"] for item in payload["freshness"]} == {"stale"}
+    assert not any(item["details"]["observation_fresh"] for item in payload["services"])
+    assert not any(item["details"]["observation_fresh"] for item in payload["freshness"])
+    assert {item["status"] for item in raw_services["items"]} == {"healthy"}
+    assert {item["status"] for item in raw_freshness["items"]} == {"fresh"}
+    connection.close()
+
+
+@pytest.mark.parametrize(
+    "invalid_timestamp",
+    [
+        "",
+        "not-a-timestamp",
+        "2026-07-16T00:00:00",
+        "2026-07-16T00:00:01Z",
+    ],
+)
+def test_supervisor_health_fails_closed_for_missing_or_invalid_timestamps(
+    tmp_path: Path,
+    invalid_timestamp: str,
+) -> None:
+    now = datetime(2026, 7, 16, 0, 0, 0, tzinfo=timezone.utc)
+    connection = _seed_supervisor_database(tmp_path)
+    _seed_health_observation_times(
+        connection,
+        service_observed_at=invalid_timestamp,
+        freshness_checked_at=invalid_timestamp,
+    )
+    client = TestClient(
+        create_test_app(project_root=tmp_path, supervisor_clock=lambda: now)
+    )
+
+    payload = client.get("/api/supervisor/health").json()
+    services = {item["service_id"]: item for item in payload["services"]}
+
+    assert services["crawler-backend"]["status"] == "unhealthy"
+    assert services["supervisor-worker"]["status"] == "offline"
+    assert {item["status"] for item in payload["freshness"]} == {"stale"}
+    assert payload["coverage_complete"] is True
+    connection.close()
+
+
+@pytest.mark.parametrize(
+    ("updated_at", "heartbeat_at", "expected_status"),
+    [
+        ("2026-07-15T23:58:59Z", "2026-07-16T00:00:00Z", "stale"),
+        ("2026-07-16T00:00:00Z", "2026-07-15T23:58:59Z", "stale"),
+        ("2026-07-16T00:00:00Z", "", "offline"),
+    ],
+)
+def test_supervisor_health_requires_current_worker_row_and_heartbeat(
+    tmp_path: Path,
+    updated_at: str,
+    heartbeat_at: str,
+    expected_status: str,
+) -> None:
+    now = datetime(2026, 7, 16, 0, 0, 0, tzinfo=timezone.utc)
+    connection = _seed_supervisor_database(tmp_path)
+    _seed_health_observation_times(
+        connection,
+        service_observed_at="2026-07-16T00:00:00Z",
+        freshness_checked_at="2026-07-16T00:00:00Z",
+    )
+    connection.execute(
+        """
+        UPDATE services
+        SET updated_at = ?, heartbeat_at = ?
+        WHERE service_id = 'supervisor-worker'
+        """,
+        (updated_at, heartbeat_at),
+    )
+    connection.commit()
+    client = TestClient(
+        create_test_app(project_root=tmp_path, supervisor_clock=lambda: now)
+    )
+
+    payload = client.get("/api/supervisor/health").json()
+    worker = next(
+        item
+        for item in payload["services"]
+        if item["service_id"] == "supervisor-worker"
+    )
+
+    assert worker["status"] == expected_status
+    assert worker["details"]["observation_fresh"] is False
     connection.close()
 
 

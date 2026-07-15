@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 import errno
 import fcntl
 import hashlib
@@ -20,6 +21,7 @@ from typing import Any, Iterator
 
 from scripts.harness_loop_contracts import validate_run_id
 from scripts.harness_loop_runtime_lock import (
+    RunLockBusy,
     RunLockToken,
     acquire_run_lock,
     validate_run_lock_token,
@@ -78,6 +80,27 @@ _FINGERPRINT_OBSERVATION_KEYS = frozenset(
         "updated_at",
     }
 )
+_PENDING_CONTINUATION_MAX_AGE_SECONDS = 24 * 60 * 60
+_PENDING_CONTINUATION_OWNER_KEYS = frozenset(
+    {
+        "schema_version",
+        "kind",
+        "action_id",
+        "idempotency_key",
+        "continuation_run_id",
+        "continuation_identity",
+        "created_at",
+        "stage_device",
+        "stage_inode",
+        "preflight_sha256",
+        "partial_run_sha256",
+        "run_sha256",
+    }
+)
+_PENDING_CONTINUATION_IDENTITY_KEYS = frozenset(
+    {"loop_lineage_id", "source_run_id", "semantic_parent", "source_commit"}
+)
+_SHA256_REFERENCE_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
@@ -90,6 +113,7 @@ class RunRecord:
     error: str = ""
     ownership_failure: bool = False
     directory_run_id: str = ""
+    pending_publication: bool = False
 
 
 @dataclass(frozen=True)
@@ -120,6 +144,8 @@ class ReconcileResult:
                     "run_id": action.run_id,
                     "run_revision": action.run_revision,
                     "action_type": action.action_type.value,
+                    "queue_owner": action.queue_owner.value,
+                    "not_before": action.not_before,
                     "phase": action.phase,
                     "task_id": action.task_id,
                 }
@@ -432,16 +458,63 @@ def _unlink_at_preserving_error(directory_fd: int, name: str) -> None:
             raise
 
 
+def discover_run_candidates(
+    project_root: Path, *, include_worktrees: bool = True
+) -> list[RunRecord]:
+    """Discover run directory identities without reading run payloads."""
+    return _discover_run_entries(
+        project_root,
+        include_worktrees=include_worktrees,
+        read_payload=False,
+    )
+
+
 def discover_run_records(
     project_root: Path, *, include_worktrees: bool = True
 ) -> list[RunRecord]:
-    """Discover root and direct non-symlink worktree runs without path escape."""
+    """Discover run path metadata without crossing the pre-lock trust boundary."""
+    return discover_run_candidates(
+        project_root,
+        include_worktrees=include_worktrees,
+    )
+
+
+def read_quiesced_run_records(
+    project_root: Path, *, include_worktrees: bool = True
+) -> list[RunRecord]:
+    """Read payloads for migration workflows that require a quiesced runtime."""
+    return _discover_run_entries(
+        project_root,
+        include_worktrees=include_worktrees,
+        read_payload=True,
+    )
+
+
+def _discover_run_entries(
+    project_root: Path,
+    *,
+    include_worktrees: bool,
+    read_payload: bool,
+) -> list[RunRecord]:
     root = Path(project_root).resolve()
     records: list[RunRecord] = []
     with _open_directory_chain(root, (), create=False) as root_fd:
-        records.extend(_records_under_repo(root, root, repo_fd=root_fd))
+        records.extend(
+            _records_under_repo(
+                root,
+                root,
+                repo_fd=root_fd,
+                read_payload=read_payload,
+            )
+        )
         if include_worktrees:
-            records.extend(_records_under_worktrees(root, root_fd))
+            records.extend(
+                _records_under_worktrees(
+                    root,
+                    root_fd,
+                    read_payload=read_payload,
+                )
+            )
 
     counts: dict[str, int] = {}
     for record in records:
@@ -506,7 +579,12 @@ def infer_loop_lineages(records: Sequence[RunRecord]) -> dict[str, str]:
     return result
 
 
-def _records_under_worktrees(root: Path, root_fd: int) -> list[RunRecord]:
+def _records_under_worktrees(
+    root: Path,
+    root_fd: int,
+    *,
+    read_payload: bool,
+) -> list[RunRecord]:
     worktrees_root = root / ".worktrees"
     try:
         root_stat = os.stat(".worktrees", dir_fd=root_fd, follow_symlinks=False)
@@ -560,7 +638,14 @@ def _records_under_worktrees(root: Path, root_fd: int) -> list[RunRecord]:
                         )
                     )
                     continue
-                records.extend(_records_under_repo(worktree, root, repo_fd=child_fd))
+                records.extend(
+                    _records_under_repo(
+                        worktree,
+                        root,
+                        repo_fd=child_fd,
+                        read_payload=read_payload,
+                    )
+                )
             finally:
                 _close_fd_preserving_error(child_fd)
     finally:
@@ -568,7 +653,9 @@ def _records_under_worktrees(root: Path, root_fd: int) -> list[RunRecord]:
     return records
 
 
-def desired_action_for_run(run: Mapping[str, Any]) -> ActionRequest | None:
+def desired_action_for_run(
+    run: Mapping[str, Any], *, trusted_loop_lineage_id: str = ""
+) -> ActionRequest | None:
     """Return one registry-backed bounded action for a run state."""
     if not isinstance(run, Mapping):
         raise TypeError("run must be a mapping")
@@ -587,7 +674,13 @@ def desired_action_for_run(run: Mapping[str, Any]) -> ActionRequest | None:
         "mutates_git": rule.mutates_git,
     }
     if rule.action_type is ActionType.CREATE_CONTINUATION:
-        continuation_identity = _continuation_identity(run)
+        lineage_id = str(
+            trusted_loop_lineage_id or run.get("loop_lineage_id") or run_id
+        )
+        continuation_identity = _continuation_identity(
+            run, trusted_loop_lineage_id=lineage_id
+        )
+        payload["loop_lineage_id"] = lineage_id
         payload["continuation_identity"] = continuation_identity
         task_id = "continuation:" + ":".join(continuation_identity.values())
 
@@ -646,7 +739,261 @@ def reconcile_once(
             )
 
 
-def _secure_reread_run(project_root: Path, record: RunRecord) -> RunRecord:
+def _pending_continuation_owner_matches(
+    owner: object,
+    *,
+    repo_root: Path,
+    run_id: str,
+    run_identity: os.stat_result,
+    preflight_bytes: bytes,
+    pending_bytes: bytes,
+) -> bool:
+    if not isinstance(owner, dict) or set(owner) != _PENDING_CONTINUATION_OWNER_KEYS:
+        return False
+    if (
+        owner.get("schema_version") != 1
+        or owner.get("kind") != "continuation-initial-publication"
+        or owner.get("continuation_run_id") != run_id
+    ):
+        return False
+    for key in ("action_id", "idempotency_key"):
+        if not isinstance(owner.get(key), str) or not owner[key]:
+            return False
+    identity = owner.get("continuation_identity")
+    if not isinstance(identity, dict) or set(identity) != _PENDING_CONTINUATION_IDENTITY_KEYS:
+        return False
+    if not all(isinstance(identity[key], str) and identity[key] for key in identity):
+        return False
+    for key in ("stage_device", "stage_inode"):
+        value = owner.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return False
+    if (owner["stage_device"], owner["stage_inode"]) != (
+        run_identity.st_dev,
+        run_identity.st_ino,
+    ):
+        return False
+    for key in ("preflight_sha256", "partial_run_sha256", "run_sha256"):
+        value = owner.get(key)
+        if not isinstance(value, str) or not _SHA256_REFERENCE_RE.fullmatch(value):
+            return False
+    if owner["preflight_sha256"] != (
+        "sha256:" + hashlib.sha256(preflight_bytes).hexdigest()
+    ):
+        return False
+    if owner["run_sha256"] != (
+        "sha256:" + hashlib.sha256(pending_bytes).hexdigest()
+    ):
+        return False
+    partial_size = max(1, len(pending_bytes) // 2)
+    if owner["partial_run_sha256"] != (
+        "sha256:" + hashlib.sha256(pending_bytes[:partial_size]).hexdigest()
+    ):
+        return False
+    created_at = owner.get("created_at")
+    if not isinstance(created_at, str):
+        return False
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if created.tzinfo is None:
+        return False
+    age = (datetime.now(UTC) - created.astimezone(UTC)).total_seconds()
+    if age < -300 or age > _PENDING_CONTINUATION_MAX_AGE_SECONDS:
+        return False
+    try:
+        preflight_lines = preflight_bytes.decode("utf-8").splitlines()
+        pending = json.loads(
+            pending_bytes.decode("utf-8"), parse_constant=_reject_json_constant
+        )
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return False
+    if len(preflight_lines) < 3 or preflight_lines[2] != f"- Run ID: `{run_id}`":
+        return False
+    return (
+        isinstance(pending, dict)
+        and pending.get("run_id") == run_id
+        and pending.get("state_revision") == 0
+        and not isinstance(pending.get("state_revision"), bool)
+        and str(pending.get("worktree") or "") == str(repo_root.resolve())
+    )
+
+
+def _is_trusted_pending_continuation(
+    repo_root: Path,
+    project_root: Path,
+    store: SupervisorStore,
+    run_id: str,
+    run_fd: int,
+) -> bool:
+    try:
+        if tuple(sorted(os.listdir(run_fd))) != ("preflight.md", "run.pending"):
+            return False
+        run_identity = os.fstat(run_fd)
+        preflight_bytes = _read_regular_bytes_at(run_fd, "preflight.md")
+        pending_bytes = _read_regular_bytes_at(run_fd, "run.pending")
+        matching_owners: list[dict[str, Any]] = []
+        with _open_directory_chain(
+            repo_root, (".codex", "loop-staging"), create=False
+        ) as staging_fd:
+            prefix = f"{run_id}-"
+            for sidecar_name in sorted(os.listdir(staging_fd)):
+                if not (
+                    sidecar_name.startswith(prefix)
+                    and sidecar_name.endswith(".owner.json")
+                ):
+                    continue
+                try:
+                    owner_bytes = _read_regular_bytes_at(staging_fd, sidecar_name)
+                    owner = json.loads(
+                        owner_bytes.decode("utf-8"),
+                        parse_constant=_reject_json_constant,
+                    )
+                except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+                    continue
+                if _pending_continuation_owner_matches(
+                    owner,
+                    repo_root=repo_root,
+                    run_id=run_id,
+                    run_identity=run_identity,
+                    preflight_bytes=preflight_bytes,
+                    pending_bytes=pending_bytes,
+                ):
+                    matching_owners.append(owner)
+        return len(matching_owners) == 1 and _pending_continuation_semantics_match(
+            project_root=project_root,
+            repo_root=repo_root,
+            store=store,
+            run_id=run_id,
+            owner=matching_owners[0],
+            preflight_bytes=preflight_bytes,
+            pending_bytes=pending_bytes,
+        )
+    except (OSError, PermissionError, ValueError):
+        return False
+
+
+def _continuation_target_for_action(action: Any) -> str | None:
+    identity = action.payload.get("continuation_identity")
+    if not isinstance(identity, dict) or set(identity) != _PENDING_CONTINUATION_IDENTITY_KEYS:
+        return None
+    if not all(isinstance(identity[key], str) and identity[key] for key in identity):
+        return None
+    explicit = action.payload.get("continuation_run_id")
+    if explicit is not None:
+        return explicit if isinstance(explicit, str) and explicit else None
+    digest = hashlib.sha256(
+        json.dumps(dict(identity), sort_keys=True).encode("utf-8")
+    ).hexdigest()[:10]
+    return f"{action.run_id}-continuation-{digest}"
+
+
+def _pending_continuation_semantics_match(
+    *,
+    project_root: Path,
+    repo_root: Path,
+    store: SupervisorStore,
+    run_id: str,
+    owner: Mapping[str, Any],
+    preflight_bytes: bytes,
+    pending_bytes: bytes,
+) -> bool:
+    unfinished_statuses = {"pending", "leased", "running"}
+    matching_actions = []
+    for row in store.fetch_all("actions"):
+        if (
+            row.get("action_type") != ActionType.CREATE_CONTINUATION.value
+            or row.get("status") not in unfinished_statuses
+        ):
+            continue
+        try:
+            action = store.get_action(str(row["action_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (
+            (project_root / action.repo_relative_root).resolve() != repo_root.resolve()
+            or _continuation_target_for_action(action) != run_id
+        ):
+            continue
+        matching_actions.append(action)
+    if len(matching_actions) != 1:
+        return False
+    action = matching_actions[0]
+    if (
+        action.action_id != owner.get("action_id")
+        or action.idempotency_key != owner.get("idempotency_key")
+        or action.payload.get("continuation_identity")
+        != owner.get("continuation_identity")
+    ):
+        return False
+    try:
+        projection = store.get_run(action.run_id)
+    except KeyError:
+        return False
+    if (
+        int(projection.get("revision", -1)) != action.run_revision
+        or str(projection.get("repo_relative_root") or ".")
+        != action.repo_relative_root
+        or str(projection.get("phase") or "") != action.phase
+        or str(projection.get("policy") or "") != action.policy
+    ):
+        return False
+    source_dir = repo_root / ".codex" / "loop-runs" / action.run_id
+    try:
+        with _open_run_directory(repo_root, action.run_id, create=False) as (
+            source_runs_fd,
+            source_fd,
+        ):
+            _require_same_directory_entry(source_runs_fd, action.run_id, source_fd)
+            source_record = _record_from_run_fd(
+                repo_root,
+                project_root,
+                source_dir,
+                source_fd,
+            )
+    except (OSError, PermissionError, ValueError):
+        return False
+    if source_record is None or not source_record.valid:
+        return False
+    source = source_record.payload
+    trusted_lineage_id = str(projection.get("loop_lineage_id") or "")
+    continuation_identity = action.payload.get("continuation_identity")
+    if (
+        _state_revision(source) != action.run_revision
+        or _state_fingerprint(source) != str(projection.get("state_fingerprint") or "")
+        or source.get("phase") != action.phase
+        or source.get("policy") != action.policy
+        or action.payload.get("loop_lineage_id") != trusted_lineage_id
+        or continuation_identity.get("loop_lineage_id") != trusted_lineage_id
+        or continuation_identity.get("source_run_id") != action.run_id
+        or continuation_identity.get("source_commit") != _source_commit(source)
+    ):
+        return False
+    try:
+        from scripts import harness_loop_orchestrator as legacy
+
+        pending = json.loads(
+            pending_bytes.decode("utf-8"), parse_constant=_reject_json_constant
+        )
+        if not isinstance(pending, dict):
+            return False
+        legacy.validate_run_payload(pending)
+        _expected_preflight, _expected_partial, expected_pending = (
+            legacy._continuation_initial_artifacts(repo_root, source, run_id)
+        )
+        return pending_bytes == expected_pending and legacy._continuation_preflight_bytes_match(
+            preflight_bytes,
+            source,
+            run_id,
+        )
+    except (OSError, TypeError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return False
+
+
+def _secure_reread_run(
+    project_root: Path, store: SupervisorStore, record: RunRecord
+) -> RunRecord:
     run_dir = record.repo_root / ".codex" / "loop-runs" / record.run_id
     try:
         with _open_run_directory(record.repo_root, record.run_id, create=False) as (
@@ -658,6 +1005,13 @@ def _secure_reread_run(project_root: Path, record: RunRecord) -> RunRecord:
                 record.repo_root,
                 project_root,
                 run_dir,
+                run_fd,
+            )
+            pending_publication = refreshed is None and _is_trusted_pending_continuation(
+                record.repo_root,
+                project_root,
+                store,
+                record.run_id,
                 run_fd,
             )
     except (OSError, PermissionError, ValueError) as exc:
@@ -674,6 +1028,15 @@ def _secure_reread_run(project_root: Path, record: RunRecord) -> RunRecord:
         )
     if refreshed is not None:
         return refreshed
+    if pending_publication:
+        return RunRecord(
+            run_id=record.run_id,
+            repo_root=record.repo_root,
+            run_json_path=run_dir / "run.json",
+            payload={},
+            directory_run_id=record.run_id,
+            pending_publication=True,
+        )
     return RunRecord(
         run_id=record.run_id,
         repo_root=record.repo_root,
@@ -716,6 +1079,52 @@ def _record_invalid_run_decision(
         decisions.append(opened)
 
 
+def _busy_projection_record(
+    project_root: Path,
+    store: SupervisorStore,
+    candidate: RunRecord,
+) -> RunRecord | None:
+    run_id = candidate.directory_run_id
+    try:
+        projected = store.get_run(run_id)
+    except KeyError:
+        return None
+    repo_root = (
+        project_root / str(projected.get("repo_relative_root") or ".")
+    ).resolve()
+    try:
+        repo_root.relative_to(project_root)
+    except ValueError:
+        return None
+    payload: dict[str, Any] = {
+        "loop_lineage_id": str(projected.get("loop_lineage_id") or ""),
+        "previous_run_id": str(projected.get("parent_run_id") or ""),
+    }
+    summary = projected.get("summary")
+    if isinstance(summary, Mapping):
+        raw_state = summary.get("summary")
+        try:
+            state = json.loads(raw_state) if isinstance(raw_state, str) else {}
+        except json.JSONDecodeError:
+            state = {}
+        if isinstance(state, Mapping):
+            for key in (
+                "parent_task_counter",
+                "completed_semantic_parent_ids",
+                "semantic_parent_ids",
+                "_autonomous_completed_task_ids",
+            ):
+                if key in state:
+                    payload[key] = state[key]
+    return RunRecord(
+        run_id=run_id,
+        repo_root=repo_root,
+        run_json_path=repo_root / ".codex" / "loop-runs" / run_id / "run.json",
+        payload=payload,
+        directory_run_id=run_id,
+    )
+
+
 def _reconcile_once_locked(
     root: Path,
     store: SupervisorStore,
@@ -731,23 +1140,27 @@ def _reconcile_once_locked(
         if item.get("status") == "open"
     }
     archived_legacy_states = _archived_legacy_states(existing_decisions)
-    records = discover_run_records(root, include_worktrees=include_worktrees)
-    inferred_lineages = infer_loop_lineages(records)
+    candidates = discover_run_candidates(root, include_worktrees=include_worktrees)
+    secured_records: list[RunRecord] = []
     valid_records: list[RunRecord] = []
+    result_records: list[RunRecord] = []
     decisions: list[dict[str, Any]] = []
     tokens_by_run: dict[str, RunLockToken] = {}
+    locked_run_ids: set[str] = set()
+    busy_projection_records: dict[str, RunRecord] = {}
 
     ordered_records = sorted(
-        enumerate(records),
-        key=lambda item: (
-            str(item[1].repo_root.resolve()),
-            item[1].directory_run_id,
+        candidates,
+        key=lambda record: (
+            str(record.repo_root.resolve()),
+            record.directory_run_id,
         ),
     )
-    for index, record in ordered_records:
+    for record in ordered_records:
         if not record.valid and (
             record.ownership_failure or not record.directory_run_id
         ):
+            result_records.append(replace(record, payload={}))
             _record_invalid_run_decision(store, record, decisions)
             continue
         try:
@@ -756,24 +1169,82 @@ def _reconcile_once_locked(
                     record.repo_root,
                     record.directory_run_id,
                     owner="reconciler:project-run",
-                    blocking=True,
+                    blocking=False,
                 )
             )
             if record.run_id != record.directory_run_id:
                 record = replace(record, run_id=record.directory_run_id)
-            record = _secure_reread_run(root, record)
-            records[index] = record
+            record = _secure_reread_run(root, store, record)
+            result_records.append(
+                record if record.valid else replace(record, payload={})
+            )
+            if record.pending_publication:
+                continue
             if not record.valid:
                 _record_invalid_run_decision(store, record, decisions)
                 continue
+            secured_records.append(record)
+            tokens_by_run[record.run_id] = token
+        except RunLockBusy:
+            run_id = record.directory_run_id
+            locked_run_ids.add(run_id)
+            projected = _busy_projection_record(root, store, record)
+            if projected is not None:
+                busy_projection_records[run_id] = projected
+                result_records.append(replace(projected, payload={}))
+            else:
+                result_records.append(
+                    replace(
+                        record,
+                        run_id=run_id,
+                        payload={},
+                        valid=True,
+                        error="",
+                        ownership_failure=False,
+                    )
+                )
+            continue
+        except (OSError, TypeError, ValueError) as exc:
+            result_records.append(
+                replace(
+                    record,
+                    run_id=record.directory_run_id or record.run_id,
+                    payload={},
+                    valid=False,
+                    error=str(exc),
+                )
+            )
+            failure_key = _failure_key("run", record.run_id, str(exc))
+            _record_failure_once(
+                store,
+                failure_key,
+                run_id=record.run_id,
+                error_class="invalid_run_state",
+                summary=str(exc),
+            )
+            decisions.append(
+                store.open_user_decision(
+                    scope="run",
+                    run_id=record.run_id,
+                    failure_key=failure_key,
+                    summary=str(exc),
+                    required_decision="Repair or archive the invalid run state.",
+                )
+            )
+            continue
+
+    lineage_records = [*secured_records, *busy_projection_records.values()]
+    inferred_lineages = infer_loop_lineages(lineage_records)
+
+    for record in secured_records:
+        try:
             projected = _project_run(
                 root,
                 store,
                 record,
-                token=token,
+                token=tokens_by_run[record.run_id],
                 loop_lineage_id=inferred_lineages.get(record.run_id, record.run_id),
             )
-            tokens_by_run[projected.run_id] = token
         except (OSError, TypeError, ValueError) as exc:
             failure_key = _failure_key("run", record.run_id, str(exc))
             _record_failure_once(
@@ -796,16 +1267,19 @@ def _reconcile_once_locked(
         valid_records.append(projected)
 
     desired_by_run: dict[str, ActionRequest | None] = {}
+    automatically_recoverable_run_ids: set[str] = set()
     observed_decision_keys = {str(item.get("failure_key") or "") for item in decisions}
     for record in valid_records:
         run = record.payload
         try:
+            projection = store.get_run(record.run_id)
             desired_by_run[record.run_id] = desired_action_for_run(
                 {
                     **run,
                     "_supervisor_project_root": str(root),
                     "_supervisor_repo_relative_root": record.repo_root.relative_to(root).as_posix(),
-                }
+                },
+                trusted_loop_lineage_id=str(projection.get("loop_lineage_id") or ""),
             )
         except (TypeError, ValueError) as exc:
             failure_key = _failure_key("run", record.run_id, str(exc))
@@ -851,6 +1325,8 @@ def _reconcile_once_locked(
                     "registry_user_gate",
                     "The current registry transition requires a user decision.",
                 )
+            elif action is not None:
+                automatically_recoverable_run_ids.add(record.run_id)
         if decision is None:
             continue
         scope, reason, summary = decision
@@ -876,14 +1352,31 @@ def _reconcile_once_locked(
 
     for decision in store.fetch_all("user_decisions"):
         failure_key = str(decision.get("failure_key") or "")
+        decision_run_id = str(decision.get("run_id") or "")
+        obsolete_legacy_recovery = (
+            failure_key.startswith("unsupported_state:")
+            and decision_run_id
+            in automatically_recoverable_run_ids
+        )
         if (
             decision.get("status") == "open"
-            and failure_key.startswith("reconcile:")
-            and failure_key not in observed_decision_keys
+            and decision_run_id not in locked_run_ids
+            and (
+                (
+                    failure_key.startswith("reconcile:")
+                    and failure_key not in observed_decision_keys
+                )
+                or obsolete_legacy_recovery
+            )
         ):
+            resolution = (
+                "registry now provides automatic recovery"
+                if obsolete_legacy_recovery
+                else "reconciliation condition cleared"
+            )
             closed = store.close_user_decision(
                 str(decision["decision_id"]),
-                resolution="reconciliation condition cleared",
+                resolution=resolution,
                 expected_updated_at=str(decision["updated_at"]),
             )
             if closed is None:
@@ -927,6 +1420,9 @@ def _reconcile_once_locked(
         )
         for record in valid_records
     }
+    # A busy run cannot be reread safely; retain only its prior lock-protected relation.
+    for projected in busy_projection_records.values():
+        child_sources.add(str(projected.payload.get("previous_run_id") or ""))
     payload_by_run = {record.run_id: record.payload for record in valid_records}
     queued: list[ActionRequest] = []
     if not global_stop:
@@ -976,12 +1472,18 @@ def _reconcile_once_locked(
             )
             queued.append(action)
 
-        queued.extend(schedule_due_reviews(store, now=store.current_time()))
+        queued.extend(
+            schedule_due_reviews(
+                store,
+                now=store.current_time(),
+                busy_run_ids=locked_run_ids,
+            )
+        )
 
     return ReconcileResult(
         queued_actions=queued,
         open_user_decisions=decisions,
-        run_records=records,
+        run_records=result_records,
         shadow=shadow,
     )
 
@@ -1017,7 +1519,11 @@ def _archived_legacy_states(
 
 
 def _records_under_repo(
-    repo_root: Path, project_root: Path, *, repo_fd: int
+    repo_root: Path,
+    project_root: Path,
+    *,
+    repo_fd: int,
+    read_payload: bool,
 ) -> list[RunRecord]:
     runs_root = repo_root / ".codex" / "loop-runs"
     try:
@@ -1062,7 +1568,13 @@ def _records_under_repo(
                         runs_root, repo_root, "loop-runs root ownership changed"
                     )
                 ]
-            return _records_under_runs_fd(repo_root, project_root, runs_root, runs_fd)
+            return _records_under_runs_fd(
+                repo_root,
+                project_root,
+                runs_root,
+                runs_fd,
+                read_payload=read_payload,
+            )
         finally:
             _close_fd_preserving_error(runs_fd)
     finally:
@@ -1074,6 +1586,8 @@ def _records_under_runs_fd(
     project_root: Path,
     runs_root: Path,
     runs_fd: int,
+    *,
+    read_payload: bool,
 ) -> list[RunRecord]:
     records: list[RunRecord] = []
     for name in sorted(os.listdir(runs_fd)):
@@ -1113,6 +1627,17 @@ def _records_under_runs_fd(
                         run_dir,
                         repo_root,
                         "run directory ownership changed",
+                        directory_run_id=name,
+                    )
+                )
+                continue
+            if not read_payload:
+                records.append(
+                    RunRecord(
+                        run_id=name,
+                        repo_root=repo_root,
+                        run_json_path=run_dir / "run.json",
+                        payload={},
                         directory_run_id=name,
                     )
                 )
@@ -1240,12 +1765,29 @@ def _project_run(
             directory_run_id=record.directory_run_id,
         )
     incoming_revision = _state_revision(run)
-    projection = _projection(project_root, record, run, incoming_revision)
     try:
         existing = store.get_run(record.run_id)
     except KeyError:
+        projection = _projection(
+            project_root,
+            record,
+            run,
+            incoming_revision,
+            loop_lineage_id=loop_lineage_id,
+        )
         store.upsert_run_projection(projection)
         return record
+
+    trusted_lineage_id = str(
+        run.get("loop_lineage_id") or existing.get("loop_lineage_id") or ""
+    )
+    projection = _projection(
+        project_root,
+        record,
+        run,
+        incoming_revision,
+        loop_lineage_id=trusted_lineage_id,
+    )
 
     current_revision = int(existing["revision"])
     if incoming_revision < current_revision:
@@ -1256,6 +1798,10 @@ def _project_run(
         raise ValueError(
             f"run revision jumped from {current_revision} to {incoming_revision}"
         )
+    if incoming_revision == current_revision and not str(
+        run.get("loop_lineage_id") or ""
+    ):
+        projection = _preserve_stored_lineage_summary(projection, existing)
     if incoming_revision == current_revision and not _same_projection(
         existing, projection
     ):
@@ -1275,7 +1821,7 @@ def _project_run(
             record,
             run,
             incoming_revision,
-            loop_lineage_id=loop_lineage_id,
+            loop_lineage_id=trusted_lineage_id,
         )
         record = RunRecord(
             run_id=record.run_id,
@@ -1286,6 +1832,36 @@ def _project_run(
         )
     store.upsert_run_projection(projection)
     return record
+
+
+def _preserve_stored_lineage_summary(
+    projection: Mapping[str, Any], existing: Mapping[str, Any]
+) -> dict[str, Any]:
+    preserved = dict(projection)
+    stored_outer = existing.get("summary")
+    if not isinstance(stored_outer, Mapping):
+        return preserved
+    stored_raw = stored_outer.get("summary")
+    incoming_raw = projection.get("summary")
+    if not isinstance(stored_raw, str) or not isinstance(incoming_raw, str):
+        return preserved
+    try:
+        stored_summary = json.loads(stored_raw)
+        incoming_summary = json.loads(incoming_raw)
+    except json.JSONDecodeError:
+        return preserved
+    if not isinstance(stored_summary, dict) or not isinstance(incoming_summary, dict):
+        return preserved
+    if "loop_lineage_id" in stored_summary:
+        incoming_summary["loop_lineage_id"] = stored_summary["loop_lineage_id"]
+    else:
+        incoming_summary.pop("loop_lineage_id", None)
+    preserved["summary"] = json.dumps(
+        incoming_summary,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return preserved
 
 
 def _migrate_legacy_audit_state(run: Mapping[str, Any]) -> dict[str, Any]:
@@ -1333,8 +1909,13 @@ def _projection(
     next_action = str(run.get("next_action") or "")
     rule = transition_for(policy, phase, next_action)
     status = "terminal" if rule.terminal else "actionable"
+    resolved_lineage_id = str(
+        run.get("loop_lineage_id") or loop_lineage_id or record.run_id
+    )
+    summary_state = {key: run.get(key) for key in _STATE_SUMMARY_KEYS}
+    summary_state["loop_lineage_id"] = resolved_lineage_id
     summary = json.dumps(
-        {key: run.get(key) for key in _STATE_SUMMARY_KEYS},
+        summary_state,
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -1345,9 +1926,7 @@ def _projection(
         "repo_relative_root": record.repo_root.resolve().relative_to(project_root).as_posix()
         or ".",
         "state_fingerprint": _state_fingerprint(run),
-        "loop_lineage_id": str(
-            run.get("loop_lineage_id") or loop_lineage_id or record.run_id
-        ),
+        "loop_lineage_id": resolved_lineage_id,
         "parent_run_id": str(
             run.get("previous_run_id") or run.get("parent_run_id") or ""
         ),
@@ -1393,13 +1972,14 @@ def _decision_requirement(run: Mapping[str, Any]) -> tuple[str, str, str] | None
     return None
 
 
-def _continuation_identity(run: Mapping[str, Any]) -> dict[str, str]:
+def _continuation_identity(
+    run: Mapping[str, Any], *, trusted_loop_lineage_id: str
+) -> dict[str, str]:
     run_id = str(run.get("run_id") or "")
-    lineage_id = str(run.get("loop_lineage_id") or run_id)
     parent = _semantic_parent(run)
     commit = _source_commit(run)
     return {
-        "loop_lineage_id": lineage_id,
+        "loop_lineage_id": trusted_loop_lineage_id,
         "source_run_id": run_id,
         "semantic_parent": parent,
         "source_commit": commit,
@@ -1484,6 +2064,23 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("run JSON must contain an object")
     return value
+
+
+def _read_regular_bytes_at(directory_fd: int, name: str) -> bytes:
+    fd = os.open(name, os.O_RDONLY | _O_NOFOLLOW | _O_CLOEXEC, dir_fd=directory_fd)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError(f"pending continuation file is not regular: {name}")
+        chunks: list[bytes] = []
+        size = 0
+        while chunk := os.read(fd, 64 * 1024):
+            size += len(chunk)
+            if size > 1024 * 1024:
+                raise ValueError(f"pending continuation file is too large: {name}")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        _close_fd_preserving_error(fd)
 
 
 def _read_json_object_at(

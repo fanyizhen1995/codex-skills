@@ -144,6 +144,12 @@ _REVIEW_SCHEDULE_RULE = TransitionRule(
     worker_executable=False,
 )
 
+_SERVICE_RESTART_RULE = TransitionRule(
+    ActionType.RESTART_SERVICE,
+    False,
+    worker_executable=False,
+)
+
 
 def transition_for(policy: str, phase: str, next_action: str) -> TransitionRule:
     """Return the explicit rule for one normalized run state."""
@@ -203,6 +209,11 @@ def review_application_for(
 def reviewer_schedule_transition() -> TransitionRule:
     """Return the registry-owned project-global Reviewer scheduling rule."""
     return _REVIEW_SCHEDULE_RULE
+
+
+def service_restart_transition() -> TransitionRule:
+    """Return the registry-owned project service restart rule."""
+    return _SERVICE_RESTART_RULE
 
 
 def worker_executable_action_types() -> frozenset[ActionType]:

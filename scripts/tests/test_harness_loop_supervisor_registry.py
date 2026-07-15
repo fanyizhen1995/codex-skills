@@ -12,13 +12,20 @@ from scripts.loop_supervisor.registry import (
     ANY_NEXT_ACTION,
     REGISTRY,
     recovery_transition_for,
+    service_restart_transition,
     transition_for,
     validate_registry_coverage,
+    worker_executable_action_types,
 )
 
 
 def test_every_allowed_parent_phase_has_registry_behavior():
     validate_registry_coverage()
+
+
+def test_service_restart_is_supervisor_owned_not_worker_executable():
+    assert service_restart_transition().worker_executable is False
+    assert ActionType.RESTART_SERVICE not in worker_executable_action_types()
 
 
 def test_generator_inspection_maps_to_recovery_not_user_decision():

@@ -41,6 +41,21 @@ def test_search_index_finds_wiki_page(tmp_path):
     assert results[0]["title"] == "NCCL Release Notes"
 
 
+def test_search_index_finds_wiki_content_beyond_legacy_excerpt(tmp_path):
+    wiki_dir = tmp_path / "personal-wiki" / "domains" / "ai_infra" / "wiki" / "references"
+    wiki_dir.mkdir(parents=True)
+    page = PAGE + "\n" + ("earlier infrastructure context " * 100) + "\nDayu Paratus boundary.\n"
+    (wiki_dir / "late-body-content.md").write_text(page, encoding="utf-8")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+
+    with connect(settings.database_path) as db:
+        migrate(db)
+        rebuild_search_index(settings, db, domain="ai_infra")
+        results = search_wiki(db, "Dayu Paratus", domain="ai_infra")
+
+    assert results[0]["title"] == "NCCL Release Notes"
+
+
 def test_search_index_handles_malformed_frontmatter_per_page(tmp_path):
     wiki_dir = tmp_path / "personal-wiki" / "domains" / "ai_infra" / "wiki" / "references"
     wiki_dir.mkdir(parents=True)
@@ -148,6 +163,32 @@ def test_search_api_refreshes_index_when_wiki_file_changes(tmp_path, monkeypatch
 
     assert search_response.status_code == 200
     assert search_response.json()[0]["title"] == "Kubernetes Volcano Kueue Closed Issues"
+
+
+def test_search_api_rebuilds_legacy_truncated_index_on_normal_search(tmp_path, monkeypatch):
+    monkeypatch.setenv("PW_WORKBENCH_DISABLE_SCHEDULER", "1")
+    wiki_dir = tmp_path / "personal-wiki" / "domains" / "ai_infra" / "wiki" / "references"
+    wiki_dir.mkdir(parents=True)
+    page = PAGE + "\n" + ("earlier infrastructure context " * 100) + "\nDayu Paratus boundary.\n"
+    (wiki_dir / "late-body-content.md").write_text(page, encoding="utf-8")
+    settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        rebuild_response = client.post("/api/search/rebuild", params={"domain": "ai_infra"})
+        assert rebuild_response.status_code == 200
+        with connect(settings.database_path) as db:
+            db.execute("update wiki_search_fts set body = substr(body, 1, 2000)")
+            db.execute("update wiki_search_index_state set index_version = 0")
+            db.commit()
+
+        search_response = client.get(
+            "/api/search",
+            params={"q": "Dayu Paratus", "domain": "ai_infra"},
+        )
+
+    assert search_response.status_code == 200
+    assert search_response.json()[0]["title"] == "NCCL Release Notes"
 
 
 def test_search_api_refreshes_index_when_raw_item_changes(tmp_path, monkeypatch):

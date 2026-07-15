@@ -10,7 +10,9 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+import subprocess
 import sys
+import threading
 import time
 from typing import Any, Mapping
 from uuid import uuid4
@@ -28,16 +30,22 @@ from scripts.harness_loop_runtime_lock import (
 
 from .migration import (
     MigrationValidationError,
+    acquire_migration_quiescence,
     cleanup_legacy_runtime,
     migrate_jsonl,
     shadow_compare,
 )
 from .reconciler import _project_reconcile_lock
+from .services import observe_runtime_health, run_service_keeper_once
 from .store import SupervisorStore
 from .worker import clear_stop_request, worker_watch
 
 
 _UNSET = object()
+_reviewer_process: subprocess.Popen[bytes] | None = None
+_service_keeper_thread: threading.Thread | None = None
+_service_keeper_lock = threading.Lock()
+_service_keeper_last_result: dict[str, Any] = {"status": "idle"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,21 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         _print_json(payload)
         return 0 if payload["status"] == "healthy" else 1
     if args.command == "migrate":
-        if args.dry_run and args.cleanup_legacy:
-            raise SystemExit("--cleanup-legacy cannot be combined with --dry-run")
-        store_factory = _in_memory_store if args.dry_run else SupervisorStore.open
-        with store_factory(root) as store:
-            store.migrate()
-            report = migrate_jsonl(root, store, dry_run=args.dry_run)
-            payload = report.as_dict()
-            if args.cleanup_legacy:
-                comparison = shadow_compare(root, store)
-                payload["shadow_comparison"] = comparison.as_dict()
-                payload["removed_paths"] = list(
-                    cleanup_legacy_runtime(root, report, comparison, store=store)
-                )
-        _print_json(payload)
-        return 0
+        return _migrate(root, dry_run=args.dry_run, cleanup_legacy=args.cleanup_legacy)
     if args.command == "shadow-compare":
         with _in_memory_store(root) as store:
             store.migrate()
@@ -151,6 +145,45 @@ def main(argv: list[str] | None = None) -> int:
     raise AssertionError(f"unhandled command: {args.command}")
 
 
+def _migrate(root: Path, *, dry_run: bool, cleanup_legacy: bool) -> int:
+    if dry_run and cleanup_legacy:
+        raise SystemExit("--cleanup-legacy cannot be combined with --dry-run")
+
+    # A pristine project has no runtime artifacts to protect. Keeping this path
+    # in-memory preserves the dry-run contract that it creates no runtime files.
+    if dry_run and not (root / ".codex").exists():
+        with _in_memory_store(root) as store:
+            store.migrate()
+            payload = migrate_jsonl(root, store, dry_run=True).as_dict()
+        _print_json(payload)
+        return 0
+
+    owner = f"migration:{os.getpid()}"
+    with acquire_migration_quiescence(root, owner=owner):
+        database = root / ".codex" / "supervisor" / "supervisor.db"
+        store_factory = (
+            _in_memory_store if dry_run else lambda _: _store_at(root, database)
+        )
+        with store_factory(root) as store:
+            store.migrate()
+            report = migrate_jsonl(root, store, dry_run=dry_run)
+            payload = report.as_dict()
+            if cleanup_legacy:
+                comparison = shadow_compare(root, store)
+                payload["shadow_comparison"] = comparison.as_dict()
+                payload["removed_paths"] = list(
+                    cleanup_legacy_runtime(
+                        root,
+                        report,
+                        comparison,
+                        store=store,
+                        quiescence_held=True,
+                    )
+                )
+    _print_json(payload)
+    return 0
+
+
 def _run_supervisor(root: Path, args: argparse.Namespace) -> int:
     watching = args.command == "watch"
     interval = args.interval_seconds if watching else 30
@@ -165,7 +198,29 @@ def _run_supervisor(root: Path, args: argparse.Namespace) -> int:
     while True:
         tick += 1
         try:
+            if watching and not args.dry_run:
+                _launch_due_reviewer(root, {"queued_actions": []})
             payload = run_supervisor_once(config)
+            if not args.dry_run:
+                with SupervisorStore.open(root) as store:
+                    store.migrate()
+                    service_health = observe_runtime_health(
+                        root, store, runtime_mode=config.mode
+                    )
+                    service_keeper = (
+                        None
+                        if watching
+                        else run_service_keeper_once(root, store)
+                    )
+                if watching:
+                    service_keeper = _launch_service_keeper(root)
+                payload = {
+                    **payload,
+                    "service_health": service_health,
+                    "service_keeper": service_keeper,
+                }
+            if watching and not args.dry_run:
+                _launch_due_reviewer(root, payload)
         except Exception as error:
             if not watching:
                 raise
@@ -174,6 +229,120 @@ def _run_supervisor(root: Path, args: argparse.Namespace) -> int:
         if not watching or (args.max_ticks and tick >= args.max_ticks):
             return 0
         time.sleep(max(interval, 1))
+
+
+def _run_service_keeper_thread(root: Path) -> None:
+    global _service_keeper_last_result
+    try:
+        with SupervisorStore.open(root) as store:
+            store.migrate()
+            result = {"status": "completed", **run_service_keeper_once(root, store)}
+    except Exception as error:
+        result = {
+            "status": "failed",
+            "error_class": type(error).__name__,
+        }
+    with _service_keeper_lock:
+        _service_keeper_last_result = result
+
+
+def _launch_service_keeper(root: Path) -> dict[str, str]:
+    """Launch at most one nonblocking Supervisor-owned maintenance pass."""
+    global _service_keeper_thread, _service_keeper_last_result
+    with _service_keeper_lock:
+        if _service_keeper_thread is not None and _service_keeper_thread.is_alive():
+            return {"status": "running"}
+        _service_keeper_last_result = {"status": "running"}
+        _service_keeper_thread = threading.Thread(
+            target=_run_service_keeper_thread,
+            args=(Path(root).resolve(),),
+            name="loop-supervisor-service-keeper",
+            daemon=True,
+        )
+        _service_keeper_thread.start()
+    return {"status": "launched"}
+
+
+def _launch_due_reviewer(root: Path, payload: Mapping[str, Any]) -> bool:
+    """Start one due Reviewer child while leaving the watch loop non-blocking."""
+    global _reviewer_process
+    if _reviewer_process is not None and _reviewer_process.poll() is None:
+        return False
+    _reviewer_process = None
+    now = datetime.now(timezone.utc)
+    payload_has_due_review = any(
+        _reviewer_action_is_due(item, now) for item in payload.get("queued_actions", [])
+    )
+    if not payload_has_due_review and not _durable_reviewer_action_is_due(root, now):
+        return False
+
+    source_root = Path(__file__).resolve().parents[2]
+    environment = os.environ.copy()
+    inherited_pythonpath = environment.get("PYTHONPATH", "")
+    environment["PYTHONPATH"] = str(source_root) + (
+        os.pathsep + inherited_pythonpath if inherited_pythonpath else ""
+    )
+    log_dir = root / ".codex"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    if log_dir.is_symlink():
+        raise OSError(f"Reviewer log directory must not be a symlink: {log_dir}")
+    log_path = log_dir / "loop-supervisor-reviewer.log"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_CLOEXEC
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(log_path, flags, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "ab", buffering=0) as log:
+            descriptor = -1
+            _reviewer_process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "scripts.loop_supervisor.reviewer",
+                    "--project-root",
+                    str(root.resolve()),
+                    "--once",
+                    "--reviewer-id",
+                    f"supervisor-reviewer-{os.getpid()}-{uuid4().hex[:8]}",
+                ],
+                cwd=source_root,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    return True
+
+
+def _durable_reviewer_action_is_due(root: Path, now: datetime) -> bool:
+    database = root / ".codex" / "supervisor" / "supervisor.db"
+    if not database.is_file() or database.is_symlink():
+        return False
+    with SupervisorStore.open(root) as store:
+        return store.reviewer_launcher_needed(now=now)
+
+
+def _reviewer_action_is_due(value: object, now: datetime) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    if value.get("action_type") != "run_reviewer" or value.get("queue_owner") != "reviewer":
+        return False
+    not_before = value.get("not_before")
+    if not_before in {None, ""}:
+        return True
+    if not isinstance(not_before, str):
+        return False
+    try:
+        ready = datetime.fromisoformat(not_before.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if ready.tzinfo is None:
+        ready = ready.replace(tzinfo=timezone.utc)
+    return ready.astimezone(timezone.utc) <= now.astimezone(timezone.utc)
 
 
 def _in_memory_store(root: Path) -> SupervisorStore:

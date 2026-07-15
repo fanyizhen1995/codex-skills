@@ -31,6 +31,7 @@ from scripts.loop_supervisor.models import (
     ActionRequest,
     ActionResult,
     ActionResultClass,
+    ActionType,
     validate_repo_relative_root,
 )
 
@@ -452,6 +453,10 @@ _DDL = (
     )
     """,
     """
+    CREATE INDEX IF NOT EXISTS freshness_checks_target_latest_idx
+    ON freshness_checks(target, checked_at DESC, check_id DESC)
+    """,
+    """
     CREATE TABLE IF NOT EXISTS skill_snapshots (
       snapshot_id TEXT PRIMARY KEY,
       total_skills INTEGER NOT NULL DEFAULT 0,
@@ -777,6 +782,7 @@ class SupervisorStore:
                 review = validate_review_payload(
                     candidate,
                     reviewed_runs=reviewed_runs,
+                    allow_legacy_skill_governance_without_hash=True,
                 )
                 if (
                     review.review_id != review_id
@@ -1806,6 +1812,31 @@ class SupervisorStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def review_application_targets_for_recovery(
+        self, review_id: str
+    ) -> list[dict[str, Any]]:
+        """Return the complete durable target set for an interrupted review application."""
+        self._required_text(review_id, "review_id")
+        with self._lock:
+            application = self._connection.execute(
+                """
+                SELECT target_count FROM review_applications WHERE review_id = ?
+                """,
+                (review_id,),
+            ).fetchone()
+            rows = self._connection.execute(
+                """
+                SELECT * FROM review_application_targets
+                WHERE review_id = ? ORDER BY run_id
+                """,
+                (review_id,),
+            ).fetchall()
+        if application is None:
+            raise ValueError("review application is missing")
+        if int(application["target_count"]) != len(rows):
+            raise ValueError("review application target count changed")
+        return [dict(row) for row in rows]
+
     def complete_review_application_target(
         self,
         *,
@@ -1850,6 +1881,33 @@ class SupervisorStore:
                     started_at=str(attempts["started_at"]),
                     finished_at=str(attempts["finished_at"]),
                 )
+            application = self._connection.execute(
+                "SELECT decision FROM review_applications WHERE review_id = ?",
+                (review_id,),
+            ).fetchone()
+            if application is None:
+                raise ValueError("review application is missing")
+            if str(application["decision"]) == "ask_user":
+                provenance = self._action_review_decision_provenance(action_id)
+                if (
+                    not provenance.get("decision_id")
+                    or provenance.get("review_id") != review_id
+                    or provenance.get("run_id") != run_id
+                ):
+                    raise ValueError(
+                        "ask_user review target lacks action decision provenance"
+                    )
+                decision = self._connection.execute(
+                    """
+                    SELECT decision_id FROM user_decisions
+                    WHERE decision_id = ? AND run_id = ? AND status = 'open'
+                    """,
+                    (provenance["decision_id"], run_id),
+                ).fetchone()
+                if decision is None:
+                    raise ValueError(
+                        "ask_user review target lacks decision provenance"
+                    )
             attempt = self.complete_action(action_id, owner_id, result)
             now = self._now_text()
             self._connection.execute(
@@ -1894,6 +1952,117 @@ class SupervisorStore:
                 )
         return attempt
 
+    def supersede_review_application(self, review_id: str, *, reason: str) -> None:
+        """Terminalize stale review work without advancing its cadence reservation."""
+        self._required_text(review_id, "review_id")
+        self._validate_summary(reason, field_name="review supersession reason")
+        now = self._now_text()
+        with self._immediate_transaction():
+            review = self._connection.execute(
+                "SELECT status FROM reviews WHERE review_id = ?", (review_id,)
+            ).fetchone()
+            if review is None:
+                return
+            if str(review["status"]) == "review_superseded":
+                return
+            application = self._connection.execute(
+                "SELECT status, decision FROM review_applications WHERE review_id = ?",
+                (review_id,),
+            ).fetchone()
+            if application is not None and str(application["status"]) == "completed":
+                raise ValueError("completed review application cannot be superseded")
+            if application is not None and str(application["decision"]) == "ask_user":
+                targets = self._connection.execute(
+                    """
+                    SELECT run_id, action_id FROM review_application_targets
+                    WHERE review_id = ?
+                    """,
+                    (review_id,),
+                ).fetchall()
+                for target in targets:
+                    action_id = str(target["action_id"])
+                    run_id = str(target["run_id"])
+                    provenance = self._action_review_decision_provenance(action_id)
+                    if not provenance:
+                        continue
+                    if (
+                        provenance.get("review_id") != review_id
+                        or provenance.get("run_id") != run_id
+                    ):
+                        raise ValueError(
+                            "superseded review decision provenance is invalid"
+                        )
+                    decision = self._connection.execute(
+                        "SELECT * FROM user_decisions WHERE decision_id = ?",
+                        (provenance["decision_id"],),
+                    ).fetchone()
+                    if (
+                        decision is None
+                        or str(decision["scope"]) != "run"
+                        or str(decision["run_id"]) != run_id
+                        or str(decision["failure_key"])
+                        != f"review:{review_id}:{run_id}"
+                    ):
+                        raise ValueError(
+                            "superseded review decision provenance does not resolve"
+                        )
+                    if str(decision["status"]) == "open":
+                        self._connection.execute(
+                            """
+                            UPDATE user_decisions
+                            SET status = 'closed', resolution = ?, closed_at = ?,
+                                updated_at = ?
+                            WHERE decision_id = ? AND status = 'open'
+                            """,
+                            (
+                                "Reviewer application superseded before completion.",
+                                now,
+                                now,
+                                provenance["decision_id"],
+                            ),
+                        )
+            self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'cancelled', lease_owner = '', lease_expires_at = '',
+                    lease_heartbeat_at = '', updated_at = ?
+                WHERE action_id IN (
+                  SELECT action_id FROM review_application_targets
+                  WHERE review_id = ? AND status = 'pending'
+                ) AND status IN ('pending', 'leased', 'running')
+                """,
+                (now, review_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE review_application_targets
+                SET status = 'superseded', error = ?, updated_at = ?
+                WHERE review_id = ? AND status = 'pending'
+                """,
+                (reason, now, review_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE review_applications
+                SET status = 'superseded', updated_at = ?
+                WHERE review_id = ? AND status = 'applying'
+                """,
+                (now, review_id),
+            )
+            self._connection.execute(
+                "DELETE FROM review_findings WHERE review_id = ?",
+                (review_id,),
+            )
+            updated = self._connection.execute(
+                """
+                UPDATE reviews SET status = 'review_superseded', updated_at = ?
+                WHERE review_id = ? AND status = 'review_applying'
+                """,
+                (now, review_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("only an applying review can be superseded")
+
     def database_integrity_ok(self) -> bool:
         with self._lock:
             row = self._connection.execute("PRAGMA quick_check").fetchone()
@@ -1916,6 +2085,53 @@ class SupervisorStore:
                 """
             ).fetchall()
         return [self._decoded_row(row) for row in rows]
+
+    def reviewer_launcher_needed(
+        self,
+        *,
+        now: datetime | None = None,
+        heartbeat_stale_seconds: int = DEFAULT_HEARTBEAT_STALE_SECONDS,
+    ) -> bool:
+        """Report whether a Reviewer child could lease or reclaim due work."""
+        self._validate_heartbeat_stale_seconds(heartbeat_stale_seconds)
+        current = now or self._now()
+        if not isinstance(current, datetime):
+            raise TypeError("now must be a datetime")
+        current_text = self._time_text(current)
+        heartbeat_cutoff = self._time_text(
+            current - timedelta(seconds=heartbeat_stale_seconds)
+        )
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT 1
+                FROM review_reservations AS reservations
+                JOIN actions ON actions.action_id = reservations.action_id
+                LEFT JOIN workers AS owner ON owner.worker_id = actions.lease_owner
+                WHERE reservations.status = 'reserved'
+                  AND actions.action_type = 'run_reviewer'
+                  AND actions.queue_owner = 'reviewer'
+                  AND (actions.not_before = '' OR actions.not_before <= ?)
+                  AND (
+                    actions.status = 'pending'
+                    OR (
+                      actions.status IN ('leased', 'running')
+                      AND actions.lease_expires_at <= ?
+                      AND (
+                        owner.worker_id IS NULL
+                        OR owner.heartbeat_at < ?
+                      )
+                    )
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM user_decisions
+                    WHERE status = 'open' AND scope = 'global'
+                  )
+                LIMIT 1
+                """,
+                (current_text, current_text, heartbeat_cutoff),
+            ).fetchone()
+        return row is not None
 
     @staticmethod
     def _validate_lineage_positions(value: Mapping[str, int]) -> dict[str, int]:
@@ -1993,12 +2209,17 @@ class SupervisorStore:
                    )
                 )
                 AND (a.not_before = '' OR a.not_before <= ?)
+                AND a.action_type != 'restart_service'
                 AND (
                   (a.queue_owner = 'worker'
                    AND r.revision = a.run_revision AND r.phase = a.phase)
                   OR (a.queue_owner IN ('reviewer', 'supervisor')
                       AND r.run_id IS NOT NULL
                       AND r.repo_relative_root = a.repo_relative_root)
+                )
+                AND (
+                  a.idempotency_key NOT LIKE 'recovery:%'
+                  OR (r.revision = a.run_revision AND r.phase = a.phase)
                 )
                 AND NOT EXISTS (
                   SELECT 1 FROM user_decisions AS decisions
@@ -2027,7 +2248,7 @@ class SupervisorStore:
                 UPDATE actions
                 SET status = 'leased', lease_owner = ?, lease_expires_at = ?,
                     lease_heartbeat_at = ?, updated_at = ?
-                WHERE action_id = ? AND (
+                WHERE action_id = ? AND action_type != 'restart_service' AND (
                   (
                     status = 'pending'
                     AND (not_before = '' OR not_before <= ?)
@@ -2067,6 +2288,14 @@ class SupervisorStore:
                       WHERE workers.worker_id = actions.lease_owner
                         AND workers.heartbeat_at >= ?
                     )
+                  )
+                ) AND (
+                  actions.idempotency_key NOT LIKE 'recovery:%'
+                  OR EXISTS (
+                    SELECT 1 FROM runs
+                    WHERE runs.run_id = actions.run_id
+                      AND runs.revision = actions.run_revision
+                      AND runs.phase = actions.phase
                   )
                 ) AND NOT EXISTS (
                   SELECT 1 FROM user_decisions AS decisions
@@ -2138,6 +2367,7 @@ class SupervisorStore:
                         OR (
                           decisions.scope = 'run'
                           AND decisions.run_id = actions.run_id
+                          AND actions.action_type != 'ask_user'
                         )
                       )
                   )
@@ -2158,6 +2388,301 @@ class SupervisorStore:
                 "SELECT * FROM actions WHERE action_id = ?", (action_id,)
             ).fetchone()
         return self._action_record(row)
+
+    def claim_service_restart_action(
+        self,
+        action_id: str,
+        owner_id: str,
+        *,
+        service_id: str,
+        outage_id: str,
+        lease_seconds: int,
+    ) -> ActionRecord | None:
+        """Claim one project service restart without impersonating a Worker."""
+        self._required_text(action_id, "action_id")
+        self._required_text(service_id, "service_id")
+        self._required_text(outage_id, "outage_id")
+        self._validate_lease_input(owner_id, lease_seconds)
+        with self._immediate_transaction():
+            now_value = self._now()
+            now = self._time_text(now_value)
+            expires_at = self._time_text(now_value + timedelta(seconds=lease_seconds))
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'leased', lease_owner = ?, lease_expires_at = ?,
+                    lease_heartbeat_at = ?, updated_at = ?
+                WHERE action_id = ?
+                  AND action_type = 'restart_service'
+                  AND queue_owner = 'supervisor'
+                  AND run_id = 'service-keeper'
+                  AND repo_relative_root = '.'
+                  AND json_extract(payload_json, '$.service_id') = ?
+                  AND json_extract(payload_json, '$.outage_id') = ?
+                  AND EXISTS (
+                    SELECT 1 FROM services
+                    WHERE services.service_id = ?
+                      AND services.status != 'healthy'
+                      AND json_extract(services.details_json, '$.outage_id') = ?
+                  )
+                  AND (not_before = '' OR not_before <= ?)
+                  AND (
+                    status = 'pending'
+                    OR (
+                      status IN ('leased', 'running')
+                      AND lease_expires_at <= ?
+                    )
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM actions AS active
+                    WHERE active.action_id != actions.action_id
+                      AND active.action_type = 'restart_service'
+                      AND active.queue_owner = 'supervisor'
+                      AND json_extract(active.payload_json, '$.service_id') = ?
+                      AND active.status IN ('leased', 'running')
+                      AND active.lease_expires_at > ?
+                  )
+                """,
+                (
+                    owner_id,
+                    expires_at,
+                    now,
+                    now,
+                    action_id,
+                    service_id,
+                    outage_id,
+                    service_id,
+                    outage_id,
+                    now,
+                    now,
+                    service_id,
+                    now,
+                ),
+            )
+            if updated.rowcount != 1:
+                self._connection.execute(
+                    """
+                    UPDATE actions
+                    SET status = 'cancelled', lease_owner = '',
+                        lease_expires_at = '', lease_heartbeat_at = '', updated_at = ?
+                    WHERE action_id = ?
+                      AND action_type = 'restart_service'
+                      AND queue_owner = 'supervisor'
+                      AND json_extract(payload_json, '$.service_id') = ?
+                      AND json_extract(payload_json, '$.outage_id') = ?
+                      AND (
+                        status = 'pending'
+                        OR (
+                          status IN ('leased', 'running')
+                          AND lease_expires_at <= ?
+                        )
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM services
+                        WHERE services.service_id = ?
+                          AND services.status != 'healthy'
+                          AND json_extract(services.details_json, '$.outage_id') = ?
+                      )
+                    """,
+                    (
+                        now,
+                        action_id,
+                        service_id,
+                        outage_id,
+                        now,
+                        service_id,
+                        outage_id,
+                    ),
+                )
+                return None
+            row = self._connection.execute(
+                "SELECT * FROM actions WHERE action_id = ?", (action_id,)
+            ).fetchone()
+        return self._action_record(row)
+
+    def cancel_pending_service_restarts(
+        self, service_id: str, *, outage_id: str
+    ) -> int:
+        """Cancel pending restart work for one exact service outage."""
+        self._required_text(service_id, "service_id")
+        self._required_text(outage_id, "outage_id")
+        with self._immediate_transaction():
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'cancelled', lease_owner = '', lease_expires_at = '',
+                    lease_heartbeat_at = '', updated_at = ?
+                WHERE action_type = 'restart_service'
+                  AND queue_owner = 'supervisor'
+                  AND json_extract(payload_json, '$.service_id') = ?
+                  AND json_extract(payload_json, '$.outage_id') = ?
+                  AND status = 'pending'
+                """,
+                (self._now_text(), service_id, outage_id),
+            )
+        return updated.rowcount
+
+    def cancel_stale_service_restart(
+        self,
+        action_id: str,
+        *,
+        service_id: str,
+        outage_id: str,
+        current_outage_id: str,
+    ) -> bool:
+        """Cancel one expired action proven stale against current service state."""
+        self._required_text(action_id, "action_id")
+        self._required_text(service_id, "service_id")
+        self._required_text(outage_id, "outage_id")
+        self._required_text(current_outage_id, "current_outage_id")
+        if outage_id == current_outage_id:
+            return False
+        with self._immediate_transaction():
+            now = self._now_text()
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'cancelled', lease_owner = '', lease_expires_at = '',
+                    lease_heartbeat_at = '', updated_at = ?
+                WHERE action_id = ?
+                  AND action_type = 'restart_service'
+                  AND queue_owner = 'supervisor'
+                  AND json_extract(payload_json, '$.service_id') = ?
+                  AND json_extract(payload_json, '$.outage_id') = ?
+                  AND (
+                    status = 'pending'
+                    OR (
+                      status IN ('leased', 'running')
+                      AND lease_expires_at <= ?
+                    )
+                  )
+                  AND EXISTS (
+                    SELECT 1 FROM services
+                    WHERE services.service_id = ?
+                      AND services.status != 'healthy'
+                      AND json_extract(services.details_json, '$.outage_id') = ?
+                  )
+                """,
+                (
+                    now,
+                    action_id,
+                    service_id,
+                    outage_id,
+                    now,
+                    service_id,
+                    current_outage_id,
+                ),
+            )
+        return updated.rowcount == 1
+
+    def rearm_current_cancelled_service_restart(
+        self,
+        action_id: str,
+        *,
+        service_id: str,
+        outage_id: str,
+    ) -> bool:
+        """Rearm one cancelled action only while its outage remains current."""
+        self._required_text(action_id, "action_id")
+        self._required_text(service_id, "service_id")
+        self._required_text(outage_id, "outage_id")
+        with self._immediate_transaction():
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'pending', lease_owner = '', lease_expires_at = '',
+                    lease_heartbeat_at = '', updated_at = ?
+                WHERE action_id = ?
+                  AND status = 'cancelled'
+                  AND action_type = 'restart_service'
+                  AND queue_owner = 'supervisor'
+                  AND json_extract(payload_json, '$.service_id') = ?
+                  AND json_extract(payload_json, '$.outage_id') = ?
+                  AND EXISTS (
+                    SELECT 1 FROM services
+                    WHERE services.service_id = ?
+                      AND services.status != 'healthy'
+                      AND json_extract(services.details_json, '$.outage_id') = ?
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM actions AS active
+                    WHERE active.action_id != actions.action_id
+                      AND active.action_type = 'restart_service'
+                      AND active.queue_owner = 'supervisor'
+                      AND json_extract(active.payload_json, '$.service_id') = ?
+                      AND json_extract(active.payload_json, '$.outage_id') = ?
+                      AND active.status IN ('pending', 'leased', 'running')
+                  )
+                """,
+                (
+                    self._now_text(),
+                    action_id,
+                    service_id,
+                    outage_id,
+                    service_id,
+                    outage_id,
+                    service_id,
+                    outage_id,
+                ),
+            )
+        return updated.rowcount == 1
+
+    def rearm_retryable_service_restart(
+        self,
+        action_id: str,
+        *,
+        service_id: str,
+        backoff_seconds: int,
+    ) -> bool:
+        """Re-arm one failed restart only when its latest attempt is retryable."""
+        self._required_text(action_id, "action_id")
+        self._required_text(service_id, "service_id")
+        if (
+            not isinstance(backoff_seconds, int)
+            or isinstance(backoff_seconds, bool)
+            or not 1 <= backoff_seconds <= 3600
+        ):
+            raise ValueError("backoff_seconds must be an int between 1 and 3600")
+        with self._immediate_transaction():
+            now_value = self._now()
+            now = self._time_text(now_value)
+            not_before = self._time_text(
+                now_value + timedelta(seconds=backoff_seconds)
+            )
+            updated = self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'pending', recovery_tier = recovery_tier + 1,
+                    not_before = ?, lease_owner = '', lease_expires_at = '',
+                    lease_heartbeat_at = '', updated_at = ?
+                WHERE action_id = ?
+                  AND status = 'failed'
+                  AND action_type = 'restart_service'
+                  AND queue_owner = 'supervisor'
+                  AND run_id = 'service-keeper'
+                  AND repo_relative_root = '.'
+                  AND json_extract(payload_json, '$.service_id') = ?
+                  AND (
+                    SELECT result_class
+                    FROM action_attempts
+                    WHERE action_attempts.action_id = actions.action_id
+                    ORDER BY action_attempts.rowid DESC
+                    LIMIT 1
+                  ) = 'retryable_failure'
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM actions AS active
+                    WHERE active.action_id != actions.action_id
+                      AND active.action_type = 'restart_service'
+                      AND active.queue_owner = 'supervisor'
+                      AND json_extract(active.payload_json, '$.service_id') = ?
+                      AND active.status IN ('pending', 'leased', 'running')
+                  )
+                """,
+                (not_before, now, action_id, service_id, service_id),
+            )
+        return updated.rowcount == 1
 
     def update_pending_action(self, request: ActionRequest) -> ActionRecord:
         """Atomically replace metadata on one unclaimed, identity-stable action."""
@@ -2240,7 +2765,11 @@ class SupervisorStore:
                     ))
                   )
                   AND (
-                    (queue_owner = 'worker' AND EXISTS (
+                    (action_type = 'restart_service'
+                     AND queue_owner = 'supervisor'
+                     AND run_id = 'service-keeper'
+                     AND repo_relative_root = '.')
+                    OR (queue_owner = 'worker' AND EXISTS (
                       SELECT 1 FROM runs
                       WHERE runs.run_id = actions.run_id
                         AND runs.revision = actions.run_revision
@@ -2257,7 +2786,8 @@ class SupervisorStore:
             )
         return updated.rowcount == 1
 
-    def record_worker_heartbeat(self, worker_id: str) -> dict[str, Any]:
+    def touch_worker(self, worker_id: str) -> dict[str, Any]:
+        """Upsert the current heartbeat for one long-running Worker process."""
         self._validate_worker_id(worker_id)
         with self._immediate_transaction():
             now = self._now_text()
@@ -2266,6 +2796,160 @@ class SupervisorStore:
                 "SELECT * FROM workers WHERE worker_id = ?", (worker_id,)
             ).fetchone()
         return dict(row)
+
+    def record_worker_heartbeat(self, worker_id: str) -> dict[str, Any]:
+        """Compatibility wrapper for action-scoped Worker heartbeats."""
+        return self.touch_worker(worker_id)
+
+    def upsert_service_observation(
+        self,
+        *,
+        service_id: str,
+        status: str,
+        endpoint: str = "",
+        process_id: int | None = None,
+        heartbeat_at: datetime | str | None = None,
+        version: str = "",
+        details: Mapping[str, Any] | None = None,
+        cadence_seconds: int = 30,
+    ) -> bool:
+        """Project one service state, writing only changed or due observations."""
+        self._validate_observation_fields(
+            identifier=service_id,
+            status=status,
+            details=details,
+            cadence_seconds=cadence_seconds,
+        )
+        if not isinstance(endpoint, str) or not isinstance(version, str):
+            raise TypeError("endpoint and version must be strings")
+        if process_id is not None and (
+            not isinstance(process_id, int)
+            or isinstance(process_id, bool)
+            or process_id <= 0
+        ):
+            raise ValueError("process_id must be a positive int or None")
+        incoming_details = dict(details or {})
+        with self._immediate_transaction():
+            now = self._now()
+            now_text = self._time_text(now)
+            existing = self._connection.execute(
+                "SELECT * FROM services WHERE service_id = ?", (service_id,)
+            ).fetchone()
+            if status == "healthy":
+                incoming_details.pop("outage_id", None)
+            else:
+                outage_id = ""
+                if existing is not None and str(existing["status"]) != "healthy":
+                    try:
+                        existing_details = json.loads(str(existing["details_json"]))
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        existing_details = {}
+                    if isinstance(existing_details, Mapping):
+                        outage_id = str(existing_details.get("outage_id") or "")
+                incoming_details["outage_id"] = outage_id or f"outage-{uuid4().hex}"
+            details_json = self._json(incoming_details)
+            heartbeat_text = self._coerce_time(heartbeat_at) if heartbeat_at else ""
+            if existing is not None and not self._observation_due(
+                existing["updated_at"],
+                now,
+                cadence_seconds,
+                changed=(
+                    str(existing["status"]) != status
+                    or str(existing["endpoint"]) != endpoint
+                    or existing["process_id"] != process_id
+                    or str(existing["heartbeat_at"]) != heartbeat_text
+                    or str(existing["version"]) != version
+                    or str(existing["details_json"]) != details_json
+                ),
+            ):
+                return False
+            self._connection.execute(
+                """
+                INSERT INTO services(
+                  service_id, status, endpoint, process_id, heartbeat_at, version,
+                  details_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(service_id) DO UPDATE SET
+                  status = excluded.status,
+                  endpoint = excluded.endpoint,
+                  process_id = excluded.process_id,
+                  heartbeat_at = excluded.heartbeat_at,
+                  version = excluded.version,
+                  details_json = excluded.details_json,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    service_id,
+                    status,
+                    endpoint,
+                    process_id,
+                    heartbeat_text,
+                    version,
+                    details_json,
+                    now_text,
+                    now_text,
+                ),
+            )
+        return True
+
+    def record_freshness_observation(
+        self,
+        *,
+        target: str,
+        status: str,
+        summary: str,
+        details: Mapping[str, Any] | None = None,
+        cadence_seconds: int = 300,
+    ) -> bool:
+        """Append meaningful freshness history without recording every watch tick."""
+        self._validate_observation_fields(
+            identifier=target,
+            status=status,
+            details=details,
+            cadence_seconds=cadence_seconds,
+        )
+        self._validate_summary(summary)
+        details_json = self._json(dict(details or {}))
+        with self._immediate_transaction():
+            now = self._now()
+            now_text = self._time_text(now)
+            existing = self._connection.execute(
+                """
+                SELECT * FROM freshness_checks
+                WHERE target = ?
+                ORDER BY checked_at DESC, check_id DESC
+                LIMIT 1
+                """,
+                (target,),
+            ).fetchone()
+            if existing is not None and not self._observation_due(
+                existing["checked_at"],
+                now,
+                cadence_seconds,
+                changed=(
+                    str(existing["status"]) != status
+                    or str(existing["summary"]) != summary
+                    or str(existing["details_json"]) != details_json
+                ),
+            ):
+                return False
+            self._connection.execute(
+                """
+                INSERT INTO freshness_checks(
+                  check_id, target, status, summary, details_json, checked_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"freshness-{uuid4().hex}",
+                    target,
+                    status,
+                    summary,
+                    details_json,
+                    now_text,
+                    now_text,
+                ),
+            )
+        return True
 
     def complete_action(
         self,
@@ -2310,7 +2994,7 @@ class SupervisorStore:
             if action["queue_owner"] in {
                 ActionOwner.REVIEWER.value,
                 ActionOwner.SUPERVISOR.value,
-            } and (
+            } and action["action_type"] != ActionType.RESTART_SERVICE.value and (
                 current_run is None
                 or str(current_run["repo_relative_root"])
                 != str(action["repo_relative_root"])
@@ -2590,10 +3274,31 @@ class SupervisorStore:
                         SET status = 'cancelled', lease_owner = '',
                             lease_expires_at = '', lease_heartbeat_at = '',
                             updated_at = ?
-                        WHERE run_id = ? AND run_revision < ? AND status = 'pending'
-                          AND queue_owner = 'worker'
+                        WHERE run_id = ? AND run_revision < ?
+                          AND (
+                            (status = 'pending' AND queue_owner = 'worker')
+                            OR (
+                              status IN ('pending', 'leased', 'running')
+                              AND idempotency_key LIKE 'recovery:%'
+                              AND NOT EXISTS (
+                                SELECT 1
+                                FROM reviews
+                                JOIN review_applications
+                                  ON review_applications.review_id = reviews.review_id
+                                JOIN review_application_targets
+                                  ON review_application_targets.review_id = reviews.review_id
+                                 AND review_application_targets.run_id = actions.run_id
+                                WHERE reviews.source_action_id = actions.action_id
+                                  AND review_applications.status = 'applying'
+                                  AND review_application_targets.status = 'pending'
+                                  AND review_application_targets.expected_revision + 1 = ?
+                                  AND review_application_targets.target_phase = ?
+                                  AND review_application_targets.expected_post_write_fingerprint = ?
+                              )
+                            )
+                          )
                         """,
-                        (now, run_id, revision),
+                        (now, run_id, revision, revision, phase, state_fingerprint),
                     )
             row = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
@@ -2743,11 +3448,21 @@ class SupervisorStore:
         failure_key: str = "",
         required_decision: str = "",
         decision_id: str | None = None,
+        source_action_id: str = "",
+        source_action_owner: str = "",
+        provenance_token: str = "",
     ) -> dict[str, Any]:
         self._validate_summary(summary)
         self._validate_summary(required_decision, field_name="required_decision")
         now = self._now_text()
         with self._immediate_transaction():
+            source_review_id = self._validate_review_decision_source(
+                scope=scope,
+                run_id=run_id,
+                source_action_id=source_action_id,
+                source_action_owner=source_action_owner,
+                provenance_token=provenance_token,
+            )
             existing = self._connection.execute(
                 """
                 SELECT * FROM user_decisions
@@ -2777,6 +3492,14 @@ class SupervisorStore:
                 )
             else:
                 resolved_id = str(existing["decision_id"])
+                if source_review_id:
+                    provenance = self._action_review_decision_provenance(
+                        source_action_id
+                    )
+                    if provenance.get("decision_id") != resolved_id:
+                        raise ValueError(
+                            "review decision collides with an unproven open decision"
+                        )
                 if (
                     existing["summary"] != summary
                     or existing["required_decision"] != required_decision
@@ -2789,10 +3512,130 @@ class SupervisorStore:
                         """,
                         (summary, required_decision, now, resolved_id),
                     )
+            if source_review_id:
+                self._record_review_decision_provenance(
+                    review_id=source_review_id,
+                    action_id=source_action_id,
+                    run_id=run_id,
+                    decision_id=resolved_id,
+                )
             row = self._connection.execute(
                 "SELECT * FROM user_decisions WHERE decision_id = ?", (resolved_id,)
             ).fetchone()
         return self._decoded_row(row)
+
+    def _validate_review_decision_source(
+        self,
+        *,
+        scope: str,
+        run_id: str,
+        source_action_id: str,
+        source_action_owner: str,
+        provenance_token: str,
+    ) -> str:
+        values = (source_action_id, source_action_owner, provenance_token)
+        if not any(values):
+            return ""
+        if not all(isinstance(value, str) and value for value in values):
+            raise ValueError("decision provenance requires action, owner, and token")
+        if scope != "run":
+            raise ValueError("Reviewer decision provenance requires run scope")
+        row = self._connection.execute(
+            """
+            SELECT targets.review_id, targets.run_id, actions.payload_json,
+                   actions.status, actions.lease_owner
+            FROM review_application_targets AS targets
+            JOIN review_applications AS applications
+              ON applications.review_id = targets.review_id
+            JOIN reviews ON reviews.review_id = targets.review_id
+            JOIN actions ON actions.action_id = targets.action_id
+            WHERE applications.decision = 'ask_user'
+              AND applications.status = 'applying'
+              AND reviews.decision = 'ask_user'
+              AND reviews.status = 'review_applying'
+              AND targets.action_id = ? AND targets.run_id = ?
+              AND targets.status = 'pending'
+              AND actions.status IN ('leased', 'running')
+              AND actions.lease_owner = ?
+              AND actions.action_type = 'ask_user'
+              AND actions.queue_owner = 'supervisor'
+            """,
+            (source_action_id, run_id, source_action_owner),
+        ).fetchone()
+        if row is None:
+            raise ValueError("decision provenance does not match a leased review target")
+        payload = json.loads(str(row["payload_json"]))
+        expected_token = (
+            str(payload.get("decision_provenance_token") or "")
+            if isinstance(payload, dict)
+            else ""
+        )
+        if not expected_token or not hmac.compare_digest(
+            expected_token, provenance_token
+        ):
+            raise ValueError("decision provenance token is invalid")
+        return str(row["review_id"])
+
+    def _action_review_decision_provenance(self, action_id: str) -> dict[str, str]:
+        row = self._connection.execute(
+            "SELECT payload_json FROM actions WHERE action_id = ?", (action_id,)
+        ).fetchone()
+        if row is None:
+            return {}
+        payload = json.loads(str(row["payload_json"]))
+        value = payload.get("review_user_decision") if isinstance(payload, dict) else None
+        if not isinstance(value, dict):
+            return {}
+        keys = {"decision_id", "review_id", "run_id"}
+        if set(value) != keys or not all(
+            isinstance(value[key], str) and value[key] for key in keys
+        ):
+            raise ValueError("review decision action provenance is invalid")
+        return {key: str(value[key]) for key in keys}
+
+    def _record_review_decision_provenance(
+        self,
+        *,
+        review_id: str,
+        action_id: str,
+        run_id: str,
+        decision_id: str,
+    ) -> None:
+        target = self._connection.execute(
+            """
+            SELECT targets.action_id
+            FROM review_application_targets AS targets
+            JOIN review_applications AS applications
+              ON applications.review_id = targets.review_id
+            WHERE targets.review_id = ? AND targets.run_id = ?
+              AND targets.action_id = ? AND applications.decision = 'ask_user'
+            """,
+            (review_id, run_id, action_id),
+        ).fetchone()
+        if target is None:
+            raise ValueError("decision provenance lacks a review application target")
+        expected = {
+            "decision_id": decision_id,
+            "review_id": review_id,
+            "run_id": run_id,
+        }
+        existing = self._action_review_decision_provenance(action_id)
+        if existing and existing != expected:
+            raise ValueError("review decision action provenance changed")
+        action = self._connection.execute(
+            "SELECT payload_json FROM actions WHERE action_id = ?", (action_id,)
+        ).fetchone()
+        if action is None:
+            raise ValueError("decision provenance action is missing")
+        payload = json.loads(str(action["payload_json"]))
+        if not isinstance(payload, dict):
+            raise ValueError("decision provenance action payload is invalid")
+        payload["review_user_decision"] = expected
+        self._validate_payload(payload)
+        self._connection.execute(
+            "UPDATE actions SET payload_json = ?, updated_at = ? WHERE action_id = ?",
+            (self._json(payload), self._now_text(), action_id),
+        )
 
     def close_user_decision(
         self,
@@ -2831,6 +3674,113 @@ class SupervisorStore:
             ).fetchone()
         return self._decoded_row(row)
 
+    def close_reviewer_scope_incident_decisions(
+        self,
+        *,
+        review_id: str,
+        expected_run_ids: Sequence[str],
+        resolution: str,
+    ) -> list[dict[str, Any]]:
+        """Close only a reviewed, explicitly enumerated Reviewer decision incident."""
+        self._required_text(review_id, "review_id")
+        self._validate_summary(resolution, field_name="resolution")
+        run_ids = tuple(
+            sorted(
+                {
+                    self._required_text(value, "expected_run_id")
+                    for value in expected_run_ids
+                }
+            )
+        )
+        if not run_ids:
+            raise ValueError("expected_run_ids must not be empty")
+        now = self._now_text()
+        with self._immediate_transaction():
+            review = self._connection.execute(
+                """
+                SELECT reviews.decision, applications.decision AS application_decision
+                FROM reviews
+                JOIN review_applications AS applications
+                  ON applications.review_id = reviews.review_id
+                WHERE reviews.review_id = ?
+                """,
+                (review_id,),
+            ).fetchone()
+            if (
+                review is None
+                or str(review["decision"]) != "ask_user"
+                or str(review["application_decision"]) != "ask_user"
+            ):
+                raise ValueError("scope incident must identify an ask_user review")
+            targets = self._connection.execute(
+                """
+                SELECT targets.run_id, targets.action_id, actions.payload_json
+                FROM review_application_targets AS targets
+                JOIN actions ON actions.action_id = targets.action_id
+                WHERE targets.review_id = ?
+                  AND actions.action_type = 'ask_user'
+                  AND actions.queue_owner = 'supervisor'
+                ORDER BY targets.run_id
+                """,
+                (review_id,),
+            ).fetchall()
+            if {str(row["run_id"]) for row in targets} != set(run_ids):
+                raise ValueError("scope incident decisions do not match expected set")
+            if not targets:
+                raise ValueError("scope incident decisions were not found")
+            decision_ids: list[str] = []
+            for target in targets:
+                payload = json.loads(str(target["payload_json"]))
+                token = (
+                    str(payload.get("decision_provenance_token") or "")
+                    if isinstance(payload, dict)
+                    else ""
+                )
+                if not token:
+                    raise ValueError(
+                        "scope incident action lacks explicit provenance token"
+                    )
+                provenance = self._action_review_decision_provenance(
+                    str(target["action_id"])
+                )
+                if (
+                    provenance.get("review_id") != review_id
+                    or provenance.get("run_id") != str(target["run_id"])
+                    or not provenance.get("decision_id")
+                ):
+                    raise ValueError("scope incident decision provenance is invalid")
+                decision_ids.append(provenance["decision_id"])
+            placeholders = ", ".join("?" for _ in decision_ids)
+            rows = self._connection.execute(
+                f"""
+                SELECT * FROM user_decisions
+                WHERE decision_id IN ({placeholders})
+                ORDER BY decision_id
+                """,
+                tuple(decision_ids),
+            ).fetchall()
+            if {
+                (str(row["decision_id"]), str(row["run_id"])) for row in rows
+            } != set(zip(decision_ids, run_ids, strict=True)):
+                raise ValueError("scope incident decision provenance does not resolve")
+            self._connection.execute(
+                f"""
+                UPDATE user_decisions
+                SET status = 'closed', resolution = ?, closed_at = ?, updated_at = ?
+                WHERE status = 'open' AND decision_id IN ({placeholders})
+                """,
+                (resolution, now, now, *decision_ids),
+            )
+            closed = self._connection.execute(
+                f"""
+                SELECT * FROM user_decisions
+                WHERE decision_id IN ({placeholders})
+                ORDER BY decision_id
+                """,
+                tuple(decision_ids),
+            ).fetchall()
+        return [self._decoded_row(row) for row in closed]
+
     def record_review(
         self,
         *,
@@ -2843,6 +3793,7 @@ class SupervisorStore:
         findings: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]] = (),
         accepted_review: Mapping[str, Any] | None = None,
         source_action_id: str = "",
+        idempotent_findings: bool = False,
         created_at: datetime | str | None = None,
     ) -> dict[str, Any]:
         self._validate_summary(summary)
@@ -2854,6 +3805,8 @@ class SupervisorStore:
             self._validate_payload(accepted)
         if not isinstance(source_action_id, str):
             raise TypeError("source_action_id must be a string")
+        if not isinstance(idempotent_findings, bool):
+            raise TypeError("idempotent_findings must be a bool")
         timestamp = self._coerce_time(created_at)
         with self._immediate_transaction():
             if source_action_id:
@@ -2911,6 +3864,37 @@ class SupervisorStore:
                     "SELECT * FROM review_findings WHERE finding_key = ?",
                     (finding_key,),
                 ).fetchone()
+                if (
+                    idempotent_findings
+                    and existing is not None
+                    and str(existing["review_id"]) == review_id
+                ):
+                    expected = (
+                        finding_id,
+                        finding_status,
+                        severity,
+                        finding_summary,
+                        self._json(finding_evidence),
+                        self._json(closure_evidence),
+                        self._json(affected_runs),
+                        str(finding.get("remediation_action_id", "")),
+                    )
+                    actual = tuple(
+                        existing[column]
+                        for column in (
+                            "finding_id",
+                            "status",
+                            "severity",
+                            "summary",
+                            "evidence_json",
+                            "closure_evidence_json",
+                            "affected_runs_json",
+                            "remediation_action_id",
+                        )
+                    )
+                    if actual != expected:
+                        raise ValueError("published review finding identity changed")
+                    continue
                 if existing is None and finding_status != "open" and trigger != "migration":
                     raise ValueError("new findings must enter lifecycle as open")
                 if existing is not None:
@@ -3031,28 +4015,34 @@ class SupervisorStore:
             "skill-snapshot-"
             + hashlib.sha256(self._json(snapshot).encode("utf-8")).hexdigest()[:24]
         )
+        snapshot_json = self._json(snapshot)
+        expected = (len(inventory), len(confirmed_usage), snapshot_json)
         with self._immediate_transaction():
             self._connection.execute(
                 """
                 INSERT INTO skill_snapshots(
                   snapshot_id, total_skills, used_skills, snapshot_json, created_at
                 ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(snapshot_id) DO UPDATE SET
-                  total_skills = excluded.total_skills,
-                  used_skills = excluded.used_skills,
-                  snapshot_json = excluded.snapshot_json
+                ON CONFLICT(snapshot_id) DO NOTHING
                 """,
                 (
                     identifier,
-                    len(inventory),
-                    len(confirmed_usage),
-                    self._json(snapshot),
+                    expected[0],
+                    expected[1],
+                    snapshot_json,
                     timestamp,
                 ),
             )
             row = self._connection.execute(
                 "SELECT * FROM skill_snapshots WHERE snapshot_id = ?", (identifier,)
             ).fetchone()
+            actual = (
+                int(row["total_skills"]),
+                int(row["used_skills"]),
+                str(row["snapshot_json"]),
+            )
+            if actual != expected:
+                raise ValueError("skill snapshot identity changed")
         return self._decoded_row(row)
 
     def record_skill_invocation(
@@ -3388,7 +4378,7 @@ class SupervisorStore:
                   JOIN review_applications AS retained_applications
                     ON retained_applications.review_id = retained_targets.review_id
                   WHERE retained_targets.action_id = action_attempts.action_id
-                    AND retained_applications.status != 'completed'
+                    AND retained_applications.status NOT IN ('completed', 'superseded')
                 )
                 AND NOT EXISTS (
                   SELECT 1 FROM reviews AS retained_source_reviews
@@ -3461,7 +4451,7 @@ class SupervisorStore:
                 AND NOT EXISTS (
                   SELECT 1 FROM review_applications AS incomplete_applications
                   WHERE incomplete_applications.review_id = reviews.review_id
-                    AND incomplete_applications.status != 'completed'
+                    AND incomplete_applications.status NOT IN ('completed', 'superseded')
                 )
                 AND NOT EXISTS (
                   SELECT 1 FROM actions AS nonterminal_review_sources
@@ -3542,6 +4532,40 @@ class SupervisorStore:
                     int(group["aggregate_count"]),
                     now,
                 )
+            eligible_freshness = """
+                freshness_checks.checked_at < ?
+                AND EXISTS (
+                  SELECT 1 FROM freshness_checks AS newer_freshness
+                  WHERE newer_freshness.target = freshness_checks.target
+                    AND (
+                      newer_freshness.checked_at > freshness_checks.checked_at
+                      OR (
+                        newer_freshness.checked_at = freshness_checks.checked_at
+                        AND newer_freshness.check_id > freshness_checks.check_id
+                      )
+                    )
+                )
+            """
+            freshness_groups = self._connection.execute(
+                f"""
+                SELECT substr(freshness_checks.checked_at, 1, 10) AS aggregate_day,
+                       freshness_checks.target || ':' || freshness_checks.status
+                         AS aggregate_key,
+                       COUNT(*) AS aggregate_count
+                FROM freshness_checks
+                WHERE {eligible_freshness}
+                GROUP BY aggregate_day, aggregate_key
+                """,
+                (cutoff,),
+            ).fetchall()
+            for group in freshness_groups:
+                self._upsert_aggregate(
+                    str(group["aggregate_day"]),
+                    "freshness_checks",
+                    str(group["aggregate_key"]),
+                    int(group["aggregate_count"]),
+                    now,
+                )
             finding_delete = self._connection.execute(
                 f"""
                 DELETE FROM review_findings
@@ -3575,6 +4599,12 @@ class SupervisorStore:
                 "DELETE FROM transitions WHERE created_at < ?", (cutoff,)
             )
             deleted["transitions"] = transition_delete.rowcount
+            freshness_delete = self._connection.execute(
+                f"DELETE FROM freshness_checks WHERE {eligible_freshness}",
+                (cutoff,),
+            )
+            if freshness_delete.rowcount:
+                deleted["freshness_checks"] = freshness_delete.rowcount
         return deleted
 
     def _insert_transition(
@@ -4071,6 +5101,45 @@ class SupervisorStore:
             or heartbeat_stale_seconds <= 0
         ):
             raise ValueError("heartbeat_stale_seconds must be a positive int")
+
+    @staticmethod
+    def _validate_observation_fields(
+        *,
+        identifier: object,
+        status: object,
+        details: Mapping[str, Any] | None,
+        cadence_seconds: object,
+    ) -> None:
+        if not isinstance(identifier, str) or not identifier:
+            raise ValueError("observation identifier must be a non-empty string")
+        if not isinstance(status, str) or not status:
+            raise ValueError("observation status must be a non-empty string")
+        if details is not None and not isinstance(details, Mapping):
+            raise TypeError("observation details must be a mapping")
+        if (
+            not isinstance(cadence_seconds, int)
+            or isinstance(cadence_seconds, bool)
+            or cadence_seconds <= 0
+        ):
+            raise ValueError("observation cadence_seconds must be a positive int")
+
+    @staticmethod
+    def _observation_due(
+        observed_at: object,
+        now: datetime,
+        cadence_seconds: int,
+        *,
+        changed: bool,
+    ) -> bool:
+        if changed:
+            return True
+        try:
+            previous = datetime.fromisoformat(str(observed_at).replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        if previous.tzinfo is None or previous.utcoffset() is None:
+            return True
+        return previous.astimezone(timezone.utc) + timedelta(seconds=cadence_seconds) <= now
 
     def _write_worker_heartbeat(self, worker_id: str, timestamp: str) -> None:
         self._connection.execute(

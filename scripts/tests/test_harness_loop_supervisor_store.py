@@ -19,7 +19,7 @@ from scripts.loop_supervisor.models import (
     ActionType,
     SkillInvocationEvidence,
 )
-from scripts.loop_supervisor.store import CursorError, SupervisorStore
+from scripts.loop_supervisor.store import CursorError, LeaseError, SupervisorStore
 
 
 class FakeClock:
@@ -237,6 +237,45 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     }
 
 
+def test_deterministic_skill_snapshot_id_is_immutable(tmp_path: Path) -> None:
+    store = migrated_store(tmp_path)
+    snapshot = {
+        "inventory": [
+            {
+                "name": "alpha",
+                "path": "skills/alpha/SKILL.md",
+                "description": "Validate loop evidence.",
+                "normalized_purpose": "validate loop evidence",
+            }
+        ],
+        "confirmed_usage": [],
+        "duplicate_groups": [],
+        "reviewer_recommendations": [],
+    }
+
+    first = store.record_skill_snapshot(
+        snapshot,
+        snapshot_id="skill-snapshot-review-immutable",
+    )
+    replayed = store.record_skill_snapshot(
+        snapshot,
+        snapshot_id="skill-snapshot-review-immutable",
+    )
+    changed = json.loads(json.dumps(snapshot))
+    changed["inventory"][0]["description"] = "Mutated evidence."
+
+    with pytest.raises(ValueError, match="skill snapshot identity changed"):
+        store.record_skill_snapshot(
+            changed,
+            snapshot_id="skill-snapshot-review-immutable",
+        )
+
+    assert replayed == first
+    stored = store.fetch_all("skill_snapshots")
+    assert len(stored) == 1
+    assert json.loads(stored[0]["snapshot_json"]) == snapshot
+
+
 def test_migrate_adds_state_fingerprint_to_v7_run_projection(tmp_path):
     db_path = tmp_path / ".codex" / "supervisor" / "supervisor.db"
     db_path.parent.mkdir(parents=True)
@@ -284,6 +323,47 @@ def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
 
     assert store.count("actions") == 1
     assert store.count("schema_migrations") == 1
+
+
+def test_migrate_adds_latest_freshness_index_to_existing_database(tmp_path):
+    database = tmp_path / ".codex" / "supervisor" / "supervisor.db"
+    database.parent.mkdir(parents=True)
+    connection = sqlite3.connect(database)
+    connection.execute(
+        """
+        CREATE TABLE freshness_checks (
+          check_id TEXT PRIMARY KEY,
+          target TEXT NOT NULL,
+          status TEXT NOT NULL,
+          summary TEXT NOT NULL DEFAULT '',
+          details_json TEXT NOT NULL DEFAULT '{}',
+          checked_at TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO freshness_checks(
+          check_id, target, status, checked_at, created_at
+        ) VALUES ('legacy-check', 'wiki', 'fresh',
+                  '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        index = store._connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+            ("freshness_checks_target_latest_idx",),
+        ).fetchone()
+        preserved = store.fetch_all("freshness_checks")
+
+    assert index is not None
+    assert "(target, checked_at DESC, check_id DESC)" in str(index["sql"])
+    assert [row["check_id"] for row in preserved] == ["legacy-check"]
 
 
 def test_migrate_backfills_legacy_reviewer_actions_to_reviewer_owner(tmp_path):
@@ -970,6 +1050,182 @@ def test_worker_heartbeat_upsert_never_moves_backwards(tmp_path):
     assert second["updated_at"] == first["updated_at"]
 
 
+def test_touch_worker_updates_one_current_row_without_appending_history(tmp_path):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+
+    first = store.touch_worker("idle-worker")
+    clock.advance(seconds=2)
+    second = store.touch_worker("idle-worker")
+    workers = store.fetch_all("workers")
+
+    assert len(workers) == 1
+    assert workers[0] == second
+    assert second["heartbeat_at"] == "2026-01-01T00:00:02.000000Z"
+    assert second["created_at"] == first["created_at"]
+    assert second["updated_at"] != first["updated_at"]
+
+
+def test_service_observation_preserves_missing_heartbeat_as_empty(tmp_path):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+
+    store.upsert_service_observation(
+        service_id="loop-dashboard",
+        status="unhealthy",
+        endpoint="http://127.0.0.1:8766/api/health",
+        process_id=None,
+        details={"endpoint_verified": False},
+    )
+
+    row = store.fetch_all("services")[0]
+    assert row["heartbeat_at"] == ""
+
+
+def test_service_restart_claim_is_atomic_and_does_not_create_worker_heartbeat(
+    tmp_path,
+):
+    store = migrated_store(tmp_path)
+    store.upsert_service_observation(
+        service_id="loop-dashboard",
+        status="unhealthy",
+        details={"endpoint_verified": False},
+    )
+    outage_id = json.loads(store.fetch_all("services")[0]["details_json"])[
+        "outage_id"
+    ]
+    request = ActionRequest(
+        action_id="service-restart-loop-dashboard-outage-1",
+        run_id="service-keeper",
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="repair_needed",
+        action_type=ActionType.RESTART_SERVICE,
+        idempotency_key=f"service-restart:loop-dashboard:{outage_id}",
+        queue_owner=ActionOwner.SUPERVISOR,
+        repo_relative_root=".",
+        task_id=f"service:loop-dashboard:{outage_id}",
+        next_action=ActionType.RESTART_SERVICE.value,
+        payload={"service_id": "loop-dashboard", "outage_id": outage_id},
+    )
+    store.enqueue_action(request)
+
+    first = store.claim_service_restart_action(
+        request.action_id,
+        "supervisor-a",
+        service_id="loop-dashboard",
+        outage_id=outage_id,
+        lease_seconds=120,
+    )
+    second = store.claim_service_restart_action(
+        request.action_id,
+        "supervisor-b",
+        service_id="loop-dashboard",
+        outage_id=outage_id,
+        lease_seconds=120,
+    )
+
+    assert first is not None
+    assert second is None
+    assert store.fetch_all("workers") == []
+
+
+def test_service_restart_claim_cancels_action_when_current_outage_changed(tmp_path):
+    store = migrated_store(tmp_path)
+    store.upsert_service_observation(
+        service_id="loop-dashboard",
+        status="unhealthy",
+        details={"endpoint_verified": False},
+    )
+    first_service = store.fetch_all("services")[0]
+    outage_a = json.loads(first_service["details_json"])["outage_id"]
+    action_a = ActionRequest(
+        action_id="service-restart-loop-dashboard-outage-a",
+        run_id="service-keeper",
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="repair_needed",
+        action_type=ActionType.RESTART_SERVICE,
+        idempotency_key=f"service-restart:loop-dashboard:{outage_a}",
+        queue_owner=ActionOwner.SUPERVISOR,
+        repo_relative_root=".",
+        task_id=f"service:loop-dashboard:{outage_a}",
+        next_action=ActionType.RESTART_SERVICE.value,
+        payload={"service_id": "loop-dashboard", "outage_id": outage_a},
+    )
+    store.enqueue_action(action_a)
+
+    store.upsert_service_observation(
+        service_id="loop-dashboard",
+        status="healthy",
+        details={"endpoint_verified": True},
+    )
+    store.upsert_service_observation(
+        service_id="loop-dashboard",
+        status="unhealthy",
+        details={"endpoint_verified": False},
+    )
+    current_service = store.fetch_all("services")[0]
+    outage_b = json.loads(current_service["details_json"])["outage_id"]
+    action_b = ActionRequest(
+        action_id="service-restart-loop-dashboard-outage-b",
+        run_id="service-keeper",
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="repair_needed",
+        action_type=ActionType.RESTART_SERVICE,
+        idempotency_key=f"service-restart:loop-dashboard:{outage_b}",
+        queue_owner=ActionOwner.SUPERVISOR,
+        repo_relative_root=".",
+        task_id=f"service:loop-dashboard:{outage_b}",
+        next_action=ActionType.RESTART_SERVICE.value,
+        payload={"service_id": "loop-dashboard", "outage_id": outage_b},
+    )
+    store.enqueue_action(action_b)
+
+    claimed = store.claim_service_restart_action(
+        action_a.action_id,
+        "supervisor-after-race",
+        service_id="loop-dashboard",
+        outage_id=outage_a,
+        lease_seconds=120,
+    )
+
+    assert claimed is None
+    assert store.get_action(action_a.action_id).status == "cancelled"
+    assert store.get_action(action_b.action_id).status == "pending"
+    assert store.fetch_all("action_attempts") == []
+
+
+def test_generic_worker_lease_cannot_claim_supervisor_service_restart(tmp_path):
+    store = migrated_store(tmp_path)
+    request = ActionRequest(
+        action_id="service-restart-loop-dashboard-outage-1",
+        run_id="service-keeper",
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="repair_needed",
+        action_type=ActionType.RESTART_SERVICE,
+        idempotency_key="service-restart:loop-dashboard:outage-1",
+        queue_owner=ActionOwner.SUPERVISOR,
+        repo_relative_root=".",
+        task_id="service:loop-dashboard",
+        next_action=ActionType.RESTART_SERVICE.value,
+        payload={"service_id": "loop-dashboard", "outage_id": "outage-1"},
+    )
+    store.enqueue_action(request)
+
+    leased = store.lease_next_action(
+        "worker-a",
+        lease_seconds=120,
+        allowed_action_types={ActionType.RESTART_SERVICE.value},
+        allowed_queue_owners={ActionOwner.SUPERVISOR.value},
+    )
+
+    assert leased is None
+    assert store.get_action(request.action_id).status == "pending"
+
+
 def test_same_worker_cannot_reclaim_expired_lease_while_its_heartbeat_is_fresh(
     tmp_path,
 ):
@@ -1328,6 +1584,92 @@ def test_run_revision_advance_does_not_cancel_leased_action(tmp_path):
     project_run(store, "run-1", revision=5, phase="generating")
 
     assert store.get_action(action.action_id).status == "leased"
+
+
+@pytest.mark.parametrize("leased_status", ["leased", "running"])
+def test_revision_advance_fences_leased_recovery_reviewer(
+    tmp_path, leased_status
+):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=4)
+    request = ActionRequest(
+        action_id=f"recovery-reviewer-{leased_status}",
+        run_id="run-1",
+        run_revision=4,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_REVIEWER,
+        idempotency_key=f"recovery:reviewer-{leased_status}",
+        queue_owner=ActionOwner.REVIEWER,
+    )
+    store.enqueue_action(request)
+    leased = store.lease_next_action(
+        "reviewer-a",
+        lease_seconds=120,
+        heartbeat_stale_seconds=60,
+        allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
+    )
+    assert leased is not None and leased.action_id == request.action_id
+    if leased_status == "running":
+        store._connection.execute(
+            "UPDATE actions SET status = 'running' WHERE action_id = ?",
+            (request.action_id,),
+        )
+        store._connection.commit()
+
+    project_run(store, "run-1", revision=5, phase="generating")
+
+    assert store.get_action(request.action_id).status == "cancelled"
+    assert store.renew_lease(request.action_id, "reviewer-a", lease_seconds=120) is False
+    with pytest.raises(LeaseError, match="live lease"):
+        store.complete_action(
+            request.action_id,
+            "reviewer-a",
+            ActionResult(result_class=ActionResultClass.SUCCESS, summary="obsolete"),
+        )
+    assert not any(
+        row["action_id"] == request.action_id
+        for row in store.fetch_all("action_attempts")
+    )
+
+
+def test_revision_advance_does_not_fence_leased_cadence_reviewer(tmp_path):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-1", revision=4)
+    request = ActionRequest(
+        action_id="cadence-reviewer",
+        run_id="run-1",
+        run_revision=4,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_REVIEWER,
+        idempotency_key="review:cadence",
+        queue_owner=ActionOwner.REVIEWER,
+    )
+    store.enqueue_action(request)
+    leased = store.lease_next_action(
+        "reviewer-cadence",
+        lease_seconds=120,
+        heartbeat_stale_seconds=60,
+        allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
+    )
+    assert leased is not None and leased.action_id == request.action_id
+
+    project_run(store, "run-1", revision=5, phase="generating")
+
+    assert store.get_action(request.action_id).status == "leased"
+    assert store.renew_lease(
+        request.action_id, "reviewer-cadence", lease_seconds=120
+    )
+    attempt = store.complete_action(
+        request.action_id,
+        "reviewer-cadence",
+        ActionResult(result_class=ActionResultClass.SUCCESS, summary="cadence complete"),
+    )
+    assert attempt.action_id == request.action_id
+    assert store.get_action(request.action_id).status == "completed"
 
 
 def test_completed_action_reopens_when_run_has_not_advanced_and_preserves_evidence(
@@ -1794,6 +2136,37 @@ def test_retention_aggregates_rows_older_than_90_days_before_deleting(tmp_path):
     }
 
 
+def test_retention_compacts_freshness_history_but_keeps_latest_per_target(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    for target in ("wiki", "search", "dashboard"):
+        for index, status in enumerate(("stale", "fresh", "stale"), start=1):
+            store.record_freshness_observation(
+                target=target,
+                status=status,
+                summary=f"{target}-{index}",
+            )
+            clock.advance(seconds=1)
+    clock.advance(days=91)
+
+    result = store.compact_retention(retention_days=90)
+
+    assert result["freshness_checks"] == 6
+    remaining = store.fetch_all("freshness_checks")
+    assert len(remaining) == 3
+    assert {row["target"] for row in remaining} == {"wiki", "search", "dashboard"}
+    assert {row["summary"] for row in remaining} == {
+        "wiki-3",
+        "search-3",
+        "dashboard-3",
+    }
+    assert sum(
+        row["count"]
+        for row in store.fetch_all("aggregates")
+        if row["aggregate_kind"] == "freshness_checks"
+    ) == 6
+
+
 def test_retention_aggregates_and_deletes_skill_invocations_before_attempts(tmp_path):
     clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
     store = migrated_store(tmp_path, clock=clock)
@@ -1914,6 +2287,58 @@ def test_retention_preserves_incomplete_review_application_and_applied_attempt(
     assert store.count("actions") == 2
     assert store.count("action_attempts") == 1
     assert store.fetch_all("review_applications")[0]["status"] == "applying"
+
+
+def test_retention_compacts_superseded_review_application(tmp_path):
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-1", revision=1)
+    target = ActionRequest(
+        action_id="review-target-superseded-retention",
+        run_id="run-1",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.REFOCUS_RUN,
+        idempotency_key="review-target-superseded-retention",
+        queue_owner=ActionOwner.SUPERVISOR,
+    )
+    store.record_review(
+        review_id="review-superseded-retention",
+        trigger="cadence",
+        status="review_applying",
+        decision="refocus",
+        summary="stale target",
+    )
+    store.prepare_review_application(
+        review_id="review-superseded-retention",
+        decision="refocus",
+        targets=[
+            (
+                target,
+                {
+                    "expected_revision": 1,
+                    "expected_fingerprint": f"sha256:{'a' * 64}",
+                    "source_phase": "planning",
+                    "target_phase": "planning",
+                    "target_next_action": "run_autonomous_planner",
+                    "target_last_result": "none",
+                },
+            )
+        ],
+    )
+    store.supersede_review_application(
+        "review-superseded-retention",
+        reason="target advanced before application",
+    )
+    clock.advance(days=91)
+
+    result = store.compact_retention(retention_days=90)
+
+    assert result["reviews"] == 1
+    assert store.count("reviews") == 0
+    assert store.count("review_applications") == 0
+    assert store.count("review_application_targets") == 0
 
 
 def test_retention_preserves_completed_review_while_source_action_is_nonterminal(

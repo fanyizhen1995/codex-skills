@@ -184,12 +184,16 @@
     }
 
     async loadHealthEvidence(signal) {
-      const services = await fetchAllPages("/api/supervisor/services", signal);
-      const freshness = await fetchAllPages("/api/supervisor/services/freshness", signal);
+      const payload = await this.fetchJson("/api/supervisor/health", { signal });
+      if (payload.status !== "available") {
+        throw new DashboardError(payload.status || "unavailable", structuredDiagnosticText(payload.diagnostics));
+      }
+      const services = { items: payload.services || [], total: (payload.services || []).length };
+      const freshness = { items: payload.freshness || [], total: (payload.freshness || []).length };
       return {
         services,
         freshness,
-        coverageComplete: services.coverageComplete && freshness.coverageComplete,
+        coverageComplete: payload.coverage_complete === true,
       };
     }
 
@@ -241,39 +245,43 @@
       const servicesHost = pagerSection(fragment, "服务状态", "可达性、进程、版本和数据新鲜度分别判断");
       const freshnessHost = pagerSection(fragment, "数据新鲜度", "目标、检查状态、摘要和证据明细");
       this.panel.replaceChildren(fragment);
-      const servicesPager = this.pager("supervisor-services", {
-        endpoint: "/api/supervisor/services",
-        container: servicesHost,
-        allowedFilters: ["status"],
-        emptyMessage: "暂无服务数据",
-        renderItems: (target, items) => renderTable(target, ["服务", "健康", "可达", "进程 / 心跳", "版本", "数据新鲜度"], items.map((item) => {
+      if (health.services.items.length) {
+        renderTable(servicesHost, ["服务", "健康", "可达", "进程 / 心跳", "版本", "数据新鲜度"], health.services.items.map((item) => {
           const details = objectValue(item.details);
+          const workers = Array.isArray(details.workers) ? details.workers : [];
+          const processLabel = item.process_id ? `PID ${item.process_id}` : "PID 不可用";
+          const sessionLabel = details.tmux_session
+            ? `${details.tmux_session} · session ${booleanLabel(details.tmux_session_exists)}`
+            : "session 不可用";
+          const workerHeartbeat = workers.length
+            ? workers.map((worker) => `${text(worker.worker_id, "未知 Worker")} · ${formatTime(worker.heartbeat_at)}`).join("；")
+            : formatTime(item.heartbeat_at);
           return [
             strongText(serviceNameLabel(item.service_id)),
             statusText(serviceHealthLabel(item.status), serviceHealthTone(item.status)),
-            booleanLabel(details.reachable),
-            text(item.process_id || item.heartbeat_at, "不可用"),
+            multiText(booleanLabel(details.reachable), text(item.endpoint, "无 endpoint")),
+            multiText(processLabel, `${sessionLabel} · 存活 ${booleanLabel(details.process_alive)} · ${workerHeartbeat}`),
             text(item.version, "不可用"),
-            text(details.freshness || details.data_freshness, "暂无 freshness target"),
+            multiText(
+              freshnessLabel(details.freshness || details.data_freshness),
+              readableValue(details.freshness_targets, "无 freshness target"),
+            ),
           ];
-        })),
-      });
-      const freshnessPager = this.pager("supervisor-freshness", {
-        endpoint: "/api/supervisor/services/freshness",
-        container: freshnessHost,
-        allowedFilters: ["target", "status"],
-        emptyMessage: "暂无 freshness target",
-        renderItems: (target, items) => renderTable(target, ["目标", "状态", "摘要", "检查时间", "明细"], items.map((item) => [
+        }));
+      } else {
+        servicesHost.append(messageNode("暂无服务数据", "empty-state"));
+      }
+      if (health.freshness.items.length) {
+        renderTable(freshnessHost, ["目标", "状态", "摘要", "检查时间", "明细"], health.freshness.items.map((item) => [
           strongText(item.target),
           statusText(freshnessLabel(item.status), freshnessTone(item.status)),
           text(item.summary, "暂无摘要"),
           formatTime(item.checked_at || item.created_at),
           readableValue(item.details, "暂无明细"),
-        ])),
-      });
-      await loadPager(servicesPager, options.refresh);
-      if (!this.isCurrentRequest(request, signal)) return;
-      await loadPager(freshnessPager, options.refresh);
+        ]));
+      } else {
+        freshnessHost.append(messageNode("暂无 freshness target", "empty-state"));
+      }
     }
 
     async renderRecovery(request, signal, options) {
@@ -497,22 +505,6 @@
     return fetchPage(endpoint, { cursor: null, pageSize: 20, query: "", filters }, signal);
   }
 
-  async function fetchAllPages(endpoint, signal) {
-    const items = [];
-    let cursor = null;
-    let total = 0;
-    let pages = 0;
-    do {
-      const page = await fetchPage(endpoint, { cursor, pageSize: 100, query: "", filters: {} }, signal);
-      items.push(...page.items);
-      total = page.total;
-      cursor = page.next_cursor;
-      pages += 1;
-      if (pages > 1000) throw new DashboardError("page_limit_exceeded", "健康数据分页超过安全上限");
-    } while (cursor);
-    return { items, total, coverageComplete: items.length === total };
-  }
-
   async function loadPager(pager, refresh) {
     if (refresh && pager.page) return pager.refresh();
     return pager.load();
@@ -733,13 +725,16 @@
   function statusText(label, tone) { return node("span", `status-text ${tone}`, label); }
 
   function serviceHealthLabel(value) {
-    return { healthy: "正常", degraded: "降级", unavailable: "不可用", stopped: "已停止", blocked: "阻塞" }[value] || "健康状态不可用";
+    return {
+      healthy: "正常", degraded: "降级", unhealthy: "异常", unavailable: "不可用",
+      offline: "离线", stale: "心跳过期", stopped: "已停止", blocked: "阻塞",
+    }[value] || "健康状态不可用";
   }
 
   function serviceHealthTone(value) {
     if (value === "healthy") return "good";
-    if (["blocked", "stopped", "unavailable"].includes(value)) return "bad";
-    if (value === "degraded") return "warn";
+    if (["blocked", "stopped", "unavailable", "unhealthy", "offline"].includes(value)) return "bad";
+    if (["degraded", "stale"].includes(value)) return "warn";
     return "neutral";
   }
 
@@ -767,9 +762,9 @@
   function attemptResultLabel(value) { return { success: "成功", retryable_failure: "可重试失败", recoverable_partial: "部分产物可恢复", policy_block: "策略阻塞", terminal_failure: "终止失败" }[value] || "结果不可用"; }
   function decisionStatusLabel(value) { return { open: "需要用户", closed: "已解决" }[value] || "状态不可用"; }
   function decisionStatusTone(value) { return value === "closed" ? "good" : value === "open" ? "warn" : "neutral"; }
-  function freshnessLabel(value) { return { fresh: "通过", pass: "通过", stale: "过期", failed: "失败", unavailable: "不可用" }[value] || "状态不可用"; }
+  function freshnessLabel(value) { return { fresh: "通过", pass: "通过", stale: "过期", failed: "失败", unavailable: "不可用", not_applicable: "不适用" }[value] || "状态不可用"; }
   function freshnessTone(value) { return ["fresh", "pass"].includes(value) ? "good" : ["failed", "unavailable"].includes(value) ? "bad" : "warn"; }
-  function serviceNameLabel(value) { return { "crawler-backend": "Crawler Backend", "crawler-frontend": "Crawler Frontend", "loop-dashboard": "Loop Dashboard", "supervisor-worker": "Supervisor Worker" }[value] || text(value, "未知服务"); }
+  function serviceNameLabel(value) { return { "crawler-backend": "Crawler Backend", "crawler-frontend": "Crawler Frontend", "loop-dashboard": "Loop Dashboard", "loop-supervisor": "Loop Supervisor", "supervisor-worker": "Supervisor Worker" }[value] || text(value, "未知服务"); }
 
   function booleanLabel(value) {
     if (value === true) return "是";

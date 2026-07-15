@@ -14,7 +14,9 @@ from scripts.harness_loop_supervisor import (
     main,
     run_supervisor_once,
 )
-from scripts.loop_supervisor.models import ActionType
+from scripts.harness_loop_orchestrator import create_preflight_run
+from scripts.loop_supervisor.executor import execute_action
+from scripts.loop_supervisor.models import ActionOwner, ActionType
 from scripts.loop_supervisor.reconciler import (
     _state_fingerprint,
     atomic_save_run,
@@ -330,7 +332,7 @@ def test_reconcile_project_lock_serializes_entire_tick(tmp_path, monkeypatch):
     calls_lock = threading.Lock()
     from scripts.loop_supervisor import reconciler
 
-    real_discover = reconciler.discover_run_records
+    real_discover = reconciler.discover_run_candidates
 
     def gated_discover(root, *, include_worktrees=True):
         nonlocal discovery_calls
@@ -342,7 +344,7 @@ def test_reconcile_project_lock_serializes_entire_tick(tmp_path, monkeypatch):
             assert release_first.wait(timeout=5)
         return real_discover(root, include_worktrees=include_worktrees)
 
-    monkeypatch.setattr(reconciler, "discover_run_records", gated_discover)
+    monkeypatch.setattr(reconciler, "discover_run_candidates", gated_discover)
     outcomes = []
 
     def reconcile():
@@ -363,6 +365,67 @@ def test_reconcile_project_lock_serializes_entire_tick(tmp_path, monkeypatch):
     second.join(timeout=5)
 
     assert len(outcomes) == 2
+
+
+def test_reconcile_skips_active_run_lock_without_overwriting_its_projection(tmp_path):
+    active_path = seed_run(tmp_path, "active")
+    seed_run(tmp_path, "unlocked")
+    store = migrated_store(tmp_path)
+    initial = reconcile_once(tmp_path, store, include_worktrees=False)
+    active_action = initial.action_for("active")
+    assert active_action is not None
+    leased = store.claim_pending_action(
+        active_action.action_id,
+        "active-worker",
+        lease_seconds=60,
+        expected_queue_owner=ActionOwner.WORKER,
+    )
+    assert leased is not None
+    initial_projection = store.get_run("active")
+    actions_before = store.count("actions")
+    decisions_before = store.count("user_decisions")
+
+    active_payload = json.loads(active_path.read_text(encoding="utf-8"))
+    active_payload["state_revision"] = 1
+    active_payload["last_result"] = "worker still running"
+    active_path.write_text(json.dumps(active_payload) + "\n", encoding="utf-8")
+
+    outcomes = []
+    failures = []
+    completed = threading.Event()
+
+    def reconcile_while_worker_holds_lock():
+        try:
+            outcomes.append(reconcile_once(tmp_path, store, include_worktrees=False))
+        except BaseException as error:
+            failures.append(error)
+        finally:
+            completed.set()
+
+    worker = threading.Thread(target=reconcile_while_worker_holds_lock)
+    try:
+        with acquire_run_lock(tmp_path, "active", owner="worker:active", blocking=True):
+            worker.start()
+            bounded = completed.wait(timeout=0.5)
+            if bounded:
+                skipped = outcomes[0]
+                assert skipped.action_for("active") is None
+                assert skipped.action_for("unlocked") is not None
+                assert store.get_run("active") == initial_projection
+                assert store.get_action(active_action.action_id).status == "leased"
+                assert store.count("actions") == actions_before
+                assert store.count("user_decisions") == decisions_before
+    finally:
+        worker.join(timeout=2)
+
+    assert bounded
+    assert not worker.is_alive()
+    assert failures == []
+    recovered = reconcile_once(tmp_path, store, include_worktrees=False)
+    assert recovered.action_for("active") is not None
+    assert store.get_run("active")["revision"] == 1
+    assert store.count("user_decisions") == decisions_before
+    store.close()
 
 
 def test_reconcile_does_not_close_global_decision_updated_after_observation(
@@ -517,6 +580,90 @@ def test_continuation_is_queued_with_stable_identity_and_not_created(tmp_path):
     ]
 
 
+def test_legacy_continuation_uses_projected_lineage_and_preserves_reviewer_cadence(
+    tmp_path,
+):
+    seed_run(
+        tmp_path,
+        "legacy-root",
+        phase="stopped_budget",
+        next_action="none",
+        last_result="pass",
+        task_id="legacy-root-parent-1",
+        parent_task_counter=1,
+        _autonomous_completed_task_ids=["parent-1"],
+    )
+    source = create_preflight_run(
+        tmp_path,
+        "autonomous-knowledge",
+        "Continue the legacy lineage.",
+        "legacy-source",
+        domain="ai_infra",
+        constraints=[],
+        stop_conditions=["stopped_budget"],
+        confirm=True,
+    )
+    source.update(
+        {
+            "phase": "stopped_budget",
+            "next_action": "none",
+            "last_result": "pass",
+            "previous_run_id": "legacy-root",
+        }
+    )
+    (tmp_path / ".codex" / "loop-runs" / "legacy-source" / "run.json").write_text(
+        json.dumps(source, indent=2) + "\n", encoding="utf-8"
+    )
+    store = migrated_store(tmp_path)
+
+    first = reconcile_once(tmp_path, store)
+
+    action = first.action_for("legacy-source")
+    assert action is not None
+    assert action.action_type is ActionType.CREATE_CONTINUATION
+    assert store.get_run("legacy-root")["loop_lineage_id"] == "legacy-root"
+    assert store.get_run("legacy-source")["loop_lineage_id"] == "legacy-root"
+    assert json.loads(store.get_run("legacy-source")["summary"]["summary"])[
+        "loop_lineage_id"
+    ] == "legacy-root"
+    assert action.payload_for_storage()["loop_lineage_id"] == "legacy-root"
+    assert action.payload_for_storage()["continuation_identity"]["loop_lineage_id"] == (
+        "legacy-root"
+    )
+
+    result = execute_action(action, tmp_path)
+
+    assert result.result_class.value == "success", result.summary
+    continuation_path = next(
+        path
+        for path in (tmp_path / ".codex" / "loop-runs").glob("*/run.json")
+        if path.parent.name not in {"legacy-root", "legacy-source"}
+    )
+    continuation = json.loads(continuation_path.read_text(encoding="utf-8"))
+    assert continuation["loop_lineage_id"] == "legacy-root"
+    continuation.update(
+        {
+            "phase": "stopped_budget",
+            "next_action": "none",
+            "last_result": "pass",
+            "task_id": "legacy-continuation-parent-2",
+            "parent_task_counter": 2,
+            "_autonomous_completed_task_ids": ["parent-2"],
+        }
+    )
+    continuation_path.write_text(
+        json.dumps(continuation, indent=2) + "\n", encoding="utf-8"
+    )
+
+    second = reconcile_once(tmp_path, store)
+
+    assert store.get_run(continuation["run_id"])["loop_lineage_id"] == "legacy-root"
+    assert any(
+        queued.action_type is ActionType.RUN_REVIEWER
+        for queued in second.queued_actions
+    )
+
+
 def test_stopped_budget_non_leaf_does_not_queue_parallel_continuation(tmp_path):
     seed_stopped_budget_run(tmp_path, "parent", parent_counter=14)
     seed_run(tmp_path, "child", previous_run_id="parent")
@@ -527,6 +674,185 @@ def test_stopped_budget_non_leaf_does_not_queue_parallel_continuation(tmp_path):
     assert result.action_for("parent") is None
     assert result.action_for("child").action_type is ActionType.RUN_PLANNER
     assert store.count("actions") == 1
+
+
+def test_busy_child_projection_still_suppresses_parent_continuation(tmp_path):
+    seed_stopped_budget_run(tmp_path, "parent", parent_counter=14)
+    child_path = seed_run(tmp_path, "child", previous_run_id="parent")
+    child_payload = json.loads(child_path.read_text(encoding="utf-8"))
+    store = migrated_store(tmp_path)
+    initial = reconcile_once(tmp_path, store, include_worktrees=False)
+    child_action = initial.action_for("child")
+    assert initial.action_for("parent") is None
+    assert child_action is not None
+    leased = store.claim_pending_action(
+        child_action.action_id,
+        "child-worker",
+        lease_seconds=60,
+        expected_queue_owner=ActionOwner.WORKER,
+    )
+    assert leased is not None
+
+    with acquire_run_lock(tmp_path, "child", owner="worker:child", blocking=True):
+        untrusted_payload = {**child_payload, "previous_run_id": "forged-parent"}
+        child_path.write_text(json.dumps(untrusted_payload) + "\n", encoding="utf-8")
+        try:
+            busy = reconcile_once(tmp_path, store, include_worktrees=False)
+
+            assert busy.action_for("parent") is None
+            assert busy.action_for("child") is None
+            assert store.get_action(child_action.action_id).status == "leased"
+            assert store.count("actions") == 1
+        finally:
+            child_path.write_text(json.dumps(child_payload) + "\n", encoding="utf-8")
+
+    unlocked = reconcile_once(tmp_path, store, include_worktrees=False)
+    assert unlocked.action_for("parent") is None
+    assert unlocked.action_for("child").action_id == child_action.action_id
+    assert store.get_action(child_action.action_id).status == "leased"
+    store.close()
+
+
+def test_busy_forged_lineage_does_not_pollute_legacy_grandchild_projection(tmp_path):
+    seed_run(tmp_path, "root", loop_lineage_id="trusted-lineage")
+    child_path = seed_run(
+        tmp_path,
+        "child",
+        previous_run_id="root",
+        loop_lineage_id="trusted-lineage",
+    )
+    child_payload = json.loads(child_path.read_text(encoding="utf-8"))
+    grandchild_path = seed_run(
+        tmp_path,
+        "grandchild",
+        previous_run_id="child",
+        loop_lineage_id="trusted-lineage",
+    )
+    store = migrated_store(tmp_path)
+    reconcile_once(tmp_path, store, include_worktrees=False)
+    grandchild_payload = json.loads(grandchild_path.read_text(encoding="utf-8"))
+    grandchild_payload.pop("loop_lineage_id")
+    grandchild_payload["last_result"] = "legacy state changed"
+    grandchild_path.write_text(json.dumps(grandchild_payload) + "\n", encoding="utf-8")
+
+    with acquire_run_lock(tmp_path, "child", owner="worker:child", blocking=True):
+        untrusted_payload = {**child_payload, "loop_lineage_id": "forged-lineage"}
+        child_path.write_text(json.dumps(untrusted_payload) + "\n", encoding="utf-8")
+        try:
+            reconcile_once(tmp_path, store, include_worktrees=False)
+
+            assert store.get_run("child")["loop_lineage_id"] == "trusted-lineage"
+            assert store.get_run("grandchild")["loop_lineage_id"] == "trusted-lineage"
+        finally:
+            child_path.write_text(json.dumps(child_payload) + "\n", encoding="utf-8")
+
+    reconcile_once(tmp_path, store, include_worktrees=False)
+    assert store.get_run("grandchild")["loop_lineage_id"] == "trusted-lineage"
+    store.close()
+
+
+def test_busy_forged_worktree_does_not_global_stop_unlocked_run(tmp_path):
+    busy_path = seed_run(tmp_path, "busy")
+    busy_payload = json.loads(busy_path.read_text(encoding="utf-8"))
+    store = migrated_store(tmp_path)
+    reconcile_once(tmp_path, store, include_worktrees=False)
+    seed_run(tmp_path, "unlocked")
+
+    with acquire_run_lock(tmp_path, "busy", owner="worker:busy", blocking=True):
+        forged = {**busy_payload, "worktree": str(tmp_path.parent / "forged-owner")}
+        busy_path.write_text(json.dumps(forged) + "\n", encoding="utf-8")
+        try:
+            result = reconcile_once(tmp_path, store, include_worktrees=False)
+
+            assert result.action_for("unlocked") is not None
+            assert not any(
+                decision.get("scope") == "global"
+                for decision in result.open_user_decisions
+            )
+        finally:
+            busy_path.write_text(json.dumps(busy_payload) + "\n", encoding="utf-8")
+    store.close()
+
+
+def test_busy_parent_projection_gives_legacy_child_lineage_without_review(tmp_path):
+    seed_run(
+        tmp_path,
+        "parent",
+        loop_lineage_id="trusted-lineage",
+        _autonomous_completed_task_ids=["parent-1"],
+    )
+    store = migrated_store(tmp_path)
+    reconcile_once(tmp_path, store, include_worktrees=False)
+    seed_run(
+        tmp_path,
+        "legacy-child",
+        previous_run_id="parent",
+        task_id="legacy-child-parent-2",
+        parent_task_counter=2,
+        _autonomous_completed_task_ids=["parent-2"],
+    )
+
+    with acquire_run_lock(tmp_path, "parent", owner="worker:parent", blocking=True):
+        busy = reconcile_once(tmp_path, store, include_worktrees=False)
+
+        assert store.get_run("legacy-child")["loop_lineage_id"] == "trusted-lineage"
+        assert not any(
+            action.action_type is ActionType.RUN_REVIEWER
+            for action in busy.queued_actions
+        )
+        assert not any(
+            row["action_type"] == ActionType.RUN_REVIEWER.value
+            for row in store.fetch_all("actions")
+        )
+
+    unlocked = reconcile_once(tmp_path, store, include_worktrees=False)
+    assert any(
+        action.action_type is ActionType.RUN_REVIEWER
+        for action in unlocked.queued_actions
+    )
+    store.close()
+
+
+def test_busy_run_record_payload_is_sanitized_in_reconcile_result(tmp_path):
+    run_path = seed_run(tmp_path, "busy")
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    store = migrated_store(tmp_path)
+    reconcile_once(tmp_path, store, include_worktrees=False)
+
+    with acquire_run_lock(tmp_path, "busy", owner="worker:busy", blocking=True):
+        run_path.write_text(
+            json.dumps({**payload, "requirement": "untrusted in-flight value"}) + "\n",
+            encoding="utf-8",
+        )
+        try:
+            result = reconcile_once(tmp_path, store, include_worktrees=False)
+        finally:
+            run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    busy_record = next(record for record in result.run_records if record.run_id == "busy")
+    assert busy_record.payload == {}
+    store.close()
+
+
+def test_reconcile_excludes_busy_runs_from_reviewer_scheduling(
+    tmp_path, monkeypatch
+):
+    from scripts.loop_supervisor import reconciler
+
+    seed_run(tmp_path, "busy")
+    observed_busy_run_ids: list[set[str]] = []
+
+    def capture_schedule(_store, *, now, busy_run_ids):
+        assert now is not None
+        observed_busy_run_ids.append(set(busy_run_ids))
+        return []
+
+    monkeypatch.setattr(reconciler, "schedule_due_reviews", capture_schedule)
+    with migrated_store(tmp_path) as store:
+        with acquire_run_lock(tmp_path, "busy", owner="worker:busy", blocking=True):
+            reconciler.reconcile_once(tmp_path, store, include_worktrees=False)
+
+    assert observed_busy_run_ids == [{"busy"}]
 
 
 def test_legacy_run_upgrades_revision_once_when_state_changes(tmp_path):
@@ -603,6 +929,21 @@ def test_discovery_reads_root_and_contained_non_symlink_worktree(tmp_path):
     assert records[1].repo_root == worktree.resolve()
 
 
+def test_prelock_discovery_returns_only_path_metadata(tmp_path):
+    seed_run(
+        tmp_path,
+        "candidate",
+        requirement="payload must not cross the pre-lock boundary",
+        unsafe_secret=True,
+    )
+
+    records = discover_run_records(tmp_path, include_worktrees=False)
+
+    assert len(records) == 1
+    assert records[0].run_id == "candidate"
+    assert records[0].payload == {}
+
+
 def test_reconcile_action_carries_repo_relative_execution_root(tmp_path):
     worktree = tmp_path / ".worktrees" / "child"
     seed_run(worktree, "worktree-run")
@@ -658,7 +999,7 @@ def test_duplicate_directory_run_id_invalidates_every_record(tmp_path, root_vali
     assert result.open_user_decisions[0]["scope"] == "global"
 
 
-def test_discovery_rejects_symlinked_worktree_and_escaped_run_file(tmp_path):
+def test_discovery_defers_run_file_validation_until_locked_reread(tmp_path):
     outside = tmp_path.parent / f"{tmp_path.name}-outside"
     seed_run(outside, "outside-run")
     worktrees = tmp_path / ".worktrees"
@@ -673,10 +1014,25 @@ def test_discovery_rejects_symlinked_worktree_and_escaped_run_file(tmp_path):
     records = discover_run_records(tmp_path)
 
     assert not any(record.run_id == "outside-run" for record in records)
-    assert sum(record.ownership_failure for record in records) == 2
+    assert sum(record.ownership_failure for record in records) == 1
+    escaped = next(record for record in records if record.run_id == "escaped")
+    assert escaped.valid is True
+    assert escaped.payload == {}
+
+    with migrated_store(tmp_path) as store:
+        result = reconcile_once(tmp_path, store)
+
+    assert any(
+        record.directory_run_id == "escaped" and record.ownership_failure
+        for record in result.run_records
+    )
+    assert any(
+        decision.get("scope") == "global"
+        for decision in result.open_user_decisions
+    )
 
 
-def test_discovery_rejects_run_json_symlink_swap_after_validation(
+def test_secure_reread_rejects_run_json_symlink_swap_after_validation(
     tmp_path, monkeypatch
 ):
     run_path = seed_run(tmp_path, "swap-run")
@@ -698,12 +1054,14 @@ def test_discovery_rejects_run_json_symlink_swap_after_validation(
 
     monkeypatch.setattr(reconciler, "_require_contained_non_symlink", swap_after_check)
 
-    records = discover_run_records(tmp_path)
+    with migrated_store(tmp_path) as store:
+        result = reconcile_once(tmp_path, store, include_worktrees=False)
 
-    assert len(records) == 1
-    assert records[0].directory_run_id == "swap-run"
-    assert records[0].ownership_failure is True
-    assert records[0].payload == {}
+    assert len(result.run_records) == 1
+    assert result.run_records[0].directory_run_id == "swap-run"
+    assert result.run_records[0].ownership_failure is True
+    assert result.run_records[0].payload == {}
+    assert result.open_user_decisions[0]["scope"] == "global"
 
 
 @pytest.mark.parametrize(

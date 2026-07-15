@@ -13,6 +13,7 @@ import pytest
 
 from scripts.harness_loop_runtime_lock import RunLockBusy, acquire_repository_mutation_lock
 from scripts.loop_supervisor.models import (
+    ActionOwner,
     ActionRequest,
     ActionResult,
     ActionResultClass,
@@ -22,6 +23,28 @@ from scripts.loop_supervisor.store import SupervisorStore
 from scripts.loop_supervisor.reconciler import reconcile_once
 import scripts.harness_loop_orchestrator as legacy
 import scripts.loop_supervisor.reconciler as reconciler_module
+
+
+@pytest.fixture(autouse=True)
+def _use_fake_agent_driver_for_worker_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOOP_SUPERVISOR_AGENT_DRIVER", "fake")
+
+
+def test_bounded_worker_defaults_unspecified_agent_driver_to_codex_exec() -> None:
+    request = ActionRequest(
+        action_id="action-default-driver",
+        run_id="run-default-driver",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_PLANNER,
+        idempotency_key="default-driver",
+        payload={},
+    )
+
+    assert legacy._bounded_driver(request, "planner") == "codex-exec"
 
 
 def _valid_run_payload(
@@ -116,6 +139,48 @@ def _seed_action(
 
 def _success(summary: str = "bounded action completed") -> ActionResult:
     return ActionResult(ActionResultClass.SUCCESS, summary)
+
+
+def test_worker_does_not_lease_supervisor_owned_service_restart(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.loop_supervisor import worker as worker_runtime
+
+    request = ActionRequest(
+        action_id="service-restart-loop-dashboard-outage-1",
+        run_id="service-keeper",
+        run_revision=0,
+        policy="autonomous_knowledge",
+        phase="repair_needed",
+        action_type=ActionType.RESTART_SERVICE,
+        idempotency_key="service-restart:loop-dashboard:outage-1",
+        queue_owner=ActionOwner.SUPERVISOR,
+        repo_relative_root=".",
+        task_id="service:loop-dashboard",
+        next_action=ActionType.RESTART_SERVICE.value,
+        payload={"service_id": "loop-dashboard", "outage_id": "outage-1"},
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        store.enqueue_action(request)
+
+    monkeypatch.setattr(
+        worker_runtime,
+        "execute_action",
+        lambda *_args: pytest.fail("Worker executed Supervisor-owned restart"),
+    )
+
+    result = worker_runtime.worker_once(tmp_path, "worker-01")
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = store.get_action(request.action_id)
+        attempts = store.fetch_all("action_attempts")
+
+    assert result.status == "idle"
+    assert action.status == "pending"
+    assert attempts == []
 
 
 def _create_demand_parent(root: Path, run_id: str) -> dict[str, object]:
@@ -342,6 +407,32 @@ def test_worker_executes_exactly_one_action(
         store.migrate()
         statuses = {row["action_id"]: row["status"] for row in store.fetch_all("actions")}
     assert statuses == {"action-1": "completed", "action-2": "pending"}
+
+
+def test_worker_uses_configured_default_agent_driver_for_runtime_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    action = _seed_action(tmp_path, action_id="action-live-driver")
+    with SupervisorStore.open(tmp_path) as store:
+        store._connection.execute(
+            "UPDATE actions SET payload_json = '{}' WHERE action_id = ?",
+            (action.action_id,),
+        )
+    observed: list[str] = []
+
+    def execute(request: ActionRequest, _root: Path) -> ActionResult:
+        observed.append(str(request.payload.get("driver") or ""))
+        return _success()
+
+    monkeypatch.setenv("LOOP_SUPERVISOR_AGENT_DRIVER", "codex-exec")
+    monkeypatch.setattr(worker, "execute_action", execute)
+
+    result = worker.worker_once(tmp_path, "live-driver-worker")
+
+    assert result.status == "completed"
+    assert observed == ["codex-exec"]
 
 
 @pytest.mark.parametrize(
@@ -1211,6 +1302,75 @@ def test_bounded_worker_commit_enforces_active_safety_gates(
         assert "undeclared paths: rogue.txt" in evidence["error"]
 
 
+def test_recovered_generator_protects_new_unrelated_dirt_then_commits_declared_paths(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    run_id = "recovered-live-dirt"
+    generator_result = _prepare_autonomous_commit_gate(tmp_path, run_id)
+    changed_paths = [str(path) for path in generator_result["changed_paths"]]
+    generator_result["recovery"] = {
+        "recovered_from_attempts": [3, 4],
+        "attempt_hashes": {},
+        "attempt_stream_hashes": {},
+        "artifact_hashes": {
+            path: hashlib.sha256((tmp_path / path).read_bytes()).hexdigest()
+            for path in changed_paths
+        },
+        "checks": ["generator_contract"],
+        "recovered_at": "2026-07-15T14:00:00+00:00",
+        "next_required_action": ActionType.RUN_EVALUATOR.value,
+    }
+    run_dir = legacy.run_dir_for(tmp_path, run_id)
+    legacy.write_json_file(run_dir / "generator-result.json", generator_result)
+    unrelated = tmp_path / "crawler-owned-unrelated.txt"
+    unrelated.write_text("must remain uncommitted\n", encoding="utf-8")
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        commit = reconcile_once(tmp_path, store, include_worktrees=False).action_for(run_id)
+    assert commit is not None
+    assert commit.action_type is ActionType.COMMIT
+    assert worker_once(tmp_path, "recovered-live-dirt-commit").status == "failed"
+
+    with SupervisorStore.open(tmp_path) as store:
+        recovery = reconcile_once(tmp_path, store, include_worktrees=False).action_for(run_id)
+    assert recovery is not None
+    assert recovery.action_type is ActionType.RECOVER_GENERATOR_RESULT
+    recovered = worker_once(tmp_path, "recovered-live-dirt-recovery")
+
+    assert recovered.status == "completed"
+    resumed = legacy.load_run(tmp_path, run_id)
+    assert resumed["phase"] == "cleanup"
+    assert resumed["next_action"] == "commit_autonomous_changes"
+    assert "?? crawler-owned-unrelated.txt" in resumed["baseline_dirty_paths"]
+
+    with SupervisorStore.open(tmp_path) as store:
+        retried_commit = reconcile_once(
+            tmp_path, store, include_worktrees=False
+        ).action_for(run_id)
+    assert retried_commit is not None
+    assert retried_commit.action_type is ActionType.COMMIT
+    assert worker_once(tmp_path, "recovered-live-dirt-final-commit").status == "completed"
+    committed_paths = subprocess.run(
+        ["git", "show", "--pretty=format:", "--name-only", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert sorted(path for path in committed_paths if path) == sorted(changed_paths)
+    assert unrelated.exists()
+    assert "?? crawler-owned-unrelated.txt" in subprocess.run(
+        ["git", "status", "--short", "--", unrelated.name],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
 def test_bounded_worker_commit_checks_scope_before_supply_chain(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1284,7 +1444,7 @@ def test_demand_cleanup_remains_generic_and_waits_for_human_merge(
     assert final["next_action"] == "await_human_merge_confirmation"
 
 
-def test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock(
+def test_reconciler_skips_worker_owned_run_until_the_next_tick(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from scripts.loop_supervisor import worker
@@ -1352,23 +1512,24 @@ def test_reconciler_waits_for_worker_finalize_and_completion_under_run_lock(
     reconcile_thread.start()
     assert reconcile_attempted.wait(timeout=2)
     assert not reconcile_acquired.wait(timeout=0.1)
-    assert reconcile_thread.is_alive()
-    assert reconcile_result == []
+    reconcile_thread.join(timeout=1)
+    assert not reconcile_thread.is_alive()
+    assert len(reconcile_result) == 1
+    assert reconcile_result[0].action_for("race-run") is None
+    assert reconcile_result[0].open_user_decisions == []
 
     release_handler.set()
     worker_thread.join(timeout=3)
-    reconcile_thread.join(timeout=3)
     assert not worker_thread.is_alive()
-    assert not reconcile_thread.is_alive()
 
     completed = worker_result[0]
-    reconciled = reconcile_result[0]
     assert completed.status == "completed"
     assert completed.status != "lease_lost"
     run = legacy.load_run(tmp_path, "race-run")
     assert run["state_revision"] == 1
     with SupervisorStore.open(tmp_path) as store:
         store.migrate()
+        reconciled = reconcile_once(tmp_path, store, include_worktrees=False)
         planner_row = store.get_action(planner.action_id)
         projected = store.get_run("race-run")
         pending = [
@@ -1623,6 +1784,47 @@ def test_successful_worker_stages_legacy_saves_and_commits_one_revision(
     assert persisted["phase"] == "generating"
     assert persisted["next_action"] == "run_autonomous_generator"
     assert persisted["state_revision"] == 1
+
+
+def test_failed_unchanged_action_keeps_revision_and_enters_backoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.loop_supervisor import worker
+
+    run_id = "unchanged-failure"
+    run_dir = tmp_path / ".codex" / "loop-runs" / run_id
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.json"
+    run_path.write_text(
+        json.dumps(_valid_run_payload(tmp_path, run_id)) + "\n",
+        encoding="utf-8",
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(run_id)
+    assert action is not None
+
+    monkeypatch.setattr(
+        worker,
+        "execute_action",
+        lambda _request, _root: ActionResult(
+            ActionResultClass.RETRYABLE_FAILURE,
+            "diagnostic recovery precondition is still blocked",
+            failure_key="runtime:unchanged-diagnostic",
+            error_class="RuntimeError",
+        ),
+    )
+
+    result = worker.worker_once(tmp_path, "unchanged-failure-worker")
+
+    assert result.status == "failed"
+    assert json.loads(run_path.read_text(encoding="utf-8"))["state_revision"] == 0
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        repeated = reconcile_once(tmp_path, store, include_worktrees=False)
+        actions = [row for row in store.fetch_all("actions") if row["run_id"] == run_id]
+    assert repeated.action_for(run_id) is None
+    assert [row["action_id"] for row in actions] == [action.action_id]
 
 
 def test_worker_executes_worktree_action_without_writing_main_checkout(

@@ -4,16 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
+import time
 from typing import Any, Mapping
 from uuid import uuid4
 
 from scripts.harness_loop_agents import validate_owned_regular_file
 from scripts.harness_loop_contracts import validate_run_payload
+from scripts.harness_loop_runtime_lock import acquire_run_lock
 
 from .safety_signals import detected_global_safety_signals
 from .models import ActionOwner, validate_repo_relative_root
 from .store import LeaseError, SupervisorStore
+
+
+_PROJECTION_CONSISTENCY_ATTEMPTS = 20
+_PROJECTION_CONSISTENCY_RETRY_SECONDS = 0.01
 
 
 @dataclass(frozen=True)
@@ -89,8 +95,6 @@ def require_review_safety_clear(store: SupervisorStore) -> None:
 
 
 def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]:
-    from .reconciler import _state_fingerprint, _state_revision
-
     detected: set[tuple[str, str]] = set()
     runs = {str(row.get("run_id") or ""): row for row in store.fetch_all("runs")}
     for action in store.fetch_all("actions"):
@@ -103,6 +107,8 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
             continue
         run_id = str(action.get("run_id") or "")
         projection = runs.get(run_id)
+        if projection is None and _is_canonical_service_keeper_action(action):
+            continue
         if projection is None or str(projection.get("repo_relative_root") or ".") != str(
             action.get("repo_relative_root") or "."
         ):
@@ -110,52 +116,7 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
     for row in runs.values():
         run_id = str(row.get("run_id") or "")
         try:
-            summary = json.loads(str(row.get("summary_json") or "{}"))
-        except json.JSONDecodeError:
-            detected.add((run_id, "repo_corruption"))
-            continue
-        try:
-            refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
-            repo_relative_root = validate_repo_relative_root(
-                row.get("repo_relative_root", ".")
-            )
-            expected_parts = (
-                *PurePosixPath(repo_relative_root).parts,
-                ".codex",
-                "loop-runs",
-                run_id,
-                "run.json",
-            )
-            canonical_refs = [
-                value
-                for value in refs
-                if isinstance(value, str)
-                and not PurePosixPath(value).is_absolute()
-                and PurePosixPath(value).as_posix() == value
-                and tuple(PurePosixPath(value).parts) == expected_parts
-            ]
-            if len(canonical_refs) != 1:
-                raise ValueError("run projection lacks one canonical run.json reference")
-            run_ref = canonical_refs[0]
-            path = store.project_root.joinpath(*PurePosixPath(run_ref).parts)
-            owned = validate_owned_regular_file(
-                store.project_root,
-                path,
-                "Reviewer safety run state",
-            )
-            payload = json.loads(owned.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                raise ValueError("run state must be an object")
-            validate_run_payload(payload)
-            if payload["run_id"] != run_id:
-                raise ValueError("canonical run state run_id does not match projection")
-            if _state_revision(payload) != int(row["revision"]):
-                if not _matches_pending_outbox_transition(store, row, payload):
-                    raise ValueError("canonical run state revision does not match projection")
-            fingerprint = str(row.get("state_fingerprint") or "")
-            if not fingerprint or _state_fingerprint(payload) != fingerprint:
-                if not _matches_pending_outbox_transition(store, row, payload):
-                    raise ValueError("canonical run state fingerprint does not match projection")
+            payload = _stable_canonical_run_payload(store, run_id)
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             detected.add((run_id, "repo_corruption"))
             continue
@@ -166,6 +127,127 @@ def _fresh_global_safety_signals(store: SupervisorStore) -> list[dict[str, str]]
         {"run_id": run_id, "signal": signal}
         for run_id, signal in sorted(detected)
     ]
+
+
+def _is_canonical_service_keeper_action(action: Mapping[str, Any]) -> bool:
+    from .services import validate_service_keeper_action
+
+    try:
+        validate_service_keeper_action(action)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _stable_canonical_run_payload(
+    store: SupervisorStore,
+    run_id: str,
+) -> dict[str, Any]:
+    from .reconciler import _state_fingerprint, _state_revision
+
+    for attempt in range(_PROJECTION_CONSISTENCY_ATTEMPTS):
+        before = _run_projection(store, run_id)
+        execution_root, _path = _canonical_run_location(store, before)
+        with acquire_run_lock(
+            execution_root,
+            run_id,
+            owner="supervisor-review-safety",
+            blocking=True,
+        ):
+            locked = _run_projection(store, run_id)
+            locked_root, path = _canonical_run_location(store, locked)
+            if locked_root != execution_root:
+                continue
+            owned = validate_owned_regular_file(
+                store.project_root,
+                path,
+                "Reviewer safety run state",
+            )
+            payload = json.loads(owned.read_text(encoding="utf-8"))
+            after = _run_projection(store, run_id)
+        if _projection_anchor(locked) != _projection_anchor(after):
+            _wait_for_projection(attempt)
+            continue
+        if not isinstance(payload, dict):
+            raise ValueError("run state must be an object")
+        validate_run_payload(payload)
+        if payload["run_id"] != run_id:
+            raise ValueError("canonical run state run_id does not match projection")
+        actual_revision = _state_revision(payload)
+        projected_revision = int(after["revision"])
+        actual_fingerprint = _state_fingerprint(payload)
+        projected_fingerprint = str(after.get("state_fingerprint") or "")
+        if (
+            actual_revision == projected_revision
+            and projected_fingerprint
+            and actual_fingerprint == projected_fingerprint
+        ):
+            return payload
+        if _matches_pending_outbox_transition(store, after, payload):
+            return payload
+        if actual_revision != projected_revision + 1:
+            raise ValueError("canonical run state revision does not match projection")
+        _wait_for_projection(attempt)
+    raise ValueError("canonical run state projection did not become consistent")
+
+
+def _wait_for_projection(attempt: int) -> None:
+    if attempt + 1 < _PROJECTION_CONSISTENCY_ATTEMPTS:
+        time.sleep(_PROJECTION_CONSISTENCY_RETRY_SECONDS)
+
+
+def _run_projection(store: SupervisorStore, run_id: str) -> Mapping[str, Any]:
+    matches = [
+        row
+        for row in store.fetch_all("runs")
+        if str(row.get("run_id") or "") == run_id
+    ]
+    if len(matches) != 1:
+        raise ValueError("run projection is missing or duplicated")
+    return matches[0]
+
+
+def _canonical_run_location(
+    store: SupervisorStore,
+    run: Mapping[str, Any],
+) -> tuple[Path, Path]:
+    summary = json.loads(str(run.get("summary_json") or "{}"))
+    refs = summary.get("artifact_refs", []) if isinstance(summary, Mapping) else []
+    repo_relative_root = validate_repo_relative_root(
+        run.get("repo_relative_root", ".")
+    )
+    expected_parts = (
+        *PurePosixPath(repo_relative_root).parts,
+        ".codex",
+        "loop-runs",
+        str(run.get("run_id") or ""),
+        "run.json",
+    )
+    canonical_refs = [
+        value
+        for value in refs
+        if isinstance(value, str)
+        and not PurePosixPath(value).is_absolute()
+        and PurePosixPath(value).as_posix() == value
+        and tuple(PurePosixPath(value).parts) == expected_parts
+    ]
+    if len(canonical_refs) != 1:
+        raise ValueError("run projection lacks one canonical run.json reference")
+    execution_root = store.project_root.joinpath(
+        *PurePosixPath(repo_relative_root).parts
+    ).resolve()
+    execution_root.relative_to(store.project_root)
+    path = store.project_root.joinpath(*PurePosixPath(canonical_refs[0]).parts)
+    return execution_root, path
+
+
+def _projection_anchor(run: Mapping[str, Any]) -> tuple[int, str, str, str]:
+    return (
+        int(run["revision"]),
+        str(run.get("state_fingerprint") or ""),
+        str(run.get("repo_relative_root") or "."),
+        str(run.get("summary_json") or ""),
+    )
 
 
 def _matches_pending_outbox_transition(
@@ -206,12 +288,16 @@ def _matches_pending_outbox_transition(
         ):
             continue
         expected_revision = target.get("expected_revision")
+        expected_fingerprint = str(target.get("expected_fingerprint") or "")
         expected_post_write_fingerprint = str(
             target.get("expected_post_write_fingerprint") or ""
         )
         if (
             not isinstance(expected_revision, int)
             or isinstance(expected_revision, bool)
+            or expected_revision != int(run["revision"])
+            or not expected_fingerprint
+            or expected_fingerprint != str(run.get("state_fingerprint") or "")
             or not expected_post_write_fingerprint
         ):
             continue

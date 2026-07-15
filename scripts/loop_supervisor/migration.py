@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+import fcntl
 import hashlib
 import json
 import os
@@ -22,18 +23,20 @@ from uuid import uuid4
 from scripts.harness_loop_runtime_lock import (
     RunLockBusy,
     acquire_repository_mutation_lock,
+    acquire_run_lock,
+    acquire_runtime_database_maintenance_lock,
 )
 
 from .reconciler import (
     _decision_requirement,
     _projection,
-    _state_fingerprint,
     _state_revision,
     _open_directory_chain,
     _project_reconcile_lock,
+    discover_run_candidates,
     desired_action_for_run,
-    discover_run_records,
     infer_loop_lineages,
+    read_quiesced_run_records,
 )
 from .models import ActionType
 from .reviewer import REVIEW_INTERVAL_PARENTS, _completion_ids
@@ -262,13 +265,85 @@ def inventory_runtime(project_root: Path) -> RuntimeInventory:
     )
 
 
+@contextmanager
+def acquire_migration_quiescence(
+    project_root: Path, *, owner: str
+) -> Iterator[None]:
+    """Fail closed unless migration owns every lock that protects its snapshot."""
+    root = Path(project_root).resolve()
+    try:
+        with acquire_runtime_database_maintenance_lock(
+            root, owner=owner
+        ), _migration_reconcile_lock(root), acquire_repository_mutation_lock(
+            root, owner=owner
+        ):
+            with ExitStack() as run_locks:
+                locked_runs: set[tuple[Path, str]] = set()
+                for candidate in sorted(
+                    discover_run_candidates(root),
+                    key=lambda item: (str(item.repo_root), item.directory_run_id),
+                ):
+                    run_id = candidate.directory_run_id
+                    if not run_id:
+                        raise MigrationValidationError(
+                            "migration requires quiescence; discovered a run candidate "
+                            "without a lockable run id"
+                        )
+                    identity = (candidate.repo_root.resolve(), run_id)
+                    if identity in locked_runs:
+                        continue
+                    run_locks.enter_context(
+                        acquire_run_lock(
+                            identity[0], run_id, owner=owner, blocking=False
+                        )
+                    )
+                    locked_runs.add(identity)
+                yield
+    except RunLockBusy as exc:
+        owner_detail = f" by {exc.current_owner}" if exc.current_owner else ""
+        raise MigrationValidationError(
+            "migration requires quiescence; "
+            f"{exc.run_id} lock is held{owner_detail}"
+        ) from exc
+
+
+@contextmanager
+def _migration_reconcile_lock(root: Path) -> Iterator[None]:
+    """Acquire the reconciler's lock without waiting behind an active Supervisor."""
+    with _open_directory_chain(
+        root, (".codex", "supervisor"), create=True
+    ) as directory_fd:
+        fd = os.open(
+            "reconcile.lock",
+            os.O_RDWR
+            | os.O_CREAT
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+            dir_fd=directory_fd,
+        )
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise MigrationValidationError(
+                    "migration requires quiescence; reconcile lock is held"
+                ) from exc
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
 def migrate_jsonl(
     project_root: Path,
     store: SupervisorStore,
     *,
     dry_run: bool,
 ) -> MigrationReport:
-    """Stream legacy JSONL, compact repeated ticks, and rebuild projections."""
+    """Stream legacy JSONL under a caller-owned quiesced runtime snapshot."""
     root = Path(project_root).resolve()
     if store.project_root != root:
         raise ValueError("Supervisor store does not belong to project_root")
@@ -283,7 +358,7 @@ def migrate_jsonl(
         root, quarantine, scan_counts
     )
     _merge_decision_failures(failures, decisions)
-    records = [record for record in discover_run_records(root) if record.valid]
+    records = [record for record in read_quiesced_run_records(root) if record.valid]
     _bind_archived_decisions_to_source_state(decisions)
     services = _scan_services(root, quarantine, scan_counts)
     if _capture_cleanup_sources(root) != source_artifacts:
@@ -444,7 +519,7 @@ def _shadow_compare_copied_root(root: Path) -> ShadowComparisonReport:
     legacy = _latest_legacy_decisions(root)
     differences: list[ShadowDifference] = []
     counts = defaultdict(int)
-    records = [record for record in discover_run_records(root) if record.valid]
+    records = [record for record in read_quiesced_run_records(root) if record.valid]
     child_sources = {
         str(record.payload.get("previous_run_id") or record.payload.get("parent_run_id") or "")
         for record in records
@@ -517,6 +592,7 @@ def cleanup_legacy_runtime(
     comparison: ShadowComparisonReport,
     *,
     store: SupervisorStore,
+    quiescence_held: bool = False,
 ) -> tuple[str, ...]:
     """Remove only known legacy runtime files after both migration gates pass."""
     root = Path(project_root).resolve()
@@ -527,23 +603,31 @@ def cleanup_legacy_runtime(
     if Path(migration.project_root).resolve() != root:
         raise MigrationValidationError("migration report belongs to another project root")
     _assert_cleanup_ownership(root)
+    if quiescence_held:
+        return _cleanup_legacy_runtime_locked(root, store, migration)
     try:
         with _project_reconcile_lock(root), acquire_repository_mutation_lock(
             root, owner=f"migration-cleanup:{os.getpid()}"
         ):
-            if not validate_migration(root, store, migration):
-                raise MigrationValidationError(
-                    "legacy cleanup requires current exact migration validation"
-                )
-            if _capture_cleanup_sources(root) != migration.source_artifacts:
-                raise MigrationValidationError(
-                    "legacy cleanup source artifacts changed since migration"
-                )
-            return _delete_cleanup_sources(root)
+            return _cleanup_legacy_runtime_locked(root, store, migration)
     except RunLockBusy as exc:
         raise MigrationValidationError(
             f"legacy cleanup requires quiescence; repository lock is held: {exc}"
         ) from exc
+
+
+def _cleanup_legacy_runtime_locked(
+    root: Path, store: SupervisorStore, migration: MigrationReport
+) -> tuple[str, ...]:
+    if not validate_migration(root, store, migration):
+        raise MigrationValidationError(
+            "legacy cleanup requires current exact migration validation"
+        )
+    if _capture_cleanup_sources(root) != migration.source_artifacts:
+        raise MigrationValidationError(
+            "legacy cleanup source artifacts changed since migration"
+        )
+    return _delete_cleanup_sources(root)
 
 
 def _assert_cleanup_ownership(root: Path) -> None:
@@ -1900,7 +1984,7 @@ def _git_dirty_paths(root: Path) -> tuple[str, ...]:
 
 def _baseline_dirty_paths(root: Path) -> tuple[str, ...]:
     result: set[str] = set()
-    for record in discover_run_records(root):
+    for record in read_quiesced_run_records(root):
         if not record.valid:
             continue
         for value in _string_list(record.payload.get("baseline_dirty_paths")):

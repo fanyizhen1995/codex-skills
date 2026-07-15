@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime
 import hashlib
 import hmac
 import os
@@ -40,6 +41,7 @@ def create_app(
     reaper_interval_seconds: float = 1,
     max_snapshot_row_bytes: int = 256 * 1024,
     max_snapshot_bytes: int = 16 * 1024 * 1024,
+    supervisor_clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     if reaper_interval_seconds <= 0:
         raise ValueError("reaper interval must be positive")
@@ -77,6 +79,7 @@ def create_app(
         resolved_root,
         cursor_codec=cursor_codec,
         snapshot_ttl_seconds=sqlite_snapshot_ttl_seconds,
+        clock=supervisor_clock,
     )
 
     @asynccontextmanager
@@ -149,6 +152,10 @@ def create_app(
     @app.get("/api/supervisor")
     def supervisor_summary() -> dict:
         return supervisor_store.summary()
+
+    @app.get("/api/supervisor/health")
+    def supervisor_health() -> dict:
+        return supervisor_store.health_snapshot()
 
     @app.get("/api/supervisor/services")
     def supervisor_services(request: Request) -> dict:
