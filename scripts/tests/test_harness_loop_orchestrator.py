@@ -1575,6 +1575,34 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(relative_path, dirty_result["ignored_paths"])
             self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
 
+    def test_check_autonomous_dirty_paths_ignores_service_runtime_heartbeats(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            runtime_path = (
+                repo_root
+                / ".codex"
+                / "service-runtime"
+                / "supervisor-worker.json"
+            )
+            runtime_path.parent.mkdir(parents=True)
+            runtime_path.write_text('{"service":"supervisor-worker"}\n', encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root, run, []
+            )
+
+            relative_path = runtime_path.relative_to(repo_root).as_posix()
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertIn(relative_path, dirty_result["ignored_paths"])
+            self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
+
     def test_check_autonomous_dirty_paths_ignores_supervisor_reviewer_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
