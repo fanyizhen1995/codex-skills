@@ -177,8 +177,42 @@ def _init_git_repo(root: Path) -> None:
     )
 
 
+def _write_fake_evaluator_scenario(root: Path, task_id: str) -> None:
+    path = root / "docs" / "harness" / "evaluator-scenarios" / f"{task_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "must_simulate": True,
+                "user_scenarios": [
+                    {
+                        "scenario_id": "PHASE1-WORKER",
+                        "user_goal": "Exercise the bounded Phase 1 demand flow.",
+                        "prerequisites": ["Temporary fixture exists."],
+                        "entrypoint": "python3 -c \"print('phase1-worker')\"",
+                        "steps": ["Run each bounded Worker action."],
+                        "expected_outcomes": ["The fake evaluator passes."],
+                        "failure_signals": ["The evaluator blocks."],
+                        "cleanup": ["Temporary fixture is removed."],
+                        "automation_hint": "shell",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _phase_request(
-    run_id: str, phase: str, action_type: ActionType, *, action_id: str
+    run_id: str,
+    phase: str,
+    action_type: ActionType,
+    *,
+    action_id: str,
+    driver: str = "fake",
 ) -> ActionRequest:
     return ActionRequest(
         action_id=action_id,
@@ -189,7 +223,69 @@ def _phase_request(
         action_type=action_type,
         idempotency_key=f"key-{action_id}",
         task_id="autonomous-task-1",
-        payload={"driver": "fake"},
+        payload={"driver": driver},
+    )
+
+
+def _prepare_autonomous_commit_gate(
+    root: Path,
+    run_id: str,
+    *,
+    generator_driver: str = "fake",
+    run_updates: dict[str, object] | None = None,
+) -> dict[str, object]:
+    _init_git_repo(root)
+    legacy.create_preflight_run(
+        repo_root=root,
+        mode="autonomous-knowledge",
+        requirement="Exercise bounded commit safety gates",
+        run_id=run_id,
+        domain="fixture",
+        confirm=True,
+    )
+    run = legacy.load_run(root, run_id)
+    run.update(
+        {
+            "phase": "generating",
+            "next_action": "run_autonomous_generator",
+            "task_id": f"{run_id}-task",
+            **(run_updates or {}),
+        }
+    )
+    legacy.save_run(root, run)
+    generated = legacy._run_bounded_generator(
+        root,
+        _phase_request(
+            run_id,
+            "generating",
+            ActionType.RUN_GENERATOR,
+            action_id=f"{run_id}-setup-generator",
+            driver=generator_driver,
+        ),
+    )
+    evaluated = legacy._run_bounded_evaluator(
+        root,
+        _phase_request(
+            run_id,
+            "evaluating",
+            ActionType.RUN_EVALUATOR,
+            action_id=f"{run_id}-setup-evaluator",
+        ),
+    )
+    hygienic = legacy._run_bounded_artifact_hygiene(
+        root,
+        _phase_request(
+            run_id,
+            "artifact_hygiene",
+            ActionType.RUN_ARTIFACT_HYGIENE,
+            action_id=f"{run_id}-setup-hygiene",
+        ),
+    )
+    assert generated.result_class is ActionResultClass.SUCCESS
+    assert evaluated.result_class is ActionResultClass.SUCCESS
+    assert hygienic.result_class is ActionResultClass.SUCCESS
+    return legacy.read_json_file(
+        legacy.run_dir_for(root, run_id) / "generator-result.json"
     )
 
 
@@ -372,6 +468,48 @@ def test_confirmed_demand_run_reconciles_and_worker_calls_planner_primitive(
     assert run["next_action"] == "run_generator"
     assert (tmp_path / ".codex/loop-runs/demand-run/planner-output.json").is_file()
     assert not (tmp_path / ".codex/loop-runs/demand-run/generator-result.json").exists()
+
+
+def test_phase1_demand_flow_reaches_human_merge_via_bounded_workers(
+    tmp_path: Path,
+) -> None:
+    _write_fake_evaluator_scenario(tmp_path, "phase1-demand-task")
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Run the bounded Phase 1 demand flow",
+        run_id="phase1-demand-run",
+        task_id="phase1-demand-task",
+        confirm=True,
+    )
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action_ids = [
+            _reconcile_and_work(
+                tmp_path,
+                store,
+                run_id="phase1-demand-run",
+                expected_action=action_type,
+                worker_id=f"phase1-worker-{index}",
+            )
+            for index, action_type in enumerate(
+                (
+                    ActionType.RUN_PLANNER,
+                    ActionType.RUN_GENERATOR,
+                    ActionType.RUN_EVALUATOR,
+                ),
+                start=1,
+            )
+        ]
+
+    run = legacy.load_run(tmp_path, "phase1-demand-run")
+    assert len(action_ids) == len(set(action_ids)) == 3
+    assert run["phase"] == "passed_waiting_human_merge"
+    assert run["next_action"] == "await_human_merge_confirmation"
+    run_dir = legacy.run_dir_for(tmp_path, "phase1-demand-run")
+    assert (run_dir / "planner-output.json").is_file()
+    assert (run_dir / "generator-result.json").is_file()
+    assert (run_dir / "evaluator-result.json").is_file()
 
 
 def test_demand_parent_planner_worker_creates_exactly_one_child(
@@ -966,6 +1104,153 @@ def test_bounded_worker_commit_fails_closed_when_git_status_fails(
 
     assert result.result_class is not ActionResultClass.SUCCESS
     assert "git status failed" in result.summary
+
+
+@pytest.mark.parametrize(
+    ("gate", "expected_next_action", "evidence_name"),
+    [
+        ("denylist", "inspect_autonomous_scope", "autonomous-scope-result.json"),
+        ("supply_chain", "inspect_supply_chain", "supply-chain-result.json"),
+        ("required_evidence", "inspect_required_evidence", "required-evidence-result.json"),
+        ("unexpected_dirty", "inspect_autonomous_dirty_paths", "dirty-paths-result.json"),
+        ("baseline_dirty", "inspect_autonomous_dirty_paths", "dirty-paths-result.json"),
+        ("commit_provenance", "inspect_autonomous_commit", "commit-result.json"),
+        ("commit_path_provenance", "inspect_autonomous_commit", "commit-result.json"),
+    ],
+)
+def test_bounded_worker_commit_enforces_active_safety_gates(
+    tmp_path: Path,
+    gate: str,
+    expected_next_action: str,
+    evidence_name: str,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    run_id = f"gate-{gate.replace('_', '-')}"
+    generator_driver = {
+        "denylist": "fake-denylist",
+        "supply_chain": "fake-dependency",
+    }.get(gate, "fake")
+    run_updates = (
+        {"required_evidence": ["trusted service availability evidence"]}
+        if gate == "required_evidence"
+        else None
+    )
+    generator_result = _prepare_autonomous_commit_gate(
+        tmp_path,
+        run_id,
+        generator_driver=generator_driver,
+        run_updates=run_updates,
+    )
+    changed_paths = [str(path) for path in generator_result["changed_paths"]]
+    run_dir = legacy.run_dir_for(tmp_path, run_id)
+
+    if gate == "unexpected_dirty":
+        (tmp_path / "unexpected.txt").write_text("not declared\n", encoding="utf-8")
+    elif gate == "baseline_dirty":
+        run = legacy.load_run(tmp_path, run_id)
+        run["baseline_dirty_paths"] = [f" M {changed_paths[0]}"]
+        legacy.save_run(tmp_path, run)
+    elif gate in {"commit_provenance", "commit_path_provenance"}:
+        commit_paths = list(changed_paths)
+        if gate == "commit_path_provenance":
+            rogue = tmp_path / "rogue.txt"
+            rogue.write_text("undeclared commit content\n", encoding="utf-8")
+            commit_paths.append("rogue.txt")
+        subprocess.run(
+            ["git", "add", "--", *commit_paths],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "test: generator supplied commit"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        generator_result["commit"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        legacy.write_json_file(run_dir / "generator-result.json", generator_result)
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            run_id
+        )
+    assert action is not None
+    assert action.action_type is ActionType.COMMIT
+
+    result = worker_once(tmp_path, f"worker-{gate}")
+
+    assert result.status == "failed"
+    run = legacy.load_run(tmp_path, run_id)
+    assert run["phase"] == "stopped_blocked"
+    assert run["next_action"] == expected_next_action
+    evidence = legacy.read_json_file(run_dir / evidence_name)
+    if gate == "denylist":
+        assert evidence["allowed"] is False
+        assert ".env" in evidence["denied_paths"]
+    elif gate == "supply_chain":
+        assert evidence["allowed"] is False
+        assert "requirements.txt" in evidence["dependency_paths"]
+    elif gate == "required_evidence":
+        assert evidence["status"] == "blocked"
+    elif gate == "unexpected_dirty":
+        assert "unexpected.txt" in evidence["unexpected_paths"]
+    elif gate == "baseline_dirty":
+        assert changed_paths[0] in evidence["baseline_changed_paths"]
+    elif gate == "commit_provenance":
+        assert "without verified orchestrator run-state evidence" in evidence["error"]
+    else:
+        assert "undeclared paths: rogue.txt" in evidence["error"]
+
+
+def test_bounded_worker_commit_checks_scope_before_supply_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.harness_loop_autonomous import (
+        ScopeCheckResult,
+        SupplyChainCheckResult,
+    )
+    from scripts.loop_supervisor.worker import worker_once
+
+    run_id = "gate-order"
+    _prepare_autonomous_commit_gate(
+        tmp_path, run_id, generator_driver="fake-dependency"
+    )
+    calls: list[str] = []
+
+    def scope(*_args: object, **_kwargs: object) -> ScopeCheckResult:
+        calls.append("scope")
+        return ScopeCheckResult(True, ["requirements.txt"], [], [], [])
+
+    def supply_chain(*_args: object, **_kwargs: object) -> SupplyChainCheckResult:
+        calls.append("supply_chain")
+        return SupplyChainCheckResult(
+            False, ["requirements.txt"], ["missing dependency evidence"]
+        )
+
+    monkeypatch.setattr(legacy, "check_autonomous_scope", scope)
+    monkeypatch.setattr(legacy, "check_supply_chain", supply_chain)
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        action = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            run_id
+        )
+    assert action is not None
+    assert action.action_type is ActionType.COMMIT
+
+    result = worker_once(tmp_path, "worker-gate-order")
+
+    assert result.status == "failed"
+    assert calls == ["scope", "supply_chain"]
+    assert legacy.load_run(tmp_path, run_id)["next_action"] == "inspect_supply_chain"
 
 
 def test_demand_cleanup_remains_generic_and_waits_for_human_merge(

@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from scripts.loop_supervisor.migration import (
 from scripts.loop_supervisor.reconciler import _state_fingerprint, reconcile_once
 from scripts.loop_supervisor.store import SupervisorStore
 from scripts.harness_loop_runtime_lock import acquire_repository_mutation_lock
+from scripts.harness_loop_supervisor_state import build_supervisor_state
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
@@ -719,6 +721,60 @@ def test_archived_compatibility_requires_archived_source_state_evidence(
                 "archived_at": "2026-07-14T01:00:00Z",
             }
         ],
+    )
+    store = _open_store(tmp_path)
+    try:
+        migrate_jsonl(tmp_path, store, dry_run=False)
+        result = reconcile_once(tmp_path, store, include_worktrees=False)
+    finally:
+        store.close()
+
+    assert len(result.open_user_decisions) == 1
+    assert result.open_user_decisions[0]["scope"] == "run"
+
+
+def test_archived_compatibility_does_not_inherit_open_row_state_evidence(
+    tmp_path: Path,
+) -> None:
+    run_id = "archive-open-state-only"
+    _seed_run(
+        tmp_path,
+        run_id,
+        parent_counter=0,
+        completed=[],
+        phase="stopped_blocked",
+        next_action="inspect_blocked_diagnostics",
+    )
+    run = json.loads(
+        (tmp_path / f".codex/loop-runs/{run_id}/run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    failure_key = f"unsupported_state:{run_id}:run-state:unsupported-state"
+    open_row = {
+        "decision_id": "archive-open-state-only-decision",
+        "failure_key": failure_key,
+        "affected_runs": [run_id],
+        "status": "open",
+        "opened_at": "2026-07-14T00:00:00Z",
+        "archived_run_state": {
+            "revision": 1,
+            "fingerprint": _state_fingerprint(run),
+        },
+    }
+    archived_row = {
+        "decision_id": open_row["decision_id"],
+        "failure_key": failure_key,
+        "affected_runs": [run_id],
+        "status": "archived",
+        "archived_at": "2026-07-14T01:00:00Z",
+    }
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/user-decisions.jsonl", [open_row]
+    )
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/archived-user-decisions.jsonl",
+        [archived_row],
     )
     store = _open_store(tmp_path)
     try:
@@ -1443,6 +1499,112 @@ def test_rebuild_holds_reconcile_and_repository_locks_during_build(
     result = supervisor_cli._rebuild_db(tmp_path)
 
     assert result["status"] == "completed"
+
+
+def test_rebuild_excludes_idle_worker_heartbeat_until_after_database_swap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    with _open_store(tmp_path):
+        pass
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    old_inode = database.stat().st_ino
+    rebuild_entered = threading.Event()
+    release_rebuild = threading.Event()
+    heartbeat_written = threading.Event()
+    errors: list[BaseException] = []
+    original_migrate = supervisor_cli.migrate_jsonl
+
+    def paused_migration(*args: object, **kwargs: object) -> object:
+        report = original_migrate(*args, **kwargs)
+        rebuild_entered.set()
+        assert release_rebuild.wait(timeout=3)
+        return report
+
+    def rebuild() -> None:
+        try:
+            supervisor_cli._rebuild_db(tmp_path)
+        except BaseException as exc:
+            errors.append(exc)
+
+    def heartbeat() -> None:
+        try:
+            with SupervisorStore.open(tmp_path) as store:
+                store.migrate()
+                store.record_worker_heartbeat("idle-worker")
+            heartbeat_written.set()
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(supervisor_cli, "migrate_jsonl", paused_migration)
+    rebuild_thread = threading.Thread(target=rebuild)
+    rebuild_thread.start()
+    assert rebuild_entered.wait(timeout=2)
+
+    heartbeat_thread = threading.Thread(target=heartbeat)
+    heartbeat_thread.start()
+    assert not heartbeat_written.wait(timeout=0.1)
+    assert heartbeat_thread.is_alive()
+
+    release_rebuild.set()
+    rebuild_thread.join(timeout=3)
+    heartbeat_thread.join(timeout=3)
+
+    assert not rebuild_thread.is_alive()
+    assert not heartbeat_thread.is_alive()
+    assert errors == []
+    assert database.stat().st_ino != old_inode
+    with SupervisorStore.open(tmp_path) as store:
+        workers = store.fetch_all("workers")
+    assert [row["worker_id"] for row in workers] == ["idle-worker"]
+
+
+def test_canonical_supervisor_heartbeat_waits_for_database_maintenance_lock(
+    tmp_path: Path,
+) -> None:
+    lock_path = (
+        tmp_path / ".codex/loop-locks/runtime-database-maintenance.lock"
+    )
+    lock_path.parent.mkdir(parents=True)
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    heartbeat_written = threading.Event()
+    errors: list[BaseException] = []
+
+    def persist_heartbeat() -> None:
+        try:
+            build_supervisor_state(
+                tmp_path,
+                mode="watch",
+                service_health={},
+                run_summary={
+                    "active": 0,
+                    "blocked": 0,
+                    "continuation_candidates": 0,
+                    "needs_user_decision": 0,
+                },
+                failure_summary={"open_failure_keys": 0},
+                last_decision=None,
+                watch_interval_seconds=30,
+            )
+            heartbeat_written.set()
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=persist_heartbeat)
+    thread.start()
+    try:
+        assert not heartbeat_written.wait(timeout=0.1)
+        assert thread.is_alive()
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+    thread.join(timeout=3)
+
+    assert not thread.is_alive()
+    assert errors == []
+    assert heartbeat_written.is_set()
+    assert (tmp_path / ".codex/supervisor/supervisor-state.json").is_file()
 
 
 def test_rebuild_db_rejects_live_supervisor_process_without_touching_database(

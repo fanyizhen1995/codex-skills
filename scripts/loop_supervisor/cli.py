@@ -23,6 +23,7 @@ from scripts.harness_loop_supervisor import (
 from scripts.harness_loop_runtime_lock import (
     RunLockBusy,
     acquire_repository_mutation_lock,
+    acquire_runtime_database_maintenance_lock,
 )
 
 from .migration import (
@@ -227,13 +228,15 @@ def _health(root: Path) -> dict[str, Any]:
 
 def _rebuild_db(root: Path) -> dict[str, Any]:
     try:
-        with _project_reconcile_lock(root), acquire_repository_mutation_lock(
+        with acquire_runtime_database_maintenance_lock(
+            root, owner=f"supervisor-db-rebuild:{os.getpid()}"
+        ), _project_reconcile_lock(root), acquire_repository_mutation_lock(
             root, owner=f"supervisor-db-rebuild:{os.getpid()}"
         ):
             return _rebuild_db_locked(root)
     except RunLockBusy as exc:
         raise MigrationValidationError(
-            f"rebuild requires quiescence; repository lock is held: {exc}"
+            f"rebuild requires quiescence; runtime lock is held: {exc}"
         ) from exc
 
 
@@ -391,7 +394,10 @@ def _assert_rebuild_quiescent(root: Path) -> None:
     lock_dir = root / ".codex" / "loop-locks"
     if lock_dir.is_dir() and not lock_dir.is_symlink():
         for path in lock_dir.glob("*.lock"):
-            if path.name == "repository-mutation.lock":
+            if path.name in {
+                "repository-mutation.lock",
+                "runtime-database-maintenance.lock",
+            }:
                 continue
             if path.is_symlink() or not path.is_file():
                 raise MigrationValidationError(f"unsafe loop lock path: {path}")

@@ -82,6 +82,15 @@ def repository_mutation_lock_path(repo_root: Path) -> Path:
     return Path(repo_root) / ".codex" / "loop-locks" / "repository-mutation.lock"
 
 
+def runtime_database_maintenance_lock_path(repo_root: Path) -> Path:
+    return (
+        Path(repo_root)
+        / ".codex"
+        / "loop-locks"
+        / "runtime-database-maintenance.lock"
+    )
+
+
 @contextmanager
 def acquire_run_lock(
     repo_root: Path,
@@ -115,6 +124,77 @@ def acquire_repository_mutation_lock(
         run_root=None,
     ) as metadata:
         yield metadata
+
+
+@contextmanager
+def acquire_runtime_database_writer_lock(
+    repo_root: Path, *, owner: str
+) -> Iterator[dict[str, object]]:
+    with _acquire_runtime_database_lock(
+        runtime_database_maintenance_lock_path(repo_root),
+        owner=owner,
+        exclusive=False,
+        blocking=True,
+    ) as metadata:
+        yield metadata
+
+
+@contextmanager
+def acquire_runtime_database_maintenance_lock(
+    repo_root: Path, *, owner: str
+) -> Iterator[dict[str, object]]:
+    with _acquire_runtime_database_lock(
+        runtime_database_maintenance_lock_path(repo_root),
+        owner=owner,
+        exclusive=True,
+        blocking=False,
+    ) as metadata:
+        yield metadata
+
+
+@contextmanager
+def _acquire_runtime_database_lock(
+    path: Path,
+    *,
+    owner: str,
+    exclusive: bool,
+    blocking: bool,
+) -> Iterator[dict[str, object]]:
+    if not isinstance(owner, str) or not owner.strip():
+        raise ValueError("lock owner must be a non-empty string")
+    path = path.absolute()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = (
+        os.O_RDWR
+        | os.O_CREAT
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    fd = os.open(path, flags, 0o600)
+    try:
+        handle = os.fdopen(fd, "a+", encoding="utf-8")
+    except BaseException:
+        os.close(fd)
+        raise
+    operation = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+    if not blocking:
+        operation |= fcntl.LOCK_NB
+    try:
+        try:
+            fcntl.flock(handle.fileno(), operation)
+        except BlockingIOError as exc:
+            raise RunLockBusy("runtime-database-maintenance") from exc
+        try:
+            yield {
+                "lock_id": "runtime-database-maintenance",
+                "owner": owner.strip(),
+                "pid": os.getpid(),
+                "mode": "maintenance" if exclusive else "writer",
+            }
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 @contextmanager

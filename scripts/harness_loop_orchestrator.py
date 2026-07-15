@@ -4948,12 +4948,18 @@ def _record_trusted_live_evidence_state(
     run: Mapping[str, Any],
     trusted_live_state: Mapping[str, Mapping[str, str]],
 ) -> None:
-    run_dir = run_dir_for(repo_root, str(run["run_id"]))
-    run_json_path = run_dir / "run.json"
-    if run_json_path.exists():
-        run_payload = read_json_file(run_json_path)
+    run_id = str(run["run_id"])
+    transaction = _BOUNDED_RUN_TRANSACTION.get()
+    if transaction is not None and transaction.matches(repo_root, run_id):
+        run_payload = dict(run)
         run_payload["trusted_live_evidence_state"] = dict(trusted_live_state)
-        write_json_file(run_json_path, run_payload)
+        save_run(repo_root, run_payload)
+    else:
+        run_json_path = run_dir_for(repo_root, run_id) / "run.json"
+        if run_json_path.exists():
+            run_payload = read_json_file(run_json_path)
+            run_payload["trusted_live_evidence_state"] = dict(trusted_live_state)
+            write_json_file(run_json_path, run_payload)
     if isinstance(run, dict):
         run["trusted_live_evidence_state"] = dict(trusted_live_state)
 

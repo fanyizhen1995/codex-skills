@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
+from scripts.harness_loop_runtime_lock import acquire_runtime_database_writer_lock
+
 
 ALLOWED_FAILURE_CATEGORIES = {
     "service_down",
@@ -217,35 +219,58 @@ def build_supervisor_state(
     watch_interval_seconds: int,
 ) -> dict[str, Any]:
     project_root_path = Path(project_root)
-    now = utc_now_iso()
-    service_summary = _summarize_services(service_health)
-    run_summary_payload = _validated_run_summary(run_summary)
-    failure_summary_payload = _validated_failure_summary(failure_summary)
-    status = _supervisor_status(service_summary, run_summary_payload, failure_summary_payload)
-    started_at = _existing_started_at(supervisor_dir(project_root_path) / "supervisor-state.json") or now
-    state: dict[str, Any] = {
-        "schema_version": 1,
-        "project_root": str(project_root_path),
-        "status": status,
-        "started_at": started_at,
-        "last_heartbeat_at": now,
-        "last_tick_at": now,
-        "generated_at": now,
-        "mode": mode,
-        "service_summary": service_summary,
-        "service_health": dict(service_health),
-        "run_summary": run_summary_payload,
-        "failure_summary": failure_summary_payload,
-        "last_decision": dict(last_decision) if last_decision is not None else None,
-        "watch_interval_seconds": watch_interval_seconds,
-    }
+    with acquire_runtime_database_writer_lock(
+        project_root_path, owner="supervisor-heartbeat"
+    ):
+        now = utc_now_iso()
+        service_summary = _summarize_services(service_health)
+        run_summary_payload = _validated_run_summary(run_summary)
+        failure_summary_payload = _validated_failure_summary(failure_summary)
+        status = _supervisor_status(
+            service_summary, run_summary_payload, failure_summary_payload
+        )
+        started_at = (
+            _existing_started_at(
+                supervisor_dir(project_root_path) / "supervisor-state.json"
+            )
+            or now
+        )
+        state: dict[str, Any] = {
+            "schema_version": 1,
+            "project_root": str(project_root_path),
+            "status": status,
+            "started_at": started_at,
+            "last_heartbeat_at": now,
+            "last_tick_at": now,
+            "generated_at": now,
+            "mode": mode,
+            "service_summary": service_summary,
+            "service_health": dict(service_health),
+            "run_summary": run_summary_payload,
+            "failure_summary": failure_summary_payload,
+            "last_decision": (
+                dict(last_decision) if last_decision is not None else None
+            ),
+            "watch_interval_seconds": watch_interval_seconds,
+        }
+        _write_supervisor_state(project_root_path, state)
+    return state
 
+
+def persist_supervisor_state(
+    project_root: Path, state: Mapping[str, Any]
+) -> None:
+    root = Path(project_root)
+    with acquire_runtime_database_writer_lock(root, owner="supervisor-heartbeat"):
+        _write_supervisor_state(root, state)
+
+
+def _write_supervisor_state(project_root: Path, state: Mapping[str, Any]) -> None:
     state_path = supervisor_dir(project_root) / "supervisor-state.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
     with state_path.open("w", encoding="utf-8") as handle:
-        json.dump(state, handle, indent=2, sort_keys=True)
+        json.dump(dict(state), handle, indent=2, sort_keys=True)
         handle.write("\n")
-    return state
 
 
 def _consecutive_failure_count(attempts: list[dict[str, Any]], failure_key: str, retry_scope: str) -> int:

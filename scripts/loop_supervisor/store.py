@@ -14,11 +14,16 @@ from pathlib import Path, PurePosixPath
 import re
 import secrets
 import sqlite3
+import sys
 from threading import RLock
 from typing import Any, Iterator, Sequence
 from uuid import uuid4
 
-from scripts.harness_loop_runtime_lock import RunLockToken, validate_run_lock_token
+from scripts.harness_loop_runtime_lock import (
+    RunLockToken,
+    acquire_runtime_database_writer_lock,
+    validate_run_lock_token,
+)
 from scripts.harness_loop_agents import validate_owned_regular_file
 from scripts.harness_loop_contracts import validate_run_payload
 from scripts.loop_supervisor.models import (
@@ -490,33 +495,55 @@ class SupervisorStore:
         project_root: Path,
         connection: sqlite3.Connection,
         clock: Any | None,
+        maintenance_lock: Any | None = None,
     ) -> None:
         self.project_root = project_root
         self.db_path = project_root / ".codex" / "supervisor" / "supervisor.db"
         self._connection = connection
         self._clock = clock
         self._lock = RLock()
+        self._maintenance_lock = maintenance_lock
+        self._closed = False
 
     @classmethod
     def open(cls, project_root: Path, *, clock: Any | None = None) -> "SupervisorStore":
         root = Path(project_root).resolve()
         db_path = root / ".codex" / "supervisor" / "supervisor.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(
-            db_path,
-            timeout=5,
-            isolation_level=None,
-            check_same_thread=False,
+        maintenance_lock = acquire_runtime_database_writer_lock(
+            root, owner="supervisor-store"
         )
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout=5000")
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA journal_mode=WAL")
-        return cls(root, connection, clock)
+        maintenance_lock.__enter__()
+        connection: sqlite3.Connection | None = None
+        try:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            connection = sqlite3.connect(
+                db_path,
+                timeout=5,
+                isolation_level=None,
+                check_same_thread=False,
+            )
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA busy_timeout=5000")
+            connection.execute("PRAGMA foreign_keys=ON")
+            connection.execute("PRAGMA journal_mode=WAL")
+        except BaseException:
+            if connection is not None:
+                connection.close()
+            maintenance_lock.__exit__(*sys.exc_info())
+            raise
+        return cls(root, connection, clock, maintenance_lock)
 
     def close(self) -> None:
         with self._lock:
-            self._connection.close()
+            if self._closed:
+                return
+            self._closed = True
+            try:
+                self._connection.close()
+            finally:
+                if self._maintenance_lock is not None:
+                    self._maintenance_lock.__exit__(None, None, None)
+                    self._maintenance_lock = None
 
     def __enter__(self) -> "SupervisorStore":
         return self

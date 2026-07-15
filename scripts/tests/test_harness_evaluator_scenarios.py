@@ -401,6 +401,51 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         self.assertIn("test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions", entrypoint)
         self.assertNotIn("smoke", entrypoint)
 
+    def test_loop_scenarios_use_active_worker_commands_and_safety_gates(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        scenario_ids = (
+            "planner-generator-evaluator-loop-phase-1-01",
+            "planner-generator-evaluator-loop-phase-2-01",
+            "planner-generator-evaluator-loop-phase-3-01",
+            "ai-infra-meta-loop-runtime-01",
+        )
+        removed_entrypoints = (
+            "harness_loop_orchestrator.py run",
+            "harness_loop_orchestrator.py run-demand-multi",
+            "harness_loop_orchestrator.py run-autonomous",
+            "harness_loop_phase2_smoke.py",
+            "harness_loop_phase3_smoke.py",
+            "harness_ai_infra_meta_loop_smoke.py",
+            "harness_loop_auditor.py",
+        )
+        entrypoints = {
+            task_id: load_task_scenarios(repo_root, task_id)["user_scenarios"][0][
+                "entrypoint"
+            ]
+            for task_id in scenario_ids
+        }
+
+        for task_id, entrypoint in entrypoints.items():
+            with self.subTest(task_id=task_id):
+                self.assertFalse(
+                    any(command in entrypoint for command in removed_entrypoints),
+                    entrypoint,
+                )
+
+        self.assertIn(
+            "test_phase1_demand_flow_reaches_human_merge_via_bounded_workers",
+            entrypoints["planner-generator-evaluator-loop-phase-1-01"],
+        )
+        gate_entrypoint = entrypoints["ai-infra-meta-loop-runtime-01"]
+        self.assertIn(
+            "test_bounded_worker_commit_enforces_active_safety_gates",
+            gate_entrypoint,
+        )
+        self.assertIn(
+            "test_bounded_worker_commit_checks_scope_before_supply_chain",
+            gate_entrypoint,
+        )
+
     @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]

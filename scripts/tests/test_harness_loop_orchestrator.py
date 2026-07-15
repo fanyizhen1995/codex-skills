@@ -7514,7 +7514,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir / "run.json")
             self.assertNotIn(str(victim), run["cleanup"]["worktrees_removed"])
 
-    def test_phase_1_scenario_entrypoint_passes_self_contained_task_id(self) -> None:
+    def test_phase_1_scenario_entrypoint_uses_bounded_worker_regression(self) -> None:
         scenario_path = (
             Path(__file__).resolve().parents[2]
             / "docs"
@@ -7525,7 +7525,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
         scenario = read_json_file(scenario_path)
         entrypoint = scenario["user_scenarios"][0]["entrypoint"]
-        self.assertIn("--task-id planner-generator-evaluator-loop-phase-1-01", entrypoint)
+        self.assertIn("test_harness_loop_supervisor_worker.py", entrypoint)
+        self.assertIn(
+            "test_phase1_demand_flow_reaches_human_merge_via_bounded_workers",
+            entrypoint,
+        )
+        self.assertNotIn("harness_loop_orchestrator.py run", entrypoint)
 
     @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_smoke_helper_exercises_contract_hygiene_cleanup(self) -> None:

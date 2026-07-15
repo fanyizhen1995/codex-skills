@@ -100,10 +100,15 @@ python3 -m scripts.loop_supervisor.cli rebuild-db --project-root /home/fyz/codex
 
 The command builds and validates a sibling replacement first, copies the current
 database and sidecars to an external timestamped backup, then atomically replaces
-the database. It holds the reconcile and repository mutation locks through the
-quiescence check, replacement build, swap, validation, and rollback. Any failure
-restores the prior database and sidecars. Detailed operational history can be
-compacted after the retention period:
+the database. It first acquires the exclusive runtime-database maintenance lock,
+then holds the reconcile and repository mutation locks through the quiescence
+check, replacement build, swap, validation, and rollback. Every runtime SQLite
+connection acquires the shared side of the maintenance lock before opening the
+database and holds it through close; canonical Supervisor heartbeat persistence
+uses the same shared lock. A waiting Worker therefore opens the replacement
+inode after swap instead of writing a lease heartbeat to the archived database.
+Any failure restores the prior database and sidecars. Detailed operational
+history can be compacted after the retention period:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli retention --project-root /home/fyz/codex-skills --retention-days 90

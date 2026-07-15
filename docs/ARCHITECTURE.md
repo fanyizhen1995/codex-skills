@@ -36,6 +36,7 @@
 - Step4 hook driver 必须在没有 repo-side runtime 的目录里安全 no-op，避免影响其他项目。
 - loop transition policy 只能来自 `scripts/loop_supervisor/registry.py`；Worker、迁移兼容层和测试不得维护第二套 actionable phase 列表。
 - `scripts/harness_loop_orchestrator.py` 只保留 Worker 依赖的低层执行原语和非多轮兼容命令，不是公开运行角色；独立 auto-resume 和 Auditor runtime 已移除。
+- 运行时 SQLite 连接必须在打开数据库前持有共享 maintenance lock；`rebuild-db` 持有同一把锁的独占模式完成 quiescence 检查、构建、交换和回滚，Supervisor heartbeat 持久化也使用共享模式。
 
 ## 主要数据流
 ### Personal Wiki CLI

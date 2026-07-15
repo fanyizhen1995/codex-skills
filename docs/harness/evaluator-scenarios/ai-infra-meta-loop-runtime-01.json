@@ -4,25 +4,28 @@
   "user_scenarios": [
     {
       "scenario_id": "AI-INFRA-BOUNDED-SAFETY-GATES",
-      "user_goal": "As an evaluator, verify expanded AI infrastructure work remains behind bounded Worker Git ownership, evidence, and scope gates.",
+      "user_goal": "As an evaluator, verify expanded AI infrastructure work remains behind every active bounded Worker commit safety gate.",
       "prerequisites": [
         "The Supervisor Worker and orchestrator primitive regressions are available.",
         "Tests use temporary repositories and do not restart live services."
       ],
-      "entrypoint": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_fails_closed_when_git_status_fails scripts/tests/test_harness_loop_orchestrator.py::HarnessLoopOrchestratorTests::test_required_evidence_gate_blocks_forged_run_local_live_evidence_without_orchestrator_state",
+      "entrypoint": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_fails_closed_when_git_status_fails scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_enforces_active_safety_gates scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_checks_scope_before_supply_chain",
       "steps": [
         "Exercise the bounded commit primitive with an explicit Git status failure.",
-        "Exercise trusted required-evidence validation in an isolated fixture.",
+        "Lease bounded commit actions for denylist, supply-chain, required-evidence, unexpected-dirty, baseline-dirty, and commit-provenance fixtures.",
+        "Verify scope runs before supply-chain validation.",
         "Verify no private multi-round runtime is called."
       ],
       "expected_outcomes": [
         "Git ownership failure returns a non-success Worker result with explicit evidence.",
-        "Forged live evidence blocks before commit work.",
+        "Every active gate stops the run with its authoritative next action and structured evidence.",
+        "Generator-supplied commits are rejected without exact orchestrator state and path provenance.",
         "No live crawler, frontend, dashboard, or Supervisor service is changed."
       ],
       "failure_signals": [
         "Git failure is interpreted as a clean worktree.",
-        "Scope checks are bypassed.",
+        "Denylist, supply-chain, required-evidence, dirty-path, or commit-provenance checks are bypassed.",
+        "Supply-chain validation runs before scope validation.",
         "An obsolete smoke or Auditor executable is invoked."
       ],
       "cleanup": [

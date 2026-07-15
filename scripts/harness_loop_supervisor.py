@@ -15,7 +15,10 @@ from typing import Any, Mapping
 if __package__ in {None, ""}:  # Keep ``python scripts/...`` compatible.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.harness_loop_supervisor_state import build_supervisor_state
+from scripts.harness_loop_supervisor_state import (
+    build_supervisor_state,
+    persist_supervisor_state,
+)
 from scripts.loop_supervisor.reconciler import reconcile_once
 from scripts.loop_supervisor.store import SupervisorStore
 
@@ -107,12 +110,7 @@ def _watch_error_state(config: SupervisorConfig, error: Exception) -> dict[str, 
             watch_interval_seconds=config.watch_interval_seconds,
         )
         state.update({"status": "error", "error": error_payload})
-        state_path = (
-            config.project_root / ".codex" / "supervisor" / "supervisor-state.json"
-        )
-        with state_path.open("w", encoding="utf-8") as handle:
-            json.dump(state, handle, indent=2, sort_keys=True)
-            handle.write("\n")
+        persist_supervisor_state(config.project_root, state)
         return state
     except Exception as status_error:
         fallback["record_error"] = {

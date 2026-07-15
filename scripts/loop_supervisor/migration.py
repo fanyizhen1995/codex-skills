@@ -852,6 +852,7 @@ def _scan_user_decisions(
             candidate = dict(row)
             existing = decisions.get(identity)
             if name.startswith("archived-"):
+                archived_source_state = candidate.get("archived_run_state")
                 candidate = {
                     **(existing or {}),
                     **candidate,
@@ -863,6 +864,10 @@ def _scan_user_decisions(
                         "source_size": source.raw_length,
                     },
                 }
+                if isinstance(archived_source_state, Mapping):
+                    candidate["_archived_source_run_state"] = dict(
+                        archived_source_state
+                    )
             timestamp_value = candidate.get("opened_at") or candidate.get("created_at")
             try:
                 _source_timestamp(
@@ -1201,7 +1206,7 @@ def _bind_archived_decisions_to_source_state(
     for item in decisions:
         if item.get("status") != "archived":
             continue
-        state = item.get("archived_run_state")
+        state = item.get("_archived_source_run_state")
         if not isinstance(state, Mapping):
             continue
         revision = state.get("revision")
