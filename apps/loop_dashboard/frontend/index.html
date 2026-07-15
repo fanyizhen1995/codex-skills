@@ -12,8 +12,9 @@
         <h1>Loop Dashboard</h1>
         <p class="subtitle">项目级 Supervisor 控制面与任务运行历史</p>
       </div>
-      <div class="top-status" id="top-status" aria-live="polite">
-        <span class="status-chip">等待同步</span>
+      <div class="top-status">
+        <div id="top-status" class="top-status-values" aria-live="polite"><span class="status-chip">等待同步</span></div>
+        <button id="refresh-button" class="refresh-button" type="button" title="刷新当前视图" aria-label="刷新当前视图">刷新</button>
       </div>
     </header>
     <div class="project-strip" id="project-status" data-testid="project-status">正在读取项目状态...</div>
@@ -42,15 +43,15 @@
             </section>
 
             <nav class="tabs" role="tablist" aria-label="Supervisor 详情">
-              <button class="tab is-active" type="button" role="tab" aria-selected="true" data-supervisor-tab="overview">概览</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="services">服务</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="recovery">任务恢复</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="reviewer">Reviewer</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="decisions">决策</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="skills">Skill 治理</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" data-supervisor-tab="config">配置</button>
+              <button id="supervisor-tab-overview" class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="supervisor-panel-content" tabindex="0" data-supervisor-tab="overview">概览</button>
+              <button id="supervisor-tab-services" class="tab" type="button" role="tab" aria-selected="false" aria-controls="supervisor-panel-content" tabindex="-1" data-supervisor-tab="services">服务</button>
+              <button id="supervisor-tab-recovery" class="tab" type="button" role="tab" aria-selected="false" aria-controls="supervisor-panel-content" tabindex="-1" data-supervisor-tab="recovery">任务恢复</button>
+              <button id="supervisor-tab-reviewer" class="tab" type="button" role="tab" aria-selected="false" aria-controls="supervisor-panel-content" tabindex="-1" data-supervisor-tab="reviewer">Reviewer</button>
+              <button id="supervisor-tab-decisions" class="tab" type="button" role="tab" aria-selected="false" aria-controls="supervisor-panel-content" tabindex="-1" data-supervisor-tab="decisions">决策</button>
+              <button id="supervisor-tab-skills" class="tab" type="button" role="tab" aria-selected="false" aria-controls="supervisor-panel-content" tabindex="-1" data-supervisor-tab="skills">Skill 治理</button>
+              <button id="supervisor-tab-config" class="tab" type="button" role="tab" aria-selected="false" aria-controls="supervisor-panel-content" tabindex="-1" data-supervisor-tab="config">配置</button>
             </nav>
-            <div id="supervisor-panel-content" class="view-panel" role="tabpanel"><div class="empty-state">正在读取 Supervisor 数据...</div></div>
+            <div id="supervisor-panel-content" class="view-panel" role="tabpanel" aria-labelledby="supervisor-tab-overview" tabindex="0"><div class="empty-state">正在读取 Supervisor 数据...</div></div>
           </div>
         </section>
 
@@ -64,16 +65,16 @@
           </section>
           <div id="run-overview"></div>
           <nav class="tabs" role="tablist" aria-label="运行详情">
-            <button class="tab is-active" type="button" role="tab" aria-selected="true" data-run-tab="overview">概览</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="children">子任务</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="agents">Agent 结果</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="acceptance">验收</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="logs">日志</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="diagnostics">阻塞诊断</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-run-tab="artifacts">产物</button>
+            <button id="run-tab-overview" class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="run-panel-content" tabindex="0" data-run-tab="overview">概览</button>
+            <button id="run-tab-children" class="tab" type="button" role="tab" aria-selected="false" aria-controls="run-panel-content" tabindex="-1" data-run-tab="children">子任务</button>
+            <button id="run-tab-agents" class="tab" type="button" role="tab" aria-selected="false" aria-controls="run-panel-content" tabindex="-1" data-run-tab="agents">Agent 结果</button>
+            <button id="run-tab-acceptance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="run-panel-content" tabindex="-1" data-run-tab="acceptance">验收</button>
+            <button id="run-tab-logs" class="tab" type="button" role="tab" aria-selected="false" aria-controls="run-panel-content" tabindex="-1" data-run-tab="logs">日志</button>
+            <button id="run-tab-diagnostics" class="tab" type="button" role="tab" aria-selected="false" aria-controls="run-panel-content" tabindex="-1" data-run-tab="diagnostics">阻塞诊断</button>
+            <button id="run-tab-artifacts" class="tab" type="button" role="tab" aria-selected="false" aria-controls="run-panel-content" tabindex="-1" data-run-tab="artifacts">产物</button>
           </nav>
           <div id="run-toolbar"></div>
-          <div id="run-panel-content" class="view-panel" role="tabpanel"><div class="empty-state">请选择一条运行记录</div></div>
+          <div id="run-panel-content" class="view-panel" role="tabpanel" aria-labelledby="run-tab-overview" tabindex="0"><div class="empty-state">请选择一条运行记录</div></div>
         </section>
       </main>
     </div>

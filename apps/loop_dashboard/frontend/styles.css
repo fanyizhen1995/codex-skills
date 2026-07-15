@@ -89,6 +89,28 @@ button {
   gap: 8px;
 }
 
+.top-status-values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.refresh-button {
+  min-width: 54px;
+  min-height: 30px;
+  padding: 5px 9px;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+}
+
+.refresh-button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
 .status-chip {
   min-height: 28px;
   padding: 4px 9px;
@@ -475,6 +497,10 @@ tr:last-child td {
   color: var(--red);
 }
 
+.status-text.neutral {
+  color: var(--muted);
+}
+
 .pager {
   margin-top: 10px;
   min-height: 36px;
@@ -534,6 +560,21 @@ tr:last-child td {
   overflow-wrap: anywhere;
 }
 
+.pager-error {
+  min-height: 52px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metric-disclosure {
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .error-state {
   color: var(--red);
   border-color: #eab3af;
@@ -550,6 +591,70 @@ tr:last-child td {
 
 .agent-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.agent-result,
+.decision-summary,
+.acceptance-evidence {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-soft);
+  overflow-wrap: anywhere;
+}
+
+.agent-result.compact {
+  background: var(--surface);
+}
+
+.child-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.value-list,
+.code-list {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+
+.value-label {
+  font-size: 12px;
+}
+
+.code-list > div {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.recovery-log-detail {
+  min-width: 260px;
+  margin-top: 7px;
+  display: grid;
+  gap: 6px;
+}
+
+.recovery-log-detail[hidden] {
+  display: none;
+}
+
+.severity-bad {
+  border-left: 3px solid var(--red);
+}
+
+.severity-warn {
+  border-left: 3px solid var(--amber);
+}
+
+.artifact-path {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
 }
 
 .link-button {
@@ -612,6 +717,10 @@ tr:last-child td {
   .agent-grid {
     grid-template-columns: 1fr;
   }
+
+  .child-agent-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -623,6 +732,10 @@ tr:last-child td {
 
   .top-status,
   .hero-actions {
+    justify-content: flex-start;
+  }
+
+  .top-status-values {
     justify-content: flex-start;
   }
 

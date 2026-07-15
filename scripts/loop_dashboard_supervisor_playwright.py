@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from PIL import Image, ImageStat
 
@@ -23,7 +23,17 @@ DECISION_COUNT = 26
 SKILL_COUNT = 26
 EVENT_COUNT = 26
 LOG_COUNT = 26
-RUN_ID = "dashboard-run-001"
+RUN_ID = "dashboard-parent-001"
+CHILD_RUN_ID = "dashboard-run-001"
+TASK_ID = "task-8-browser"
+TASK_DESCRIPTION = (
+    "实现与批准 mock 一致的统一 Loop Dashboard，完整展示父子运行的 Planner、Generator、Evaluator "
+    "状态、尝试次数、当前动作、完整结论、产物来源、验收证据、复验命令和阻塞诊断；这段任务说明必须逐字可读，"
+    "不能使用省略号、行数裁剪或悬浮提示代替正文。"
+)
+GENERATOR_RESULT = "已完成七个 Supervisor 页签、七个运行详情页签、稳定游标分页和响应式布局，完整正文保持可读。"
+CHILD_GENERATOR_RESULT = "子任务已生成真实浏览器验收夹具，并保留父子 Agent 结果与产物路径。"
+FINDING_TEXT = "修复后仍需核对结构化错误恢复动作、请求竞态和移动表格内部滚动；该完整 finding 不得在前端截断。"
 SCENARIO_ID = "LOOP-SUPERVISOR-UNIFICATION-BROWSER-E2E"
 SUPERVISOR_CURSOR_SECRET = "task-8-isolated-browser-cursor-secret-2026"
 
@@ -54,13 +64,17 @@ def main() -> int:
                 "summary": "统一 Loop Dashboard 的页签、稳定游标分页、懒加载日志和响应式布局通过浏览器验收。",
                 "checked": [
                     "Task 6 SQLite initializer seeded 26 actions/reviews/decisions/skills",
-                    "26 run events and 26 run logs paginated through Task 7 envelopes",
-                    "only visited numeric pages were exposed and refresh restored cursor history",
+                    "real parent/child Planner, Generator, Evaluator and task-contract artifacts drove run semantics",
+                    "26 run events and 26 run logs paginated through exact Task 7 envelopes",
+                    "stale requests were aborted or generation-rejected and structured Next failure rolled back",
+                    "only visited numeric pages were exposed and compact session state restored cursor history",
                     "page 2 stayed stable after a newer SQLite action was inserted",
                     "log detail was fetched only after explicit expansion",
+                    "direct URL selected-tab-only loading, ARIA keyboard tabs and independent page-size 50 state passed",
+                    "complete task description, parent/child Agent results, acceptance, diagnostics and provenance were visible",
                     "exact seven Supervisor tabs and seven run-detail tabs were visible",
                     "removed control roles were absent from visible UI",
-                    "desktop 1440x1000 and mobile 390x844 screenshots passed canvas and overflow checks",
+                    "desktop, run-detail and mobile screenshots passed canvas, internal table scrolling and overflow checks",
                 ],
                 "browser_evidence": evidence,
                 "server_stdout": server_output["stdout"],
@@ -168,12 +182,21 @@ def seed_supervisor_sqlite(project_root: Path) -> None:
             INSERT INTO reviews(
               review_id, trigger, status, decision, summary, evidence_json,
               accepted_review_json, created_at, updated_at
-            ) VALUES (?, 'cadence', 'review_complete', 'continue', ?, ?, '{}', ?, ?)
+            ) VALUES (?, 'cadence', 'review_complete', 'continue', ?, ?, ?, ?, ?)
             """,
             (
                 f"review-{index:03d}",
                 f"Reviewer 结论 {index:03d}：当前方向有效，技术阻塞可由 Supervisor 自动恢复，不需要伪造成功状态。",
                 json.dumps([f"evidence-{index:03d}", RUN_ID]),
+                json.dumps(
+                    {
+                        "requested_actions": [
+                            "继续当前方向",
+                            "保留完整验收证据并复验移动端布局",
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
                 timestamp,
                 timestamp,
             ),
@@ -230,6 +253,35 @@ def seed_supervisor_sqlite(project_root: Path) -> None:
         VALUES ('worker-01', '2026-07-15T12:20:00Z', '2026-07-15T09:00:00Z', '2026-07-15T12:20:00Z')
         """
     )
+    connection.execute(
+        """
+        INSERT INTO action_attempts(
+          attempt_id, action_id, worker_id, result_class, summary, failure_key,
+          error_class, artifact_json, checkpoint, recovery_tier,
+          started_at, finished_at, created_at
+        ) VALUES (
+          'attempt-action-001', 'action-001', 'worker-01', 'recoverable_partial',
+          '已验证 Generator 结果并从检查点恢复 Evaluator envelope', '', '', ?,
+          'generator-result-validated', 2,
+          '2026-07-15T12:26:00Z', '2026-07-15T12:27:00Z', '2026-07-15T12:27:00Z'
+        )
+        """,
+        (json.dumps([f".codex/loop-runs/{RUN_ID}/generator-result.json"], ensure_ascii=False),),
+    )
+    freshness = [
+        ("freshness-dashboard", "loop-dashboard", "fresh", "Dashboard API 与运行产物一致", {"lag_seconds": 2}),
+        ("freshness-crawler", "crawler-workbench", "stale", "Crawler 最近同步已过期", {"lag_seconds": 420}),
+        ("freshness-worker", "supervisor-worker", "unavailable", "Worker freshness 不可用", {"reason": "无 heartbeat"}),
+    ]
+    for check_id, target, status, summary, details in freshness:
+        connection.execute(
+            """
+            INSERT INTO freshness_checks(
+              check_id, target, status, summary, details_json, checked_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, '2026-07-15T12:28:00Z', '2026-07-15T12:28:00Z')
+            """,
+            (check_id, target, status, summary, json.dumps(details, ensure_ascii=False)),
+        )
     inventory = [
         {
             "name": f"dashboard-skill-{index:03d}",
@@ -270,37 +322,37 @@ def seed_run(project_root: Path) -> None:
         run_dir / "run.json",
         {
             "run_id": RUN_ID,
-            "run_kind": "single",
+            "run_kind": "parent",
             "policy": "demand_development",
-            "phase": "generating",
-            "task_id": "task-8-browser",
-            "requirement": "实现与批准 mock 一致的统一 Loop Dashboard，并完整展示较长任务说明、Agent 结果和 Evaluator finding。",
-            "next_action": "run_generator",
-            "updated_at": "2026-07-15T12:30:00Z",
+            "phase": "repair_needed",
+            "task_id": TASK_ID,
+            "requirement": TASK_DESCRIPTION,
+            "constraints": ["只读 Task 7 API", "中文正文完整可读"],
+            "stop_conditions": ["passed_waiting_human_merge"],
+            "attempts": {"planner": 2, "generator": 3, "evaluator": 4},
+            "last_result": "fail",
+            "next_action": "repair_from_evaluator_findings",
+            "child_run_ids": [CHILD_RUN_ID],
+            "current_child_run_id": CHILD_RUN_ID,
+            "aggregate_acceptance": {
+                "total": 1,
+                "passed": 1,
+                "failed": 0,
+                "blocked": 0,
+                "pending": 0,
+                "user_decision_required": False,
+            },
             "reader_summary": {
                 "purpose": "验证七个页签、服务端游标分页、刷新恢复和日志详情懒加载。",
                 "current_progress": "Task 6 SQLite 与 Task 7 page API 已准备完成，正在执行浏览器验收。",
                 "next_step": "检查桌面和移动截图并确认没有页面级横向溢出。",
                 "decision_needed": "不需要",
             },
-            "agents": {
-                "planner": {"status": "done", "action": "明确 mock 页面字段与 API 来源", "summary": "规划覆盖全部七个 Supervisor 和运行详情页签。"},
-                "generator": {"status": "running", "action": "实现分页与响应式布局", "summary": "保留完整中文正文，不使用省略号或行数截断。"},
-                "evaluator": {"status": "waiting", "action": "运行 Playwright", "summary": "将验证分页稳定性、日志懒加载、角色移除和截图像素。"},
-            },
-            "children": [],
-            "acceptance_summary": {
-                "scenarios": [
-                    {
-                        "scenario_id": "TASK8-BROWSER",
-                        "status": "pending",
-                        "summary": "模拟用户浏览所有页签并检查桌面与移动布局。",
-                    }
-                ]
-            },
-            "blocked_diagnostics": [],
         },
     )
+    seed_agent_artifacts(run_dir, TASK_ID, GENERATOR_RESULT, evaluator_status="fail")
+    seed_task_contract(run_dir, TASK_ID)
+    seed_child_run(project_root)
     events = []
     for index in range(1, EVENT_COUNT + 1):
         events.append(
@@ -323,6 +375,132 @@ def seed_run(project_root: Path) -> None:
         )
         timestamp = base_time + LOG_COUNT - index
         os.utime(path, (timestamp, timestamp))
+
+
+def seed_agent_artifacts(run_dir: Path, task_id: str, generator_notes: str, *, evaluator_status: str) -> None:
+    write_json(
+        run_dir / "planner-output.json",
+        {
+            "task_id": task_id,
+            "status": "done",
+            "attempt": 2,
+            "title": "统一 Loop Dashboard 浏览器验收规划",
+            "goal": "逐项验证 mock 字段、分页状态、并发安全、可访问性和响应式布局。",
+            "allowed_paths": ["apps/loop_dashboard/frontend", "scripts/loop_dashboard_supervisor_playwright.py"],
+            "verify_commands": ["python3 scripts/loop_dashboard_evaluator.py --scenario loop-supervisor-unification-01"],
+            "artifact_paths": [f".codex/loop-runs/{run_dir.name}/planner-output.json"],
+        },
+    )
+    write_json(
+        run_dir / "generator-result.json",
+        {
+            "task_id": task_id,
+            "status": "implemented",
+            "attempt": 3,
+            "notes": generator_notes,
+            "changed_paths": ["apps/loop_dashboard/frontend/app.js", "apps/loop_dashboard/frontend/pagination.js"],
+            "artifacts": [f".codex/loop-runs/{run_dir.name}/generator-result.json"],
+            "verify_results": [{"command": "node --check app.js", "status": "pass"}],
+        },
+    )
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "task_id": task_id,
+            "status": evaluator_status,
+            "attempt": 4,
+            "summary": "浏览器验收发现一个需要继续复验的重要问题。" if evaluator_status == "fail" else "子任务浏览器验收通过。",
+            "verdict_reason": "需要修复后复验" if evaluator_status == "fail" else "全部场景通过",
+            "next_action": "repair_and_reevaluate" if evaluator_status == "fail" else "return_to_parent_planner",
+            "findings": [
+                {
+                    "id": "TASK8-BROWSER-FINDING-001",
+                    "severity": "major",
+                    "summary": "浏览器状态恢复仍需复验",
+                    "recommended_action": FINDING_TEXT,
+                    "evidence": [
+                        "结构化 status/error 必须保留 recovery_action",
+                        ".codex/loop-runs/dashboard-parent-001/evaluator-result.json",
+                    ],
+                }
+            ] if evaluator_status == "fail" else [],
+            "scenario_results": [
+                {
+                    "scenario_id": "TASK8-ARTIFACT-BROWSER",
+                    "status": "fail" if evaluator_status == "fail" else "pass",
+                    "summary": "模拟用户检查完整运行语义、分页回滚与移动端布局。",
+                    "evidence": ["任务正文完整可见", "Agent 产物来源可追溯", "移动表格内部滚动"],
+                }
+            ],
+            "checked": ["完整任务说明", "父子 Agent 结果", "验收证据与复验命令", "阻塞诊断严重性和来源"],
+            "browser_evidence": ["桌面运行详情截图可读", "日志内容仅在显式展开后请求"],
+            "environment_checks": [{"name": "isolated backend", "status": "pass"}],
+            "rerun_commands": [
+                "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-unification-01 --scenario loop-supervisor-unification-01"
+            ],
+            "artifact_paths": [f".codex/loop-runs/{run_dir.name}/evaluator-result.json"],
+        },
+    )
+
+
+def seed_task_contract(run_dir: Path, task_id: str) -> None:
+    write_json(
+        run_dir / "task-contract.json",
+        {
+            "task_id": task_id,
+            "title": "统一 Loop Dashboard 浏览器验收",
+            "description": TASK_DESCRIPTION,
+            "verify_commands": ["node --check apps/loop_dashboard/frontend/app.js"],
+            "scenario_commands": ["python3 scripts/loop_dashboard_evaluator.py --scenario loop-supervisor-unification-01"],
+            "artifact_paths": [f".codex/loop-runs/{run_dir.name}/task-contract.json"],
+            "required_services": ["loop-dashboard"],
+            "evaluator_driver": "loop_dashboard_supervisor_playwright",
+            "eval_policy": {"task_level_required": True},
+            "allowed_scope": "isolated_fixture_only",
+            "must_simulate": True,
+            "user_scenarios": [
+                {
+                    "scenario_id": "TASK8-ARTIFACT-BROWSER",
+                    "user_goal": "作为操作者检查完整运行语义和分页恢复。",
+                    "steps": ["打开直接运行 URL", "检查父子 Agent", "展开日志"],
+                    "expected_outcomes": ["正文完整", "产物可追溯", "分页状态独立"],
+                    "failure_signals": ["正文截断", "预取日志详情"],
+                }
+            ],
+        },
+    )
+
+
+def seed_child_run(project_root: Path) -> None:
+    child_dir = project_root / ".codex" / "loop-runs" / CHILD_RUN_ID
+    child_dir.mkdir(parents=True, exist_ok=True)
+    write_json(
+        child_dir / "run.json",
+        {
+            "run_id": CHILD_RUN_ID,
+            "run_kind": "child",
+            "parent_run_id": RUN_ID,
+            "child_index": 1,
+            "policy": "demand_development",
+            "phase": "passed",
+            "task_id": f"{TASK_ID}-child",
+            "requirement": "构建真实 artifact-backed 浏览器夹具并验证父子 Agent 结果。",
+            "constraints": ["不写入 live/main"],
+            "stop_conditions": ["passed"],
+            "attempts": {"planner": 1, "generator": 2, "evaluator": 1},
+            "last_result": "pass",
+            "next_action": "return_to_parent_planner",
+            "reader_summary": {
+                "purpose": "提供父 run 的真实子任务验收证据。",
+                "planner_action": "定义 artifact-backed fixture",
+                "generator_action": "写入真实 Planner/Generator/Evaluator 产物",
+                "evaluator_action": "验证父子 Agent 结果",
+                "acceptance_result": "Passed",
+            },
+        },
+    )
+    seed_agent_artifacts(child_dir, f"{TASK_ID}-child", CHILD_GENERATOR_RESULT, evaluator_status="pass")
+    seed_task_contract(child_dir, f"{TASK_ID}-child")
 
 
 def insert_newer_action(project_root: Path) -> None:
@@ -395,26 +573,50 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
     from playwright.sync_api import expect, sync_playwright
 
     desktop_path = output_dir / "loop-supervisor-unification-desktop.png"
+    run_detail_path = output_dir / "loop-supervisor-unification-run-detail-desktop.png"
     mobile_path = output_dir / "loop-supervisor-unification-mobile.png"
-    request_paths: list[str] = []
+    request_urls: list[str] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         desktop = browser.new_page(viewport={"width": 1440, "height": 1000})
-        desktop.on("request", lambda request: request_paths.append(urlparse(request.url).path))
+        desktop.add_init_script(
+            """
+            (() => {
+              const originalFetch = window.fetch.bind(window);
+              let delayed = false;
+              window.fetch = (input, init) => {
+                const url = new URL(typeof input === "string" ? input : input.url, window.location.origin);
+                const response = originalFetch(input, init);
+                if (!delayed && url.pathname === "/api/supervisor/actions"
+                    && !url.searchParams.has("run_id") && !url.searchParams.has("status")) {
+                  delayed = true;
+                  return response.then((value) => new Promise((resolve) => setTimeout(() => resolve(value), 700)));
+                }
+                return response;
+              };
+            })();
+            """
+        )
+        desktop.on("request", lambda request: request_urls.append(request.url))
         try:
             desktop.goto(dashboard_url, wait_until="networkidle")
             expect(desktop).to_have_title("Loop Dashboard")
             assert_sidebar_layout(desktop)
             verify_exact_tabs(desktop, "supervisor")
+            verify_tab_keyboard(desktop, "supervisor")
             visible = desktop.locator("body").inner_text()
             for removed_role in ("Auditor", "orchestrator", "auto-resume"):
                 if removed_role in visible:
                     raise AssertionError(f"removed role is visible: {removed_role}")
 
             supervisor_panel = desktop.locator("#supervisor-panel-content")
-            for tab_name in ("概览", "服务", "Reviewer", "决策", "Skill 治理", "配置"):
-                desktop.get_by_role("tab", name=tab_name, exact=True).click()
-                expect(desktop.get_by_role("tab", name=tab_name, exact=True)).to_have_attribute("aria-selected", "true")
+            expect(supervisor_panel).to_contain_text("活动运行")
+            expect(supervisor_panel).to_contain_text("Task 7 未提供活动运行聚合")
+            expect(desktop.locator("#top-status")).to_contain_text("Supervisor 降级")
+            desktop.get_by_role("tab", name="服务", exact=True).click()
+            expect(supervisor_panel).to_contain_text("Supervisor Worker")
+            expect(supervisor_panel).to_contain_text("Worker freshness 不可用")
+            expect(supervisor_panel).to_contain_text("Crawler 最近同步已过期")
             verify_collection_pagination(
                 desktop,
                 supervisor_panel,
@@ -429,16 +631,65 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             )
             verify_collection_pagination(desktop, supervisor_panel, "Skill 治理", "dashboard-skill-001")
 
+            # stale-response: delayed unfiltered recovery response must not replace the latest filter.
             desktop.get_by_role("tab", name="任务恢复", exact=True).click()
+            run_filter = desktop.get_by_label("运行 ID")
+            expect(run_filter).to_be_visible()
+            run_filter.fill("missing-run")
+            run_filter.press("Tab")
+            expect(supervisor_panel.get_by_text("暂无恢复动作", exact=True)).to_be_visible()
+            desktop.wait_for_timeout(850)
+            expect(supervisor_panel.get_by_text("暂无恢复动作", exact=True)).to_be_visible()
+            if supervisor_panel.get_by_text("action-001", exact=True).count():
+                raise AssertionError("stale unfiltered response replaced the latest recovery filter")
+
+            run_filter.fill(RUN_ID)
+            run_filter.press("Tab")
             expect(supervisor_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
             expect(supervisor_panel.get_by_text("action-001", exact=True)).to_be_visible()
             if supervisor_panel.get_by_role("button", name="2", exact=True).count() != 0:
                 raise AssertionError("unknown numeric page 2 was exposed before its cursor was visited")
-            run_filter = supervisor_panel.get_by_label("运行 ID")
-            run_filter.fill(RUN_ID)
-            run_filter.press("Tab")
-            expect(supervisor_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
+
+            recovery_expand = supervisor_panel.locator('[aria-controls="recovery-log-action-001"]')
+            expect(recovery_expand).to_have_attribute("aria-expanded", "false")
+            recovery_expand.click()
+            expect(recovery_expand).to_have_attribute("aria-expanded", "true")
+            expect(supervisor_panel).to_contain_text("已验证 Generator 结果并从检查点恢复 Evaluator envelope")
+            expect(supervisor_panel).to_contain_text("generator-result-validated")
+            expect(supervisor_panel).to_contain_text(f".codex/loop-runs/{RUN_ID}/generator-result.json")
+
+            failure = {"pending": True}
+
+            def fail_first_cursor(route) -> None:
+                parsed = urlparse(route.request.url)
+                query = parse_qs(parsed.query)
+                if failure["pending"] and parsed.path == "/api/supervisor/actions" and query.get("cursor"):
+                    failure["pending"] = False
+                    route.fulfill(
+                        status=503,
+                        content_type="application/json",
+                        body=json.dumps(
+                            {
+                                "status": "capacity_exceeded",
+                                "error": {
+                                    "code": "snapshot_capacity_exceeded",
+                                    "message": "稳定快照容量已满",
+                                    "recovery_action": "缩小过滤范围后重试",
+                                },
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    route.continue_()
+
+            desktop.route("**/api/supervisor/actions?*", fail_first_cursor)
             supervisor_panel.get_by_role("button", name="下一页", exact=True).click()
+            expect(supervisor_panel).to_contain_text("snapshot_capacity_exceeded：稳定快照容量已满；建议：缩小过滤范围后重试")
+            expect(supervisor_panel.get_by_text("action-001", exact=True)).to_be_visible()
+            if supervisor_panel.get_by_role("button", name="2", exact=True).count() != 0:
+                raise AssertionError("failed Next exposed unknown numeric page 2")
+            supervisor_panel.get_by_role("button", name="重试", exact=True).click()
             expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
             expect(supervisor_panel.get_by_text("action-001", exact=True)).not_to_be_visible()
             expect(supervisor_panel.get_by_role("button", name="2", exact=True)).to_be_visible()
@@ -446,7 +697,8 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             if page_two_before != [f"action-{index:03d}" for index in range(21, 27)]:
                 raise AssertionError(f"unexpected stable page 2 actions: {page_two_before!r}")
             insert_newer_action(fixture_root)
-            refresh_and_assert(desktop, supervisor_panel)
+            desktop.get_by_role("button", name="刷新当前视图", exact=True).click()
+            expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
             page_two_after = action_ids(supervisor_panel)
             if page_two_after != page_two_before:
                 raise AssertionError(f"new action moved stable page 2: before={page_two_before}, after={page_two_after}")
@@ -454,64 +706,151 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 raise AssertionError("refresh did not restore the recovery filter")
             if desktop.get_by_role("tab", name="任务恢复", exact=True).get_attribute("aria-selected") != "true":
                 raise AssertionError("refresh did not restore the Supervisor tab")
+
+            desktop.get_by_role("tab", name="Reviewer", exact=True).click()
+            reviewer_page_size = supervisor_panel.get_by_label("每页条数")
+            reviewer_page_size.select_option("50")
+            expect(supervisor_panel.get_by_text("第 1-26 条，共 26 条", exact=False)).to_be_visible()
+            expect(reviewer_page_size).to_have_value("50")
+            desktop.get_by_role("tab", name="任务恢复", exact=True).click()
+            expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
+            desktop.reload(wait_until="networkidle")
+            expect(desktop.get_by_role("tab", name="任务恢复", exact=True)).to_have_attribute("aria-selected", "true")
+            expect(desktop.get_by_label("运行 ID")).to_have_value(RUN_ID)
+            expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
+            desktop.get_by_role("tab", name="Reviewer", exact=True).click()
+            expect(supervisor_panel.get_by_label("每页条数")).to_have_value("50")
+            desktop.get_by_role("tab", name="任务恢复", exact=True).click()
+            expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
+            url_state = desktop.url
+            if len(url_state) > 1200 or "cursor=" in url_state or "eyJwYXls" in url_state:
+                raise AssertionError(f"pager URL is not compact: {url_state}")
             desktop.screenshot(path=str(desktop_path), full_page=True)
             desktop_pixels = canvas_pixel_check(desktop_path)
             desktop_overflow = document_overflow(desktop)
 
-            desktop.locator(f'[data-run-id="{RUN_ID}"]').click()
-            expect(desktop.locator("#run-title")).to_have_text(RUN_ID)
-            verify_exact_tabs(desktop, "run")
-            run_panel = desktop.locator("#run-panel-content")
-            desktop.get_by_label("类型").select_option("transition")
-            expect(run_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
-            run_panel.get_by_role("button", name="下一页", exact=True).click()
-            expect(run_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
-            for tab_name in ("子任务", "Agent 结果", "验收", "阻塞诊断", "产物"):
-                desktop.get_by_role("tab", name=tab_name, exact=True).click()
-                expect(desktop.get_by_role("tab", name=tab_name, exact=True)).to_have_attribute("aria-selected", "true")
+            direct_requests: list[str] = []
+            run_page = browser.new_page(viewport={"width": 1440, "height": 1000})
+            run_page.on("request", lambda request: direct_requests.append(request.url))
+            try:
+                run_page.goto(f"{dashboard_url}/?run_id={RUN_ID}&run_tab=agents", wait_until="networkidle")
+                if run_page.locator("#run-view").evaluate("node => node.classList.contains('is-hidden')"):
+                    raise AssertionError("direct run URL remained hidden behind Supervisor view")
+                expect(run_page.locator("#run-title")).to_have_text(RUN_ID)
+                expect(run_page.get_by_role("tab", name="Agent 结果", exact=True)).to_have_attribute("aria-selected", "true")
+                verify_exact_tabs(run_page, "run")
+                assert_selected_tab_only_requests(direct_requests)
+                verify_tab_keyboard(run_page, "run")
+                expect(run_page.locator("#run-overview")).to_contain_text(TASK_DESCRIPTION)
+                expect(run_page.locator("#top-status")).to_contain_text("运行需要修复")
+                expect(run_page.locator("#run-overview")).to_contain_text("按 Evaluator finding 修复")
+                expect(run_page.locator("#run-overview")).to_contain_text("最近结果失败")
+                run_panel = run_page.locator("#run-panel-content")
+                expect(run_panel).to_contain_text(GENERATOR_RESULT)
+                expect(run_panel).to_contain_text("尝试：3")
+                expect(run_panel).to_contain_text("失败")
+                expect(run_panel).to_contain_text(f".codex/loop-runs/{RUN_ID}/generator-result.json")
 
-            detail_prefix = f"/api/runs/{RUN_ID}/logs/"
-            details_before = sum(path.startswith(detail_prefix) for path in request_paths)
-            desktop.get_by_role("tab", name="日志", exact=True).click()
-            expect(run_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
-            if sum(path.startswith(detail_prefix) for path in request_paths) != details_before:
-                raise AssertionError("log list fetched detail before explicit expansion")
-            run_panel.get_by_role("button", name="下一页", exact=True).click()
-            expect(run_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
-            if sum(path.startswith(detail_prefix) for path in request_paths) != details_before:
-                raise AssertionError("log pagination fetched detail content")
-            run_panel.get_by_role("button", name="上一页", exact=True).click()
-            first_expand = run_panel.locator("[data-log-detail]").first
-            first_expand.click()
-            expect(run_panel.locator("[data-log-detail-panel]").first).to_contain_text("[REDACTED]")
-            details_after = sum(path.startswith(detail_prefix) for path in request_paths)
-            if details_after != details_before + 1:
-                raise AssertionError(f"explicit log expansion should fetch one detail, got {details_after - details_before}")
+                run_page.get_by_role("tab", name="子任务", exact=True).click()
+                expect(run_panel).to_contain_text(CHILD_RUN_ID)
+                expect(run_panel).to_contain_text(CHILD_GENERATOR_RESULT)
+                expect(run_panel).to_contain_text(f".codex/loop-runs/{CHILD_RUN_ID}/evaluator-result.json")
+
+                run_page.get_by_role("tab", name="验收", exact=True).click()
+                expect(run_panel).to_contain_text("完整任务说明")
+                expect(run_panel).to_contain_text("任务正文完整可见")
+                expect(run_panel).to_contain_text("python3 scripts/loop_dashboard_evaluator.py")
+                expect(run_panel).to_contain_text("TASK8-ARTIFACT-BROWSER")
+
+                run_page.get_by_role("tab", name="阻塞诊断", exact=True).click()
+                expect(run_panel).to_contain_text("TASK8-BROWSER-FINDING-001")
+                expect(run_panel).to_contain_text(FINDING_TEXT)
+                expect(run_panel).to_contain_text("重要")
+                expect(run_panel).to_contain_text(f".codex/loop-runs/{RUN_ID}/evaluator-result.json")
+
+                run_page.get_by_role("tab", name="产物", exact=True).click()
+                expect(run_panel).to_contain_text(f".codex/loop-runs/{RUN_ID}/task-contract.json")
+                artifact_query = run_panel.get_by_label("关键词")
+                artifact_query.fill("planner-output.json")
+                artifact_query.press("Tab")
+                expect(run_panel).to_contain_text(f".codex/loop-runs/{RUN_ID}/planner-output.json")
+
+                run_page.get_by_role("tab", name="概览", exact=True).click()
+                expect(run_panel).to_contain_text("自动修复后复验")
+                run_page.get_by_label("类型").select_option("transition")
+                expect(run_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
+                run_panel.get_by_role("button", name="下一页", exact=True).click()
+                expect(run_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
+
+                run_page.get_by_role("tab", name="Agent 结果", exact=True).click()
+                run_page.screenshot(path=str(run_detail_path), full_page=True)
+                run_detail_pixels = canvas_pixel_check(run_detail_path)
+                run_detail_overflow = document_overflow(run_page)
+
+                detail_prefix = f"/api/runs/{RUN_ID}/logs/"
+                details_before = request_path_count(direct_requests, detail_prefix)
+                run_page.get_by_role("tab", name="日志", exact=True).click()
+                expect(run_panel.get_by_text("第 1-20 条，共 26 条", exact=False)).to_be_visible()
+                if request_path_count(direct_requests, detail_prefix) != details_before:
+                    raise AssertionError("log list fetched detail before explicit expansion")
+                run_panel.get_by_role("button", name="下一页", exact=True).click()
+                expect(run_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
+                if request_path_count(direct_requests, detail_prefix) != details_before:
+                    raise AssertionError("log pagination fetched detail content")
+                run_panel.get_by_role("button", name="上一页", exact=True).click()
+                first_expand = run_panel.locator("[data-log-detail]").first
+                expect(first_expand).to_have_attribute("aria-expanded", "false")
+                first_expand.click()
+                expect(first_expand).to_have_attribute("aria-expanded", "true")
+                expect(run_panel.locator("[data-log-detail-panel]").first).to_contain_text("[REDACTED]")
+                details_after = request_path_count(direct_requests, detail_prefix)
+                if details_after != details_before + 1:
+                    raise AssertionError(f"explicit log expansion should fetch one detail, got {details_after - details_before}")
+            finally:
+                run_page.close()
 
             mobile = browser.new_page(viewport={"width": 390, "height": 844})
             try:
                 mobile.goto(dashboard_url, wait_until="networkidle")
+                mobile.get_by_role("tab", name="服务", exact=True).click()
+                expect(mobile.locator("#supervisor-panel-content .table-wrap").first).to_be_visible()
                 mobile.screenshot(path=str(mobile_path), full_page=True)
                 mobile_pixels = canvas_pixel_check(mobile_path)
                 mobile_overflow = document_overflow(mobile)
                 internal_scroll = mobile.locator(".tabs").first.evaluate("node => node.scrollWidth > node.clientWidth")
                 if not internal_scroll:
                     raise AssertionError("mobile tabs do not retain internal horizontal scrolling")
+                table_scroll = mobile.locator("#supervisor-panel-content .table-wrap").first.evaluate(
+                    "node => node.scrollWidth > node.clientWidth"
+                )
+                if not table_scroll:
+                    raise AssertionError("mobile table scrolling is not internal to table-wrap")
             finally:
                 mobile.close()
 
             return {
                 "dashboard_url": dashboard_url,
                 "desktop_screenshot": str(desktop_path),
+                "run_detail_screenshot": str(run_detail_path),
                 "mobile_screenshot": str(mobile_path),
                 "desktop_canvas": desktop_pixels,
+                "run_detail_canvas": run_detail_pixels,
                 "mobile_canvas": mobile_pixels,
                 "desktop_overflow": desktop_overflow,
+                "run_detail_overflow": run_detail_overflow,
                 "mobile_overflow": mobile_overflow,
                 "stable_page_two_action_ids": page_two_after,
                 "log_detail_requests_before_expand": details_before,
                 "log_detail_requests_after_expand": details_after,
-                "request_count": len(request_paths),
+                "compact_url_length": len(url_state),
+                "request_count": len(request_urls) + len(direct_requests),
+                "assertions": [
+                    "selected-tab-only direct URL request timing",
+                    "tab independence after refresh",
+                    "page-size 50 persists independently",
+                    "complete task description and artifact-backed run semantics",
+                    "mobile table scrolling remains internal",
+                ],
             }
         except Exception:
             try:
@@ -534,6 +873,47 @@ def verify_exact_tabs(page, view: str) -> None:
     labels = page.locator(f"[{attribute}]").evaluate_all("nodes => nodes.map(node => node.textContent.trim())")
     if labels != expected:
         raise AssertionError(f"unexpected {view} tabs: {labels!r}")
+
+
+def verify_tab_keyboard(page, view: str) -> None:
+    from playwright.sync_api import expect
+
+    attribute = "data-supervisor-tab" if view == "supervisor" else "data-run-tab"
+    tabs = page.locator(f"[{attribute}]")
+    selected_index = tabs.evaluate_all(
+        "nodes => nodes.findIndex(node => node.getAttribute('aria-selected') === 'true')"
+    )
+    selected = tabs.nth(selected_index)
+    selected.focus()
+    selected.press("End")
+    expect(tabs.last).to_have_attribute("aria-selected", "true")
+    expect(tabs.last).to_be_focused()
+    tabs.last.press("Home")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+    expect(tabs.first).to_be_focused()
+    tabs.first.press("ArrowRight")
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(tabs.nth(1)).to_be_focused()
+    tabs.nth(1).press("ArrowLeft")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+    expect(tabs.first).to_be_focused()
+    if selected_index != 0:
+        tabs.nth(selected_index).click()
+        expect(tabs.nth(selected_index)).to_have_attribute("aria-selected", "true")
+
+
+def assert_selected_tab_only_requests(request_urls: list[str]) -> None:
+    detail_path = f"/api/runs/{RUN_ID}"
+    paths = [urlparse(url).path for url in request_urls]
+    if detail_path not in paths:
+        raise AssertionError("direct run URL did not request run detail")
+    collection_paths = [path for path in paths if path.startswith(f"{detail_path}/")]
+    if collection_paths:
+        raise AssertionError(f"selected-tab-only agents view prefetched collections: {collection_paths}")
+
+
+def request_path_count(request_urls: list[str], prefix: str) -> int:
+    return sum(urlparse(url).path.startswith(prefix) for url in request_urls)
 
 
 def verify_collection_pagination(page, panel, tab_name: str, first_id: str) -> None:

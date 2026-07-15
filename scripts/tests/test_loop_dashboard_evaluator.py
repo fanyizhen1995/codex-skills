@@ -139,6 +139,22 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             self.assertIn(viewport, owner)
         for behavior in ("下一页", "第 21-26 条，共 26 条", "action-001", "scrollWidth", "refresh", "log-detail"):
             self.assertIn(behavior, owner)
+        for artifact in (
+            "planner-output.json",
+            "generator-result.json",
+            "evaluator-result.json",
+            "task-contract.json",
+            "run-detail-desktop.png",
+        ):
+            self.assertIn(artifact, owner)
+        for assertion in (
+            "selected-tab-only",
+            "tab independence",
+            "page-size 50",
+            "complete task description",
+            "mobile table scrolling",
+        ):
+            self.assertIn(assertion, owner)
         self.assertEqual(scenario["task_id"], "loop-supervisor-unification-01")
         self.assertTrue(scenario["must_simulate"])
         serialized = json.dumps(scenario, ensure_ascii=False)

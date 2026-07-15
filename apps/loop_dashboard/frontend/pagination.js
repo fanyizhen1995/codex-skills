@@ -3,43 +3,87 @@
 
   const PAGE_SIZES = [20, 50, 100];
   const PAGE_KEYS = ["items", "next_cursor", "previous_cursor", "page_size", "total", "has_more"];
+  const MAX_VISITED_PAGES = 20;
+  const MAX_CURSOR_CHARS = 4096;
+  const MAX_STATE_BYTES = 96 * 1024;
+  const STATE_VERSION = 1;
+  const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
-  function encodeHistory(value) {
-    return btoa(JSON.stringify(value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  class DashboardError extends Error {
+    constructor(code, message, options = {}) {
+      super(message || "请求失败");
+      this.name = "DashboardError";
+      this.code = code || "request_failed";
+      this.recoveryAction = options.recoveryAction || "";
+      this.httpStatus = options.httpStatus || 0;
+      this.payload = options.payload || null;
+    }
   }
 
-  function decodeHistory(value) {
-    if (!value) return null;
+  function structuredError(payload, httpStatus = 0) {
+    if (!payload || typeof payload !== "object" || !payload.status || !payload.error) return null;
+    const error = payload.error && typeof payload.error === "object" ? payload.error : {};
+    return new DashboardError(
+      error.code || payload.status || "request_failed",
+      error.message || "请求失败",
+      {
+        recoveryAction: error.recovery_action || payload.recovery_action || "",
+        httpStatus,
+        payload,
+      },
+    );
+  }
+
+  function httpError(payload, response) {
+    const detail = payload && payload.detail;
+    const message = typeof detail === "string"
+      ? detail
+      : detail && typeof detail === "object"
+        ? detail.message || JSON.stringify(detail)
+        : `HTTP ${response.status}`;
+    return new DashboardError(`http_${response.status}`, message || "请求失败", {
+      httpStatus: response.status,
+      payload,
+    });
+  }
+
+  async function requestJson(path, options = {}) {
+    const response = await fetch(path, { signal: options.signal });
+    let payload;
     try {
-      const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-      return JSON.parse(atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)));
+      payload = await response.json();
     } catch (_error) {
-      return null;
+      throw new DashboardError("invalid_json", `HTTP ${response.status}: 响应不是 JSON`, {
+        httpStatus: response.status,
+      });
     }
-  }
-
-  function validatePageEnvelope(payload) {
-    if (payload && payload.status === "capacity_exceeded") {
-      const message = payload.error?.message || "分页快照容量已满";
-      throw new Error(`capacity_exceeded: ${message}`);
-    }
-    if (payload && payload.status && payload.error) {
-      const code = payload.error.code || payload.status || "unavailable";
-      const message = payload.error.message || "分页数据不可用";
-      throw new Error(`${code}: ${message}`);
-    }
-    if (!payload || typeof payload !== "object") throw new Error("分页响应不是对象");
-    const keys = Object.keys(payload).sort();
-    if (keys.length !== PAGE_KEYS.length || PAGE_KEYS.some((key) => !keys.includes(key))) {
-      throw new Error("分页响应不符合 Task 7 page envelope");
-    }
-    if (!Array.isArray(payload.items)) throw new Error("分页响应 items 不是数组");
-    if (!PAGE_SIZES.includes(payload.page_size)) throw new Error("分页响应 page_size 无效");
-    if (!Number.isInteger(payload.total) || payload.total < 0) throw new Error("分页响应 total 无效");
+    const statusError = structuredError(payload, response.status);
+    if (statusError) throw statusError;
+    if (!response.ok) throw httpError(payload, response);
     return payload;
   }
 
-  async function fetchPage(endpoint, state) {
+  function validatePageEnvelope(payload) {
+    if (!payload || typeof payload !== "object") {
+      throw new DashboardError("invalid_page_envelope", "分页响应不是对象");
+    }
+    const keys = Object.keys(payload).sort();
+    if (keys.length !== PAGE_KEYS.length || PAGE_KEYS.some((key) => !keys.includes(key))) {
+      throw new DashboardError("invalid_page_envelope", "分页响应不符合 Task 7 page envelope");
+    }
+    if (!Array.isArray(payload.items)) {
+      throw new DashboardError("invalid_page_items", "分页响应 items 不是数组");
+    }
+    if (!PAGE_SIZES.includes(payload.page_size)) {
+      throw new DashboardError("invalid_page_size", "分页响应 page_size 无效");
+    }
+    if (!Number.isInteger(payload.total) || payload.total < 0) {
+      throw new DashboardError("invalid_page_total", "分页响应 total 无效");
+    }
+    return payload;
+  }
+
+  async function fetchPage(endpoint, state, signal) {
     const url = new URL(endpoint, window.location.origin);
     const params = new URLSearchParams();
     params.set("page_size", String(state.pageSize));
@@ -49,18 +93,42 @@
       if (value) params.set(name, value);
     });
     url.search = params.toString();
-    const response = await fetch(url);
-    let payload;
-    try {
-      payload = await response.json();
-    } catch (_error) {
-      throw new Error(`HTTP ${response.status}: 响应不是 JSON`);
+    return validatePageEnvelope(await requestJson(url, { signal }));
+  }
+
+  function isAbortError(error) {
+    return error && error.name === "AbortError";
+  }
+
+  function cloneState(state) {
+    return {
+      cursor: state.cursor,
+      visitedCursors: [...state.visitedCursors],
+      pageOffset: state.pageOffset,
+      pageIndex: state.pageIndex,
+      pageSize: state.pageSize,
+      query: state.query,
+      filters: { ...state.filters },
+    };
+  }
+
+  function initialState() {
+    return {
+      cursor: null,
+      visitedCursors: [null],
+      pageOffset: 0,
+      pageIndex: 0,
+      pageSize: 20,
+      query: "",
+      filters: {},
+    };
+  }
+
+  function compactToken() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID().replaceAll("-", "").substring(0, 20);
     }
-    if (!response.ok) {
-      const detail = payload && (payload.detail || payload.error?.message || payload.status);
-      throw new Error(`HTTP ${response.status}: ${detail || "请求失败"}`);
-    }
-    return validatePageEnvelope(payload);
+    return `${Date.now().toString(36)}${Math.random().toString(36).substring(2, 14)}`;
   }
 
   class CursorPager {
@@ -71,151 +139,250 @@
       this.renderItems = options.renderItems;
       this.emptyMessage = options.emptyMessage || "暂无数据";
       this.allowedFilters = options.allowedFilters || [];
+      this.fixedSort = options.fixedSort || "newest";
       this.onStateChange = options.onStateChange || (() => {});
+      this.stateToken = this.restoreToken();
       this.state = this.restoreState();
+      this.committedState = cloneState(this.state);
       this.page = null;
-      this.loading = false;
+      this.requestGeneration = 0;
+      this.abortController = null;
+      this.lastError = null;
+      this.retryLastRequest = () => this.refresh();
     }
 
     param(name) {
       return `pager.${this.key}.${name}`;
     }
 
-    restoreState() {
+    storageKey(token = this.stateToken) {
+      return `loop-pager-state:${this.key}:${token}`;
+    }
+
+    restoreToken() {
       const params = new URLSearchParams(window.location.search);
-      const stored = decodeHistory(params.get(this.param("history")))
-        || decodeHistory(sessionStorage.getItem(this.param("history")));
-      const visitedCursors = Array.isArray(stored) && stored.length && stored[0] === null
-        ? stored.filter((cursor) => cursor === null || typeof cursor === "string")
-        : [null];
-      const requestedIndex = Number.parseInt(params.get(this.param("page")) || "1", 10) - 1;
-      const pageIndex = Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < visitedCursors.length
-        ? requestedIndex
-        : 0;
-      const requestedSize = Number.parseInt(params.get(this.param("size")) || "20", 10);
-      const filters = {};
-      this.allowedFilters.forEach((name) => {
-        const value = params.get(this.param(`filter.${name}`));
-        if (value) filters[name] = value;
-      });
-      return {
-        cursor: visitedCursors[pageIndex],
-        visitedCursors,
-        pageIndex,
-        pageSize: PAGE_SIZES.includes(requestedSize) ? requestedSize : 20,
-        query: params.get(this.param("query")) || "",
-        sort: params.get(this.param("sort")) || "newest",
-        filters,
-      };
+      const token = params.get(this.param("state"));
+      return token && TOKEN_PATTERN.test(token) ? token : compactToken();
+    }
+
+    restoreState() {
+      const raw = sessionStorage.getItem(this.storageKey());
+      if (!raw || raw.length > MAX_STATE_BYTES) return initialState();
+      try {
+        const payload = JSON.parse(raw);
+        if (!payload || payload.version !== STATE_VERSION) return initialState();
+        const cursors = payload.visitedCursors;
+        if (
+          !Array.isArray(cursors)
+          || cursors.length < 1
+          || cursors.length > MAX_VISITED_PAGES
+          || cursors[0] !== null
+          || cursors.some((cursor) => cursor !== null && (typeof cursor !== "string" || cursor.length > MAX_CURSOR_CHARS))
+        ) return initialState();
+        const pageIndex = Number.isInteger(payload.pageIndex) && payload.pageIndex >= 0 && payload.pageIndex < cursors.length
+          ? payload.pageIndex
+          : 0;
+        const pageOffset = Number.isInteger(payload.pageOffset) && payload.pageOffset >= 0 ? payload.pageOffset : 0;
+        const pageSize = PAGE_SIZES.includes(payload.pageSize) ? payload.pageSize : 20;
+        const query = typeof payload.query === "string" ? payload.query.substring(0, 500) : "";
+        const filters = {};
+        if (payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters)) {
+          this.allowedFilters.forEach((name) => {
+            const value = payload.filters[name];
+            if (typeof value === "string" && value.length <= 500 && value) filters[name] = value;
+          });
+        }
+        return {
+          cursor: cursors[pageIndex],
+          visitedCursors: [...cursors],
+          pageOffset,
+          pageIndex,
+          pageSize,
+          query,
+          filters,
+        };
+      } catch (_error) {
+        return initialState();
+      }
     }
 
     persistState() {
+      const payload = JSON.stringify({ version: STATE_VERSION, ...this.state });
+      if (payload.length > MAX_STATE_BYTES) throw new DashboardError("pager_state_too_large", "分页状态超过本地保存上限");
+      sessionStorage.setItem(this.storageKey(), payload);
       const url = new URL(window.location.href);
-      const history = encodeHistory(this.state.visitedCursors);
-      url.searchParams.set(this.param("page"), String(this.state.pageIndex + 1));
-      url.searchParams.set(this.param("size"), String(this.state.pageSize));
-      url.searchParams.set(this.param("sort"), this.state.sort);
-      url.searchParams.set(this.param("history"), history);
-      if (this.state.query) url.searchParams.set(this.param("query"), this.state.query);
-      else url.searchParams.delete(this.param("query"));
-      this.allowedFilters.forEach((name) => {
-        const param = this.param(`filter.${name}`);
-        if (this.state.filters[name]) url.searchParams.set(param, this.state.filters[name]);
-        else url.searchParams.delete(param);
-      });
-      sessionStorage.setItem(this.param("history"), history);
+      url.searchParams.set(this.param("state"), this.stateToken);
       window.history.replaceState({}, "", url);
-      this.onStateChange(this.state);
+      this.onStateChange(cloneState(this.state));
     }
 
     resetCursor() {
       this.state.cursor = null;
       this.state.visitedCursors = [null];
+      this.state.pageOffset = 0;
       this.state.pageIndex = 0;
     }
 
-    async setPageSize(pageSize) {
-      if (!PAGE_SIZES.includes(pageSize) || pageSize === this.state.pageSize) return;
-      this.state.pageSize = pageSize;
-      this.resetCursor();
+    async transition(mutator, retryFactory) {
+      const rollbackState = cloneState(this.committedState);
+      mutator();
       this.persistState();
-      await this.load();
+      this.retryLastRequest = retryFactory || (() => this.refresh());
+      return this.load({ rollbackState, rollbackPage: this.page });
+    }
+
+    async setPageSize(pageSize) {
+      if (!PAGE_SIZES.includes(pageSize) || pageSize === this.state.pageSize) return false;
+      return this.transition(
+        () => {
+          this.state.pageSize = pageSize;
+          this.resetCursor();
+        },
+        () => this.setPageSize(pageSize),
+      );
     }
 
     async setQuery(query) {
-      const normalized = String(query || "").trim();
-      if (normalized === this.state.query) return;
-      this.state.query = normalized;
-      this.resetCursor();
-      this.persistState();
-      await this.load();
+      const normalized = String(query || "").trim().substring(0, 500);
+      if (normalized === this.state.query) return false;
+      return this.transition(
+        () => {
+          this.state.query = normalized;
+          this.resetCursor();
+        },
+        () => this.setQuery(normalized),
+      );
     }
 
     async setFilter(name, value) {
-      if (!this.allowedFilters.includes(name)) throw new Error(`不支持的过滤器: ${name}`);
-      const normalized = String(value || "");
-      if ((this.state.filters[name] || "") === normalized) return;
-      if (normalized) this.state.filters[name] = normalized;
-      else delete this.state.filters[name];
-      this.resetCursor();
-      this.persistState();
-      await this.load();
+      if (!this.allowedFilters.includes(name)) throw new DashboardError("unsupported_filter", `不支持的过滤器: ${name}`);
+      const normalized = String(value || "").substring(0, 500);
+      if ((this.state.filters[name] || "") === normalized) return false;
+      return this.transition(
+        () => {
+          if (normalized) this.state.filters[name] = normalized;
+          else delete this.state.filters[name];
+          this.resetCursor();
+        },
+        () => this.setFilter(name, normalized),
+      );
     }
 
     async goToVisited(pageIndex) {
-      if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= this.state.visitedCursors.length) return;
-      this.state.pageIndex = pageIndex;
-      this.state.cursor = this.state.visitedCursors[pageIndex];
-      this.persistState();
-      await this.load();
+      if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= this.state.visitedCursors.length) return false;
+      return this.transition(
+        () => {
+          this.state.pageIndex = pageIndex;
+          this.state.cursor = this.state.visitedCursors[pageIndex];
+        },
+        () => this.goToVisited(pageIndex),
+      );
     }
 
     async next() {
-      if (!this.page || !this.page.next_cursor) return;
-      const nextIndex = this.state.pageIndex + 1;
-      if (nextIndex === this.state.visitedCursors.length) {
-        this.state.visitedCursors.push(this.page.next_cursor);
-      } else {
-        this.state.visitedCursors[nextIndex] = this.page.next_cursor;
-        this.state.visitedCursors.length = nextIndex + 1;
-      }
-      this.state.pageIndex = nextIndex;
-      this.state.cursor = this.state.visitedCursors[nextIndex];
-      this.persistState();
-      await this.load();
+      if (!this.page || !this.page.next_cursor) return false;
+      const nextCursor = this.page.next_cursor;
+      return this.transition(
+        () => {
+          const nextIndex = this.state.pageIndex + 1;
+          this.state.visitedCursors.length = nextIndex;
+          this.state.visitedCursors.push(nextCursor);
+          this.state.pageIndex = nextIndex;
+          if (this.state.visitedCursors.length > MAX_VISITED_PAGES) {
+            this.state.visitedCursors.shift();
+            this.state.pageOffset += 1;
+            this.state.pageIndex -= 1;
+          }
+          this.state.cursor = this.state.visitedCursors[this.state.pageIndex];
+        },
+        () => this.next(),
+      );
     }
 
-    async load() {
-      if (this.loading) return;
-      this.loading = true;
-      this.container.replaceChildren(messageNode("正在读取...", "empty-state"));
+    async refresh() {
+      return this.load({ rollbackState: cloneState(this.committedState), rollbackPage: this.page });
+    }
+
+    destroy() {
+      this.requestGeneration += 1;
+      if (this.abortController) this.abortController.abort();
+      this.abortController = null;
+    }
+
+    async load(options = {}) {
+      const generation = ++this.requestGeneration;
+      if (this.abortController) this.abortController.abort();
+      this.abortController = new AbortController();
+      const requestedState = cloneState(this.state);
+      const rollbackState = options.rollbackState || cloneState(this.committedState);
+      const rollbackPage = options.rollbackPage === undefined ? this.page : options.rollbackPage;
+      if (!this.page) this.container.replaceChildren(messageNode("正在读取...", "empty-state"));
+      else this.container.setAttribute("aria-busy", "true");
       try {
-        this.page = await fetchPage(this.endpoint, this.state);
+        const page = await fetchPage(this.endpoint, requestedState, this.abortController.signal);
+        if (generation !== this.requestGeneration) return false;
+        this.page = page;
+        this.state = requestedState;
+        this.committedState = cloneState(requestedState);
+        this.lastError = null;
+        this.persistState();
         this.render();
+        return true;
       } catch (error) {
-        this.page = null;
-        this.container.replaceChildren(messageNode(error.message || "分页数据不可用", "error-state"));
+        if (isAbortError(error) || generation !== this.requestGeneration) return false;
+        this.state = cloneState(rollbackState);
+        this.committedState = cloneState(rollbackState);
+        this.page = rollbackPage;
+        this.lastError = error instanceof DashboardError
+          ? error
+          : new DashboardError("request_failed", error.message || "分页请求失败");
+        this.persistState();
+        this.render();
+        return false;
       } finally {
-        this.loading = false;
+        if (generation === this.requestGeneration) {
+          this.container.removeAttribute("aria-busy");
+          this.abortController = null;
+        }
       }
     }
 
     render() {
       const fragment = document.createDocumentFragment();
-      const items = this.page.items;
-      const content = document.createElement("div");
-      content.className = "paged-content";
-      if (items.length) this.renderItems(content, items, this.page);
-      else content.append(messageNode(this.emptyMessage, "empty-state"));
-      fragment.append(content, this.renderPager());
+      if (this.lastError) fragment.append(this.renderError());
+      if (this.page) {
+        const content = document.createElement("div");
+        content.className = "paged-content";
+        if (this.page.items.length) this.renderItems(content, this.page.items, this.page);
+        else content.append(messageNode(this.emptyMessage, "empty-state"));
+        fragment.append(content, this.renderPager());
+      } else if (!this.lastError) {
+        fragment.append(messageNode(this.emptyMessage, "empty-state"));
+      }
       this.container.replaceChildren(fragment);
+    }
+
+    renderError() {
+      const wrapper = messageNode("", "error-state pager-error");
+      const detail = this.lastError.recoveryAction
+        ? `${this.lastError.code}：${this.lastError.message}；建议：${this.lastError.recoveryAction}`
+        : `${this.lastError.code}：${this.lastError.message}`;
+      wrapper.append(document.createTextNode(detail));
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "page-button";
+      retry.textContent = "重试";
+      retry.addEventListener("click", () => this.retryLastRequest());
+      wrapper.append(retry);
+      return wrapper;
     }
 
     renderPager() {
       const pager = document.createElement("div");
       pager.className = "pager";
       pager.dataset.pagerKey = this.key;
-      const start = this.page.total === 0 ? 0 : this.state.pageIndex * this.page.page_size + 1;
+      const absolutePage = this.state.pageOffset + this.state.pageIndex;
+      const start = this.page.total === 0 ? 0 : absolutePage * this.page.page_size + 1;
       const end = this.page.total === 0 ? 0 : Math.min(start + this.page.items.length - 1, this.page.total);
       const summary = document.createElement("span");
       summary.className = "pager-summary";
@@ -231,13 +398,14 @@
         pageSize.append(option);
       });
       pageSize.addEventListener("change", () => this.setPageSize(Number(pageSize.value)));
-      summary.append(pageSize);
+      summary.append(pageSize, document.createTextNode(` · 排序：${this.fixedSort === "newest" ? "最新优先" : "固定顺序"}`));
 
       const actions = document.createElement("div");
       actions.className = "pager-actions";
       actions.append(this.pageButton("上一页", this.state.pageIndex === 0, () => this.goToVisited(this.state.pageIndex - 1)));
       this.state.visitedCursors.map((_cursor, index) => {
-        const button = this.pageButton(String(index + 1), false, () => this.goToVisited(index));
+        const label = String(this.state.pageOffset + index + 1);
+        const button = this.pageButton(label, false, () => this.goToVisited(index));
         if (index === this.state.pageIndex) {
           button.classList.add("is-active");
           button.setAttribute("aria-current", "page");
@@ -268,5 +436,13 @@
     return node;
   }
 
-  window.LoopPagination = { CursorPager, PAGE_SIZES, fetchPage, validatePageEnvelope };
+  window.LoopPagination = {
+    CursorPager,
+    DashboardError,
+    PAGE_SIZES,
+    fetchPage,
+    requestJson,
+    structuredError,
+    validatePageEnvelope,
+  };
 }());

@@ -1,34 +1,8 @@
 (function () {
   "use strict";
 
-  const { CursorPager, fetchPage } = window.LoopPagination;
-
-  const STATUS_LABELS = {
-    available: "可用",
-    healthy: "正常",
-    pending: "待执行",
-    leased: "已分配",
-    running: "执行中",
-    completed: "已完成",
-    complete: "已完成",
-    failed: "失败",
-    cancelled: "已取消",
-    open: "待处理",
-    closed: "已解决",
-    review_complete: "审视完成",
-    review_degraded: "Reviewer 暂时不可用",
-    fresh: "通过",
-    stale: "过期",
-    unavailable: "不可用",
-  };
-
-  const DECISION_LABELS = {
-    continue: "继续",
-    auto_remediate: "自动整改",
-    refocus: "重新聚焦",
-    stop_run: "停止运行",
-    ask_user: "请求用户决策",
-  };
+  const { CursorPager, DashboardError, fetchPage } = window.LoopPagination;
+  const SUPERVISOR_TABS = ["overview", "services", "recovery", "reviewer", "decisions", "skills", "config"];
 
   class SupervisorView {
     constructor(options) {
@@ -37,16 +11,37 @@
       this.topStatus = options.topStatus;
       this.navStatus = options.navStatus;
       this.fetchJson = options.fetchJson;
-      this.activeTab = new URL(window.location.href).searchParams.get("supervisor_tab") || "overview";
+      const requested = new URL(window.location.href).searchParams.get("supervisor_tab") || "overview";
+      this.activeTab = SUPERVISOR_TABS.includes(requested) ? requested : "overview";
+      this.canonicalizeActiveTab(requested);
       this.pagers = new Map();
+      this.activePagerKeys = [];
       this.summary = null;
       this.requestSequence = 0;
       this.bindTabs();
     }
 
+    canonicalizeActiveTab(requested) {
+      const url = new URL(window.location.href);
+      if (requested !== this.activeTab) url.searchParams.set("supervisor_tab", this.activeTab);
+      window.history.replaceState({}, "", url);
+    }
+
     bindTabs() {
-      document.querySelectorAll("[data-supervisor-tab]").forEach((button) => {
+      const tabs = Array.from(document.querySelectorAll("[data-supervisor-tab]"));
+      tabs.forEach((button, index) => {
         button.addEventListener("click", () => this.selectTab(button.dataset.supervisorTab));
+        button.addEventListener("keydown", (event) => {
+          let targetIndex = -1;
+          if (event.key === "ArrowRight") targetIndex = (index + 1) % tabs.length;
+          if (event.key === "ArrowLeft") targetIndex = (index - 1 + tabs.length) % tabs.length;
+          if (event.key === "Home") targetIndex = 0;
+          if (event.key === "End") targetIndex = tabs.length - 1;
+          if (targetIndex < 0) return;
+          event.preventDefault();
+          tabs[targetIndex].focus();
+          this.selectTab(tabs[targetIndex].dataset.supervisorTab);
+        });
       });
     }
 
@@ -55,9 +50,14 @@
       await this.loadActiveTab();
     }
 
+    async refresh() {
+      await this.loadActiveTab({ refresh: true });
+    }
+
     async selectTab(tab) {
-      const allowed = ["overview", "services", "recovery", "reviewer", "decisions", "skills", "config"];
-      if (!allowed.includes(tab)) return;
+      if (!SUPERVISOR_TABS.includes(tab)) return;
+      this.activePagerKeys.forEach((key) => this.pagers.get(key)?.destroy());
+      this.activePagerKeys = [];
       this.activeTab = tab;
       const url = new URL(window.location.href);
       url.searchParams.set("supervisor_tab", tab);
@@ -71,24 +71,26 @@
         const selected = button.dataset.supervisorTab === this.activeTab;
         button.classList.toggle("is-active", selected);
         button.setAttribute("aria-selected", String(selected));
+        button.setAttribute("tabindex", selected ? "0" : "-1");
+        if (selected) this.panel.setAttribute("aria-labelledby", button.id);
       });
     }
 
-    async loadActiveTab() {
+    async loadActiveTab(options = {}) {
       const request = ++this.requestSequence;
-      this.panel.replaceChildren(messageNode("正在读取...", "empty-state"));
+      if (!options.refresh) this.panel.replaceChildren(messageNode("正在读取...", "empty-state"));
       try {
         if (this.activeTab === "overview") await this.renderOverview(request);
-        else if (this.activeTab === "services") await this.renderServices(request);
-        else if (this.activeTab === "recovery") await this.renderRecovery(request);
-        else if (this.activeTab === "reviewer") await this.renderReviewer(request);
-        else if (this.activeTab === "decisions") await this.renderDecisions(request);
-        else if (this.activeTab === "skills") await this.renderSkills(request);
+        else if (this.activeTab === "services") await this.renderServices(request, options);
+        else if (this.activeTab === "recovery") await this.renderRecovery(request, options);
+        else if (this.activeTab === "reviewer") await this.renderReviewer(request, options);
+        else if (this.activeTab === "decisions") await this.renderDecisions(request, options);
+        else if (this.activeTab === "skills") await this.renderSkills(request, options);
         else await this.renderConfig(request);
       } catch (error) {
-        if (request !== this.requestSequence) return;
-        this.panel.replaceChildren(messageNode(error.message || "Supervisor 数据不可用", "error-state"));
-        this.setHealth(false, "Supervisor 不可用");
+        if (request !== this.requestSequence || error.name === "AbortError") return;
+        this.panel.replaceChildren(messageNode(errorText(error), "error-state"));
+        this.setHealth("unavailable", "健康状态不可用");
       }
     }
 
@@ -96,44 +98,63 @@
       const summary = await this.fetchJson("/api/supervisor");
       if (summary.status !== "available") {
         const message = summary.error?.message || summary.diagnostics?.join("；") || "Supervisor 数据不可用";
-        throw new Error(message);
+        throw new DashboardError(summary.status || "unavailable", message);
       }
       this.summary = summary;
-      this.setHealth(true, "Supervisor 正常");
       return summary;
     }
 
-    setHealth(available, label) {
-      this.navStatus.textContent = available ? "正常" : "不可用";
-      this.navStatus.className = `status-text ${available ? "good" : "bad"}`;
+    setHealth(mode, label) {
+      const tone = mode === "healthy" ? "good" : mode === "degraded" ? "warn" : "bad";
+      this.navStatus.textContent = mode === "healthy" ? "正常" : mode === "degraded" ? "降级" : "不可用";
+      this.navStatus.className = `status-text ${tone}`;
       this.topStatus.replaceChildren(
-        chip(label, available ? "good" : "bad"),
-        chip(available ? "统一控制面已连接" : "数据不可用", available ? "good" : "warn"),
+        chip(label, tone),
+        chip(mode === "healthy" ? "服务健康已验证" : mode === "degraded" ? "数据可读，服务未全部健康" : "健康状态不可用", tone),
         chip("无独立控制角色", "neutral"),
       );
     }
 
-    updateHero(summary) {
-      const counts = summary.counts || {};
+    deriveHealth(summary, services) {
+      const rows = services?.items || [];
+      if (!summary || summary.status !== "available" || !rows.length) {
+        this.setHealth("unavailable", summary ? "Supervisor 数据可读" : "健康状态不可用");
+        return;
+      }
+      const allHealthy = rows.every((service) => service.status === "healthy");
+      const workers = summary.counts?.workers;
+      if (allHealthy && Number.isInteger(workers) && workers > 0) this.setHealth("healthy", "Supervisor 正常");
+      else this.setHealth("degraded", "Supervisor 降级");
+    }
+
+    updateHero(summary, services) {
+      const rows = services?.items || [];
+      const healthy = rows.filter((item) => item.status === "healthy").length;
       this.hero.replaceChildren(
-        chip(`${valueText(counts.workers)} Worker 记录`, counts.workers ? "good" : "warn"),
-        chip(`${valueText(counts.user_decisions)} 项决策记录`, "neutral"),
-        chip(`${valueText(counts.actions)} 项动作记录`, "neutral"),
+        chip(rows.length ? `${healthy} / ${services.total} 服务健康` : "服务健康不可用", healthy === services?.total ? "good" : "warn"),
+        chip(`${valueText(summary.counts?.workers)} Worker 记录`, summary.counts?.workers ? "good" : "warn"),
+        chip("排序：最新优先", "neutral"),
       );
     }
 
     async renderOverview(request) {
       const summary = await this.loadSummary();
+      const pendingActions = await firstPage("/api/supervisor/actions", { status: "pending" });
+      const reviews = await firstPage("/api/supervisor/reviews");
+      const required = await firstPage("/api/supervisor/decision-required");
+      const services = await firstPage("/api/supervisor/services");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
-      const counts = summary.counts || {};
+      this.deriveHealth(summary, services);
+      this.updateHero(summary, services);
+      const recentReview = reviews.items[0];
       const content = document.createDocumentFragment();
       content.append(metrics([
-        ["运行记录", valueText(counts.runs)],
-        ["动作记录", valueText(counts.actions)],
-        ["Reviewer 记录", valueText(counts.reviews)],
-        ["用户决策记录", valueText(counts.user_decisions)],
+        ["活动运行", "不可用"],
+        ["待执行动作", valueText(pendingActions.total)],
+        ["最近 Reviewer", recentReview ? reviewDecisionLabel(recentReview.decision) : "暂无数据"],
+        ["需要用户", valueText(required.total)],
       ]));
+      content.append(node("div", "metric-disclosure", "活动运行：Task 7 未提供活动运行聚合，不能用运行总数代替。"));
       content.append(section("控制流程", "一个注册表 · 一个动作队列 · 一个决策入口", flow([
         ["Reconciler", "读取 run.json 和证据"],
         ["Decision Engine", "计算下一状态与恢复层级"],
@@ -143,49 +164,69 @@
       ])));
       const split = node("div", "split");
       split.append(
-        section("当前动作", "详情在任务恢复页", messageNode(
-          counts.actions ? `共有 ${counts.actions} 条动作记录；当前状态需在任务恢复页查看。` : "暂无动作记录",
-          "list-item",
-        )),
-        section("最近全局判断", "详情在 Reviewer 页", messageNode(
-          counts.reviews ? `共有 ${counts.reviews} 条 Reviewer 记录；最近结论需在 Reviewer 页查看。` : "暂无 Reviewer 记录",
-          "list-item",
-        )),
+        section("当前动作", "任务恢复页提供完整记录", pendingActions.items[0]
+          ? actionSummary(pendingActions.items[0])
+          : messageNode("暂无待执行动作", "list-item")),
+        section("最近全局判断", "Reviewer 请求动作来自 accepted review", recentReview
+          ? reviewSummary(recentReview)
+          : messageNode("暂无 Reviewer 记录", "list-item")),
       );
       content.append(split);
       this.panel.replaceChildren(content);
     }
 
-    async renderServices(request) {
+    async renderServices(request, options) {
       const summary = await this.loadSummary();
+      const initialServices = await firstPage("/api/supervisor/services");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
-      const container = pagerSection(this.panel, "服务状态", "可达性、进程、版本和数据新鲜度分别判断");
-      const pager = this.pager("supervisor-services", {
+      this.deriveHealth(summary, initialServices);
+      this.updateHero(summary, initialServices);
+      const fragment = document.createDocumentFragment();
+      const servicesHost = pagerSection(fragment, "服务状态", "可达性、进程、版本和数据新鲜度分别判断");
+      const freshnessHost = pagerSection(fragment, "数据新鲜度", "目标、检查状态、摘要和证据明细");
+      this.panel.replaceChildren(fragment);
+      const servicesPager = this.pager("supervisor-services", {
         endpoint: "/api/supervisor/services",
-        container,
+        container: servicesHost,
         allowedFilters: ["status"],
         emptyMessage: "暂无服务数据",
-        renderItems: (target, items) => renderTable(target, ["服务", "可达", "进程 / 心跳", "版本", "数据新鲜度"], items.map((item) => {
+        renderItems: (target, items) => renderTable(target, ["服务", "健康", "可达", "进程 / 心跳", "版本", "数据新鲜度"], items.map((item) => {
           const details = objectValue(item.details);
           return [
-            strongText(item.service_id),
-            statusText(item.status),
+            strongText(serviceNameLabel(item.service_id)),
+            statusText(serviceHealthLabel(item.status), serviceHealthTone(item.status)),
+            booleanLabel(details.reachable),
             text(item.process_id || item.heartbeat_at, "不可用"),
             text(item.version, "不可用"),
-            text(details.freshness || details.data_freshness || details.summary, "暂无数据"),
+            text(details.freshness || details.data_freshness, "暂无 freshness target"),
           ];
         })),
       });
-      await pager.load();
+      const freshnessPager = this.pager("supervisor-freshness", {
+        endpoint: "/api/supervisor/services/freshness",
+        container: freshnessHost,
+        allowedFilters: ["target", "status"],
+        emptyMessage: "暂无 freshness target",
+        renderItems: (target, items) => renderTable(target, ["目标", "状态", "摘要", "检查时间", "明细"], items.map((item) => [
+          strongText(item.target),
+          statusText(freshnessLabel(item.status), freshnessTone(item.status)),
+          text(item.summary, "暂无摘要"),
+          formatTime(item.checked_at || item.created_at),
+          readableValue(item.details, "暂无明细"),
+        ])),
+      });
+      await loadPager(servicesPager, options.refresh);
+      await loadPager(freshnessPager, options.refresh);
     }
 
-    async renderRecovery(request) {
+    async renderRecovery(request, options) {
       const summary = await this.loadSummary();
+      const services = await firstPage("/api/supervisor/services");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
+      this.deriveHealth(summary, services);
+      this.updateHero(summary, services);
       const wrapper = node("section", "section");
-      wrapper.append(sectionHeading("任务恢复", "同一 failure key 更新次数，不按 tick 重复追加"));
+      wrapper.append(sectionHeading("任务恢复", "动作与恢复尝试均来自 Task 7 分页接口"));
       const toolbar = node("div", "toolbar");
       const controls = node("div", "filters");
       const status = selectControl("动作状态", [
@@ -194,110 +235,123 @@
       const runId = inputControl("运行 ID", "按完整 run ID 过滤");
       controls.append(status.label, runId.label);
       toolbar.append(controls);
-      const container = node("div", "pager-host");
-      wrapper.append(toolbar, container);
+      const host = node("div", "pager-host");
+      wrapper.append(toolbar, host);
       this.panel.replaceChildren(wrapper);
       const pager = this.pager("supervisor-recovery", {
         endpoint: "/api/supervisor/actions",
-        container,
+        container: host,
         allowedFilters: ["status", "run_id"],
         emptyMessage: "暂无恢复动作",
-        renderItems: (target, items) => renderTable(target, ["运行 / 动作", "恢复判断", "层级", "状态"], items.map((item) => [
-          multiText(item.run_id, item.action_id),
-          multiText(actionLabel(item.action_type), text(objectValue(item.payload).summary || objectValue(item.payload).reason, "暂无说明")),
-          `Tier ${Number(item.recovery_tier || 0)}`,
-          statusText(item.status),
-        ])),
+        renderItems: (target, items) => renderRecoveryTable(target, items, this.fetchJson),
       });
       status.select.value = pager.state.filters.status || "";
       runId.input.value = pager.state.filters.run_id || "";
-      status.select.addEventListener("change", () => pager.setFilter("status", status.select.value));
-      runId.input.addEventListener("change", () => pager.setFilter("run_id", runId.input.value.trim()));
-      await pager.load();
+      status.select.addEventListener("change", async () => {
+        await pager.setFilter("status", status.select.value);
+        status.select.value = pager.state.filters.status || "";
+      });
+      runId.input.addEventListener("change", async () => {
+        await pager.setFilter("run_id", runId.input.value.trim());
+        runId.input.value = pager.state.filters.run_id || "";
+      });
+      await loadPager(pager, options.refresh);
     }
 
-    async renderReviewer(request) {
+    async renderReviewer(request, options) {
       const summary = await this.loadSummary();
+      const services = await firstPage("/api/supervisor/services");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
-      const content = document.createDocumentFragment();
-      content.append(metrics([
+      this.deriveHealth(summary, services);
+      this.updateHero(summary, services);
+      const fragment = document.createDocumentFragment();
+      fragment.append(metrics([
         ["审视范围", "项目全局"],
         ["常规节奏", "由 Supervisor 配置"],
         ["审视记录", valueText(summary.counts?.reviews)],
         ["开放 finding", valueText(summary.counts?.review_findings)],
       ]));
-      const container = pagerSection(content, "Reviewer 历史", "Reviewer 不可用时如实显示降级状态");
-      this.panel.replaceChildren(content);
+      const host = pagerSection(fragment, "Reviewer 历史", "结论、证据范围和请求动作均来自 Reviewer 记录");
+      this.panel.replaceChildren(fragment);
       const pager = this.pager("supervisor-reviewer", {
         endpoint: "/api/supervisor/reviews",
-        container,
+        container: host,
         allowedFilters: ["status", "decision", "trigger"],
         emptyMessage: "暂无 Reviewer 记录",
-        renderItems: (target, items) => renderTable(target, ["时间", "全局判断", "证据范围", "自动动作"], items.map((item) => [
-          formatTime(item.created_at),
-          multiText(decisionLabel(item.decision), item.summary),
-          readableValue(item.evidence, "暂无证据范围"),
-          statusText(item.status),
-        ])),
+        renderItems: (target, items) => renderTable(target, ["时间", "全局判断", "证据范围", "请求动作", "状态"], items.map((item) => {
+          const accepted = objectValue(item.accepted_review);
+          return [
+            formatTime(item.created_at),
+            multiText(reviewDecisionLabel(item.decision), item.summary),
+            readableValue(item.evidence, "暂无证据范围"),
+            readableValue(accepted.actions || accepted.requested_actions || item.decision, reviewDecisionLabel(item.decision)),
+            statusText(reviewStatusLabel(item.status), reviewStatusTone(item.status)),
+          ];
+        })),
       });
-      await pager.load();
+      await loadPager(pager, options.refresh);
     }
 
-    async renderDecisions(request) {
+    async renderDecisions(request, options) {
       const summary = await this.loadSummary();
+      const services = await firstPage("/api/supervisor/services");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
+      this.deriveHealth(summary, services);
+      this.updateHero(summary, services);
       const wrapper = node("section", "section");
       wrapper.append(sectionHeading("决策", "人工决策默认只影响单个 run"));
       const status = selectControl("决策状态", [["", "全部决策"], ["open", "需要用户"], ["closed", "已解决"]]);
       const toolbar = node("div", "toolbar");
       toolbar.append(status.label);
-      const container = node("div", "pager-host");
-      wrapper.append(toolbar, container);
+      const host = node("div", "pager-host");
+      wrapper.append(toolbar, host);
       this.panel.replaceChildren(wrapper);
       const pager = this.pager("supervisor-decisions", {
         endpoint: "/api/supervisor/decisions",
-        container,
+        container: host,
         allowedFilters: ["status", "scope", "run_id"],
         emptyMessage: "暂无决策记录",
-        renderItems: (target, items) => renderTable(target, ["对象", "决策", "原因", "影响范围"], items.map((item) => [
+        renderItems: (target, items) => renderTable(target, ["对象", "状态", "含义", "需要决定", "解决结果", "影响范围"], items.map((item) => [
           text(item.run_id, item.scope === "global" ? "项目" : "不可用"),
-          statusText(item.status),
-          multiText(item.summary, item.required_decision || item.resolution),
+          statusText(decisionStatusLabel(item.status), decisionStatusTone(item.status)),
+          text(item.summary, "暂无说明"),
+          text(item.required_decision, "暂无"),
+          text(item.resolution, item.status === "open" ? "尚未解决" : "暂无记录"),
           item.scope === "global" ? "全局" : "仅当前 run",
         ])),
       });
       status.select.value = pager.state.filters.status || "";
-      status.select.addEventListener("change", () => pager.setFilter("status", status.select.value));
-      await pager.load();
+      status.select.addEventListener("change", async () => {
+        await pager.setFilter("status", status.select.value);
+        status.select.value = pager.state.filters.status || "";
+      });
+      await loadPager(pager, options.refresh);
     }
 
-    async renderSkills(request) {
+    async renderSkills(request, options) {
       const summary = await this.loadSummary();
+      const services = await firstPage("/api/supervisor/services");
+      const snapshots = await firstPage("/api/supervisor/skills");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
-      const snapshots = await fetchPage("/api/supervisor/skills", {
-        cursor: null, pageSize: 20, query: "", sort: "newest", filters: {},
-      });
-      if (request !== this.requestSequence) return;
+      this.deriveHealth(summary, services);
+      this.updateHero(summary, services);
       const snapshot = snapshots.items[0];
       if (!snapshot) {
         this.panel.replaceChildren(messageNode("暂无 Skill 快照", "empty-state"));
         return;
       }
-      const content = document.createDocumentFragment();
-      content.append(metrics([
+      const fragment = document.createDocumentFragment();
+      fragment.append(metrics([
         ["项目 Skill", valueText(snapshot.total_skills)],
         ["证据确认使用", valueText(snapshot.used_skills)],
         ["重复组", valueText(snapshot.duplicate_group_count)],
         ["待治理建议", valueText(snapshot.recommendation_count)],
       ]));
-      const container = pagerSection(content, "Skill 治理", "日志字符串匹配不作为使用证明");
-      this.panel.replaceChildren(content);
+      const host = pagerSection(fragment, "Skill 治理", "日志字符串匹配不作为使用证明");
+      this.panel.replaceChildren(fragment);
       const pager = this.pager(`supervisor-skills-${snapshot.snapshot_id}`, {
         endpoint: `/api/supervisor/skills/${encodeURIComponent(snapshot.snapshot_id)}/rows`,
-        container,
+        container: host,
         allowedFilters: [],
         emptyMessage: "当前快照没有 Skill 行",
         renderItems: (target, items) => renderTable(target, ["Skill", "证据", "Reviewer 判断", "建议"], items.map((item) => [
@@ -307,13 +361,15 @@
           text(item.recommendation || item.action, "暂无建议"),
         ])),
       });
-      await pager.load();
+      await loadPager(pager, options.refresh);
     }
 
     async renderConfig(request) {
       const summary = await this.loadSummary();
+      const services = await firstPage("/api/supervisor/services");
       if (request !== this.requestSequence) return;
-      this.updateHero(summary);
+      this.deriveHealth(summary, services);
+      this.updateHero(summary, services);
       const split = node("div", "split");
       split.append(
         section("恢复策略", "Task 7 未提供配置读取 API", definitionList([
@@ -323,11 +379,13 @@
           ["Reviewer cadence", "不可用"], ["详细历史", "不可用"], ["导出轮转", "不可用"],
         ])),
       );
-      const degraded = section("降级状态", "当前数据契约", messageNode(
-        `数据库 schema v${text(summary.schema_version, "不可用")}；未启用配置读取接口，不能推断运行参数。`,
-        "list-item",
-      ));
-      this.panel.replaceChildren(split, degraded);
+      this.panel.replaceChildren(
+        split,
+        section("降级状态", "当前数据契约", messageNode(
+          `数据库 schema v${text(summary.schema_version, "不可用")}；未启用配置读取接口，不能推断运行参数。`,
+          "list-item",
+        )),
+      );
     }
 
     pager(key, options) {
@@ -335,21 +393,113 @@
       if (existing) {
         existing.container = options.container;
         existing.renderItems = options.renderItems;
+        if (!this.activePagerKeys.includes(key)) this.activePagerKeys.push(key);
         return existing;
       }
-      const pager = new CursorPager({ key, ...options });
+      const pager = new CursorPager({ key, fixedSort: "newest", ...options });
       this.pagers.set(key, pager);
+      this.activePagerKeys.push(key);
       return pager;
     }
+  }
+
+  async function firstPage(endpoint, filters = {}) {
+    return fetchPage(endpoint, { cursor: null, pageSize: 20, query: "", filters });
+  }
+
+  async function loadPager(pager, refresh) {
+    if (refresh && pager.page) return pager.refresh();
+    return pager.load();
+  }
+
+  function renderRecoveryTable(target, items, fetchJson) {
+    const wrap = node("div", "table-wrap");
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>运行 / 动作</th><th>恢复判断</th><th>层级</th><th>状态 / 日志</th></tr></thead>";
+    const body = document.createElement("tbody");
+    items.forEach((item, index) => {
+      const row = document.createElement("tr");
+      const actionId = item.action_id;
+      const detailId = `recovery-log-${safeDomId(actionId || String(index))}`;
+      const statusCell = document.createElement("td");
+      const button = node("button", "link-button", "查看恢复日志");
+      button.type = "button";
+      button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-controls", detailId);
+      const detail = node("div", "recovery-log-detail");
+      detail.id = detailId;
+      detail.hidden = true;
+      button.addEventListener("click", async () => {
+        if (button.dataset.loaded === "true") {
+          detail.hidden = !detail.hidden;
+          button.setAttribute("aria-expanded", String(!detail.hidden));
+          button.textContent = detail.hidden ? "查看恢复日志" : "收起恢复日志";
+          return;
+        }
+        button.disabled = true;
+        try {
+          const page = await fetchJson(`/api/supervisor/actions/${encodeURIComponent(actionId)}/attempts?page_size=20`);
+          detail.replaceChildren();
+          if (!page.items?.length) detail.append(messageNode("暂无恢复尝试", "empty-state"));
+          else page.items.forEach((attempt) => detail.append(attemptSummary(attempt)));
+          detail.hidden = false;
+          button.dataset.loaded = "true";
+          button.setAttribute("aria-expanded", "true");
+          button.textContent = "收起恢复日志";
+        } catch (error) {
+          detail.replaceChildren(messageNode(errorText(error), "error-state"));
+          detail.hidden = false;
+          button.setAttribute("aria-expanded", "true");
+          button.textContent = "重试恢复日志";
+        } finally {
+          button.disabled = false;
+        }
+      });
+      statusCell.append(
+        statusText(actionStatusLabel(item.status), actionStatusTone(item.status)),
+        document.createElement("br"),
+        button,
+        detail,
+      );
+      [
+        multiText(item.run_id, actionId),
+        multiText(actionTypeLabel(item.action_type), text(objectValue(item.payload).summary || objectValue(item.payload).reason, "暂无说明")),
+        `Tier ${Number(item.recovery_tier || 0)}`,
+        statusCell,
+      ].forEach((cell) => {
+        if (cell === statusCell) row.append(cell);
+        else {
+          const td = document.createElement("td");
+          if (cell instanceof Node) td.append(cell);
+          else td.textContent = String(cell);
+          row.append(td);
+        }
+      });
+      body.append(row);
+    });
+    table.append(body);
+    wrap.append(table);
+    target.append(wrap);
+  }
+
+  function attemptSummary(attempt) {
+    const item = node("div", "list-item");
+    item.append(
+      node("strong", "", text(attempt.summary, "恢复尝试")),
+      node("div", "cell-detail", `结果：${attemptResultLabel(attempt.result_class)} · 错误：${text(attempt.error_class, "无")}`),
+      node("div", "cell-detail", `Worker：${text(attempt.worker_id, "不可用")} · Tier ${numberText(attempt.recovery_tier)}`),
+      node("div", "cell-detail full-text", `检查点：${text(attempt.checkpoint, "暂无")} · 产物：${readableValue(attempt.artifact, "暂无")}`),
+    );
+    return item;
   }
 
   function pagerSection(parent, title, note) {
     const wrapper = node("section", "section");
     wrapper.append(sectionHeading(title, note));
-    const container = node("div", "pager-host");
-    wrapper.append(container);
+    const host = node("div", "pager-host");
+    wrapper.append(host);
     parent.append(wrapper);
-    return container;
+    return host;
   }
 
   function section(title, note, content) {
@@ -422,10 +572,10 @@
     const label = node("label", "filter-control");
     const select = node("select", "control");
     select.setAttribute("aria-label", labelText);
-    options.forEach(([value, labelTextValue]) => {
+    options.forEach(([value, optionLabel]) => {
       const option = document.createElement("option");
       option.value = value;
-      option.textContent = labelTextValue;
+      option.textContent = optionLabel;
       select.append(option);
     });
     label.append(node("span", "", labelText), select);
@@ -442,12 +592,27 @@
     return { label, input };
   }
 
-  function chip(label, tone) {
-    return node("span", `status-chip ${tone || "neutral"}`, label);
+  function chip(label, tone) { return node("span", `status-chip ${tone || "neutral"}`, label); }
+  function messageNode(message, className) { return node("div", className, message); }
+
+  function actionSummary(item) {
+    const wrapper = node("div", "list-item");
+    wrapper.append(
+      node("strong", "", actionTypeLabel(item.action_type)),
+      node("div", "cell-detail", `${text(item.run_id, "无 run")} · ${text(item.action_id)}`),
+      node("div", "full-text", text(objectValue(item.payload).summary, "暂无动作说明")),
+    );
+    return wrapper;
   }
 
-  function messageNode(message, className) {
-    return node("div", className, message);
+  function reviewSummary(item) {
+    const wrapper = node("div", "list-item");
+    wrapper.append(
+      node("strong", "", reviewDecisionLabel(item.decision)),
+      node("div", "full-text", text(item.summary, "暂无 Reviewer 摘要")),
+      node("div", "cell-detail", `请求动作：${readableValue(objectValue(item.accepted_review).actions || item.decision, reviewDecisionLabel(item.decision))}`),
+    );
+    return wrapper;
   }
 
   function multiText(title, detail) {
@@ -457,36 +622,48 @@
     return wrapper;
   }
 
-  function strongText(value) {
-    return node("span", "cell-title", text(value));
+  function strongText(value) { return node("span", "cell-title", text(value)); }
+  function statusText(label, tone) { return node("span", `status-text ${tone}`, label); }
+
+  function serviceHealthLabel(value) {
+    return { healthy: "正常", degraded: "降级", unavailable: "不可用", stopped: "已停止", blocked: "阻塞" }[value] || "健康状态不可用";
   }
 
-  function statusText(value) {
-    const normalized = String(value || "unavailable");
-    const tone = ["healthy", "completed", "complete", "fresh", "review_complete", "closed"].includes(normalized)
-      ? "good"
-      : ["failed", "cancelled"].includes(normalized) ? "bad" : "warn";
-    return node("span", `status-text ${tone}`, STATUS_LABELS[normalized] || `未识别状态（${normalized}）`);
+  function serviceHealthTone(value) {
+    if (value === "healthy") return "good";
+    if (["blocked", "stopped", "unavailable"].includes(value)) return "bad";
+    if (value === "degraded") return "warn";
+    return "neutral";
   }
 
-  function actionLabel(value) {
-    const labels = {
-      run_planner: "运行 Planner", run_generator: "运行 Generator", run_evaluator: "运行 Evaluator",
-      recover_partial_artifact: "恢复部分产物", recover_generator_result: "恢复 Generator 结果",
-      run_alternate_recovery: "运行替代恢复", restart_service: "重启服务", ask_user: "请求用户决策",
-    };
-    return labels[value] || text(value, "未识别动作");
+  function reviewDecisionLabel(value) {
+    return { continue: "继续", auto_remediate: "自动整改", refocus: "重新聚焦", stop_run: "停止运行", ask_user: "请求用户决策" }[value] || "结论不可用";
   }
 
-  function decisionLabel(value) {
-    return DECISION_LABELS[value] || text(value, "暂无结论");
+  function reviewStatusLabel(value) {
+    return { review_complete: "审视完成", review_degraded: "Reviewer 暂时不可用", review_applying: "正在应用" }[value] || "状态不可用";
   }
 
-  function formatTime(value) {
-    if (!value) return "不可用";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("zh-CN", { hour12: false });
+  function reviewStatusTone(value) { return value === "review_complete" ? "good" : value === "review_degraded" ? "warn" : "neutral"; }
+  function actionStatusLabel(value) { return { pending: "待执行", leased: "已分配", running: "执行中", completed: "已完成", failed: "失败", cancelled: "已取消" }[value] || "状态不可用"; }
+  function actionStatusTone(value) { return value === "completed" ? "good" : ["failed", "cancelled"].includes(value) ? "bad" : "warn"; }
+  function actionTypeLabel(value) { return { run_planner: "运行 Planner", run_generator: "运行 Generator", run_evaluator: "运行 Evaluator", recover_generator_result: "恢复 Generator 结果", recover_partial_artifact: "恢复部分产物", restart_service: "重启服务", ask_user: "请求用户决策" }[value] || "动作不可用"; }
+  function attemptResultLabel(value) { return { success: "成功", retryable_failure: "可重试失败", recoverable_partial: "部分产物可恢复", policy_block: "策略阻塞", terminal_failure: "终止失败" }[value] || "结果不可用"; }
+  function decisionStatusLabel(value) { return { open: "需要用户", closed: "已解决" }[value] || "状态不可用"; }
+  function decisionStatusTone(value) { return value === "closed" ? "good" : value === "open" ? "warn" : "neutral"; }
+  function freshnessLabel(value) { return { fresh: "通过", pass: "通过", stale: "过期", failed: "失败", unavailable: "不可用" }[value] || "状态不可用"; }
+  function freshnessTone(value) { return ["fresh", "pass"].includes(value) ? "good" : ["failed", "unavailable"].includes(value) ? "bad" : "warn"; }
+  function serviceNameLabel(value) { return { "crawler-backend": "Crawler Backend", "crawler-frontend": "Crawler Frontend", "loop-dashboard": "Loop Dashboard", "supervisor-worker": "Supervisor Worker" }[value] || text(value, "未知服务"); }
+
+  function booleanLabel(value) {
+    if (value === true) return "是";
+    if (value === false) return "否";
+    return "不可用";
   }
+
+  function valueText(value) { return Number.isInteger(value) ? String(value) : "不可用"; }
+  function numberText(value) { return Number.isFinite(Number(value)) ? String(Number(value)) : "不可用"; }
+  function objectValue(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 
   function readableValue(value, fallback) {
     if (Array.isArray(value)) return value.length ? value.map((item) => readableValue(item, "")).join("；") : fallback;
@@ -497,18 +674,21 @@
     return text(value, fallback);
   }
 
-  function objectValue(value) {
-    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  function formatTime(value) {
+    if (!value) return "不可用";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("zh-CN", { hour12: false });
   }
 
-  function valueText(value) {
-    return Number.isInteger(value) ? String(value) : "不可用";
+  function errorText(error) {
+    if (error instanceof DashboardError) {
+      return error.recoveryAction ? `${error.code}：${error.message}；建议：${error.recoveryAction}` : `${error.code}：${error.message}`;
+    }
+    return error?.message || "请求失败";
   }
 
-  function text(value, fallback = "暂无数据") {
-    if (value === null || value === undefined || value === "") return fallback;
-    return String(value);
-  }
+  function safeDomId(value) { return String(value || "item").replace(/[^A-Za-z0-9_-]/g, "-"); }
+  function text(value, fallback = "暂无数据") { return value === null || value === undefined || value === "" ? fallback : String(value); }
 
   function node(tag, className, content) {
     const element = document.createElement(tag);
@@ -517,5 +697,9 @@
     return element;
   }
 
-  window.LoopSupervisor = { SupervisorView, renderTable, section, sectionHeading, metrics, node, text, readableValue, statusText, multiText, formatTime };
+  window.LoopSupervisor = {
+    SupervisorView, renderTable, section, sectionHeading, metrics, node, text,
+    readableValue, formatTime, multiText, reviewDecisionLabel, serviceHealthLabel,
+    serviceHealthTone,
+  };
 }());
