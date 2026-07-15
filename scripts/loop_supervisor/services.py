@@ -134,7 +134,14 @@ _SERVICE_CODE_PATHS = {
     ),
     "supervisor-worker": (
         "scripts/loop_supervisor",
+        "scripts/harness_ai_infra_evidence.py",
+        "scripts/harness_loop_agents.py",
+        "scripts/harness_loop_artifacts.py",
+        "scripts/harness_loop_autonomous.py",
         "scripts/harness_loop_contracts.py",
+        "scripts/harness_loop_governance.py",
+        "scripts/harness_loop_legacy_readers.py",
+        "scripts/harness_loop_orchestrator.py",
         "scripts/harness_loop_runtime_lock.py",
     ),
 }
