@@ -2264,6 +2264,54 @@ def test_log_discovery_enforces_entry_and_inline_byte_budgets(tmp_path: Path) ->
         )
 
 
+def test_log_discovery_signals_overflow_across_attempt_and_file_producers(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "mixed-budget-run"
+    write_json(
+        run_dir / "run.json",
+        {
+            "run_id": "mixed-budget-run",
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "mixed-budget-run",
+            "requirement": "mixed producer logs",
+            "attempts": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+        },
+    )
+    attempt_log = run_dir / "database-owned.stdout.log"
+    attempt_log.write_text("attempt output\n", encoding="utf-8")
+    (run_dir / "worker-attempt-1.stdout.log").write_text(
+        "direct output\n", encoding="utf-8"
+    )
+
+    class AttemptLogs:
+        @staticmethod
+        def attempt_log_references(run_id: str, *, limit: int):
+            assert run_id == "mixed-budget-run"
+            assert limit == 1
+            return [
+                {
+                    "attempt_id": "attempt-1",
+                    "stream": "stdout",
+                    "path": attempt_log,
+                }
+            ]
+
+    store = LoopDashboardStore(tmp_path, log_discovery_max_entries=1)
+
+    with pytest.raises(RuntimeError, match="log discovery entry budget"):
+        store.page_logs(
+            "mixed-budget-run",
+            page_size=20,
+            cursor=None,
+            filters={},
+            supervisor_store=AttemptLogs(),
+        )
+
+
 def test_log_reader_rejects_cross_task_root_symlink_alias(tmp_path: Path) -> None:
     task_a = tmp_path / ".codex" / "loop-runs" / "task-a"
     task_b = tmp_path / ".codex" / "loop-runs" / "task-b"

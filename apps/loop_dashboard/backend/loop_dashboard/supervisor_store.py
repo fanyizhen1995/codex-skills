@@ -17,6 +17,7 @@ from .pagination import (
     CursorError,
     CursorPayload,
     Page,
+    SnapshotCapacityError,
     _cursor_payload,
     _validate_collection_cursor,
     paginate_items,
@@ -623,8 +624,12 @@ class SupervisorDashboardStore:
                     ORDER BY attempts.created_at, attempts.attempt_id
                     LIMIT ?
                     """,
-                    (run_id, limit),
+                    (run_id, limit + 1),
                 ).fetchall()
+            if len(rows) > limit:
+                raise SnapshotCapacityError(
+                    "attempt log discovery row budget exceeded"
+                )
             references: list[dict[str, Any]] = []
             for row in rows:
                 artifacts = self._load_json(str(row["artifact_json"]), [])
@@ -639,6 +644,10 @@ class SupervisorDashboardStore:
                     ]
                     if len(matches) != 1:
                         continue
+                    if len(references) >= limit:
+                        raise SnapshotCapacityError(
+                            "attempt log discovery reference budget exceeded"
+                        )
                     path = Path(matches[0])
                     references.append(
                         {

@@ -75,6 +75,29 @@ def _scenario_statuses(payload: dict) -> dict[str, str]:
 
 
 class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
+    def test_isolated_dashboard_child_injects_evaluator_cursor_secret(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            evaluator.os.environ,
+            {},
+            clear=True,
+        ), patch.object(evaluator.subprocess, "Popen") as popen:
+            repo_root = Path(tmp)
+            fixture_root = repo_root / "fixture"
+
+            evaluator.start_dashboard(repo_root, fixture_root, 18766)
+
+        child_env = popen.call_args.kwargs["env"]
+        self.assertEqual(
+            child_env["LOOP_DASHBOARD_CURSOR_SECRET"],
+            evaluator.EVALUATOR_CURSOR_SECRET,
+        )
+        self.assertGreaterEqual(
+            len(child_env["LOOP_DASHBOARD_CURSOR_SECRET"].encode()),
+            32,
+        )
+
     def test_auditor_engine_fixture_is_historical_disabled_and_read_only(self) -> None:
         from scripts import loop_dashboard_evaluator as evaluator
 

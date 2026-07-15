@@ -316,7 +316,8 @@ def create_app(
         response.headers["X-Loop-Event-Retention"] = (
             "structured=last-1000-lines-within-1048576-bytes;"
             "sessions=last-200-matching-supported-events-scanning-last-10000-"
-            "lines-from-newest-128-files-within-2097152-bytes-each;"
+            "lines-from-newest-128-files-within-2097152-bytes-each-and-"
+            "at-most-4096-inspected-entries;"
             "logs=newest-1000"
         )
         return _run_page(

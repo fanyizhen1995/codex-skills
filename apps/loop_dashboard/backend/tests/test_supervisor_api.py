@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from loop_dashboard.main import create_app
+from loop_dashboard.pagination import SnapshotCapacityError
 from loop_dashboard.supervisor_store import (
     SQLitePageSession,
     SQLiteSnapshotRegistry,
@@ -589,6 +590,18 @@ def test_invalid_cursor_filter_and_page_size_are_400(tmp_path: Path) -> None:
         params={"status": "complete", "cursor": first["next_cursor"]},
     )
     assert mismatch.status_code == 400
+    connection.close()
+
+
+def test_attempt_log_discovery_signals_overflow_beyond_query_limit(
+    tmp_path: Path,
+) -> None:
+    connection = _seed_supervisor_database(tmp_path)
+    store = SupervisorDashboardStore(tmp_path)
+
+    with pytest.raises(SnapshotCapacityError, match="attempt log discovery"):
+        store.attempt_log_references("run-1", limit=1)
+
     connection.close()
 
 

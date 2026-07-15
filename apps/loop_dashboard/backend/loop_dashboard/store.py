@@ -4,6 +4,7 @@ import base64
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 import fnmatch
+import heapq
 import hashlib
 import hmac
 import json
@@ -32,6 +33,7 @@ FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
 SESSION_FILE_SCAN_LIMIT = 128
+SESSION_DISCOVERY_MAX_ENTRIES = 4096
 SESSION_FILE_MAX_LINES = 10_000
 STRUCTURED_EVENT_MAX_BYTES = 1024 * 1024
 STRUCTURED_EVENT_MAX_LINES = 1000
@@ -115,6 +117,18 @@ class ChildRun(NamedTuple):
 
 
 @dataclass(frozen=True)
+class ArtifactReferenceStep:
+    kind: str
+    source_path: Path
+    pointer: tuple[str | int, ...]
+    reference_value: str
+    target_path: Path
+    base_dir: Path
+    allowed_roots: tuple[Path, ...]
+    relative_roots: tuple[Path, ...] = ()
+
+
+@dataclass(frozen=True)
 class LogHandle:
     run_id: str
     run_dir: Path
@@ -126,6 +140,7 @@ class LogHandle:
     attempt_id: str = ""
     provenance: tuple[str | int, ...] = ()
     evaluator_task_id: str = ""
+    reference_chain: tuple[ArtifactReferenceStep, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -217,10 +232,18 @@ class LoopDashboardStore:
         log_handle_max_entries: int = LOG_HANDLE_MAX_ENTRIES,
         log_discovery_max_entries: int = LOG_DISCOVERY_MAX_ENTRIES,
         log_inline_max_bytes: int = LOG_INLINE_MAX_BYTES,
+        session_discovery_max_entries: int = SESSION_DISCOVERY_MAX_ENTRIES,
     ) -> None:
         self.project_root = Path(project_root).resolve()
-        if log_discovery_max_entries <= 0 or log_inline_max_bytes <= 0:
-            raise ValueError("log discovery budgets must be positive")
+        if any(
+            value <= 0
+            for value in (
+                log_discovery_max_entries,
+                log_inline_max_bytes,
+                session_discovery_max_entries,
+            )
+        ):
+            raise ValueError("discovery budgets must be positive")
         self._project_root_fd: int | None = None
         self._lifecycle_lock = RLock()
         self.loop_runs_dir = self.project_root / ".codex" / "loop-runs"
@@ -228,6 +251,7 @@ class LoopDashboardStore:
         self._log_secret = log_secret or secrets.token_bytes(32)
         self._log_discovery_max_entries = log_discovery_max_entries
         self._log_inline_max_bytes = log_inline_max_bytes
+        self._session_discovery_max_entries = session_discovery_max_entries
         handle_registry_key = (
             str(self.project_root),
             hashlib.sha256(self._log_secret).hexdigest(),
@@ -2365,7 +2389,7 @@ class LoopDashboardStore:
         if supervisor_store is not None:
             for reference in supervisor_store.attempt_log_references(
                 run_id,
-                limit=self._log_discovery_max_entries + 1,
+                limit=self._log_discovery_max_entries - budget["entries"],
             ):
                 path = reference.get("path")
                 stream = reference.get("stream")
@@ -2397,6 +2421,11 @@ class LoopDashboardStore:
             )
             rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
             if rich_path is not None and rich_evaluator is not None:
+                rich_chain = self._rich_evaluator_reference_chain(
+                    evaluator_path,
+                    evaluator,
+                    rich_path,
+                )
                 handles.extend(
                     self._inline_log_handles(
                         run_id,
@@ -2407,6 +2436,7 @@ class LoopDashboardStore:
                         seen,
                         budget,
                         evaluator_task_id=str(evaluator.get("task_id") or ""),
+                        reference_chain=rich_chain,
                     )
                 )
             scenario_path = evaluator.get("scenario_command_results_path")
@@ -2417,6 +2447,17 @@ class LoopDashboardStore:
                     allowed_roots=[run_dir],
                 )
                 if scenario_result is not None:
+                    scenario_chain = (
+                        ArtifactReferenceStep(
+                            kind="artifact",
+                            source_path=evaluator_path,
+                            pointer=("scenario_command_results_path",),
+                            reference_value=scenario_path,
+                            target_path=scenario_result,
+                            base_dir=run_dir,
+                            allowed_roots=(run_dir,),
+                        ),
+                    )
                     scenario_payload = self._read_json_secure(
                         scenario_result, run_dir
                     )
@@ -2430,6 +2471,7 @@ class LoopDashboardStore:
                                 run_dir,
                                 seen,
                                 budget,
+                                reference_chain=scenario_chain,
                             )
                         )
         return sorted(
@@ -2448,8 +2490,6 @@ class LoopDashboardStore:
         budget: dict[str, int],
     ) -> list[Path]:
         remaining = self._log_discovery_max_entries - budget["entries"]
-        if remaining <= 0:
-            return []
         try:
             directory_fd = self._open_directory_descriptor(run_dir)
         except OSError:
@@ -2484,6 +2524,7 @@ class LoopDashboardStore:
         seen: set[tuple[str, str]],
         budget: dict[str, int],
         evaluator_task_id: str = "",
+        reference_chain: tuple[ArtifactReferenceStep, ...] = (),
     ) -> list[LogHandle]:
         safe_source = self._safe_regular_file_lexical(source_path, self.project_root)
         if safe_source is None:
@@ -2513,6 +2554,7 @@ class LoopDashboardStore:
                             inline_content=child,
                             provenance=child_pointer,
                             evaluator_task_id=evaluator_task_id,
+                            reference_chain=reference_chain,
                         )
                         self._consume_log_budget(
                             budget,
@@ -2521,11 +2563,13 @@ class LoopDashboardStore:
                         handles.append(handle)
                     elif lowered in {"stdout_path", "stderr_path"} and isinstance(child, str) and child:
                         stream = lowered.removesuffix("_path")
+                        child_pointer = (*pointer, str(key))
+                        allowed_roots = (run_dir, relative_root)
                         path = self._resolve_artifact_reference(
                             child,
                             safe_source.parent,
-                            allowed_roots=[run_dir, relative_root],
-                            relative_roots=[run_dir, relative_root],
+                            allowed_roots=list(allowed_roots),
+                            relative_roots=list(allowed_roots),
                         )
                         if path is None:
                             continue
@@ -2543,6 +2587,20 @@ class LoopDashboardStore:
                             stream=stream,
                             source=safe_path.name,
                             path=safe_path,
+                            evaluator_task_id=evaluator_task_id,
+                            reference_chain=(
+                                *reference_chain,
+                                ArtifactReferenceStep(
+                                    kind="artifact",
+                                    source_path=safe_source,
+                                    pointer=child_pointer,
+                                    reference_value=child,
+                                    target_path=safe_path,
+                                    base_dir=safe_source.parent,
+                                    allowed_roots=allowed_roots,
+                                    relative_roots=allowed_roots,
+                                ),
+                            ),
                         )
                         self._consume_log_budget(budget)
                         handles.append(handle)
@@ -2596,6 +2654,23 @@ class LoopDashboardStore:
             "attempt_id": handle.attempt_id,
             "provenance": list(handle.provenance),
             "evaluator_task_id": handle.evaluator_task_id,
+            "reference_chain": [
+                self._reference_step_snapshot(step)
+                for step in handle.reference_chain
+            ],
+        }
+
+    @staticmethod
+    def _reference_step_snapshot(step: ArtifactReferenceStep) -> dict[str, Any]:
+        return {
+            "kind": step.kind,
+            "source_path": str(step.source_path),
+            "pointer": list(step.pointer),
+            "reference_value": step.reference_value,
+            "target_path": str(step.target_path),
+            "base_dir": str(step.base_dir),
+            "allowed_roots": [str(root) for root in step.allowed_roots],
+            "relative_roots": [str(root) for root in step.relative_roots],
         }
 
     def _handle_from_snapshot(self, item: Any) -> LogHandle | None:
@@ -2627,6 +2702,14 @@ class LoopDashboardStore:
                 return None
             if values["stream"] not in {"stdout", "stderr"}:
                 return None
+            raw_chain = item["reference_chain"]
+            if not isinstance(raw_chain, list):
+                return None
+            reference_chain = tuple(
+                self._reference_step_from_snapshot(step) for step in raw_chain
+            )
+            if any(step is None for step in reference_chain):
+                return None
             return LogHandle(
                 run_id=values["run_id"],
                 run_dir=Path(values["run_dir"]),
@@ -2638,6 +2721,62 @@ class LoopDashboardStore:
                 attempt_id=values["attempt_id"],
                 provenance=tuple(provenance),
                 evaluator_task_id=values["evaluator_task_id"],
+                reference_chain=tuple(
+                    step for step in reference_chain if step is not None
+                ),
+            )
+        except (KeyError, TypeError):
+            return None
+
+    @staticmethod
+    def _reference_step_from_snapshot(item: Any) -> ArtifactReferenceStep | None:
+        if not isinstance(item, dict):
+            return None
+        try:
+            pointer = item["pointer"]
+            allowed_roots = item["allowed_roots"]
+            relative_roots = item["relative_roots"]
+            string_values = {
+                name: item[name]
+                for name in (
+                    "kind",
+                    "source_path",
+                    "reference_value",
+                    "target_path",
+                    "base_dir",
+                )
+            }
+            if not all(isinstance(value, str) for value in string_values.values()):
+                return None
+            if not isinstance(pointer, list) or not all(
+                isinstance(component, (str, int))
+                and not isinstance(component, bool)
+                for component in pointer
+            ):
+                return None
+            if not isinstance(allowed_roots, list) or not all(
+                isinstance(root, str) for root in allowed_roots
+            ):
+                return None
+            if not isinstance(relative_roots, list) or not all(
+                isinstance(root, str) for root in relative_roots
+            ):
+                return None
+            if string_values["kind"] not in {
+                "artifact",
+                "final_bundle",
+                "latest_bundle",
+            }:
+                return None
+            return ArtifactReferenceStep(
+                kind=string_values["kind"],
+                source_path=Path(string_values["source_path"]),
+                pointer=tuple(pointer),
+                reference_value=string_values["reference_value"],
+                target_path=Path(string_values["target_path"]),
+                base_dir=Path(string_values["base_dir"]),
+                allowed_roots=tuple(Path(root) for root in allowed_roots),
+                relative_roots=tuple(Path(root) for root in relative_roots),
             )
         except (KeyError, TypeError):
             return None
@@ -2678,6 +2817,15 @@ class LoopDashboardStore:
             if task_dir is None:
                 return None
             source_root = task_dir
+        else:
+            task_dir = None
+
+        if not self._revalidate_reference_chain(
+            handle,
+            safe_run_dir,
+            task_dir,
+        ):
+            return None
 
         if handle.kind == "attempt":
             if supervisor_store is None or not handle.attempt_id:
@@ -2695,6 +2843,8 @@ class LoopDashboardStore:
             refreshed = replace(handle, run_dir=safe_run_dir, path=safe_path or handle.path)
             return refreshed if safe_path is not None else None
         if handle.kind == "file":
+            if handle.reference_chain:
+                return replace(handle, run_dir=safe_run_dir)
             safe_path = self._safe_regular_file_lexical(handle.path, safe_run_dir)
             if safe_path is None:
                 return None
@@ -2726,6 +2876,119 @@ class LoopDashboardStore:
         )
         return refreshed if self._log_id(refreshed) == log_id else None
 
+    def _revalidate_reference_chain(
+        self,
+        handle: LogHandle,
+        run_dir: Path,
+        task_dir: Path | None,
+    ) -> bool:
+        if not handle.reference_chain:
+            return True
+        evaluator_path = run_dir / "evaluator-result.json"
+        trusted_roots = (run_dir,) if task_dir is None else (run_dir, task_dir)
+        previous_target: Path | None = None
+        for index, step in enumerate(handle.reference_chain):
+            try:
+                source_path = self._lexical_absolute(step.source_path)
+                expected_source = (
+                    evaluator_path if index == 0 else previous_target
+                )
+                if expected_source is None or source_path != self._lexical_absolute(
+                    expected_source
+                ):
+                    return False
+                source_root = next(
+                    (
+                        root
+                        for root in trusted_roots
+                        if self._is_under_any(source_path, [root])
+                    ),
+                    None,
+                )
+                if source_root is None:
+                    return False
+                payload = self._read_json_secure(source_path, source_root)
+                if not isinstance(payload, dict):
+                    return False
+
+                if step.kind == "latest_bundle":
+                    if payload.get("final_bundle_id"):
+                        return False
+                    current_target, _current_payload = self._rich_evaluator_result(
+                        payload
+                    )
+                else:
+                    current_reference = self._json_pointer_value(
+                        payload,
+                        step.pointer,
+                    )
+                    if current_reference != step.reference_value:
+                        return False
+                    if step.kind == "final_bundle":
+                        if task_dir is None:
+                            return False
+                        bundle_path = Path(current_reference)
+                        if bundle_path.is_absolute() or ".." in bundle_path.parts:
+                            return False
+                        current_target = self._safe_regular_file_lexical(
+                            task_dir / bundle_path / "result.json",
+                            task_dir,
+                        )
+                    else:
+                        if not self._reference_roots_are_trusted(
+                            step,
+                            trusted_roots,
+                        ):
+                            return False
+                        current_target = self._resolve_artifact_reference(
+                            current_reference,
+                            step.base_dir,
+                            allowed_roots=list(step.allowed_roots),
+                            relative_roots=list(step.relative_roots),
+                        )
+                if current_target is None or self._lexical_absolute(
+                    current_target
+                ) != self._lexical_absolute(step.target_path):
+                    return False
+                previous_target = current_target
+            except (OSError, TypeError, ValueError):
+                return False
+        return previous_target is not None and self._lexical_absolute(
+            previous_target
+        ) == self._lexical_absolute(handle.path)
+
+    def _reference_roots_are_trusted(
+        self,
+        step: ArtifactReferenceStep,
+        trusted_roots: tuple[Path, ...],
+    ) -> bool:
+        return all(
+            self._is_under_any(path, list(trusted_roots))
+            for path in (
+                step.base_dir,
+                *step.allowed_roots,
+                *step.relative_roots,
+            )
+        )
+
+    @staticmethod
+    def _json_pointer_value(
+        payload: Any,
+        pointer: tuple[str | int, ...],
+    ) -> Any:
+        value = payload
+        try:
+            for component in pointer:
+                if isinstance(component, int) and isinstance(value, list):
+                    value = value[component]
+                elif isinstance(component, str) and isinstance(value, dict):
+                    value = value[component]
+                else:
+                    return None
+        except (IndexError, KeyError):
+            return None
+        return value
+
     def _log_id(self, handle: LogHandle) -> str:
         identity = "\0".join(
             (
@@ -2736,6 +2999,15 @@ class LoopDashboardStore:
                 handle.attempt_id,
                 json.dumps(handle.provenance, separators=(",", ":")),
                 handle.evaluator_task_id,
+                json.dumps(
+                    [
+                        self._reference_step_snapshot(step)
+                        for step in handle.reference_chain
+                    ],
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
                 hashlib.sha256(handle.inline_content.encode()).hexdigest(),
             )
         ).encode()
@@ -3111,8 +3383,6 @@ class LoopDashboardStore:
 
     def _session_events(self, run_id: str) -> list[Event]:
         sessions_dir = self.project_root / ".codex" / "sessions"
-        if not sessions_dir.exists():
-            return []
         events: list[Event] = []
         for safe_path in self._safe_jsonl_files(sessions_dir):
             try:
@@ -3141,21 +3411,77 @@ class LoopDashboardStore:
         return events
 
     def _safe_jsonl_files(self, root: Path) -> list[Path]:
-        safe_paths: list[tuple[float, Path]] = []
-        for path in root.rglob("*.jsonl"):
-            safe_path = self._safe_file_under(path, root)
-            if safe_path is None:
-                continue
-            try:
-                safe_paths.append((safe_path.stat().st_mtime, safe_path))
-            except OSError:
-                continue
-        ordered = sorted(
-            safe_paths,
-            key=lambda item: (item[0], str(item[1])),
-            reverse=True,
-        )
-        return [path for _mtime, path in ordered[:SESSION_FILE_SCAN_LIMIT]]
+        try:
+            root_fd = self._open_directory_descriptor(root)
+        except OSError:
+            return []
+        newest: list[tuple[float, str, Path]] = []
+        directories: list[tuple[Path, int]] = [(root, root_fd)]
+        inspected = 0
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW
+        try:
+            while directories:
+                directory, directory_fd = directories.pop()
+                try:
+                    with os.scandir(directory_fd) as entries:
+                        for entry in entries:
+                            inspected += 1
+                            if inspected > self._session_discovery_max_entries:
+                                raise SnapshotCapacityError(
+                                    "session discovery entry budget exceeded"
+                                )
+                            try:
+                                entry_stat = entry.stat(follow_symlinks=False)
+                                if stat.S_ISDIR(entry_stat.st_mode):
+                                    child_fd = os.open(
+                                        entry.name,
+                                        directory_flags,
+                                        dir_fd=directory_fd,
+                                    )
+                                    directories.append(
+                                        (directory / entry.name, child_fd)
+                                    )
+                                    continue
+                                if (
+                                    not stat.S_ISREG(entry_stat.st_mode)
+                                    or not entry.name.endswith(".jsonl")
+                                ):
+                                    continue
+                                file_fd = os.open(
+                                    entry.name,
+                                    file_flags,
+                                    dir_fd=directory_fd,
+                                )
+                                try:
+                                    file_stat = os.fstat(file_fd)
+                                    if not stat.S_ISREG(file_stat.st_mode):
+                                        continue
+                                    path = directory / entry.name
+                                    candidate = (
+                                        file_stat.st_mtime,
+                                        str(path),
+                                        path,
+                                    )
+                                    if len(newest) < SESSION_FILE_SCAN_LIMIT:
+                                        heapq.heappush(newest, candidate)
+                                    elif candidate[:2] > newest[0][:2]:
+                                        heapq.heapreplace(newest, candidate)
+                                finally:
+                                    os.close(file_fd)
+                            except OSError as exc:
+                                raise SnapshotCapacityError(
+                                    "session discovery could not inspect entry"
+                                ) from exc
+                finally:
+                    os.close(directory_fd)
+        finally:
+            for _directory, directory_fd in directories:
+                os.close(directory_fd)
+        return [
+            path
+            for _mtime, _name, path in sorted(newest, reverse=True)
+        ]
 
     def _session_event_from_payload(self, payload: dict[str, Any], source_path: Path) -> Event | None:
         raw_type = str(payload.get("type") or payload.get("event") or "").lower()
@@ -3206,6 +3532,7 @@ class LoopDashboardStore:
                 payload = self._read_json_secure(safe_final_result, task_dir)
                 if isinstance(payload, dict):
                     return safe_final_result, payload
+            return None, None
         candidates = self._descendant_named_files(
             task_dir,
             "result.json",
@@ -3218,6 +3545,35 @@ class LoopDashboardStore:
         if not isinstance(payload, dict):
             return None, None
         return latest, payload
+
+    def _rich_evaluator_reference_chain(
+        self,
+        evaluator_path: Path,
+        evaluator: dict[str, Any],
+        rich_path: Path,
+    ) -> tuple[ArtifactReferenceStep, ...]:
+        task_id = str(evaluator.get("task_id") or "")
+        task_dir = self._safe_task_evaluation_dir(task_id)
+        if task_dir is None:
+            return ()
+        bundle_id = evaluator.get("final_bundle_id")
+        if isinstance(bundle_id, str) and bundle_id:
+            kind = "final_bundle"
+            reference_value = bundle_id
+        else:
+            kind = "latest_bundle"
+            reference_value = ""
+        return (
+            ArtifactReferenceStep(
+                kind=kind,
+                source_path=evaluator_path,
+                pointer=("final_bundle_id",),
+                reference_value=reference_value,
+                target_path=rich_path,
+                base_dir=task_dir,
+                allowed_roots=(task_dir,),
+            ),
+        )
 
     def _safe_task_evaluation_dir(self, task_id: str) -> Path | None:
         task_path = Path(task_id)

@@ -39,6 +39,7 @@ GOVERNANCE_OUTPUT_DIR_NAME = "ai-infra-loop-governance-dev-01"
 GOVERNANCE_DASHBOARD_URL = "http://127.0.0.1:8766"
 GOVERNANCE_CRAWLER_HEALTH_URL = "http://127.0.0.1:8765/api/health"
 GOVERNANCE_FRONTEND_URL = "http://127.0.0.1:5173/"
+EVALUATOR_CURSOR_SECRET = "loop-dashboard-evaluator-only-secret-v1-2026"
 AUDITOR_ENGINE_RUN_ID = "loop-auditor-engine-dev"
 SENSITIVE_FIELD_NAMES = {
     "token",
@@ -1829,6 +1830,7 @@ def start_dashboard(repo_root: Path, fixture_root: Path, port: int) -> subproces
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root / "apps" / "loop_dashboard" / "backend")
     env["LOOP_DASHBOARD_PROJECT_ROOT"] = str(fixture_root)
+    env["LOOP_DASHBOARD_CURSOR_SECRET"] = EVALUATOR_CURSOR_SECRET
     return subprocess.Popen(
         [
             "python3",
@@ -1888,10 +1890,7 @@ def read_json_url(url: str) -> dict[str, Any]:
 
 
 def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
-    with urllib.request.urlopen(f"{base_url}/api/runs", timeout=5) as response:
-        runs = json.loads(response.read().decode("utf-8"))
-    if not isinstance(runs, list):
-        raise AssertionError("/api/runs should return a JSON list")
+    runs = read_json_url_items(f"{base_url}/api/runs")
     parent = find_run_summary(runs, "parent-run")
     expect_equal(parent.get("run_kind"), "parent", "parent-run should be listed as run_kind=parent")
     expect_children_summary(parent, "parent-run list summary")
@@ -1915,9 +1914,7 @@ def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
     if "relationship_diagnostics" not in detail:
         raise AssertionError("parent-run detail should include relationship_diagnostics")
     events_payload = read_json_url(f"{base_url}/api/runs/parent-run/events")
-    events = events_payload.get("events")
-    if not isinstance(events, list):
-        raise AssertionError("parent-run events endpoint should return an events list")
+    events = paged_items(events_payload, "parent-run events")
     if not any(isinstance(event, dict) and event.get("kind") == "plan" for event in events):
         raise AssertionError("parent-run events should include child plan events")
     if any("secret-token" in str(event) for event in events):
@@ -2025,7 +2022,7 @@ def read_error_detail(exc: urllib.error.HTTPError) -> object:
 
 
 def verify_loop_supervisor_api(base_url: str) -> dict[str, Any]:
-    runs = read_json_url_list(f"{base_url}/api/runs")
+    runs = read_json_url_items(f"{base_url}/api/runs")
     run_ids = [str(run.get("run_id") or "") for run in runs if isinstance(run, dict)]
     if "loop-supervisor" in run_ids or "supervisor" in run_ids:
         raise AssertionError("Supervisor must not appear as a synthetic task run")
@@ -2064,12 +2061,24 @@ def verify_loop_supervisor_api(base_url: str) -> dict[str, Any]:
     }
 
 
-def read_json_url_list(url: str) -> list[Any]:
-    with urllib.request.urlopen(url, timeout=1) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    if not isinstance(payload, list):
-        raise RuntimeError(f"unexpected JSON payload from {url}: {payload!r}")
-    return payload
+def read_json_url_items(url: str) -> list[Any]:
+    return paged_items(read_json_url(url), url)
+
+
+def paged_items(payload: dict[str, Any], context: str) -> list[Any]:
+    expected_keys = {
+        "items",
+        "next_cursor",
+        "previous_cursor",
+        "page_size",
+        "total",
+        "has_more",
+    }
+    if set(payload) != expected_keys or not isinstance(payload.get("items"), list):
+        raise RuntimeError(
+            f"unexpected paginated payload from {context}: {payload!r}"
+        )
+    return payload["items"]
 
 
 def run_loop_supervisor_browser_checks(dashboard_url: str, output_dir: Path, fixture_root: Path) -> dict[str, Any]:

@@ -8,6 +8,7 @@ import pytest
 
 from loop_dashboard import main
 from loop_dashboard.main import create_app
+from loop_dashboard.pagination import SnapshotCapacityError
 from loop_dashboard.store import LoopDashboardStore
 
 
@@ -1202,6 +1203,107 @@ def test_inline_log_ids_include_json_position_and_revalidate_provenance(
         )
 
 
+def test_log_detail_fails_closed_when_final_bundle_reference_changes(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    evaluator_path = run_dir / "evaluator-result.json"
+    write_json(
+        evaluator_path,
+        {
+            "status": "fail",
+            "task_id": "task-a",
+            "final_bundle_id": "bundle-a",
+        },
+    )
+    task_dir = tmp_path / ".codex" / "evaluations" / "tasks" / "task-a"
+    for bundle_id in ("bundle-a", "bundle-b"):
+        write_json(
+            task_dir / bundle_id / "result.json",
+            {"stdout": "identical evaluator output\n"},
+        )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        write_json(
+            evaluator_path,
+            {
+                "status": "fail",
+                "task_id": "task-a",
+                "final_bundle_id": "bundle-b",
+            },
+        )
+
+        detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert detail.status_code == 404
+
+
+def test_log_detail_fails_closed_when_scenario_reference_is_removed(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    evaluator_path = run_dir / "evaluator-result.json"
+    write_json(
+        evaluator_path,
+        {
+            "status": "fail",
+            "scenario_command_results_path": "scenario-results.json",
+        },
+    )
+    write_json(
+        run_dir / "scenario-results.json",
+        {"commands": [{"stdout_path": "scenario.stdout.log"}]},
+    )
+    (run_dir / "scenario.stdout.log").write_text(
+        "scenario output\n", encoding="utf-8"
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        write_json(evaluator_path, {"status": "fail"})
+
+        detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert detail.status_code == 404
+
+
+def test_log_detail_fails_closed_when_nested_log_path_reference_changes(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    evaluator_path = run_dir / "evaluator-result.json"
+    for name in ("first.stdout.log", "second.stdout.log"):
+        (run_dir / name).write_text("identical file output\n", encoding="utf-8")
+    write_json(
+        evaluator_path,
+        {
+            "status": "fail",
+            "commands": [{"stdout_path": "first.stdout.log"}],
+        },
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        write_json(
+            evaluator_path,
+            {
+                "status": "fail",
+                "commands": [{"stdout_path": "second.stdout.log"}],
+            },
+        )
+
+        detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert detail.status_code == 404
+
+
 def test_log_detail_redacts_compound_secret_keys(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
@@ -1466,7 +1568,8 @@ def test_event_api_declares_retention_and_total_matches_exposed_snapshot(
     assert response.headers["X-Loop-Event-Retention"] == (
         "structured=last-1000-lines-within-1048576-bytes;"
         "sessions=last-200-matching-supported-events-scanning-last-10000-"
-        "lines-from-newest-128-files-within-2097152-bytes-each;"
+        "lines-from-newest-128-files-within-2097152-bytes-each-and-"
+        "at-most-4096-inspected-entries;"
         "logs=newest-1000"
     )
     assert len(items) == first["total"]
@@ -1565,8 +1668,58 @@ def test_session_event_retention_counts_only_matching_supported_events(
     assert response.headers["X-Loop-Event-Retention"] == (
         "structured=last-1000-lines-within-1048576-bytes;"
         "sessions=last-200-matching-supported-events-scanning-last-10000-lines-"
-        "from-newest-128-files-within-2097152-bytes-each;logs=newest-1000"
+        "from-newest-128-files-within-2097152-bytes-each-and-at-most-4096-"
+        "inspected-entries;logs=newest-1000"
     )
+
+
+def test_session_discovery_uses_project_descriptors_not_path_rglob(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_minimal_run(tmp_path)
+    sessions_dir = tmp_path / ".codex" / "sessions"
+    append_jsonl(
+        sessions_dir / "nested" / "session.jsonl",
+        {
+            "run_id": "demo-run",
+            "type": "agent_message",
+            "message": "descriptor session event",
+        },
+    )
+    original_rglob = Path.rglob
+
+    def reject_session_rglob(path: Path, pattern: str):
+        if path == sessions_dir:
+            raise AssertionError("session discovery used Path.rglob")
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", reject_session_rglob)
+    store = LoopDashboardStore(tmp_path)
+
+    events = store.get_events("demo-run")
+
+    assert events is not None
+    assert any(
+        item["message"] == "descriptor session event" for item in events
+    )
+
+
+def test_session_discovery_overflow_is_capacity_error(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    sessions_dir = tmp_path / ".codex" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    for index in range(3):
+        (sessions_dir / f"unrelated-{index}.txt").write_text(
+            "not a session\n", encoding="utf-8"
+        )
+    store = LoopDashboardStore(
+        tmp_path,
+        session_discovery_max_entries=2,
+    )
+
+    with pytest.raises(SnapshotCapacityError, match="session discovery"):
+        store.get_events("demo-run")
 
 
 def test_snapshot_capacity_returns_status_error_not_cursor_400(tmp_path: Path) -> None:
