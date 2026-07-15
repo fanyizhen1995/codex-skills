@@ -177,12 +177,12 @@ def test_api_project_runs_detail_events_and_logs(tmp_path: Path) -> None:
 
     assert client.get("/api/health").json()["status"] == "ok"
     assert client.get("/api/projects/current").json()["project_root"] == str(tmp_path.resolve())
-    runs = client.get("/api/runs").json()
+    runs = client.get("/api/runs").json()["items"]
     assert runs[0]["run_id"] == "demo-run"
     assert runs[0]["task_summary"] == "展示 run 列表和详情"
     assert client.get("/api/runs/demo-run").json()["phase"] == "passed_waiting_human_merge"
-    assert client.get("/api/runs/demo-run/events").json()["run_id"] == "demo-run"
-    assert client.get("/api/runs/demo-run/logs").json()["run_id"] == "demo-run"
+    assert client.get("/api/runs/demo-run/events").json()["page_size"] == 20
+    assert client.get("/api/runs/demo-run/logs").json()["page_size"] == 20
 
 
 def test_supervisor_api_returns_honest_missing_state(tmp_path: Path) -> None:
@@ -191,10 +191,11 @@ def test_supervisor_api_returns_honest_missing_state(tmp_path: Path) -> None:
     payload = client.get("/api/supervisor").json()
 
     assert payload["status"] == "unavailable"
-    assert payload["state"]["status_label"] == "暂无数据"
+    assert payload["counts"] == {}
+    assert payload["diagnostics"]
 
 
-def test_supervisor_api_reports_non_utf8_state_as_invalid_artifact(tmp_path: Path) -> None:
+def test_supervisor_api_does_not_fall_back_to_non_utf8_legacy_state(tmp_path: Path) -> None:
     supervisor_dir = tmp_path / ".codex" / "supervisor"
     supervisor_dir.mkdir(parents=True)
     (supervisor_dir / "supervisor-state.json").write_bytes(
@@ -207,25 +208,24 @@ def test_supervisor_api_reports_non_utf8_state_as_invalid_artifact(tmp_path: Pat
     assert response.status_code == 200
     payload = response.json()
     serialized = json.dumps(payload, ensure_ascii=False)
-    assert payload["status"] == "invalid_artifact"
-    assert payload["diagnostics"][0]["status"] == "invalid_artifact"
-    assert "supervisor-state.json" in payload["diagnostics"][0]["source"]
+    assert payload["status"] == "unavailable"
+    assert payload["diagnostics"][0]["status"] == "unavailable"
     assert "state-secret" not in serialized
 
 
-def test_supervisor_api_reads_services_decisions_recovery_and_user_decisions(tmp_path: Path) -> None:
+def test_supervisor_api_ignores_legacy_json_and_jsonl_artifacts(tmp_path: Path) -> None:
     seed_supervisor_artifacts(tmp_path)
     client = TestClient(create_app(project_root=tmp_path))
 
-    assert client.get("/api/supervisor").json()["status"] == "healthy"
-    assert client.get("/api/supervisor/services").json()["services"][0]["service"] == "crawler-backend"
-    assert client.get("/api/supervisor/decisions").json()["continuation_plans"][0]["idempotency_key"]
-    assert client.get("/api/supervisor/recovery").json()["attempts"][0]["consecutive_failure_count"] == 1
-    assert client.get("/api/supervisor/decision-required").json()["open_count"] == 1
-    assert client.get("/api/supervisor/auditor").json()["audits"][0]["verdict"] == "stop"
+    assert client.get("/api/supervisor").json()["status"] == "unavailable"
+    assert client.get("/api/supervisor/services").json()["items"] == []
+    assert client.get("/api/supervisor/decisions").json()["items"] == []
+    assert client.get("/api/supervisor/recovery").json()["items"] == []
+    assert client.get("/api/supervisor/decision-required").json()["items"] == []
+    assert client.get("/api/supervisor/auditor").status_code == 404
 
 
-def test_supervisor_auditor_reports_newest_malformed_audit_instead_of_older_valid_report(tmp_path: Path) -> None:
+def test_supervisor_auditor_route_is_removed(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     audit_dir = tmp_path / ".codex" / "loop-runs" / "demo-run" / "audit-reports"
     write_json(
@@ -246,17 +246,10 @@ def test_supervisor_auditor_reports_newest_malformed_audit_instead_of_older_vali
 
     response = client.get("/api/supervisor/auditor")
 
-    assert response.status_code == 200
-    payload = response.json()
-    serialized = json.dumps(payload, ensure_ascii=False)
-    assert payload["status"] == "invalid_artifact"
-    assert payload["audits"] == []
-    assert "audit-002.json" in payload["diagnostics"][0]["source"]
-    assert "audit-001" not in serialized
-    assert "newest-audit-secret" not in serialized
+    assert response.status_code == 404
 
 
-def test_supervisor_api_redacts_artifacts_and_reports_malformed_jsonl(tmp_path: Path) -> None:
+def test_supervisor_api_does_not_parse_malformed_legacy_jsonl(tmp_path: Path) -> None:
     seed_supervisor_artifacts(tmp_path)
     recovery_path = tmp_path / ".codex" / "supervisor" / "recovery-attempts.jsonl"
     with recovery_path.open("a", encoding="utf-8") as handle:
@@ -268,15 +261,15 @@ def test_supervisor_api_redacts_artifacts_and_reports_malformed_jsonl(tmp_path: 
     assert response.status_code == 200
     payload = response.json()
     serialized = json.dumps(payload, ensure_ascii=False)
-    assert payload["status"] == "invalid_artifact"
-    assert "token=[REDACTED]" in serialized
+    assert payload["status"] == "unavailable"
+    assert payload["items"] == []
     assert "recovery-secret" not in serialized
     assert "malformed-secret" not in serialized
 
 
 def test_run_list_excludes_supervisor_global_artifacts(tmp_path: Path) -> None:
     seed_supervisor_artifacts(tmp_path)
-    runs = TestClient(create_app(project_root=tmp_path)).get("/api/runs").json()
+    runs = TestClient(create_app(project_root=tmp_path)).get("/api/runs").json()["items"]
 
     assert all(run["run_id"] != "loop-supervisor" for run in runs)
 
@@ -290,7 +283,7 @@ def test_api_events_skip_dangling_symlink_artifacts(tmp_path: Path) -> None:
     response = client.get("/api/runs/demo-run/events")
 
     assert response.status_code == 200
-    sources = [event["source"] for event in response.json()["events"]]
+    sources = [event["source"] for event in response.json()["items"]]
     assert any(source.endswith("run.json") for source in sources)
     assert all("dangling.log" not in source for source in sources)
 
@@ -319,7 +312,7 @@ def test_api_events_skip_dangling_session_symlink(tmp_path: Path) -> None:
     response = client.get("/api/runs/demo-run/events")
 
     assert response.status_code == 200
-    assert any("Planner API session event" in event["message"] for event in response.json()["events"])
+    assert any("Planner API session event" in event["message"] for event in response.json()["items"])
 
 
 def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
@@ -329,7 +322,7 @@ def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
     (run_dir / "planner-attempt-1.stdout.log").write_text("Planner history log\n", encoding="utf-8")
     client = TestClient(create_app(project_root=tmp_path))
 
-    runs = client.get("/api/runs").json()
+    runs = client.get("/api/runs").json()["items"]
     detail = client.get("/api/runs/demo-run").json()
     events = client.get("/api/runs/demo-run/events").json()
     logs = client.get("/api/runs/demo-run/logs").json()
@@ -338,8 +331,8 @@ def test_api_serves_worktree_history_run(tmp_path: Path) -> None:
     assert runs[0]["source_kind"] == "worktree"
     assert detail["source_path"] == ".worktrees/loop-dashboard/.codex/loop-runs/demo-run"
     assert detail["phase"] == "passed_waiting_human_merge"
-    assert events["events"]
-    assert logs["logs"][0]["content"] == "Planner history log\n"
+    assert events["items"]
+    assert logs["items"][0]["summary"] == "Planner history log"
 
 
 def test_api_returns_404_for_missing_run_and_traversal_run_id(tmp_path: Path) -> None:
@@ -360,7 +353,7 @@ def test_api_returns_invalid_run_detail_for_listed_malformed_and_empty_runs(tmp_
     (tmp_path / ".codex" / "loop-runs" / "empty-run").mkdir(parents=True)
     client = TestClient(create_app(project_root=tmp_path))
 
-    runs = client.get("/api/runs").json()
+    runs = client.get("/api/runs").json()["items"]
     broken_detail = client.get("/api/runs/broken-run")
     empty_detail = client.get("/api/runs/empty-run")
 
@@ -404,7 +397,7 @@ def test_api_handles_non_string_run_kind(tmp_path: Path) -> None:
     detail = client.get("/api/runs/weird-run")
 
     assert runs.status_code == 200
-    assert next(run for run in runs.json() if run["run_id"] == "weird-run")["run_kind"] == "single"
+    assert next(run for run in runs.json()["items"] if run["run_id"] == "weird-run")["run_kind"] == "single"
     assert detail.status_code == 200
     assert detail.json()["run_kind"] == "single"
 
@@ -547,7 +540,7 @@ def test_api_returns_parent_child_fields(tmp_path: Path) -> None:
     seed_parent_child_api_run(tmp_path)
     client = TestClient(create_app(project_root=tmp_path))
 
-    runs = client.get("/api/runs").json()
+    runs = client.get("/api/runs").json()["items"]
     detail = client.get("/api/runs/api-parent").json()
 
     parent = next(run for run in runs if run["run_id"] == "api-parent")
@@ -555,3 +548,191 @@ def test_api_returns_parent_child_fields(tmp_path: Path) -> None:
     assert parent["children_summary"]["total"] == 1
     assert detail["reader_summary"]["purpose"] == "API summary"
     assert detail["children"][0]["run_id"] == "api-parent-child-001"
+
+
+def test_run_list_and_detail_collections_use_page_contract(tmp_path: Path) -> None:
+    for index in range(25):
+        run_id = f"paged-run-{index:03d}"
+        write_json(
+            tmp_path / ".codex" / "loop-runs" / run_id / "run.json",
+            {
+                "run_id": run_id,
+                "policy": "demand_development",
+                "phase": "generating",
+                "task_id": run_id,
+                "requirement": f"paged run {index}",
+                "attempts": {},
+                "last_result": "none",
+                "next_action": "run_generator",
+            },
+        )
+    run_dir = tmp_path / ".codex" / "loop-runs" / "paged-run-024"
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "event_type": "transition",
+            "summary": "entered generating",
+            "timestamp": "2026-07-15T00:00:00Z",
+        },
+    )
+    (run_dir / "generator-attempt-1.stdout.log").write_text(
+        "generator output\n", encoding="utf-8"
+    )
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "findings": [
+                {
+                    "id": "finding-1",
+                    "severity": "major",
+                    "recommended_action": "fix route",
+                }
+            ],
+            "scenario_results": [
+                {
+                    "scenario_id": "scenario-1",
+                    "status": "fail",
+                    "summary": "route failed",
+                }
+            ],
+        },
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    first = client.get("/api/runs?page_size=20").json()
+    assert set(first) >= {
+        "items",
+        "next_cursor",
+        "previous_cursor",
+        "page_size",
+        "total",
+        "has_more",
+    }
+    assert first["total"] == 25
+    first_ids = {item["run_id"] for item in first["items"]}
+
+    write_json(
+        tmp_path / ".codex" / "loop-runs" / "paged-run-new" / "run.json",
+        {
+            "run_id": "paged-run-new",
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "paged-run-new",
+            "requirement": "newer run",
+            "attempts": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+        },
+    )
+    second = client.get(
+        "/api/runs",
+        params={"page_size": "20", "cursor": first["next_cursor"]},
+    ).json()
+    assert first_ids.isdisjoint(item["run_id"] for item in second["items"])
+    assert second["total"] == 25
+
+    for collection in (
+        "children",
+        "acceptance",
+        "events",
+        "logs",
+        "diagnostics",
+        "artifacts",
+    ):
+        response = client.get(f"/api/runs/paged-run-024/{collection}?page_size=20")
+        assert response.status_code == 200, collection
+        payload = response.json()
+        assert set(payload) >= {
+            "items",
+            "next_cursor",
+            "previous_cursor",
+            "page_size",
+            "total",
+            "has_more",
+        }
+
+
+def test_log_list_omits_bodies_and_detail_is_opaque_redacted_and_bounded(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    log_path = run_dir / "generator-attempt-1.stdout.log"
+    log_path.write_text("token=top-secret\n" + "界" * 30_000, encoding="utf-8")
+    client = TestClient(create_app(project_root=tmp_path))
+
+    logs = client.get("/api/runs/demo-run/logs?page_size=20").json()
+    item = next(item for item in logs["items"] if item["stream"] == "stdout")
+    assert "content" not in item
+    assert "path" not in item
+    assert "generator-attempt-1.stdout.log" not in item["log_id"]
+    assert "/" not in item["log_id"]
+
+    detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert len(payload["content"].encode("utf-8")) <= 65_536
+    assert payload["truncated"] is True
+    assert payload["total_bytes"] > 65_536
+    assert "top-secret" not in payload["content"]
+    assert "[REDACTED]" in payload["content"]
+
+    assert client.get(f"/api/runs/other-run/logs/{item['log_id']}").status_code == 404
+    assert client.get("/api/runs/demo-run/logs/not-a-real-id").status_code == 404
+
+
+def test_log_detail_revalidates_symlinks_regular_files_and_run_ownership(
+    tmp_path: Path,
+) -> None:
+    for run_id in ("run-a", "run-b"):
+        write_json(
+            tmp_path / ".codex" / "loop-runs" / run_id / "run.json",
+            {
+                "run_id": run_id,
+                "policy": "demand_development",
+                "phase": "generating",
+                "task_id": run_id,
+                "requirement": run_id,
+                "attempts": {},
+                "last_result": "none",
+                "next_action": "run_generator",
+            },
+        )
+    run_a = tmp_path / ".codex" / "loop-runs" / "run-a"
+    log_path = run_a / "generator-attempt-1.stderr.log"
+    log_path.write_text("failure\n", encoding="utf-8")
+    client = TestClient(create_app(project_root=tmp_path))
+    item = client.get("/api/runs/run-a/logs").json()["items"][0]
+
+    assert client.get(f"/api/runs/run-b/logs/{item['log_id']}").status_code == 404
+    outside = tmp_path / "outside.log"
+    outside.write_text("secret outside\n", encoding="utf-8")
+    log_path.unlink()
+    log_path.symlink_to(outside)
+    assert client.get(f"/api/runs/run-a/logs/{item['log_id']}").status_code == 404
+
+    log_path.unlink()
+    log_path.mkdir()
+    assert client.get(f"/api/runs/run-a/logs/{item['log_id']}").status_code == 404
+
+
+def test_log_discovery_rejects_every_lexical_symlink_component(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    real_logs = run_dir / "real-logs"
+    real_logs.mkdir()
+    (real_logs / "nested.stdout.log").write_text("must stay hidden\n", encoding="utf-8")
+    (run_dir / "linked-logs").symlink_to(real_logs, target_is_directory=True)
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "stdout_path": "linked-logs/nested.stdout.log",
+        },
+    )
+    client = TestClient(create_app(project_root=tmp_path))
+
+    logs = client.get("/api/runs/demo-run/logs").json()
+
+    assert logs["items"] == []

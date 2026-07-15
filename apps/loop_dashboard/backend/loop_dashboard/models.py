@@ -42,6 +42,20 @@ class LogEntry:
 
 
 @dataclass
+class LogDescriptor:
+    log_id: str
+    source: str
+    stream: str
+    summary: str
+    updated_at: str
+    total_bytes: int
+    attempt_id: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class Event:
     kind: str
     source: str

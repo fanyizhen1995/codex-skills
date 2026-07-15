@@ -2,20 +2,25 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any, Callable
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .pagination import CursorError, PageSizeError
 from .store import LoopDashboardStore
+from .supervisor_store import SupervisorDashboardStore
 
 
 def create_app(project_root: Path | str | None = None) -> FastAPI:
     resolved_root = Path(project_root or os.getenv("LOOP_DASHBOARD_PROJECT_ROOT") or _discover_project_root()).resolve()
     store = LoopDashboardStore(resolved_root)
+    supervisor_store = SupervisorDashboardStore(resolved_root)
     app = FastAPI(title="Loop Dashboard", version="0.1.0")
     app.state.store = store
+    app.state.supervisor_store = supervisor_store
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -34,31 +39,146 @@ def create_app(project_root: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/supervisor")
     def supervisor_summary() -> dict:
-        return store.supervisor_summary()
+        return supervisor_store.summary()
 
     @app.get("/api/supervisor/services")
-    def supervisor_services() -> dict:
-        return store.supervisor_services()
+    def supervisor_services(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "services",
+            "supervisor-services",
+            {"status"},
+        )
+
+    @app.get("/api/supervisor/services/freshness")
+    def supervisor_freshness(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "freshness_checks",
+            "supervisor-freshness",
+            {"target", "status"},
+        )
+
+    @app.get("/api/supervisor/actions")
+    def supervisor_actions(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "actions",
+            "supervisor-actions",
+            {"run_id", "status", "action_type", "queue_owner"},
+        )
+
+    @app.get("/api/supervisor/actions/{action_id}/attempts")
+    def supervisor_action_attempts(action_id: str, request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "action_attempts",
+            f"supervisor-actions:{action_id}:attempts",
+            {"result_class", "error_class", "recovery_tier"},
+            fixed_filters={"action_id": action_id},
+        )
+
+    @app.get("/api/supervisor/transitions")
+    def supervisor_transitions(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "transitions",
+            "supervisor-transitions",
+            {"run_id", "to_phase", "action_id"},
+        )
+
+    @app.get("/api/supervisor/reviews")
+    def supervisor_reviews(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "reviews",
+            "supervisor-reviews",
+            {"status", "decision", "trigger"},
+        )
+
+    @app.get("/api/supervisor/reviews/{review_id}/findings")
+    def supervisor_review_findings(review_id: str, request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "review_findings",
+            f"supervisor-reviews:{review_id}:findings",
+            {"status", "severity"},
+            fixed_filters={"review_id": review_id},
+        )
 
     @app.get("/api/supervisor/decisions")
-    def supervisor_decisions() -> dict:
-        return store.supervisor_decisions()
+    def supervisor_decisions(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "user_decisions",
+            "supervisor-decisions",
+            {"scope", "run_id", "status"},
+        )
+
+    @app.get("/api/supervisor/skills")
+    def supervisor_skills(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "skill_snapshots",
+            "supervisor-skills",
+            set(),
+        )
+
+    @app.get("/api/supervisor/skills/{snapshot_id}/rows")
+    def supervisor_skill_rows(snapshot_id: str, request: Request) -> dict:
+        page_size, cursor, _filters = _page_query(request, set())
+        try:
+            return supervisor_store.skill_rows(
+                snapshot_id,
+                page_size=page_size,
+                cursor=cursor,
+            )
+        except (CursorError, PageSizeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/supervisor/recovery")
-    def supervisor_recovery() -> dict:
-        return store.supervisor_recovery()
+    def supervisor_recovery(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "action_attempts",
+            "supervisor-recovery",
+            {"result_class", "error_class", "recovery_tier"},
+        )
 
     @app.get("/api/supervisor/decision-required")
-    def supervisor_decision_required() -> dict:
-        return store.supervisor_decision_required()
-
-    @app.get("/api/supervisor/auditor")
-    def supervisor_auditor() -> dict:
-        return store.supervisor_auditor()
+    def supervisor_decision_required(request: Request) -> dict:
+        return _supervisor_page(
+            request,
+            supervisor_store,
+            "user_decisions",
+            "supervisor-decision-required",
+            {"scope", "run_id"},
+            fixed_filters={"status": "open"},
+        )
 
     @app.get("/api/runs")
-    def list_runs() -> list[dict]:
-        return store.list_runs()
+    def list_runs(request: Request) -> dict:
+        page_size, cursor, filters = _page_query(
+            request, {"phase", "policy", "query"}
+        )
+        try:
+            return store.page_runs(
+                page_size=page_size,
+                cursor=cursor,
+                filters=filters,
+            )
+        except (CursorError, PageSizeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/runs/{run_id}")
     def get_run(run_id: str) -> dict:
@@ -68,18 +188,81 @@ def create_app(project_root: Path | str | None = None) -> FastAPI:
         return run
 
     @app.get("/api/runs/{run_id}/events")
-    def get_events(run_id: str) -> dict:
-        events = store.get_events(run_id)
-        if events is None:
-            raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
-        return {"run_id": run_id, "events": events}
+    def get_events(run_id: str, request: Request) -> dict:
+        return _run_page(
+            request,
+            run_id,
+            store.page_events,
+            {"kind", "query"},
+        )
 
     @app.get("/api/runs/{run_id}/logs")
-    def get_logs(run_id: str) -> dict:
-        logs = store.get_logs(run_id)
-        if logs is None:
+    def get_logs(run_id: str, request: Request) -> dict:
+        page_size, cursor, filters = _page_query(request, {"stream", "query"})
+        if filters.get("stream") not in {None, "stdout", "stderr"}:
+            raise HTTPException(
+                status_code=400, detail="stream must be stdout or stderr"
+            )
+        try:
+            page = store.page_logs(
+                run_id,
+                page_size=page_size,
+                cursor=cursor,
+                filters=filters,
+                supervisor_store=supervisor_store,
+            )
+        except (CursorError, PageSizeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if page is None:
             raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
-        return {"run_id": run_id, "logs": logs}
+        return page
+
+    @app.get("/api/runs/{run_id}/logs/{log_id}")
+    def get_log_detail(run_id: str, log_id: str) -> dict:
+        detail = store.get_log_detail(
+            run_id,
+            log_id,
+            supervisor_store=supervisor_store,
+        )
+        if detail is None:
+            raise HTTPException(status_code=404, detail="log not found")
+        return detail
+
+    @app.get("/api/runs/{run_id}/children")
+    def get_children(run_id: str, request: Request) -> dict:
+        return _run_page(
+            request,
+            run_id,
+            store.page_children,
+            {"status"},
+        )
+
+    @app.get("/api/runs/{run_id}/acceptance")
+    def get_acceptance(run_id: str, request: Request) -> dict:
+        return _run_page(
+            request,
+            run_id,
+            store.page_acceptance,
+            {"status"},
+        )
+
+    @app.get("/api/runs/{run_id}/diagnostics")
+    def get_diagnostics(run_id: str, request: Request) -> dict:
+        return _run_page(
+            request,
+            run_id,
+            store.page_diagnostics,
+            {"kind", "severity"},
+        )
+
+    @app.get("/api/runs/{run_id}/artifacts")
+    def get_artifacts(run_id: str, request: Request) -> dict:
+        return _run_page(
+            request,
+            run_id,
+            store.page_artifacts,
+            {"query"},
+        )
 
     frontend_dir = _frontend_root()
     index_path, assets_dir = _frontend_paths(frontend_dir)
@@ -112,6 +295,87 @@ def _discover_project_root() -> Path:
         if (candidate / ".git").exists() or (candidate / "tasks.json").exists():
             return candidate
     return current
+
+
+def _supervisor_page(
+    request: Request,
+    store: SupervisorDashboardStore,
+    table: str,
+    endpoint: str,
+    allowed_filters: set[str],
+    *,
+    fixed_filters: dict[str, object] | None = None,
+) -> dict:
+    page_size, cursor, filters = _page_query(request, allowed_filters)
+    filters.update(fixed_filters or {})
+    if "recovery_tier" in filters:
+        raw_tier = str(filters["recovery_tier"])
+        if raw_tier not in {"0", "1", "2", "3"}:
+            raise HTTPException(
+                status_code=400,
+                detail="recovery_tier must be 0, 1, 2, or 3",
+            )
+    try:
+        return store.page(
+            table,
+            endpoint=endpoint,
+            page_size=page_size,
+            cursor=cursor,
+            filters=filters,
+        )
+    except (CursorError, PageSizeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _page_query(
+    request: Request,
+    allowed_filters: set[str],
+) -> tuple[int, str | None, dict[str, str]]:
+    allowed = {"page_size", "cursor", *allowed_filters}
+    seen: set[str] = set()
+    for name, _value in request.query_params.multi_items():
+        if name not in allowed:
+            raise HTTPException(status_code=400, detail=f"unsupported filter: {name}")
+        if name in seen:
+            raise HTTPException(status_code=400, detail=f"duplicate query parameter: {name}")
+        seen.add(name)
+    raw_page_size = request.query_params.get("page_size", "20")
+    if raw_page_size not in {"20", "50", "100"}:
+        raise HTTPException(status_code=400, detail="page_size must be 20, 50, or 100")
+    raw_cursor = request.query_params.get("cursor")
+    if raw_cursor == "":
+        raise HTTPException(status_code=400, detail="cursor must not be empty")
+    cursor = raw_cursor or None
+    filters: dict[str, str] = {}
+    for name in sorted(allowed_filters):
+        if name not in request.query_params:
+            continue
+        value = request.query_params[name]
+        if not value:
+            raise HTTPException(status_code=400, detail=f"invalid filter: {name}")
+        filters[name] = value
+    return int(raw_page_size), cursor, filters
+
+
+def _run_page(
+    request: Request,
+    run_id: str,
+    page_method: Callable[..., dict[str, Any] | None],
+    allowed_filters: set[str],
+) -> dict:
+    page_size, cursor, filters = _page_query(request, allowed_filters)
+    try:
+        page = page_method(
+            run_id,
+            page_size=page_size,
+            cursor=cursor,
+            filters=filters,
+        )
+    except (CursorError, PageSizeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if page is None:
+        raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
+    return page
 
 
 app = create_app()

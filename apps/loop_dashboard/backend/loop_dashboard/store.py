@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import base64
+from dataclasses import dataclass
+import hashlib
+import hmac
 import json
 import re
+import secrets
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
-from .models import AgentSummary, Event, FlowNode, LogEntry
+from .models import AgentSummary, Event, FlowNode, LogDescriptor, LogEntry
+from .pagination import CursorCodec, paginate_items
 from .redaction import redact_text
+
+if TYPE_CHECKING:
+    from .supervisor_store import SupervisorDashboardStore
 
 
 COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_budget", "stopped_blocked"}
@@ -68,25 +78,9 @@ AUDIT_SIGNAL_KEYS = frozenset(
     }
 )
 SUPERVISOR_RUN_IDS = {"loop-supervisor", "supervisor"}
-SUPERVISOR_JSONL_LIMIT = 100
-SUPERVISOR_STATUS_LABELS = {
-    "available": "可用",
-    "healthy": "运行正常",
-    "degraded": "服务异常",
-    "blocked": "需要处理",
-    "unavailable": "暂无数据",
-    "invalid_artifact": "产物无效",
-}
-SUPERVISOR_SENSITIVE_KEYS = {
-    "api_key",
-    "apikey",
-    "access_token",
-    "authorization",
-    "client_secret",
-    "password",
-    "secret",
-    "token",
-}
+LOG_DETAIL_MAX_BYTES = 64 * 1024
+LOG_DETAIL_READ_BYTES = 256 * 1024
+LOG_SUMMARY_READ_BYTES = 8 * 1024
 
 
 class RunSource(NamedTuple):
@@ -103,6 +97,18 @@ class RunRecord(NamedTuple):
 class ChildRun(NamedTuple):
     summary: dict[str, Any]
     source: RunSource
+
+
+@dataclass(frozen=True)
+class LogHandle:
+    run_id: str
+    run_dir: Path
+    kind: str
+    stream: str
+    source: str
+    path: Path
+    inline_content: str = ""
+    attempt_id: str = ""
 
 
 def safe_join(root: Path, relative_path: str) -> Path:
@@ -122,7 +128,9 @@ class LoopDashboardStore:
     def __init__(self, project_root: Path | str) -> None:
         self.project_root = Path(project_root).resolve()
         self.loop_runs_dir = self.project_root / ".codex" / "loop-runs"
-        self.supervisor_dir = self.project_root / ".codex" / "supervisor"
+        self._cursor_codec = CursorCodec(secrets.token_bytes(32))
+        self._log_secret = secrets.token_bytes(32)
+        self._log_handles: dict[str, LogHandle] = {}
 
     def project_info(self) -> dict[str, Any]:
         return {
@@ -132,188 +140,51 @@ class LoopDashboardStore:
             "history_sources": [self._source_path(source.run_dir) for source in self._run_sources()],
         }
 
-    def supervisor_summary(self) -> dict[str, Any]:
-        state, diagnostic, existed = self._read_supervisor_json("supervisor-state.json")
-        if diagnostic is not None:
-            status = "invalid_artifact"
-            return {
-                "status": status,
-                "status_label": self._supervisor_status_label(status),
-                "state": self._empty_supervisor_state(status),
-                "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
-                "diagnostics": [diagnostic],
-            }
-        if not existed:
-            status = "unavailable"
-            return {
-                "status": status,
-                "status_label": self._supervisor_status_label(status),
-                "state": self._empty_supervisor_state(status),
-                "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
-                "diagnostics": [],
-            }
-
-        status = str(state.get("status") or "available")
-        payload = self._supervisor_state_payload(state, status)
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "state": payload,
-            "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
-            "diagnostics": [],
-        }
-
-    def supervisor_services(self) -> dict[str, Any]:
-        payload, diagnostic, existed = self._read_supervisor_json("service-health.json")
-        if diagnostic is not None:
-            status = "invalid_artifact"
-            return self._supervisor_services_payload(status, [], "", [diagnostic])
-        if not existed:
-            return self._supervisor_services_payload("unavailable", [], "", [])
-
-        raw_services = payload.get("services")
-        if not isinstance(raw_services, list):
-            status = "invalid_artifact"
-            diagnostic = self._supervisor_diagnostic(
-                self.supervisor_dir / "service-health.json",
-                "service-health.json field services must be a list",
-            )
-            return self._supervisor_services_payload(status, [], str(payload.get("checked_at") or ""), [diagnostic])
-
-        services = [item for item in raw_services if isinstance(item, dict)]
-        status = "healthy" if services and all(str(item.get("status") or "") == "healthy" for item in services) else "degraded"
-        if not services:
-            status = "unavailable"
-        return self._supervisor_services_payload(status, services, str(payload.get("checked_at") or ""), [])
-
-    def supervisor_decisions(self) -> dict[str, Any]:
-        decisions = self._read_supervisor_jsonl("run-decisions.jsonl")
-        plans = self._read_supervisor_jsonl("continuation-plans.jsonl")
-        status = self._combined_supervisor_status([decisions, plans])
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "decisions": decisions["items"],
-            "continuation_plans": plans["items"],
-            "counts": {
-                "decisions_total": decisions["total_count"],
-                "decisions_returned": decisions["returned_count"],
-                "continuation_plans_total": plans["total_count"],
-                "continuation_plans_returned": plans["returned_count"],
-                "invalid_lines": decisions["invalid_count"] + plans["invalid_count"],
-            },
-            "diagnostics": [*decisions["diagnostics"], *plans["diagnostics"]],
-        }
-
-    def supervisor_recovery(self) -> dict[str, Any]:
-        attempts = self._read_supervisor_jsonl("recovery-attempts.jsonl")
-        status = str(attempts["status"])
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "attempts": attempts["items"],
-            "counts": {
-                "total": attempts["total_count"],
-                "returned": attempts["returned_count"],
-                "invalid_lines": attempts["invalid_count"],
-            },
-            "diagnostics": attempts["diagnostics"],
-        }
-
-    def supervisor_decision_required(self) -> dict[str, Any]:
-        decisions_dir = self.supervisor_dir / "needs-user-decisions"
-        safe_dir = self._safe_dir_under(decisions_dir, self.supervisor_dir)
-        if safe_dir is None:
-            status = "unavailable"
-            return {
-                "status": status,
-                "status_label": self._supervisor_status_label(status),
-                "open_count": 0,
-                "decisions": [],
-                "total_count": 0,
-                "diagnostics": [],
-            }
-
-        decisions: list[dict[str, Any]] = []
-        diagnostics: list[dict[str, str]] = []
-        total_count = 0
-        for path in sorted(safe_dir.glob("*.json"), key=lambda item: item.name):
-            safe_path = self._safe_file_under(path, safe_dir)
-            if safe_path is None:
-                continue
-            total_count += 1
-            payload, diagnostic = self._read_json_file_with_diagnostic(safe_path, allowed_root=safe_dir)
-            if diagnostic is not None:
-                diagnostics.append(diagnostic)
-                continue
-            if not isinstance(payload, dict):
-                continue
-            if payload.get("status") == "open":
-                decisions.append(payload)
-
-        decisions.sort(key=lambda item: (str(item.get("opened_at") or ""), str(item.get("decision_id") or "")))
-        status = "invalid_artifact" if diagnostics else "available"
-        if total_count == 0 and not diagnostics:
-            status = "unavailable"
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "open_count": len(decisions),
-            "decisions": decisions,
-            "total_count": total_count,
-            "diagnostics": diagnostics,
-        }
-
-    def supervisor_auditor(self) -> dict[str, Any]:
-        audits: list[dict[str, Any]] = []
-        diagnostics: list[dict[str, str]] = []
-        for run_id, record in self._run_records_by_id().items():
-            report_path, report = self._latest_audit_report(record.source.run_dir)
-            if report_path is not None and not report:
-                diagnostics.append(self._supervisor_diagnostic(report_path, "audit report could not be parsed"))
-                continue
-            if report_path is None:
-                continue
-            summary = self._audit_summary(record.source.run_dir)
-            if summary.get("status") != "available":
-                continue
-            audits.append(
-                {
-                    "run_id": run_id,
-                    "source_kind": record.source.source_kind,
-                    "updated_at": self._mtime_iso(report_path),
-                    "status": summary.get("status"),
-                    "engine_status": summary.get("engine_status"),
-                    "phase_notice": summary.get("phase_notice"),
-                    "verdict": summary.get("verdict"),
-                    "open_must_fix": summary.get("open_must_fix"),
-                    "direction_action": summary.get("direction_action"),
-                    "direction_reason": summary.get("direction_reason"),
-                    "recommended_next_focus": summary.get("recommended_next_focus"),
-                    "latest_report_path": summary.get("latest_report_path"),
-                    "findings": summary.get("findings"),
-                    "signals": summary.get("signals"),
-                    "cadence": summary.get("cadence"),
-                }
-            )
-
-        audits.sort(key=lambda item: (str(item.get("updated_at") or ""), str(item.get("run_id") or "")), reverse=True)
-        status = "invalid_artifact" if diagnostics else ("available" if audits else "unavailable")
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "audits": audits[:SUPERVISOR_JSONL_LIMIT],
-            "total_count": len(audits),
-            "returned_count": min(len(audits), SUPERVISOR_JSONL_LIMIT),
-            "diagnostics": diagnostics,
-        }
-
     def list_runs(self) -> list[dict[str, Any]]:
         runs = [self._load_run_summary(source.run_dir, source.source_kind) for source in self._run_sources()]
         runs = self._dedupe_runs(runs)
         runs = self._filter_top_level_runs(runs)
         runs = self._filter_supervisor_runs(runs)
         return sorted(runs, key=lambda run: (run.get("updated_at", ""), run.get("run_id", "")), reverse=True)
+
+    def page_runs(
+        self,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any]:
+        runs = self.list_runs()
+        phase = filters.get("phase")
+        policy = filters.get("policy")
+        query = filters.get("query", "").lower()
+        if phase:
+            runs = [item for item in runs if str(item.get("phase") or "") == phase]
+        if policy:
+            runs = [item for item in runs if str(item.get("policy") or "") == policy]
+        if query:
+            runs = [
+                item
+                for item in runs
+                if query
+                in " ".join(
+                    (
+                        str(item.get("run_id") or ""),
+                        str(item.get("task_summary") or ""),
+                        str(item.get("task_id") or ""),
+                    )
+                ).lower()
+            ]
+        return paginate_items(
+            runs,
+            endpoint="runs",
+            page_size=page_size,
+            cursor=cursor,
+            filters=filters,
+            timestamp_key="updated_at",
+            primary_key="run_id",
+            codec=self._cursor_codec,
+        ).to_dict()
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
         source = self._run_source(run_id)
@@ -398,16 +269,52 @@ class LoopDashboardStore:
         events.extend(self._structured_events(run_dir))
         for path in self._direct_artifact_files(run_dir):
             events.append(Event("artifact", self._relative_artifact(path), f"updated {path.name}", self._mtime_iso(path)))
-        for log in self._collect_logs(run_dir):
-            events.append(Event("log", log.source, self._summarize_log(log.content), log.updated_at))
-            events.append(Event(log.stream, log.source, self._summarize_log(log.content), log.updated_at))
-            lowered = log.content.lower()
+        for handle in self._collect_log_handles(run_id, run_dir, None):
+            descriptor = self._log_descriptor(handle)
+            events.append(
+                Event(
+                    "log",
+                    descriptor.source,
+                    descriptor.summary,
+                    descriptor.updated_at,
+                )
+            )
+            events.append(
+                Event(
+                    descriptor.stream,
+                    descriptor.source,
+                    descriptor.summary,
+                    descriptor.updated_at,
+                )
+            )
+            lowered = descriptor.summary.lower()
             if "skill" in lowered:
-                events.append(Event("skill", log.source, self._summarize_log(log.content), log.updated_at))
+                events.append(
+                    Event(
+                        "skill",
+                        descriptor.source,
+                        descriptor.summary,
+                        descriptor.updated_at,
+                    )
+                )
             if any(name in lowered for name in ("planner", "generator", "evaluator", "agent")):
-                events.append(Event("agent", log.source, self._summarize_log(log.content), log.updated_at))
+                events.append(
+                    Event(
+                        "agent",
+                        descriptor.source,
+                        descriptor.summary,
+                        descriptor.updated_at,
+                    )
+                )
             if "tool" in lowered:
-                events.append(Event("tool", log.source, self._summarize_log(log.content), log.updated_at))
+                events.append(
+                    Event(
+                        "tool",
+                        descriptor.source,
+                        descriptor.summary,
+                        descriptor.updated_at,
+                    )
+                )
         events.extend(self._session_events(run_id))
         if self._run_kind(run_data) == "parent":
             child_runs, _diagnostics = self._children_for_parent(str(run_data.get("run_id") or run_id), run_data)
@@ -421,6 +328,295 @@ class LoopDashboardStore:
         if source is None or not source.run_dir.is_dir():
             return None
         return [log.to_dict() for log in self._collect_logs(source.run_dir)]
+
+    def page_children(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        fallback_timestamp = str(detail.get("updated_at") or "")
+        children = [dict(item) for item in detail.get("children", []) if isinstance(item, dict)]
+        for child in children:
+            child["child_id"] = str(child.get("run_id") or self._stable_id(child))
+            child.setdefault("updated_at", fallback_timestamp)
+        status = filters.get("status")
+        if status:
+            children = [
+                item
+                for item in children
+                if status in {str(item.get("phase") or ""), str(item.get("health") or "")}
+            ]
+        return self._page_run_items(
+            run_id,
+            "children",
+            children,
+            page_size,
+            cursor,
+            filters,
+            primary_key="child_id",
+        )
+
+    def page_acceptance(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        acceptance = detail.get("acceptance_summary")
+        if not isinstance(acceptance, dict):
+            acceptance = {}
+        fallback_timestamp = str(detail.get("updated_at") or "")
+        items: list[dict[str, Any]] = []
+        for index, scenario in enumerate(acceptance.get("scenarios", [])):
+            if not isinstance(scenario, dict):
+                continue
+            item = dict(scenario)
+            item["acceptance_id"] = str(
+                item.get("scenario_id") or f"scenario-{index:06d}"
+            )
+            item["updated_at"] = fallback_timestamp
+            items.append(item)
+        status = filters.get("status")
+        if status:
+            items = [item for item in items if str(item.get("status") or "") == status]
+        return self._page_run_items(
+            run_id,
+            "acceptance",
+            items,
+            page_size,
+            cursor,
+            filters,
+            primary_key="acceptance_id",
+        )
+
+    def page_events(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        raw_events = self.get_events(run_id)
+        if raw_events is None:
+            return None
+        events: list[dict[str, Any]] = []
+        for index, event in enumerate(raw_events):
+            item = dict(event)
+            item["event_id"] = f"{index:08d}:{self._stable_id(item)}"
+            events.append(item)
+        kind = filters.get("kind")
+        query = filters.get("query", "").lower()
+        if kind:
+            events = [item for item in events if str(item.get("kind") or "") == kind]
+        if query:
+            events = [
+                item
+                for item in events
+                if query
+                in " ".join(
+                    (str(item.get("source") or ""), str(item.get("message") or ""))
+                ).lower()
+            ]
+        return self._page_run_items(
+            run_id,
+            "events",
+            events,
+            page_size,
+            cursor,
+            filters,
+            primary_key="event_id",
+        )
+
+    def page_logs(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+        supervisor_store: SupervisorDashboardStore | None = None,
+    ) -> dict[str, Any] | None:
+        source = self._run_source(run_id)
+        if source is None or not source.run_dir.is_dir():
+            return None
+        handles = self._collect_log_handles(run_id, source.run_dir, supervisor_store)
+        descriptors = [self._log_descriptor(handle).to_dict() for handle in handles]
+        stream = filters.get("stream")
+        query = filters.get("query", "").lower()
+        if stream:
+            descriptors = [item for item in descriptors if item["stream"] == stream]
+        if query:
+            descriptors = [
+                item
+                for item in descriptors
+                if query
+                in f"{item.get('source', '')} {item.get('summary', '')}".lower()
+            ]
+        return self._page_run_items(
+            run_id,
+            "logs",
+            descriptors,
+            page_size,
+            cursor,
+            filters,
+            primary_key="log_id",
+        )
+
+    def page_diagnostics(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        fallback_timestamp = str(detail.get("updated_at") or "")
+        diagnostics: list[dict[str, Any]] = []
+        for index, diagnostic in enumerate(detail.get("blocked_diagnostics", [])):
+            if not isinstance(diagnostic, dict):
+                continue
+            item = dict(diagnostic)
+            item["diagnostic_id"] = f"{index:08d}:{self._stable_id(item)}"
+            item["updated_at"] = str(item.get("updated_at") or fallback_timestamp)
+            diagnostics.append(item)
+        for name in ("kind", "severity"):
+            value = filters.get(name)
+            if value:
+                diagnostics = [
+                    item for item in diagnostics if str(item.get(name) or "") == value
+                ]
+        return self._page_run_items(
+            run_id,
+            "diagnostics",
+            diagnostics,
+            page_size,
+            cursor,
+            filters,
+            primary_key="diagnostic_id",
+        )
+
+    def page_artifacts(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        timestamp = str(detail.get("updated_at") or "")
+        items = [
+            {
+                "artifact_id": hashlib.sha256(path.encode()).hexdigest()[:24],
+                "label": Path(path).name,
+                "path": path,
+                "updated_at": timestamp,
+            }
+            for path in self._path_items(detail.get("artifact_paths"))
+        ]
+        query = filters.get("query", "").lower()
+        if query:
+            items = [item for item in items if query in item["path"].lower()]
+        return self._page_run_items(
+            run_id,
+            "artifacts",
+            items,
+            page_size,
+            cursor,
+            filters,
+            primary_key="artifact_id",
+        )
+
+    def get_log_detail(
+        self,
+        run_id: str,
+        log_id: str,
+        *,
+        supervisor_store: SupervisorDashboardStore | None = None,
+    ) -> dict[str, Any] | None:
+        handle = self._log_handles.get(log_id)
+        if handle is None or handle.run_id != run_id:
+            return None
+        source = self._run_source(run_id)
+        if source is None:
+            return None
+        try:
+            if source.run_dir.resolve() != handle.run_dir.resolve():
+                return None
+        except OSError:
+            return None
+        if handle.kind == "attempt":
+            if supervisor_store is None or not handle.attempt_id:
+                return None
+            path = supervisor_store.attempt_log_path(
+                run_id, handle.attempt_id, handle.stream
+            )
+            if path is None:
+                return None
+            safe_path = self._safe_regular_file_lexical(path, handle.run_dir)
+            if safe_path is None:
+                return None
+            content, total_bytes, truncated = self._bounded_log_file(safe_path)
+        elif handle.kind == "file":
+            safe_path = self._safe_regular_file_lexical(handle.path, handle.run_dir)
+            if safe_path is None:
+                return None
+            content, total_bytes, truncated = self._bounded_log_file(safe_path)
+        elif handle.kind == "inline":
+            if self._safe_regular_file_lexical(handle.path, self.project_root) is None:
+                return None
+            content, total_bytes, truncated = self._bounded_log_text(
+                handle.inline_content
+            )
+        else:
+            return None
+        return {
+            "log_id": log_id,
+            "source": handle.source,
+            "stream": handle.stream,
+            "content": content,
+            "truncated": truncated,
+            "total_bytes": total_bytes,
+        }
+
+    def _page_run_items(
+        self,
+        run_id: str,
+        collection: str,
+        items: list[dict[str, Any]],
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+        *,
+        primary_key: str,
+    ) -> dict[str, Any]:
+        return paginate_items(
+            items,
+            endpoint=f"runs:{run_id}:{collection}",
+            page_size=page_size,
+            cursor=cursor,
+            filters=filters,
+            timestamp_key="updated_at",
+            primary_key=primary_key,
+            codec=self._cursor_codec,
+        ).to_dict()
 
     def _run_sources(self) -> list[RunSource]:
         sources: list[RunSource] = []
@@ -1880,6 +2076,275 @@ class LoopDashboardStore:
             )
         return diagnostics
 
+    def _collect_log_handles(
+        self,
+        run_id: str,
+        run_dir: Path,
+        supervisor_store: SupervisorDashboardStore | None,
+    ) -> list[LogHandle]:
+        self._log_handles = {
+            log_id: handle
+            for log_id, handle in self._log_handles.items()
+            if handle.run_id != run_id
+        }
+        handles: list[LogHandle] = []
+        seen: set[tuple[str, str]] = set()
+
+        def add_file(
+            path: Path,
+            stream: str,
+            *,
+            kind: str = "file",
+            attempt_id: str = "",
+        ) -> None:
+            if stream not in {"stdout", "stderr"}:
+                return
+            safe_path = self._safe_regular_file_lexical(path, run_dir)
+            if safe_path is None:
+                return
+            key = (str(safe_path), stream)
+            if key in seen:
+                return
+            seen.add(key)
+            handle = LogHandle(
+                run_id=run_id,
+                run_dir=run_dir,
+                kind=kind,
+                stream=stream,
+                source=(f"attempt {attempt_id}" if attempt_id else safe_path.name),
+                path=safe_path,
+                attempt_id=attempt_id,
+            )
+            self._register_log_handle(handle)
+            handles.append(handle)
+
+        if supervisor_store is not None:
+            for reference in supervisor_store.attempt_log_references(run_id):
+                path = reference.get("path")
+                stream = reference.get("stream")
+                attempt_id = reference.get("attempt_id")
+                if isinstance(path, Path) and isinstance(stream, str) and isinstance(attempt_id, str):
+                    add_file(
+                        path,
+                        stream,
+                        kind="attempt",
+                        attempt_id=attempt_id,
+                    )
+        for pattern in LOG_GLOBS:
+            for path in sorted(run_dir.glob(pattern)):
+                stream = "stderr" if path.name.endswith(".stderr.log") else "stdout"
+                add_file(path, stream)
+
+        evaluator_path = run_dir / "evaluator-result.json"
+        evaluator = self._read_json(evaluator_path, allowed_root=run_dir)
+        if isinstance(evaluator, dict):
+            handles.extend(
+                self._inline_log_handles(
+                    run_id,
+                    run_dir,
+                    evaluator,
+                    evaluator_path,
+                    run_dir,
+                    seen,
+                )
+            )
+            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            if rich_path is not None and rich_evaluator is not None:
+                handles.extend(
+                    self._inline_log_handles(
+                        run_id,
+                        run_dir,
+                        rich_evaluator,
+                        rich_path,
+                        rich_path.parent,
+                        seen,
+                    )
+                )
+            scenario_path = evaluator.get("scenario_command_results_path")
+            if isinstance(scenario_path, str) and scenario_path:
+                scenario_result = self._resolve_artifact_reference(
+                    scenario_path,
+                    run_dir,
+                    allowed_roots=[run_dir],
+                )
+                if scenario_result is not None:
+                    scenario_payload = self._read_json(
+                        scenario_result, allowed_root=run_dir
+                    )
+                    if isinstance(scenario_payload, dict):
+                        handles.extend(
+                            self._inline_log_handles(
+                                run_id,
+                                run_dir,
+                                scenario_payload,
+                                scenario_result,
+                                run_dir,
+                                seen,
+                            )
+                        )
+        return sorted(
+            handles,
+            key=lambda handle: (
+                self._mtime_iso(handle.path),
+                handle.source,
+                handle.stream,
+            ),
+            reverse=True,
+        )
+
+    def _inline_log_handles(
+        self,
+        run_id: str,
+        run_dir: Path,
+        payload: dict[str, Any],
+        source_path: Path,
+        relative_root: Path,
+        seen: set[tuple[str, str]],
+    ) -> list[LogHandle]:
+        safe_source = self._safe_regular_file_lexical(source_path, self.project_root)
+        if safe_source is None:
+            return []
+        handles: list[LogHandle] = []
+
+        def visit(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    lowered = str(key).lower()
+                    if lowered in {"stdout", "stderr"} and isinstance(child, str) and child:
+                        identity = (f"inline:{safe_source}:{len(handles)}", lowered)
+                        if identity in seen:
+                            continue
+                        seen.add(identity)
+                        handle = LogHandle(
+                            run_id=run_id,
+                            run_dir=run_dir,
+                            kind="inline",
+                            stream=lowered,
+                            source=f"{safe_source.name}:{lowered}",
+                            path=safe_source,
+                            inline_content=child,
+                        )
+                        self._register_log_handle(handle)
+                        handles.append(handle)
+                    elif lowered in {"stdout_path", "stderr_path"} and isinstance(child, str) and child:
+                        stream = lowered.removesuffix("_path")
+                        path = self._resolve_artifact_reference(
+                            child,
+                            safe_source.parent,
+                            allowed_roots=[run_dir, relative_root],
+                            relative_roots=[run_dir, relative_root],
+                        )
+                        if path is None:
+                            continue
+                        safe_path = self._safe_regular_file_lexical(path, run_dir)
+                        if safe_path is None:
+                            continue
+                        identity = (str(safe_path), stream)
+                        if identity in seen:
+                            continue
+                        seen.add(identity)
+                        handle = LogHandle(
+                            run_id=run_id,
+                            run_dir=run_dir,
+                            kind="file",
+                            stream=stream,
+                            source=safe_path.name,
+                            path=safe_path,
+                        )
+                        self._register_log_handle(handle)
+                        handles.append(handle)
+                    else:
+                        visit(child)
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child)
+
+        visit(payload)
+        return handles
+
+    def _register_log_handle(self, handle: LogHandle) -> str:
+        identity = "\0".join(
+            (
+                handle.run_id,
+                handle.kind,
+                handle.stream,
+                str(handle.path),
+                handle.attempt_id,
+                hashlib.sha256(handle.inline_content.encode()).hexdigest(),
+            )
+        ).encode()
+        digest = hmac.new(self._log_secret, identity, hashlib.sha256).digest()[:18]
+        log_id = base64.urlsafe_b64encode(digest).decode().rstrip("=")
+        self._log_handles[log_id] = handle
+        return log_id
+
+    def _log_descriptor(self, handle: LogHandle) -> LogDescriptor:
+        log_id = self._register_log_handle(handle)
+        try:
+            total_bytes = len(handle.inline_content.encode()) if handle.kind == "inline" else handle.path.stat().st_size
+            updated_at = self._mtime_iso(handle.path)
+        except OSError:
+            total_bytes = 0
+            updated_at = ""
+        if handle.kind == "inline":
+            summary_text = handle.inline_content
+        else:
+            try:
+                summary_text = handle.path.read_bytes()[:LOG_SUMMARY_READ_BYTES].decode(
+                    "utf-8", errors="replace"
+                )
+            except OSError:
+                summary_text = ""
+        return LogDescriptor(
+            log_id=log_id,
+            source=handle.source,
+            stream=handle.stream,
+            summary=self._summarize_log(redact_text(summary_text)),
+            updated_at=updated_at,
+            total_bytes=total_bytes,
+            attempt_id=handle.attempt_id,
+        )
+
+    def _bounded_log_file(self, path: Path) -> tuple[str, int, bool]:
+        total_bytes = path.stat().st_size
+        with path.open("rb") as handle:
+            raw = handle.read(LOG_DETAIL_READ_BYTES + 1)
+        text = raw[:LOG_DETAIL_READ_BYTES].decode("utf-8", errors="replace")
+        redacted = redact_text(text)
+        content, response_truncated = self._truncate_utf8(
+            redacted, LOG_DETAIL_MAX_BYTES
+        )
+        truncated = (
+            len(raw) > LOG_DETAIL_READ_BYTES
+            or response_truncated
+            or len(raw[:LOG_DETAIL_READ_BYTES]) < total_bytes
+        )
+        return content, total_bytes, truncated
+
+    def _bounded_log_text(self, text: str) -> tuple[str, int, bool]:
+        total_bytes = len(text.encode())
+        redacted = redact_text(text)
+        content, truncated = self._truncate_utf8(redacted, LOG_DETAIL_MAX_BYTES)
+        return content, total_bytes, truncated
+
+    @staticmethod
+    def _truncate_utf8(text: str, limit: int) -> tuple[str, bool]:
+        encoded = text.encode()
+        if len(encoded) <= limit:
+            return text, False
+        return encoded[:limit].decode("utf-8", errors="ignore"), True
+
+    @staticmethod
+    def _stable_id(value: Any) -> str:
+        serialized = json.dumps(
+            value,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        return hashlib.sha256(serialized.encode()).hexdigest()[:24]
+
     def _collect_logs(self, run_dir: Path) -> list[LogEntry]:
         logs: list[LogEntry] = []
         for pattern in LOG_GLOBS:
@@ -2104,210 +2569,6 @@ class LoopDashboardStore:
                 continue
         return [path for _mtime, path in sorted(safe_paths)]
 
-    def _read_supervisor_json(self, filename: str) -> tuple[dict[str, Any], dict[str, str] | None, bool]:
-        path = self.supervisor_dir / filename
-        safe_path = self._safe_file_under(path, self.supervisor_dir)
-        if safe_path is None:
-            return {}, None, False
-        payload, diagnostic = self._read_json_file_with_diagnostic(safe_path, allowed_root=self.supervisor_dir)
-        if diagnostic is not None:
-            return {}, diagnostic, True
-        if not isinstance(payload, dict):
-            return {}, self._supervisor_diagnostic(safe_path, "JSON artifact must be an object"), True
-        return payload, None, True
-
-    def _read_supervisor_jsonl(self, filename: str, limit: int = SUPERVISOR_JSONL_LIMIT) -> dict[str, Any]:
-        path = self.supervisor_dir / filename
-        safe_path = self._safe_file_under(path, self.supervisor_dir)
-        if safe_path is None:
-            return {
-                "status": "unavailable",
-                "items": [],
-                "total_count": 0,
-                "returned_count": 0,
-                "invalid_count": 0,
-                "diagnostics": [],
-            }
-
-        items: list[dict[str, Any]] = []
-        diagnostics: list[dict[str, str]] = []
-        try:
-            lines = safe_path.read_text(encoding="utf-8").splitlines()
-        except UnicodeDecodeError as exc:
-            return {
-                "status": "invalid_artifact",
-                "items": [],
-                "total_count": 0,
-                "returned_count": 0,
-                "invalid_count": 1,
-                "diagnostics": [
-                    self._supervisor_diagnostic(
-                        safe_path,
-                        f"JSONL artifact is not valid UTF-8: {exc.reason} at byte {exc.start}",
-                    )
-                ],
-            }
-        except OSError as exc:
-            return {
-                "status": "invalid_artifact",
-                "items": [],
-                "total_count": 0,
-                "returned_count": 0,
-                "invalid_count": 1,
-                "diagnostics": [self._supervisor_diagnostic(safe_path, f"could not read JSONL artifact: {exc}")],
-            }
-
-        for line_number, line in enumerate(lines, start=1):
-            stripped = line.strip()
-            if not stripped:
-                continue
-            try:
-                payload = json.loads(stripped)
-            except json.JSONDecodeError as exc:
-                diagnostics.append(
-                    self._supervisor_diagnostic(
-                        safe_path,
-                        f"malformed JSONL line {line_number}: {exc.msg} at column {exc.colno}",
-                    )
-                )
-                continue
-            if not isinstance(payload, dict):
-                diagnostics.append(self._supervisor_diagnostic(safe_path, f"JSONL line {line_number} must be an object"))
-                continue
-            items.append(self._redact_artifact_value(payload))
-
-        recent_items = items[-limit:]
-        return {
-            "status": "invalid_artifact" if diagnostics else "available",
-            "items": recent_items,
-            "total_count": len(items),
-            "returned_count": len(recent_items),
-            "invalid_count": len(diagnostics),
-            "diagnostics": diagnostics,
-        }
-
-    def _read_json_file_with_diagnostic(self, path: Path, allowed_root: Path) -> tuple[Any, dict[str, str] | None]:
-        safe_path = self._safe_file_under(path, allowed_root)
-        if safe_path is None:
-            return None, self._supervisor_diagnostic(path, "artifact is not a safe file under the supervisor directory")
-        try:
-            payload = json.loads(safe_path.read_text(encoding="utf-8"))
-        except UnicodeDecodeError as exc:
-            return None, self._supervisor_diagnostic(
-                safe_path,
-                f"artifact is not valid UTF-8: {exc.reason} at byte {exc.start}",
-            )
-        except json.JSONDecodeError as exc:
-            return None, self._supervisor_diagnostic(
-                safe_path,
-                f"malformed JSON artifact: {exc.msg} at line {exc.lineno} column {exc.colno}",
-            )
-        except OSError as exc:
-            return None, self._supervisor_diagnostic(safe_path, f"could not read artifact: {exc}")
-        return self._redact_artifact_value(payload), None
-
-    def _redact_artifact_value(self, value: Any, key: str = "") -> Any:
-        if self._is_supervisor_sensitive_key(key):
-            return "[REDACTED]"
-        if isinstance(value, str):
-            return self._trim(redact_text(value), 1000)
-        if isinstance(value, list):
-            return [self._redact_artifact_value(item) for item in value]
-        if isinstance(value, dict):
-            return {str(child_key): self._redact_artifact_value(child_value, str(child_key)) for child_key, child_value in value.items()}
-        return value
-
-    def _is_supervisor_sensitive_key(self, key: str) -> bool:
-        segments = self._supervisor_key_segments(key)
-        if not segments:
-            return False
-        normalized_key = "_".join(segments)
-        if normalized_key in SUPERVISOR_SENSITIVE_KEYS:
-            return True
-        if any(segment in {"apikey", "authorization", "password", "secret", "token"} for segment in segments):
-            return True
-        sensitive_sequences = (("api", "key"), ("access", "token"), ("client", "secret"))
-        for sequence in sensitive_sequences:
-            size = len(sequence)
-            if any(tuple(segments[index : index + size]) == sequence for index in range(0, len(segments) - size + 1)):
-                return True
-        return False
-
-    def _supervisor_key_segments(self, key: str) -> list[str]:
-        return [
-            segment.lower()
-            for segment in re.findall(r"[A-Z]+(?=[A-Z][a-z]|\d|[^A-Za-z0-9]|$)|[A-Z]?[a-z]+|\d+", key.strip())
-        ]
-
-    def _supervisor_diagnostic(self, path: Path, message: str) -> dict[str, str]:
-        return {
-            "status": "invalid_artifact",
-            "source": self._relative_artifact(path),
-            "message": self._trim(redact_text(message), 240),
-        }
-
-    def _supervisor_artifact_path(self, filename: str) -> str:
-        return self._relative_artifact(self.supervisor_dir / filename)
-
-    def _supervisor_status_label(self, status: str) -> str:
-        return SUPERVISOR_STATUS_LABELS.get(str(status), str(status) or SUPERVISOR_STATUS_LABELS["unavailable"])
-
-    def _empty_supervisor_state(self, status: str) -> dict[str, Any]:
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "service_summary": {},
-            "run_summary": {},
-            "failure_summary": {},
-            "service_health": {},
-            "last_decision": None,
-            "mode": "",
-            "last_heartbeat_at": "",
-            "last_tick_at": "",
-            "generated_at": "",
-            "watch_interval_seconds": 0,
-        }
-
-    def _supervisor_state_payload(self, state: dict[str, Any], status: str) -> dict[str, Any]:
-        payload = dict(state)
-        payload["status"] = status
-        payload["status_label"] = self._supervisor_status_label(status)
-        for key, fallback in (
-            ("service_summary", {}),
-            ("run_summary", {}),
-            ("failure_summary", {}),
-            ("service_health", {}),
-        ):
-            if not isinstance(payload.get(key), dict):
-                payload[key] = fallback
-        if "last_decision" not in payload:
-            payload["last_decision"] = None
-        return payload
-
-    def _supervisor_services_payload(
-        self,
-        status: str,
-        services: list[dict[str, Any]],
-        checked_at: str,
-        diagnostics: list[dict[str, str]],
-    ) -> dict[str, Any]:
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "checked_at": checked_at,
-            "services": services,
-            "service_count": len(services),
-            "diagnostics": diagnostics,
-        }
-
-    def _combined_supervisor_status(self, streams: list[dict[str, Any]]) -> str:
-        statuses = {str(stream.get("status") or "unavailable") for stream in streams}
-        if "invalid_artifact" in statuses:
-            return "invalid_artifact"
-        if "available" in statuses:
-            return "available"
-        return "unavailable"
-
     def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
         safe_path = self._safe_file_under(path, allowed_root or self.project_root)
         if safe_path is None:
@@ -2377,26 +2638,57 @@ class LoopDashboardStore:
         return False
 
     def _safe_file_under(self, path: Path, root: Path) -> Path | None:
+        return self._safe_regular_file_lexical(path, root)
+
+    def _safe_regular_file_lexical(self, path: Path, root: Path) -> Path | None:
         try:
             resolved_root = root.resolve()
-            resolved_path = path.resolve()
+            lexical_path = path if path.is_absolute() else resolved_root / path
+            if ".." in lexical_path.parts:
+                return None
+            lexical_path = lexical_path.absolute()
+            relative = lexical_path.relative_to(resolved_root)
+            current = resolved_root
+            for part in relative.parts:
+                current = current / part
+                if current.is_symlink():
+                    return None
+            resolved_path = lexical_path.resolve(strict=True)
             resolved_path.relative_to(resolved_root)
             resolved_path.relative_to(self.project_root)
         except (OSError, ValueError):
             return None
-        if not resolved_path.is_file():
+        try:
+            mode = resolved_path.lstat().st_mode
+        except OSError:
+            return None
+        if not stat.S_ISREG(mode):
             return None
         return resolved_path
 
     def _safe_dir_under(self, path: Path, root: Path) -> Path | None:
         try:
             resolved_root = root.resolve()
-            resolved_path = path.resolve()
+            lexical_path = path if path.is_absolute() else resolved_root / path
+            if ".." in lexical_path.parts:
+                return None
+            lexical_path = lexical_path.absolute()
+            relative = lexical_path.relative_to(resolved_root)
+            current = resolved_root
+            for part in relative.parts:
+                current = current / part
+                if current.is_symlink():
+                    return None
+            resolved_path = lexical_path.resolve(strict=True)
             resolved_path.relative_to(resolved_root)
             resolved_path.relative_to(self.project_root)
         except (OSError, ValueError):
             return None
-        if not resolved_path.is_dir():
+        try:
+            mode = resolved_path.lstat().st_mode
+        except OSError:
+            return None
+        if not stat.S_ISDIR(mode):
             return None
         return resolved_path
 
