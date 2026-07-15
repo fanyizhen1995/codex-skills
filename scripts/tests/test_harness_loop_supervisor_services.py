@@ -828,6 +828,37 @@ def test_managed_runtime_child_runs_shell_template_without_execing_cd(
     assert not calls[0][0][2].startswith("exec cd ")
 
 
+def test_dashboard_managed_child_receives_stable_private_cursor_secret(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    calls: list[dict[str, object]] = []
+
+    def popen(_arguments: list[str], **options: object) -> object:
+        calls.append(options)
+        return object()
+
+    monkeypatch.setattr(services, "_Popen", popen)
+
+    service = services._MANAGED_SERVICES["loop-dashboard"]
+    services._start_managed_child(tmp_path.resolve(), service)
+    services._start_managed_child(tmp_path.resolve(), service)
+
+    secret_path = tmp_path / ".codex/session-state/loop-dashboard/cursor-secret"
+    secret = secret_path.read_text(encoding="ascii").strip()
+    first_environment = calls[0]["env"]
+    second_environment = calls[1]["env"]
+
+    assert isinstance(first_environment, dict)
+    assert isinstance(second_environment, dict)
+    assert len(secret.encode()) >= 32
+    assert secret_path.stat().st_mode & 0o777 == 0o600
+    assert first_environment["LOOP_DASHBOARD_CURSOR_SECRET"] == secret
+    assert second_environment["LOOP_DASHBOARD_CURSOR_SECRET"] == secret
+
+
 @pytest.mark.parametrize(
     ("heartbeat_at", "fingerprint_kind", "expected_summary"),
     [

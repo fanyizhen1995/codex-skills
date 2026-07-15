@@ -11,8 +11,10 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shlex
 import socket
+import stat
 from subprocess import DEVNULL, PIPE, Popen as _Popen, TimeoutExpired, run as _run
 import time
 from typing import Any
@@ -801,12 +803,64 @@ def _managed_runtime_command(project_root: Path, service: ManagedService) -> str
 def _start_managed_child(project_root: Path, service: ManagedService) -> Any:
     project_argument = shlex.quote(str(project_root))
     command = service.command_template.format(project_root=project_argument)
+    environment = None
+    if service.service_id == "loop-dashboard":
+        environment = os.environ.copy()
+        environment["LOOP_DASHBOARD_CURSOR_SECRET"] = _dashboard_cursor_secret(
+            project_root
+        )
     return _Popen(
         ["bash", "-lc", command],
         cwd=project_root,
         stdin=DEVNULL,
         close_fds=True,
+        env=environment,
     )
+
+
+def _dashboard_cursor_secret(project_root: Path) -> str:
+    root = Path(project_root).resolve()
+    secret_dir = root / ".codex" / "session-state" / "loop-dashboard"
+    secret_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if secret_dir.is_symlink():
+        raise PermissionError("dashboard cursor secret directory is a symlink")
+    try:
+        secret_dir.resolve().relative_to(root)
+    except ValueError as exc:
+        raise PermissionError(
+            "dashboard cursor secret directory escapes project root"
+        ) from exc
+    secret_dir.chmod(0o700)
+
+    secret_path = secret_dir / "cursor-secret"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(secret_path, flags, 0o600)
+    except FileExistsError:
+        pass
+    else:
+        with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+            stream.write(secrets.token_urlsafe(48))
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    metadata = secret_path.stat(follow_symlinks=False)
+    if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise PermissionError(
+            "dashboard cursor secret file is not a private regular file"
+        )
+    read_flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        read_flags |= os.O_NOFOLLOW
+    descriptor = os.open(secret_path, read_flags)
+    with os.fdopen(descriptor, "r", encoding="ascii") as stream:
+        secret = stream.read().strip()
+    if len(secret.encode()) < 32:
+        raise ValueError("dashboard cursor secret must contain at least 32 bytes")
+    return secret
 
 
 def run_managed_service_runtime(
