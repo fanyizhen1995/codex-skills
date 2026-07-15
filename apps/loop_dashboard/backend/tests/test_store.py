@@ -12,100 +12,6 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def append_jsonl(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
-
-
-def seed_supervisor_store_artifacts(repo_root: Path) -> None:
-    supervisor_dir = repo_root / ".codex" / "supervisor"
-    write_json(
-        supervisor_dir / "supervisor-state.json",
-        {
-            "schema_version": 1,
-            "project_root": str(repo_root),
-            "status": "degraded",
-            "started_at": "2026-07-09T00:00:00Z",
-            "last_heartbeat_at": "2026-07-09T00:01:00Z",
-            "last_tick_at": "2026-07-09T00:01:00Z",
-            "generated_at": "2026-07-09T00:01:00Z",
-            "mode": "watch",
-            "service_summary": {"total": 1, "healthy": 0, "degraded": 1},
-            "service_health": {
-                "crawler-backend": {
-                    "service": "crawler-backend",
-                    "status": "degraded",
-                    "last_error": "Authorization: Bearer state-secret",
-                }
-            },
-            "run_summary": {"active": 0, "blocked": 1, "continuation_candidates": 0, "needs_user_decision": 1},
-            "failure_summary": {"open_failure_keys": 1, "max_consecutive_failures": 3},
-            "last_decision": {"decision_id": "supervisor-000001", "run_id": "store-run"},
-            "watch_interval_seconds": 60,
-        },
-    )
-    append_jsonl(
-        supervisor_dir / "run-decisions.jsonl",
-        {
-            "schema_version": 1,
-            "decision_id": "supervisor-000001",
-            "run_id": "store-run",
-            "classification": "needs_user_decision",
-            "action": "request_user_decision",
-            "reason": "api_key=decision-secret",
-            "created_at": "2026-07-09T00:01:01Z",
-        },
-    )
-    append_jsonl(
-        supervisor_dir / "recovery-attempts.jsonl",
-        {
-            "schema_version": 1,
-            "attempt_id": "recovery-000001",
-            "failure_key": "service_down:project:crawler-backend:http",
-            "run_id": "",
-            "action": "restart_service",
-            "status": "fail",
-            "summary": "token=recovery-secret",
-            "consecutive_failure_count": 1,
-            "recorded_at": "2026-07-09T00:01:02Z",
-        },
-    )
-    write_json(
-        supervisor_dir / "needs-user-decisions" / "later.json",
-        {
-            "schema_version": 1,
-            "decision_id": "later",
-            "opened_at": "2026-07-09T00:02:00Z",
-            "status": "open",
-            "summary": "later",
-        },
-    )
-    write_json(
-        supervisor_dir / "needs-user-decisions" / "earlier.json",
-        {
-            "schema_version": 1,
-            "decision_id": "earlier",
-            "opened_at": "2026-07-09T00:01:00Z",
-            "status": "open",
-            "summary": "secret=user-decision-secret",
-        },
-    )
-    seed_run(repo_root, "store-run", "audit_blocked", last_result="blocked", next_action="inspect_required_evidence")
-    write_json(
-        repo_root / ".codex" / "loop-runs" / "store-run" / "audit-reports" / "audit-004.json",
-        {
-            "schema_version": 1,
-            "run_id": "store-run",
-            "audit_id": "audit-004",
-            "created_at": "2026-07-09T00:03:00Z",
-            "verdict": "stop",
-            "direction_control": {"action": "stop", "reason": "password=audit-secret"},
-            "finding_lifecycle": {"open_findings": [{"finding_id": "audit-004-stop", "severity": "must_fix"}]},
-        },
-    )
-
-
 def seed_run(
     repo_root: Path,
     run_id: str,
@@ -239,165 +145,6 @@ def test_safe_join_rejects_path_traversal_and_absolute_paths(tmp_path: Path) -> 
         safe_join(tmp_path, "../outside")
     with pytest.raises(ValueError):
         safe_join(tmp_path, "/tmp/outside")
-
-
-def test_supervisor_store_returns_honest_missing_state(tmp_path: Path) -> None:
-    payload = LoopDashboardStore(tmp_path).supervisor_summary()
-
-    assert payload["status"] == "unavailable"
-    assert payload["state"]["status_label"] == "暂无数据"
-    assert payload["state"]["service_summary"] == {}
-
-
-def test_supervisor_store_reads_artifacts_sorts_user_decisions_and_audits(tmp_path: Path) -> None:
-    seed_supervisor_store_artifacts(tmp_path)
-    store = LoopDashboardStore(tmp_path)
-
-    summary = store.supervisor_summary()
-    decisions = store.supervisor_decisions()
-    required = store.supervisor_decision_required()
-    auditor = store.supervisor_auditor()
-
-    serialized = json.dumps(
-        {
-            "summary": summary,
-            "decisions": decisions,
-            "required": required,
-            "auditor": auditor,
-        },
-        ensure_ascii=False,
-    )
-    assert summary["status"] == "degraded"
-    assert summary["state"]["status_label"] == "服务异常"
-    assert decisions["decisions"][0]["reason"] == "api_key=[REDACTED]"
-    assert [item["decision_id"] for item in required["decisions"]] == ["earlier", "later"]
-    assert required["open_count"] == 2
-    assert auditor["audits"][0]["run_id"] == "store-run"
-    assert auditor["audits"][0]["verdict"] == "stop"
-    assert "state-secret" not in serialized
-    assert "decision-secret" not in serialized
-    assert "user-decision-secret" not in serialized
-    assert "audit-secret" not in serialized
-
-
-def test_supervisor_store_reports_invalid_malformed_json_and_jsonl_without_leaking_content(tmp_path: Path) -> None:
-    supervisor_dir = tmp_path / ".codex" / "supervisor"
-    supervisor_dir.mkdir(parents=True)
-    (supervisor_dir / "supervisor-state.json").write_text(
-        '{"status": "healthy", "last_error": "token=state-secret"', encoding="utf-8"
-    )
-    append_jsonl(
-        supervisor_dir / "recovery-attempts.jsonl",
-        {
-            "schema_version": 1,
-            "attempt_id": "recovery-000001",
-            "summary": "Authorization: Bearer recovery-secret",
-            "consecutive_failure_count": 1,
-        },
-    )
-    with (supervisor_dir / "recovery-attempts.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write('{"summary": "token=jsonl-secret"\n')
-    store = LoopDashboardStore(tmp_path)
-
-    summary = store.supervisor_summary()
-    recovery = store.supervisor_recovery()
-    serialized = json.dumps({"summary": summary, "recovery": recovery}, ensure_ascii=False)
-
-    assert summary["status"] == "invalid_artifact"
-    assert recovery["status"] == "invalid_artifact"
-    assert recovery["attempts"][0]["summary"] == "Authorization: Bearer [REDACTED]"
-    assert "state-secret" not in serialized
-    assert "recovery-secret" not in serialized
-    assert "jsonl-secret" not in serialized
-
-
-def test_supervisor_store_rejects_non_utf8_jsonl_without_leaking_content(tmp_path: Path) -> None:
-    supervisor_dir = tmp_path / ".codex" / "supervisor"
-    supervisor_dir.mkdir(parents=True)
-    (supervisor_dir / "recovery-attempts.jsonl").write_bytes(b'{"summary": "bad token=jsonl-secret \xff"}\n')
-    store = LoopDashboardStore(tmp_path)
-
-    recovery = store.supervisor_recovery()
-    serialized = json.dumps(recovery, ensure_ascii=False)
-
-    assert recovery["status"] == "invalid_artifact"
-    assert recovery["counts"]["invalid_lines"] > 0
-    assert recovery["diagnostics"]
-    assert "recovery-attempts.jsonl" in recovery["diagnostics"][0]["source"]
-    assert "jsonl-secret" not in serialized
-    assert "\ufffd" not in serialized
-    assert "bad token" not in serialized
-
-
-def test_supervisor_store_recursively_redacts_compound_secret_field_names(tmp_path: Path) -> None:
-    supervisor_dir = tmp_path / ".codex" / "supervisor"
-    write_json(
-        supervisor_dir / "supervisor-state.json",
-        {
-            "schema_version": 1,
-            "status": "healthy",
-            "service_summary": {},
-            "run_summary": {},
-            "failure_summary": {},
-            "service_health": {
-                "model-service": {
-                    "openai_api_key": "sk-openai-secret",
-                    "openaiApiKey": "sk-openai-camel-secret",
-                    "openai-api-key": "sk-openai-kebab-secret",
-                    "github_token": "github-secret-value",
-                    "githubToken": "github-camel-secret-value",
-                    "access_token_value": "access-secret-value",
-                    "accessToken": "access-camel-secret-value",
-                    "AccessToken": "access-pascal-secret-value",
-                    "client_secret_text": "client-secret-value",
-                    "clientSecret": "client-camel-secret-value",
-                    "ClientSecret": "client-pascal-secret-value",
-                    "nested": [{"openai_api_key": "nested-openai-secret"}],
-                    "idempotency_key": "keep-idempotency-key-visible",
-                    "statusLabel": "Healthy service",
-                    "lastHeartbeatAt": "2026-07-09T10:00:00Z",
-                }
-            },
-        },
-    )
-
-    summary = LoopDashboardStore(tmp_path).supervisor_summary()
-
-    serialized = json.dumps(summary, ensure_ascii=False)
-    service_health = summary["state"]["service_health"]["model-service"]
-    for key in (
-        "openai_api_key",
-        "openaiApiKey",
-        "openai-api-key",
-        "github_token",
-        "githubToken",
-        "access_token_value",
-        "accessToken",
-        "AccessToken",
-        "client_secret_text",
-        "clientSecret",
-        "ClientSecret",
-    ):
-        assert service_health[key] == "[REDACTED]"
-    assert service_health["nested"][0]["openai_api_key"] == "[REDACTED]"
-    assert service_health["idempotency_key"] == "keep-idempotency-key-visible"
-    assert service_health["statusLabel"] == "Healthy service"
-    assert service_health["lastHeartbeatAt"] == "2026-07-09T10:00:00Z"
-    for leaked_value in (
-        "sk-openai-secret",
-        "sk-openai-camel-secret",
-        "sk-openai-kebab-secret",
-        "github-secret-value",
-        "github-camel-secret-value",
-        "access-secret-value",
-        "access-camel-secret-value",
-        "access-pascal-secret-value",
-        "client-secret-value",
-        "client-camel-secret-value",
-        "client-pascal-secret-value",
-        "nested-openai-secret",
-    ):
-        assert leaked_value not in serialized
 
 
 def test_list_runs_summarizes_agents_completed_and_blocked_states(tmp_path: Path) -> None:
@@ -2372,3 +2119,209 @@ def test_weird_run_kind_falls_back_to_single_without_crashing(tmp_path: Path) ->
     listed = next(run for run in runs if run["run_id"] == "weird-run")
     assert listed["run_kind"] == "single"
     assert detail["run_kind"] == "single"
+
+
+def test_log_handle_registry_expires_and_caps_issued_handles(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_run(tmp_path, "handle-run", "generating")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "handle-run"
+    (run_dir / "generator-attempt-1.stdout.log").write_text(
+        "first\n", encoding="utf-8"
+    )
+    (run_dir / "generator-attempt-1.stderr.log").write_text(
+        "second\n", encoding="utf-8"
+    )
+    now = [100.0]
+    monkeypatch.setattr("loop_dashboard.store.time.monotonic", lambda: now[0])
+    store = LoopDashboardStore(
+        tmp_path,
+        log_handle_ttl_seconds=1,
+        log_handle_max_entries=20,
+    )
+
+    page = store.page_logs(
+        "handle-run",
+        page_size=20,
+        cursor=None,
+        filters={},
+    )
+    assert page is not None
+    items = page["items"]
+    assert len(items) >= 2
+    for item in items:
+        assert store.get_log_detail("handle-run", item["log_id"]) is not None
+
+    now[0] = 102.0
+    for item in items:
+        assert store.get_log_detail("handle-run", item["log_id"]) is None
+
+
+def test_log_paging_issues_only_returned_page_handles(tmp_path: Path) -> None:
+    seed_run(tmp_path, "paged-logs", "generating")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "paged-logs"
+    for index in range(45):
+        (run_dir / f"worker-{index:03d}-attempt-1.stdout.log").write_text(
+            f"log {index}\n",
+            encoding="utf-8",
+        )
+    store = LoopDashboardStore(tmp_path, log_handle_max_entries=100)
+
+    first = store.page_logs(
+        "paged-logs",
+        page_size=20,
+        cursor=None,
+        filters={},
+    )
+    assert first is not None
+    first_ids = {item["log_id"] for item in first["items"]}
+    assert set(store._log_handles._records) == first_ids
+    assert all(
+        store.get_log_detail("paged-logs", log_id) is not None
+        for log_id in first_ids
+    )
+
+    second = store.page_logs(
+        "paged-logs",
+        page_size=20,
+        cursor=first["next_cursor"],
+        filters={},
+    )
+    assert second is not None
+    second_ids = {item["log_id"] for item in second["items"]}
+    assert set(store._log_handles._records) == first_ids | second_ids
+    assert all(
+        store.get_log_detail("paged-logs", log_id) is not None
+        for log_id in second_ids
+    )
+
+
+def test_log_page_fails_capacity_instead_of_returning_evicted_ids(
+    tmp_path: Path,
+) -> None:
+    seed_run(tmp_path, "small-handle-registry", "generating")
+    store = LoopDashboardStore(tmp_path, log_handle_max_entries=1)
+
+    with pytest.raises(RuntimeError, match="log handle capacity"):
+        store.page_logs(
+            "small-handle-registry",
+            page_size=20,
+            cursor=None,
+            filters={},
+        )
+
+
+def test_log_discovery_enforces_entry_and_inline_byte_budgets(tmp_path: Path) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "budget-run"
+    write_json(
+        run_dir / "run.json",
+        {
+            "run_id": "budget-run",
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "budget-run",
+            "requirement": "budget logs",
+            "attempts": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+        },
+    )
+    for index in range(3):
+        (run_dir / f"worker-{index}-attempt-1.stdout.log").write_text(
+            "file log\n",
+            encoding="utf-8",
+        )
+    entry_limited = LoopDashboardStore(
+        tmp_path,
+        log_discovery_max_entries=2,
+    )
+
+    with pytest.raises(RuntimeError, match="log discovery entry budget"):
+        entry_limited.page_logs(
+            "budget-run",
+            page_size=20,
+            cursor=None,
+            filters={},
+        )
+
+    for path in run_dir.glob("*.log"):
+        path.unlink()
+    write_json(
+        run_dir / "evaluator-result.json",
+        {"status": "fail", "stdout": "x" * 11},
+    )
+    inline_limited = LoopDashboardStore(
+        tmp_path,
+        log_inline_max_bytes=10,
+    )
+    with pytest.raises(RuntimeError, match="inline log byte budget"):
+        inline_limited.page_logs(
+            "budget-run",
+            page_size=20,
+            cursor=None,
+            filters={},
+        )
+
+
+def test_log_discovery_signals_overflow_across_attempt_and_file_producers(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / ".codex" / "loop-runs" / "mixed-budget-run"
+    write_json(
+        run_dir / "run.json",
+        {
+            "run_id": "mixed-budget-run",
+            "policy": "demand_development",
+            "phase": "generating",
+            "task_id": "mixed-budget-run",
+            "requirement": "mixed producer logs",
+            "attempts": {},
+            "last_result": "none",
+            "next_action": "run_generator",
+        },
+    )
+    attempt_log = run_dir / "database-owned.stdout.log"
+    attempt_log.write_text("attempt output\n", encoding="utf-8")
+    (run_dir / "worker-attempt-1.stdout.log").write_text(
+        "direct output\n", encoding="utf-8"
+    )
+
+    class AttemptLogs:
+        @staticmethod
+        def attempt_log_references(run_id: str, *, limit: int):
+            assert run_id == "mixed-budget-run"
+            assert limit == 1
+            return [
+                {
+                    "attempt_id": "attempt-1",
+                    "stream": "stdout",
+                    "path": attempt_log,
+                }
+            ]
+
+    store = LoopDashboardStore(tmp_path, log_discovery_max_entries=1)
+
+    with pytest.raises(RuntimeError, match="log discovery entry budget"):
+        store.page_logs(
+            "mixed-budget-run",
+            page_size=20,
+            cursor=None,
+            filters={},
+            supervisor_store=AttemptLogs(),
+        )
+
+
+def test_log_reader_rejects_cross_task_root_symlink_alias(tmp_path: Path) -> None:
+    task_a = tmp_path / ".codex" / "loop-runs" / "task-a"
+    task_b = tmp_path / ".codex" / "loop-runs" / "task-b"
+    task_a.mkdir(parents=True)
+    task_b.mkdir(parents=True)
+    secret = task_b / "worker-attempt-1.stdout.log"
+    secret.write_text("cross-task-secret\n", encoding="utf-8")
+    alias = task_a / "other-task"
+    alias.symlink_to(task_b, target_is_directory=True)
+    store = LoopDashboardStore(tmp_path)
+
+    with pytest.raises(OSError):
+        store._read_regular_descriptor(secret, alias, 1024)

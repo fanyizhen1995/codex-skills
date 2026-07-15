@@ -20,7 +20,8 @@ LOG = logging.getLogger("crawler_workbench")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    resolved = settings or Settings(repo_root=_discover_repo_root())
+    repo_root = os.environ.get("PW_WORKBENCH_REPO_ROOT") or _discover_repo_root()
+    resolved = settings or Settings(repo_root=repo_root)
 
     app = FastAPI(title="Personal Wiki Crawler Workbench", version="0.1.0")
     app.state.settings = resolved

@@ -3,34 +3,35 @@
   "must_simulate": true,
   "user_scenarios": [
     {
-      "scenario_id": "PGE-PHASE1-CLI-FLOW",
-      "user_goal": "As an operator, start a demand-development loop, confirm preflight, run fake planner/generator/evaluator drivers, and see the loop stop at the human merge gate with durable run evidence.",
+      "scenario_id": "PGE-PHASE1-BOUNDED-WORKER-FLOW",
+      "user_goal": "As an operator, run the Phase 1 demand-development flow as three separately leased bounded Worker actions and stop at the human merge gate with durable run evidence.",
       "prerequisites": [
-        "Repository root is writable.",
-        "Existing evaluator harness scripts are available.",
-        "No real Codex model call is required for the fake-driver scenario."
+        "The unified Supervisor registry and Worker regressions are available.",
+        "The test uses a temporary repository and fake drivers.",
+        "No live service or Codex model call is required."
       ],
-      "entrypoint": "python3 scripts/harness_loop_orchestrator.py preflight --repo-root . --mode demand-development --requirement \"Evaluator scenario demand loop\" --run-id evaluator-scenario-phase-1 --task-id planner-generator-evaluator-loop-phase-1-01 --confirm && python3 scripts/harness_loop_orchestrator.py run --repo-root . --run-id evaluator-scenario-phase-1 --planner-driver fake --generator-driver fake --evaluator-driver fake --max-eval-attempts 2",
+      "entrypoint": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_phase1_demand_flow_reaches_human_merge_via_bounded_workers",
       "steps": [
-        "Create or reuse a loop run with confirmed preflight.",
-        "Run the fake Planner driver to write planner-output.json.",
-        "Run the fake Generator driver to write generator-result.json.",
-        "Run the fake evaluator driver and record evaluator status.",
-        "Verify run.json stops at passed_waiting_human_merge."
+        "Create a confirmed demand-development run in an isolated fixture.",
+        "Reconcile and lease one Planner action to a Worker.",
+        "Reconcile and lease one Generator action to a second Worker.",
+        "Reconcile and lease one Evaluator action to a third Worker.",
+        "Inspect the durable run and role artifacts at the human merge gate."
       ],
       "expected_outcomes": [
-        ".codex/loop-runs/evaluator-scenario-phase-1/run.json exists.",
-        "planner-output.json and generator-result.json exist and validate.",
+        "Three distinct action leases complete through the canonical Worker.",
+        "planner-output.json, generator-result.json, and evaluator-result.json exist and validate.",
         "run.json phase is passed_waiting_human_merge.",
         "run.json next_action is await_human_merge_confirmation."
       ],
       "failure_signals": [
         "The loop executes without confirmed preflight.",
+        "One public command directly drives multiple phases.",
         "The loop reports complete instead of waiting for human merge.",
         "Planner or Generator outputs are missing or fail schema validation."
       ],
       "cleanup": [
-        "The evaluator may leave .codex/loop-runs/evaluator-scenario-phase-1 as evidence."
+        "Pytest removes the temporary repository and runtime artifacts."
       ],
       "automation_hint": "shell"
     }

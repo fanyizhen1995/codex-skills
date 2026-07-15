@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
+import os
 import re
 import shutil
+import stat
 import subprocess
+import sys
+import tempfile
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -28,7 +38,6 @@ try:
         run_dir_for,
         validate_run_id,
         validate_artifact_hygiene_result_payload,
-        validate_audit_report_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -38,12 +47,10 @@ try:
     )
     from scripts.harness_loop_agents import run_codex_prompt
     from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
-    from scripts.harness_loop_auditor import (
+    from scripts.harness_loop_legacy_readers import (
         latest_audit_report,
         latest_audit_report_path,
         open_must_fix_findings,
-        write_deterministic_signals,
-        write_rule_based_audit_report,
     )
     from scripts.harness_loop_autonomous import (
         check_autonomous_scope,
@@ -64,6 +71,16 @@ try:
         validate_governance_preflight_evidence,
     )
     from scripts.harness_loop_runtime_lock import acquire_run_lock
+    from scripts.loop_supervisor.failures import (
+        BoundedFailure,
+        classify_bounded_failure,
+    )
+    from scripts.loop_supervisor.models import (
+        ActionRequest,
+        ActionResult,
+        ActionResultClass,
+        SkillInvocationEvidence,
+    )
 except ModuleNotFoundError:
     from harness_ai_infra_evidence import (  # type: ignore[no-redef]
         check_service_availability,
@@ -80,7 +97,6 @@ except ModuleNotFoundError:
         run_dir_for,
         validate_run_id,
         validate_artifact_hygiene_result_payload,
-        validate_audit_report_payload,
         validate_evaluator_result_payload,
         validate_generator_result_payload,
         validate_planner_output_payload,
@@ -90,12 +106,10 @@ except ModuleNotFoundError:
     )
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
     from harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands  # type: ignore[no-redef]
-    from harness_loop_auditor import (  # type: ignore[no-redef]
+    from harness_loop_legacy_readers import (  # type: ignore[no-redef]
         latest_audit_report,
         latest_audit_report_path,
         open_must_fix_findings,
-        write_deterministic_signals,
-        write_rule_based_audit_report,
     )
     from harness_loop_autonomous import (  # type: ignore[no-redef]
         check_autonomous_scope,
@@ -116,6 +130,17 @@ except ModuleNotFoundError:
         validate_governance_preflight_evidence,
     )
     from harness_loop_runtime_lock import acquire_run_lock  # type: ignore[no-redef]
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.loop_supervisor.failures import (  # type: ignore[no-redef]
+        BoundedFailure,
+        classify_bounded_failure,
+    )
+    from scripts.loop_supervisor.models import (  # type: ignore[no-redef]
+        ActionRequest,
+        ActionResult,
+        ActionResultClass,
+        SkillInvocationEvidence,
+    )
 
 
 def _timestamp() -> str:
@@ -391,61 +416,20 @@ def _audit_progress_exists(run: Mapping[str, Any]) -> bool:
 
 
 def _set_audit_blocked(repo_root: Path, run: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, str]:
-    run["phase"] = "audit_blocked"
-    run["last_result"] = "blocked"
-    run["next_action"] = "create_audit_remediation_task"
-    if run.get("run_kind") == "parent":
-        run = _ensure_parent_fields(run)
-        run["aggregate_acceptance"]["user_decision_required"] = False
-        run["reader_summary"]["current_progress"] = "Auditor 发现 open must_fix，普通 loop 已暂停。"
-        run["reader_summary"]["next_step"] = "创建审计整改子任务。"
-        run["reader_summary"]["decision_needed"] = "不需要"
-    save_run(repo_root, run)
-    append_loop_event(
-        repo_root,
-        run_id=str(run["run_id"]),
-        actor="auditor",
-        event_type="blocked",
-        summary="Audit gate blocked ordinary loop progress on open must_fix finding",
-        details={"finding_ids": [str(finding.get("finding_id", "")) for finding in findings]},
+    del repo_root, run, findings
+    raise RuntimeError(
+        "legacy audit_blocked production is disabled; use the Supervisor Reviewer"
     )
-    return status_for_run(repo_root, str(run["run_id"]))
 
 
 def _apply_audit_gate(repo_root: Path, run: dict[str, Any]) -> dict[str, str] | None:
-    if not _audit_gate_applies(run):
-        return None
-    try:
-        report = latest_audit_report(repo_root, str(run["run_id"]))
-    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
-        append_loop_event(
-            repo_root,
-            run_id=str(run["run_id"]),
-            actor="auditor",
-            event_type="audit_unavailable",
-            summary=f"Audit report unavailable or invalid: {exc}",
-        )
-        return None
-    findings = open_must_fix_findings(report)
-    if not findings:
-        return None
-    return _set_audit_blocked(repo_root, run, findings)
+    del repo_root, run
+    return None
 
 
 def _run_audit_boundary(repo_root: Path, run: dict[str, Any], *, force: bool = False) -> dict[str, str] | None:
-    blocked = _apply_audit_gate(repo_root, run)
-    if blocked is not None:
-        return blocked
-    if not _audit_gate_applies(run):
-        return None
-    if not _audit_cadence_due(run, force=force):
-        return None
-    if _audit_remediation_is_current(run):
-        return None
-    cadence = _audit_report_cadence(run)
-    write_rule_based_audit_report(repo_root, run, cadence=cadence)
-    _record_audit_cadence_state(repo_root, run, cadence=cadence)
-    return _apply_audit_gate(repo_root, load_run(repo_root, str(run["run_id"])))
+    del repo_root, run, force
+    return None
 
 
 def _audit_progress_count(run: Mapping[str, Any]) -> int:
@@ -574,34 +558,6 @@ def _write_audit_remediation_pass_report(
     latest_report = latest_audit_report(repo_root, run_id)
     findings = open_must_fix_findings(latest_report)
     finding_ids = _audit_finding_ids(findings)
-    signal_path = write_deterministic_signals(repo_root, run)
-    signal_payload = read_json_file(signal_path)
-    audit_id = _next_audit_id_for_run(repo_root, run_id)
-    summary = signal_payload.get("summary") if isinstance(signal_payload.get("summary"), Mapping) else {}
-    git_info = signal_payload.get("git") if isinstance(signal_payload.get("git"), Mapping) else {}
-    report = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "audit_id": audit_id,
-        "created_at": _timestamp(),
-        "created_by": "harness_loop_orchestrator",
-        "verdict": "pass",
-        "deterministic_signals": {
-            "artifact_path": signal_path.relative_to(repo_root).as_posix(),
-            "artifact_sha256": hashlib.sha256(signal_path.read_bytes()).hexdigest(),
-            "summary": dict(summary),
-            "git_head_sha": str(git_info.get("head_sha") or ""),
-        },
-        "cadence": {"unit": "boundary", "current_interval": 1, "steps_since_last_audit": 1},
-        "direction_control": {
-            "action": "resume_after_audit_remediation",
-            "reason": f"Audit remediation {remediation_run_id} handled open must_fix findings.",
-            "recommended_next_focus": "return_to_ordinary_loop",
-        },
-        "finding_lifecycle": {"open_findings": [], "closed_findings": _closed_audit_findings(findings)},
-    }
-    validate_audit_report_payload(report)
-    report_path = write_json_file(run_dir_for(repo_root, run_id) / "audit-reports" / f"{audit_id}.json", report)
     run = load_run(repo_root, run_id)
     run["_audit_remediation"] = {
         "status": "resolved",
@@ -613,7 +569,7 @@ def _write_audit_remediation_pass_report(
         "resolved_at": _timestamp(),
     }
     save_run(repo_root, run)
-    write_json_file(
+    result_path = write_json_file(
         run_dir_for(repo_root, run_id) / "audit-remediation-result.json",
         {
             "status": "pass",
@@ -621,19 +577,19 @@ def _write_audit_remediation_pass_report(
             "handled_findings": finding_ids,
             "remediation_run_id": remediation_run_id,
             "remediation_kind": remediation_kind,
-            "new_audit_report": report_path.relative_to(repo_root).as_posix(),
+            "new_audit_report": "",
         },
     )
     append_loop_event(
         repo_root,
         run_id=run_id,
-        actor="auditor",
-        event_type="audit_remediated",
-        summary=f"Audit remediation {remediation_run_id} closed open must_fix findings",
-        details={"finding_ids": finding_ids, "new_audit_id": audit_id},
-        artifact_paths=[report_path.relative_to(repo_root).as_posix()],
+        actor="orchestrator",
+        event_type="legacy_audit_migrated",
+        summary=f"Legacy audit remediation {remediation_run_id} completed migration cleanup",
+        details={"finding_ids": finding_ids},
+        artifact_paths=[result_path.relative_to(repo_root).as_posix()],
     )
-    return report_path
+    return result_path
 
 
 def _reconcile_passed_demand_children(repo_root: Path, parent: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -703,6 +659,184 @@ def _reconcile_demand_parent_children(repo_root: Path, parent: dict[str, Any]) -
     return "ready"
 
 
+def _demand_child_planner_payload(
+    child: Mapping[str, Any], child_task: Mapping[str, Any]
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "task_id": child["task_id"],
+        "policy": "demand_development",
+        "task_kind": "task_contract_only",
+        "title": str(child_task.get("title", "")),
+        "goal": str(child_task.get("description", "")),
+        "non_goals": [],
+        "allowed_paths": list(child_task.get("allowed_paths", [])),
+        "denylist_paths": list(child_task.get("denylist_paths", [])),
+        "verify_commands": list(child_task.get("verify_commands", [])),
+        "evaluator_scenarios_path": "",
+        "stop_conditions": ["passed"],
+        "next_planning_hint": "return to parent planner",
+        "skill_invocations": [],
+    }
+    if child_task.get("audit_remediation"):
+        payload["audit_remediation"] = True
+        payload["audit_response"] = dict(child_task.get("audit_response", {}))
+    validate_planner_output_payload(payload)
+    return payload
+
+
+def _demand_child_task_contract(
+    child: Mapping[str, Any], child_task: Mapping[str, Any]
+) -> dict[str, Any]:
+    expected_outcomes = list(child_task.get("done_criteria", [])) or [
+        "Child passes fake evaluator."
+    ]
+    artifact_paths = [
+        str(path)
+        for path in [
+            *list(child_task.get("allowed_paths", [])),
+            *list(child_task.get("artifact_paths", [])),
+        ]
+    ]
+    payload = {
+        "task_id": child["task_id"],
+        "title": str(child_task.get("title", "")),
+        "description": str(child_task.get("description", "")),
+        "verify_commands": list(child_task.get("verify_commands", [])),
+        "scenario_commands": list(child_task.get("scenario_commands", [])),
+        "artifact_paths": artifact_paths,
+        "required_services": [],
+        "evaluator_driver": "harness_auto_gate",
+        "eval_policy": {
+            "task_level_required": True,
+            "task_scope": "local_repo_and_harness",
+        },
+        "allowed_scope": "local_repo_and_harness",
+        "must_simulate": True,
+        "audit_remediation": bool(child_task.get("audit_remediation")),
+        "user_scenarios": [
+            {
+                "scenario_id": f"{child['run_id']}-scenario",
+                "user_goal": str(child_task.get("description", "")),
+                "prerequisites": ["Parent demand multi-task run exists."],
+                "steps": ["Run child generator.", "Run child evaluator."],
+                "expected_outcomes": expected_outcomes,
+                "failure_signals": [
+                    "Child evaluator fails.",
+                    "Changed paths leave allowed scope.",
+                ],
+            }
+        ],
+    }
+    validate_task_contract_payload(payload)
+    return payload
+
+
+def _ensure_deterministic_child_artifact(
+    path: Path,
+    expected: dict[str, Any],
+    validator: Callable[[dict[str, Any]], None],
+) -> None:
+    if path.is_symlink():
+        raise PermissionError(
+            f"existing deterministic child artifact is a symlink: {path.name}"
+        )
+    if not path.exists():
+        validator(expected)
+        write_json_file(path, expected)
+        return
+    actual = read_json_file(path)
+    validator(actual)
+    if actual != expected:
+        raise ValueError(
+            f"existing deterministic child artifact conflicts with expected content: {path.name}"
+        )
+
+
+def _ensure_demand_child_plan_event(
+    repo_root: Path,
+    parent: Mapping[str, Any],
+    child: Mapping[str, Any],
+    child_task: Mapping[str, Any],
+) -> None:
+    expected = {
+        "parent_run_id": str(parent["run_id"]),
+        "child_id": str(child_task.get("child_id", "")),
+        "actor": "planner",
+        "event_type": "plan",
+        "summary": (
+            f"Planner selected child {int(child['child_index'])}: "
+            f"{child_task.get('title', '')}"
+        ),
+    }
+    path = _event_path(repo_root, str(child["run_id"]))
+    matching = 0
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line:
+                continue
+            event = json.loads(line)
+            if event.get("actor") != "planner" or event.get("event_type") != "plan":
+                continue
+            identity = {key: event.get(key) for key in expected}
+            if identity != expected:
+                raise ValueError("existing deterministic child plan event conflicts")
+            matching += 1
+    if matching > 1:
+        raise ValueError("existing deterministic child plan event is duplicated")
+    if matching == 1:
+        return
+    append_loop_event(
+        repo_root,
+        run_id=str(child["run_id"]),
+        parent_run_id=str(parent["run_id"]),
+        child_id=str(child_task.get("child_id", "")),
+        actor="planner",
+        event_type="plan",
+        summary=expected["summary"],
+    )
+
+
+_DEMAND_CHILD_ADOPTION_OBSERVATION_FIELDS = frozenset(
+    {
+        "state_revision",
+        "created_at",
+        "generated_at",
+        "heartbeat_at",
+        "last_heartbeat_at",
+        "last_seen_at",
+        "last_tick_at",
+        "observed_at",
+        "updated_at",
+    }
+)
+
+
+def _validate_deterministic_initial_child_state(
+    existing: Mapping[str, Any], expected: Mapping[str, Any]
+) -> None:
+    existing_state = {
+        key: value
+        for key, value in existing.items()
+        if key not in _DEMAND_CHILD_ADOPTION_OBSERVATION_FIELDS
+    }
+    expected_state = {
+        key: value
+        for key, value in expected.items()
+        if key not in _DEMAND_CHILD_ADOPTION_OBSERVATION_FIELDS
+    }
+    if existing_state == expected_state:
+        return
+    conflicting = sorted(
+        key
+        for key in set(existing_state) | set(expected_state)
+        if existing_state.get(key) != expected_state.get(key)
+    )
+    raise PermissionError(
+        "existing deterministic child ownership state mismatch: "
+        + ", ".join(conflicting)
+    )
+
+
 def _create_child_run(
     repo_root: Path,
     parent: dict[str, Any],
@@ -744,72 +878,40 @@ def _create_child_run(
             "acceptance_result": "",
         },
     }
+    child_dir = run_dir_for(repo_root, child_run_id)
+    if child_dir.is_symlink():
+        raise PermissionError(f"existing child run directory is a symlink: {child_run_id}")
+    if child_dir.exists():
+        existing = load_run(repo_root, child_run_id)
+        _validate_deterministic_initial_child_state(existing, child)
+        planner_payload = _demand_child_planner_payload(existing, child_task)
+        task_contract = _demand_child_task_contract(existing, child_task)
+        _ensure_deterministic_child_artifact(
+            child_dir / "planner-output.json",
+            planner_payload,
+            validate_planner_output_payload,
+        )
+        _ensure_deterministic_child_artifact(
+            child_dir / "task-contract.json",
+            task_contract,
+            validate_task_contract_payload,
+        )
+        _ensure_demand_child_plan_event(repo_root, parent, existing, child_task)
+        return existing
     save_run(repo_root, child)
-
-    planner_payload = {
-        "task_id": child["task_id"],
-        "policy": "demand_development",
-        "task_kind": "task_contract_only",
-        "title": str(child_task.get("title", "")),
-        "goal": str(child_task.get("description", "")),
-        "non_goals": [],
-        "allowed_paths": list(child_task.get("allowed_paths", [])),
-        "denylist_paths": list(child_task.get("denylist_paths", [])),
-        "verify_commands": list(child_task.get("verify_commands", [])),
-        "evaluator_scenarios_path": "",
-        "stop_conditions": ["passed"],
-        "next_planning_hint": "return to parent planner",
-    }
-    if child_task.get("audit_remediation"):
-        planner_payload["audit_remediation"] = True
-        planner_payload["audit_response"] = dict(child_task.get("audit_response", {}))
-    validate_planner_output_payload(planner_payload)
-    write_json_file(run_dir_for(repo_root, child_run_id) / "planner-output.json", planner_payload)
-
-    expected_outcomes = list(child_task.get("done_criteria", [])) or ["Child passes fake evaluator."]
-    artifact_paths = [
-        str(path)
-        for path in [
-            *list(child_task.get("allowed_paths", [])),
-            *list(child_task.get("artifact_paths", [])),
-        ]
-    ]
-    task_contract = {
-        "task_id": child["task_id"],
-        "title": str(child_task.get("title", "")),
-        "description": str(child_task.get("description", "")),
-        "verify_commands": list(child_task.get("verify_commands", [])),
-        "scenario_commands": list(child_task.get("scenario_commands", [])),
-        "artifact_paths": artifact_paths,
-        "required_services": [],
-        "evaluator_driver": "harness_auto_gate",
-        "eval_policy": {"task_level_required": True, "task_scope": "local_repo_and_harness"},
-        "allowed_scope": "local_repo_and_harness",
-        "must_simulate": True,
-        "audit_remediation": bool(child_task.get("audit_remediation")),
-        "user_scenarios": [
-            {
-                "scenario_id": f"{child_run_id}-scenario",
-                "user_goal": str(child_task.get("description", "")),
-                "prerequisites": ["Parent demand multi-task run exists."],
-                "steps": ["Run child generator.", "Run child evaluator."],
-                "expected_outcomes": expected_outcomes,
-                "failure_signals": ["Child evaluator fails.", "Changed paths leave allowed scope."],
-            }
-        ],
-    }
-    validate_task_contract_payload(task_contract)
-    write_json_file(run_dir_for(repo_root, child_run_id) / "task-contract.json", task_contract)
-
-    append_loop_event(
-        repo_root,
-        run_id=child_run_id,
-        parent_run_id=parent["run_id"],
-        child_id=str(child_task.get("child_id", "")),
-        actor="planner",
-        event_type="plan",
-        summary=f"Planner selected child {child_index}: {child_task.get('title', '')}",
+    planner_payload = _demand_child_planner_payload(child, child_task)
+    task_contract = _demand_child_task_contract(child, child_task)
+    _ensure_deterministic_child_artifact(
+        child_dir / "planner-output.json",
+        planner_payload,
+        validate_planner_output_payload,
     )
+    _ensure_deterministic_child_artifact(
+        child_dir / "task-contract.json",
+        task_contract,
+        validate_task_contract_payload,
+    )
+    _ensure_demand_child_plan_event(repo_root, parent, child, child_task)
     return child
 
 
@@ -821,7 +923,31 @@ def _read_requirement(run_dir: Path) -> str:
     return text.split(marker, 1)[1].split("##", 1)[0].strip()
 
 
-def _planner_prompt(requirement: str, run_id: str) -> str:
+def _reviewer_directives_prompt(run: Mapping[str, Any]) -> str:
+    directives = run.get("reviewer_directives")
+    if not isinstance(directives, list) or not directives:
+        return "Reviewer directives: []"
+    return "Reviewer directives: " + json.dumps(
+        directives, ensure_ascii=False, sort_keys=True
+    )
+
+
+def _skill_invocation_prompt(run_id: str, role: str) -> str:
+    return (
+        "Always include skill_invocations as a JSON list. If no skill was invoked, "
+        "use []. For each invocation, write a separate JSON evidence artifact under "
+        f".codex/loop-runs/{run_id}/ with exactly schema_version=1, invocation_id, "
+        f"run_id, task_id, role={role}, skill_path, and status=confirmed; then include "
+        "invocation_id, skill_path, artifact_path, and artifact_sha256 with value "
+        '"sha256:<64 lowercase hex>" in skill_invocations. Only report repository-owned '
+        "skill files, and use a repo-relative POSIX path for skill_path. Do not report "
+        "skills under ~/.codex, ~/.agents, or any other external directory; those "
+        "invocations are outside this repository's evidence boundary. Do not infer "
+        "skill use from logs or prose."
+    )
+
+
+def _planner_prompt(requirement: str, run_id: str, run: Mapping[str, Any]) -> str:
     output_path = f".codex/loop-runs/{run_id}/planner-output.json"
     return "\n".join(
         [
@@ -830,8 +956,10 @@ def _planner_prompt(requirement: str, run_id: str) -> str:
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
             "Use policy demand_development and task_kind registered_task unless the requirement explicitly says otherwise.",
+            _skill_invocation_prompt(run_id, "planner"),
             f"Run ID: {run_id}",
             f"Requirement: {requirement}",
+            _reviewer_directives_prompt(run),
             "",
         ]
     )
@@ -848,6 +976,7 @@ def _generator_prompt(run_id: str) -> str:
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_generator_result_payload.",
             "Do not mark final completion; evaluator decides.",
+            _skill_invocation_prompt(run_id, "generator"),
             "",
         ]
     )
@@ -864,11 +993,13 @@ def _autonomous_planner_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "If the run directory is read-only, return exactly the required JSON payload as your final message instead.",
             "The JSON payload must satisfy scripts.harness_loop_contracts.validate_planner_output_payload.",
             "Use policy autonomous_knowledge and task_kind autonomous_implementation_task when work is actionable.",
+            _skill_invocation_prompt(str(run["run_id"]), "planner"),
             "If there is no actionable work, update loop-state.json no-action evidence and do not write unrelated files.",
             f"Run ID: {run['run_id']}",
             f"Domain: {run['domain']}",
             f"Requirement: {run['requirement']}",
             f"Semantic parent task: parent-{_semantic_parent_task_number(run)}",
+            _reviewer_directives_prompt(run),
             "",
         ]
     )
@@ -887,6 +1018,7 @@ def _autonomous_generator_prompt(run: dict[str, Any], run_dir: Path) -> str:
             "Only modify paths allowed by planner-output.json and the autonomous policy.",
             "Do not run git commit or fill the commit field; the orchestrator commits after gates pass.",
             "Run verification commands and include non-empty verify_results when dependency files change.",
+            _skill_invocation_prompt(str(run["run_id"]), "generator"),
             (
                 "Do not run live service or local socket checks from planner verify_commands. "
                 "Do not start tmux, uvicorn, npm, Vite, or other long-lived services. "
@@ -933,6 +1065,7 @@ def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
                 "the orchestrator captures fresh trusted live evidence after evaluator acceptance."
             ),
             "Do not modify repository files other than the evaluator result.",
+            _skill_invocation_prompt(str(run["run_id"]), "evaluator"),
             f"Run ID: {run['run_id']}",
             f"Task ID: {run['task_id']}",
             f"Domain: {run['domain']}",
@@ -942,15 +1075,59 @@ def _autonomous_evaluator_prompt(run: dict[str, Any], run_dir: Path) -> str:
 
 
 def load_run(repo_root: Path | str, run_id: str) -> dict[str, Any]:
+    transaction = _BOUNDED_RUN_TRANSACTION.get()
+    if transaction is not None and transaction.matches(repo_root, run_id):
+        return deepcopy(transaction.staged_payload)
     payload = read_json_file(run_dir_for(Path(repo_root), run_id) / "run.json")
     validate_run_payload(payload)
     return payload
 
 
 def save_run(repo_root: Path | str, payload: dict[str, Any]) -> dict[str, Any]:
+    transaction = _BOUNDED_RUN_TRANSACTION.get()
+    if transaction is not None and transaction.matches(repo_root, str(payload["run_id"])):
+        validate_run_payload(payload)
+        transaction.staged_payload = deepcopy(payload)
+        return payload
     validate_run_payload(payload)
     write_json_file(run_dir_for(Path(repo_root), payload["run_id"]) / "run.json", payload)
     return payload
+
+
+@dataclass
+class BoundedRunTransaction:
+    repo_root: Path
+    run_id: str
+    initial_payload: dict[str, Any]
+    staged_payload: dict[str, Any]
+
+    def matches(self, repo_root: Path | str, run_id: str) -> bool:
+        return Path(repo_root).resolve() == self.repo_root and run_id == self.run_id
+
+
+_BOUNDED_RUN_TRANSACTION: ContextVar[BoundedRunTransaction | None] = ContextVar(
+    "bounded_run_transaction", default=None
+)
+
+
+@contextmanager
+def bounded_run_transaction(
+    repo_root: Path | str, run_id: str, payload: Mapping[str, Any]
+) -> Iterator[BoundedRunTransaction]:
+    if _BOUNDED_RUN_TRANSACTION.get() is not None:
+        raise RuntimeError("bounded run transactions cannot be nested")
+    initial = deepcopy(dict(payload))
+    transaction = BoundedRunTransaction(
+        repo_root=Path(repo_root).resolve(),
+        run_id=run_id,
+        initial_payload=initial,
+        staged_payload=deepcopy(initial),
+    )
+    reset = _BOUNDED_RUN_TRANSACTION.set(transaction)
+    try:
+        yield transaction
+    finally:
+        _BOUNDED_RUN_TRANSACTION.reset(reset)
 
 
 def _git_commit_exists(repo_root: Path, commitish: str) -> bool:
@@ -1171,7 +1348,7 @@ def transition_meta_loop_to_expansion(
     return load_run(root, meta_run_id)
 
 
-def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+def _run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     root = Path(repo_root)
     run = load_run(root, run_id)
     if run["phase"] != "planned":
@@ -1195,13 +1372,16 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             "evaluator_scenarios_path": "",
             "stop_conditions": list(run.get("stop_conditions", ["passed_waiting_human_merge"])),
             "next_planning_hint": "",
+            "skill_invocations": [],
         }
         validate_planner_output_payload(payload)
         write_json_file(output_path, payload)
     elif driver == "codex-exec":
         prompt_path = run_dir / "planner-prompt.md"
         prompt_path.write_text(
-            _planner_prompt(requirement=_read_requirement(run_dir), run_id=run_id),
+            _planner_prompt(
+                requirement=_read_requirement(run_dir), run_id=run_id, run=run
+            ),
             encoding="utf-8",
         )
         output_path.unlink(missing_ok=True)
@@ -1233,7 +1413,7 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     return output_path
 
 
-def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+def _run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     root = Path(repo_root)
     run = load_run(root, run_id)
     if run["phase"] != "generating":
@@ -1255,6 +1435,7 @@ def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
             "artifacts": [],
             "cleanup_required": False,
             "notes": "fake generator completed",
+            "skill_invocations": [],
         }
         validate_generator_result_payload(payload)
         write_json_file(output_path, payload)
@@ -1337,46 +1518,6 @@ def _auditor_prompt(run: Mapping[str, Any], signal_path: Path, output_path: Path
     )
 
 
-def run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
-    root = Path(repo_root)
-    run = load_run(root, run_id)
-    if not _audit_gate_applies(run):
-        raise RuntimeError("run_auditor only supports parent or autonomous runs")
-    if driver == "fake":
-        return write_rule_based_audit_report(root, run)
-    if driver != "codex-exec":
-        raise ValueError(f"unsupported auditor driver: {driver}")
-
-    run_dir = run_dir_for(root, run_id)
-    signal_path = write_deterministic_signals(root, run)
-    audit_id = _next_audit_id_for_run(root, run_id)
-    output_path = run_dir / "audit-reports" / f"{audit_id}.json"
-    prompt_path = run_dir / "auditor-prompt.md"
-    prompt_path.write_text(_auditor_prompt(run, signal_path, output_path), encoding="utf-8")
-    attempt = int(run.get("attempts", {}).get("auditor", 0)) + 1
-    attempt_payload = run_codex_prompt(
-        role="auditor",
-        run_id=run_id,
-        repo_root=root,
-        run_dir=run_dir,
-        prompt_path=prompt_path,
-        output_json_path=output_path,
-        attempt=attempt,
-        timeout_seconds=int(run["limits"]["agent_timeout_minutes"]) * 60,
-    )
-    run = load_run(root, run_id)
-    attempts = dict(run.get("attempts", {}))
-    attempts["auditor"] = attempt
-    run["attempts"] = attempts
-    save_run(root, run)
-    if not isinstance(attempt_payload, dict) or attempt_payload.get("status") != "pass":
-        status = attempt_payload.get("status") if isinstance(attempt_payload, dict) else type(attempt_payload).__name__
-        raise RuntimeError(f"auditor codex-exec attempt failed with status {status}")
-    payload = read_json_file(output_path)
-    payload["created_by"] = "harness_loop_orchestrator"
-    write_json_file(output_path, payload)
-    validate_audit_report_payload(payload)
-    return output_path
 
 
 def _scenario_command_results_have_logs(run_dir: Path) -> bool:
@@ -1477,7 +1618,7 @@ def _formal_verification_needs_direct_repair(evaluator_payload: Mapping[str, Any
     return isinstance(formal_summary, Mapping) and formal_summary.get("status") in {"fail", "blocked"}
 
 
-def run_evaluator(
+def _run_evaluator(
     repo_root: Path | str,
     run_id: str,
     *,
@@ -1520,6 +1661,7 @@ def run_evaluator(
                     "stdout": f"scenario commands failed: {scenario_command_results_path}\n",
                     "stderr": "",
                     "scenario_command_results_path": scenario_command_results_path,
+                    "skill_invocations": [],
                 }
                 validate_evaluator_result_payload(evaluator_payload)
                 write_json_file(output_path, evaluator_payload)
@@ -1589,6 +1731,7 @@ def run_evaluator(
         "stdout": result.stdout,
         "stderr": result.stderr,
         "scenario_command_results_path": scenario_command_results_path,
+        "skill_invocations": [],
     }
     evaluator_payload = _merge_formal_verification_result(root, run, evaluator_payload)
     validate_evaluator_result_payload(evaluator_payload)
@@ -1610,7 +1753,7 @@ def run_evaluator(
     return output_path
 
 
-def run_artifact_hygiene_step(
+def _run_artifact_hygiene_step(
     repo_root: Path | str,
     run_id: str,
     *,
@@ -1669,7 +1812,7 @@ def run_artifact_hygiene_step(
     return result_path
 
 
-def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
+def _run_cleanup(repo_root: Path | str, run_id: str) -> Path:
     root = Path(repo_root).resolve()
     run = load_run(root, run_id)
     if run["phase"] != "cleanup":
@@ -1719,72 +1862,6 @@ def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
     return write_json_file(run_dir_for(root, run_id) / "cleanup-result.json", {"status": "pass", "worktrees_removed": removed})
 
 
-def run_loop(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:single:{run_id}"):
-        return _run_loop_locked(
-            root,
-            run_id,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-        )
-
-
-def _run_loop_locked(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    run = load_run(root, run_id)
-    if run["phase"] == "preflight":
-        raise RuntimeError("run_loop requires confirmed preflight; current phase is preflight")
-    if run["phase"] == "planned":
-        run_planner(root, run_id, driver=planner_driver)
-        run = load_run(root, run_id)
-    if run["phase"] == "generating":
-        run_generator(root, run_id, driver=generator_driver)
-        run = load_run(root, run_id)
-    if run["phase"] == "evaluating":
-        run_evaluator(
-            root,
-            run_id,
-            driver=evaluator_driver,
-            max_attempts=max_eval_attempts,
-        )
-        run = load_run(root, run_id)
-    if run["phase"] == "artifact_hygiene":
-        run_artifact_hygiene_step(root, run_id)
-        run = load_run(root, run_id)
-    if run["phase"] == "cleanup":
-        run_cleanup(root, run_id)
-        run = load_run(root, run_id)
-    terminal_phases = {
-        "passed_waiting_human_merge",
-        "audit_blocked",
-        "repair_needed",
-        "committed",
-        "stopped_no_action",
-        "stopped_budget",
-        "stopped_blocked",
-    }
-    if run["phase"] not in terminal_phases:
-        raise RuntimeError(f"run_loop unsupported phase {run['phase']}")
-    return status_for_run(root, run_id)
 
 
 def _fake_parent_planner_payload(
@@ -1808,6 +1885,7 @@ def _fake_parent_planner_payload(
         "stop_conditions": ["passed_waiting_human_merge", "stopped_blocked", "stopped_budget"],
         "backlog": list(parent.get("backlog", [])),
         "next_planning_hint": "",
+        "skill_invocations": [],
     }
     if decision in {"blocked", "failed"}:
         return {
@@ -1912,6 +1990,7 @@ def _run_fake_demand_child(
         "artifacts": [generated_path],
         "cleanup_required": False,
         "notes": "fake demand child generated",
+        "skill_invocations": [],
     }
     validate_generator_result_payload(generator_payload)
     write_json_file(child_run_dir / "generator-result.json", generator_payload)
@@ -1948,6 +2027,7 @@ def _run_fake_demand_child(
         "returncode": 1 if should_fail_once else 0,
         "stdout": "fake evaluator fail\n" if should_fail_once else "fake evaluator pass\n",
         "stderr": "",
+        "skill_invocations": [],
     }
     validate_evaluator_result_payload(evaluator_payload)
     write_json_file(child_run_dir / "evaluator-result.json", evaluator_payload)
@@ -2062,11 +2142,13 @@ def _demand_parent_planner_prompt(parent: dict[str, Any]) -> str:
             "Use planner_decision=next_child when another child task is actionable.",
             "Use planner_decision=parent_done only when the whole demand is complete and ready for human merge.",
             "Use planner_decision=blocked or failed when no safe automated next step exists.",
+            _skill_invocation_prompt(run_id, "planner"),
             f"Run ID: {run_id}",
             f"Requirement: {parent.get('requirement', '')}",
             f"Current child run IDs: {json.dumps(parent.get('child_run_ids', []), ensure_ascii=False)}",
             f"Aggregate acceptance: {json.dumps(parent.get('aggregate_acceptance', {}), ensure_ascii=False, sort_keys=True)}",
             f"Backlog: {json.dumps(parent.get('backlog', []), ensure_ascii=False, sort_keys=True)}",
+            _reviewer_directives_prompt(parent),
             "",
         ]
     )
@@ -2165,6 +2247,7 @@ def _audit_remediation_parent_planner_payload(
         "evaluator_scenarios_path": "",
         "stop_conditions": ["passed_waiting_human_merge", "stopped_blocked", "stopped_budget"],
         "next_planning_hint": "run audit remediation child before ordinary planning",
+        "skill_invocations": [],
         "planner_decision": "next_child",
         "next_child_task": child_task,
         "backlog": list(parent.get("backlog", [])),
@@ -2377,7 +2460,7 @@ def _run_codex_demand_child(
         return
 
     try:
-        run_generator(repo_root, child["run_id"], driver="codex-exec")
+        _run_generator(repo_root, child["run_id"], driver="codex-exec")
     except (OSError, RuntimeError, ValueError) as exc:
         reason = f"child {child_index} generator failed: {exc}"
         _block_child(repo_root, child, reason, actor="generator")
@@ -2409,7 +2492,7 @@ def _run_codex_demand_child(
         return
 
     try:
-        run_evaluator(repo_root, child["run_id"], driver=evaluator_driver, max_attempts=max_eval_attempts)
+        _run_evaluator(repo_root, child["run_id"], driver=evaluator_driver, max_attempts=max_eval_attempts)
     except (OSError, RuntimeError, ValueError) as exc:
         reason = f"child {child_index} evaluator failed: {exc}"
         _block_child(repo_root, child, reason, actor="evaluator")
@@ -2457,266 +2540,6 @@ def _run_codex_demand_child(
     )
 
 
-def run_demand_multi(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_children: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:demand:{run_id}"):
-        return _run_demand_multi_locked(
-            root,
-            run_id,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-            max_children=max_children,
-        )
-
-
-def _run_demand_multi_locked(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_children: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    validate_run_id(run_id)
-    run = load_run(root, run_id)
-    if run.get("run_kind") == "child":
-        raise RuntimeError("run_demand_multi requires a parent run_id")
-    parent = _ensure_parent_fields(run)
-    if parent["phase"] == "preflight":
-        raise RuntimeError("run_demand_multi requires confirmed preflight")
-    if parent["phase"] == "audit_blocked":
-        remediation_status = _run_demand_audit_remediation(
-            root,
-            parent,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-            max_children=max_children,
-        )
-        if remediation_status is not None:
-            return remediation_status
-        parent = _ensure_parent_fields(load_run(root, run_id))
-    if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
-        return status_for_run(root, run_id)
-    if planner_driver not in {"fake", "fake-blocked", "fake-failed", "codex-exec"}:
-        raise ValueError("unsupported demand multi planner driver")
-    if generator_driver not in {
-        "fake",
-        "fake-fail-child-2-once",
-        "fake-dirty-path",
-        "fake-timeout",
-        "fake-invalid-json",
-        "fake-missing-artifact",
-        "fake-stop-after-child-1",
-        "codex-exec",
-    }:
-        raise ValueError("unsupported demand multi generator driver")
-    if evaluator_driver not in {"fake", "codex-exec"}:
-        raise ValueError("unsupported demand multi evaluator driver")
-    if generator_driver != "codex-exec" and evaluator_driver != "fake":
-        raise ValueError("codex-exec demand multi evaluator requires codex-exec generator")
-
-    while True:
-        parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] == "audit_blocked":
-            remediation_status = _run_demand_audit_remediation(
-                root,
-                parent,
-                planner_driver=planner_driver,
-                generator_driver=generator_driver,
-                evaluator_driver=evaluator_driver,
-                max_eval_attempts=max_eval_attempts,
-                max_children=max_children,
-            )
-            if remediation_status is not None:
-                return remediation_status
-            continue
-        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
-            return status_for_run(root, run_id)
-        reconcile_status = _reconcile_demand_parent_children(root, parent)
-        if reconcile_status in {"waiting", "blocked"}:
-            return status_for_run(root, run_id)
-        parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] == "audit_blocked":
-            continue
-        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
-            return status_for_run(root, run_id)
-        if parent["phase"] == "child_running" and parent.get("current_child_run_id"):
-            current_child = load_run(root, str(parent["current_child_run_id"]))
-            if current_child["phase"] != "passed":
-                append_loop_event(
-                    root,
-                    run_id=run_id,
-                    actor="orchestrator",
-                    event_type="wait",
-                    summary=f"Waiting for current child {current_child['run_id']} in phase {current_child['phase']}",
-                    child_id=f"child-{int(current_child['child_index']):03d}",
-                    details={"child_run_id": current_child["run_id"], "child_phase": current_child["phase"]},
-                )
-                return status_for_run(root, run_id)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="orchestrator",
-                event_type="decision",
-                summary=f"resume from passed child {current_child['run_id']}",
-                child_id=f"child-{int(current_child['child_index']):03d}",
-                details={"child_run_id": current_child["run_id"]},
-            )
-            parent, reconcile_status = _reconcile_passed_demand_children(root, parent)
-            if reconcile_status == "blocked":
-                return status_for_run(root, run_id)
-            parent["phase"] = "planning"
-            parent["next_action"] = "run_parent_planner"
-            parent["reader_summary"]["current_progress"] = f"{parent['aggregate_acceptance']['passed']} children passed"
-            parent["reader_summary"]["next_step"] = "Run parent planner"
-            parent["reader_summary"]["decision_needed"] = "No"
-            save_run(root, parent)
-            continue
-        if max_children < 1:
-            parent["phase"] = "stopped_budget"
-            parent["last_result"] = "blocked"
-            parent["next_action"] = "inspect_budget_limits"
-            parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
-            parent["aggregate_acceptance"]["user_decision_required"] = True
-            parent["reader_summary"]["current_progress"] = "Budget exhausted"
-            parent["reader_summary"]["next_step"] = "Inspect budget limits"
-            parent["reader_summary"]["decision_needed"] = "Yes"
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="orchestrator",
-                event_type="blocked",
-                summary="max_children budget exhausted",
-            )
-            return status_for_run(root, run_id)
-
-        passed = int(parent["aggregate_acceptance"]["passed"])
-        if passed >= max_children:
-            audit_status = _run_audit_boundary(root, parent, force=True)
-            if audit_status is not None:
-                return audit_status
-            parent["phase"] = "passed_waiting_human_merge"
-            parent["next_action"] = "await_human_merge_confirmation"
-            parent["last_result"] = "pass"
-            parent["aggregate_acceptance"]["total"] = max_children
-            parent["aggregate_acceptance"]["pending"] = 0
-            parent["reader_summary"]["current_progress"] = f"{passed} children passed"
-            parent["reader_summary"]["next_step"] = "Await human merge"
-            parent["reader_summary"]["decision_needed"] = "No"
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="orchestrator",
-                event_type="decision",
-                summary="All child tasks passed; awaiting human merge",
-            )
-            return status_for_run(root, run_id)
-
-        governance_preflight_result: dict[str, Any] | None = None
-        if _is_ai_infra_governance_demand_run(parent):
-            governance_preflight_result = _run_governance_preflight_gate(root, parent)
-            if governance_preflight_result["status"] != "pass":
-                return status_for_run(root, run_id)
-
-        audit_status = _run_audit_boundary(root, parent)
-        if audit_status is not None:
-            return audit_status
-
-        planner_payload = _run_demand_parent_planner(
-            root,
-            parent,
-            planner_driver=planner_driver,
-            max_children=max_children,
-        )
-        parent = _ensure_parent_fields(load_run(root, run_id))
-        parent["reader_summary"] = planner_payload["reader_summary"]
-
-        if planner_payload["planner_decision"] in {"blocked", "failed"}:
-            parent["phase"] = "stopped_blocked"
-            parent["last_result"] = "blocked"
-            parent["next_action"] = "inspect_parent_planner_blocked"
-            parent["aggregate_acceptance"]["user_decision_required"] = True
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="planner",
-                event_type="blocked",
-                summary=planner_payload["blocked_reason"],
-            )
-            return status_for_run(root, run_id)
-
-        if planner_payload["planner_decision"] == "parent_done":
-            audit_status = _run_audit_boundary(root, parent, force=True)
-            if audit_status is not None:
-                return audit_status
-            parent["phase"] = "passed_waiting_human_merge"
-            parent["next_action"] = "await_human_merge_confirmation"
-            parent["last_result"] = "pass"
-            parent["aggregate_acceptance"]["total"] = max_children
-            parent["aggregate_acceptance"]["pending"] = 0
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="planner",
-                event_type="decision",
-                summary="Parent planner marked demand run done",
-            )
-            return status_for_run(root, run_id)
-
-        child_index = len(parent["child_run_ids"]) + 1
-        child_task = planner_payload["next_child_task"]
-        if governance_preflight_result is not None:
-            child_task = _augment_child_task_with_governance_preflight(child_task, governance_preflight_result)
-        child = _create_child_run(root, parent, child_index, child_task)
-        parent["child_run_ids"].append(child["run_id"])
-        parent["current_child_run_id"] = child["run_id"]
-        parent["phase"] = "child_running"
-        parent["next_action"] = "run_child_generator"
-        parent["aggregate_acceptance"]["total"] = max_children
-        parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
-        save_run(root, parent)
-
-        if generator_driver == "codex-exec":
-            _run_codex_demand_child(
-                root,
-                parent,
-                child,
-                evaluator_driver=evaluator_driver,
-                max_eval_attempts=max_eval_attempts,
-            )
-        else:
-            _run_fake_demand_child(
-                root,
-                parent,
-                child,
-                generator_driver=generator_driver,
-                max_eval_attempts=max_eval_attempts,
-            )
-        parent_after_child = load_run(root, run_id)
-        if parent_after_child["phase"] in {"stopped_blocked", "stopped_budget"}:
-            return status_for_run(root, run_id)
-        if parent_after_child["phase"] == "child_running":
-            return status_for_run(root, run_id)
 
 
 def _stop_run(
@@ -2861,6 +2684,7 @@ def _run_fake_autonomous_planner(
         "evaluator_scenarios_path": "",
         "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
         "next_planning_hint": "return to planning after commit",
+        "skill_invocations": [],
     }
     validate_planner_output_payload(planner_payload)
     write_json_file(run_dir / "planner-output.json", planner_payload)
@@ -2905,6 +2729,7 @@ def _start_autonomous_audit_remediation(repo_root: Path, run: dict[str, Any], *,
         "evaluator_scenarios_path": "",
         "stop_conditions": list(run.get("stop_conditions", ["stopped_no_action", "stopped_budget", "stopped_blocked"])),
         "next_planning_hint": "return to planning after audit remediation commit",
+        "skill_invocations": [],
         "audit_response": audit_response,
         "audit_remediation": True,
     }
@@ -3336,6 +3161,7 @@ def _write_fake_autonomous_generator_result(
         "artifacts": artifacts,
         "cleanup_required": False,
         "notes": notes,
+        "skill_invocations": [],
     }
     validate_generator_result_payload(payload)
     write_json_file(run_dir / "generator-result.json", payload)
@@ -3496,7 +3322,7 @@ def _run_fake_autonomous_evaluator(
     task_contract_path = run_dir / "task-contract.json"
     scenario_path = repo_root / "docs" / "harness" / "evaluator-scenarios" / f"{run['task_id']}.json"
     if task_contract_path.exists() or scenario_path.exists():
-        run_evaluator(repo_root, run["run_id"], driver="fake", max_attempts=max_attempts)
+        _run_evaluator(repo_root, run["run_id"], driver="fake", max_attempts=max_attempts)
         return read_json_file(output_path)
 
     payload = {
@@ -3506,6 +3332,7 @@ def _run_fake_autonomous_evaluator(
         "returncode": 0,
         "stdout": "fake autonomous smoke pass\n",
         "stderr": "",
+        "skill_invocations": [],
     }
     validate_evaluator_result_payload(payload)
     write_json_file(output_path, payload)
@@ -3605,8 +3432,10 @@ def _commit_changed_paths(repo_root: Path, commit_sha: str) -> list[str]:
             capture_output=True,
             text=True,
         )
-    except (OSError, subprocess.CalledProcessError):
-        return []
+    except OSError as exc:
+        raise RuntimeError(f"git diff-tree failed to start: {exc}") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(_command_failure_detail(exc)) from exc
     return sorted(path.strip() for path in result.stdout.splitlines() if path.strip())
 
 
@@ -3723,6 +3552,8 @@ def _commit_autonomous_changes(
     repo_root: Path,
     run: dict[str, Any],
     generator_result: dict[str, Any],
+    *,
+    bounded: bool = False,
 ) -> bool:
     run_dir = run_dir_for(repo_root, run["run_id"])
     changed_paths = list(generator_result["changed_paths"])
@@ -3867,6 +3698,13 @@ def _commit_autonomous_changes(
         write_json_file(run_dir / "generator-result.json", generator_result)
 
     commit_sha = str(generator_result.get("commit") or "").strip()
+    if bounded:
+        current = load_run(repo_root, str(run["run_id"]))
+        current["phase"] = "committed"
+        current["next_action"] = "push_autonomous_commit"
+        current["last_result"] = "pass"
+        save_run(repo_root, current)
+        return True
     if commit_sha:
         push_result = _push_autonomous_commit(repo_root, load_run(repo_root, run["run_id"]), commit_sha)
         if push_result["status"] == "fail":
@@ -4800,6 +4638,9 @@ def _live_evidence_ids_from_manifest(manifest_payload: Mapping[str, Any]) -> set
 
 
 def _loop_dashboard_logs_detail(probe: Mapping[str, Any], *, run_id: str) -> dict[str, Any]:
+    paged = _loop_dashboard_scoped_page_detail(probe, run_id=run_id)
+    if paged is not None:
+        return paged
     payload = probe.get("json")
     if (
         probe.get("status") == "pass"
@@ -4818,6 +4659,29 @@ def _loop_dashboard_logs_detail(probe: Mapping[str, Any], *, run_id: str) -> dic
             "truncated_json": True,
         }
     return {**probe, "status": "blocked"}
+
+
+def _loop_dashboard_scoped_page_detail(
+    probe: Mapping[str, Any], *, run_id: str
+) -> dict[str, Any] | None:
+    payload = probe.get("json")
+    if probe.get("status") != "pass" or not isinstance(payload, Mapping):
+        return None
+    items = payload.get("items")
+    total = payload.get("total")
+    page_size = payload.get("page_size")
+    if (
+        not isinstance(items, list)
+        or not items
+        or not isinstance(total, int)
+        or isinstance(total, bool)
+        or total < len(items)
+        or not isinstance(page_size, int)
+        or isinstance(page_size, bool)
+        or page_size <= 0
+    ):
+        return None
+    return {**probe, "status": "pass", "json": {**payload, "run_id": run_id}}
 
 
 def _capture_live_evidence_payload(
@@ -4950,7 +4814,10 @@ def _capture_live_evidence_payload(
         details = {
             "current_run": current_run_detail,
             "child_tasks": {**child_tasks, "status": child_probe_status(child_tasks)},
-            "agent_actions": {
+            "agent_actions": _loop_dashboard_scoped_page_detail(
+                agent_actions, run_id=run_id
+            )
+            or {
                 **agent_actions,
                 "status": "pass"
                 if agent_actions.get("status") == "pass"
@@ -5118,12 +4985,18 @@ def _record_trusted_live_evidence_state(
     run: Mapping[str, Any],
     trusted_live_state: Mapping[str, Mapping[str, str]],
 ) -> None:
-    run_dir = run_dir_for(repo_root, str(run["run_id"]))
-    run_json_path = run_dir / "run.json"
-    if run_json_path.exists():
-        run_payload = read_json_file(run_json_path)
+    run_id = str(run["run_id"])
+    transaction = _BOUNDED_RUN_TRANSACTION.get()
+    if transaction is not None and transaction.matches(repo_root, run_id):
+        run_payload = dict(run)
         run_payload["trusted_live_evidence_state"] = dict(trusted_live_state)
-        write_json_file(run_json_path, run_payload)
+        save_run(repo_root, run_payload)
+    else:
+        run_json_path = run_dir_for(repo_root, run_id) / "run.json"
+        if run_json_path.exists():
+            run_payload = read_json_file(run_json_path)
+            run_payload["trusted_live_evidence_state"] = dict(trusted_live_state)
+            write_json_file(run_json_path, run_payload)
     if isinstance(run, dict):
         run["trusted_live_evidence_state"] = dict(trusted_live_state)
 
@@ -5329,7 +5202,7 @@ def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
     run["phase"] = "cleanup"
     run["next_action"] = "run_cleanup"
     save_run(repo_root, run)
-    run_cleanup(repo_root, run_id)
+    _run_cleanup(repo_root, run_id)
     run = load_run(repo_root, run_id)
     remediation = run.get("_audit_remediation")
     remediation_task_id = str(remediation.get("planned_remediation_task", "")) if isinstance(remediation, Mapping) else ""
@@ -5395,10 +5268,12 @@ def _git_dirty_paths(repo_root: Path) -> list[str]:
             capture_output=True,
             text=True,
         )
-    except OSError:
-        return []
+    except OSError as exc:
+        raise RuntimeError(f"git status failed to start: {exc}") from exc
     if result.returncode != 0:
-        return []
+        raise RuntimeError(
+            f"git status failed with exit {result.returncode}: {result.stderr.strip()}"
+        )
     paths: list[str] = []
     for line in result.stdout.splitlines():
         parsed_paths = _parse_porcelain_paths(line)
@@ -5430,6 +5305,12 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
         path.startswith(f".codex/loop-runs/{run_id}/")
         or path.startswith(".codex/loop-locks/")
         or path.startswith(".codex/supervisor/")
+        or path
+        in {
+            ".codex/loop-supervisor.log",
+            ".codex/loop-supervisor-worker.log",
+            ".codex/loop-supervisor-reviewer.log",
+        }
         or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
         or path in _autonomous_runtime_artifact_paths(run_id)
     )
@@ -5463,13 +5344,114 @@ def _resume_autonomous_dirty_path_block(repo_root: Path, run: dict[str, Any]) ->
         return False
     dirty_result = _check_autonomous_dirty_paths(repo_root, run, list(generator_result["changed_paths"]))
     write_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json", dirty_result)
+    if not dirty_result["allowed"] and _protect_recovered_unrelated_dirt(
+        repo_root, run, generator_result, dirty_result
+    ):
+        dirty_result = _check_autonomous_dirty_paths(
+            repo_root, run, list(generator_result["changed_paths"])
+        )
+        write_json_file(
+            run_dir_for(repo_root, run_id) / "dirty-paths-result.json",
+            dirty_result,
+        )
     if not dirty_result["allowed"]:
         return False
+    if _clean_fake_generator_result_requires_replan(
+        repo_root, run, generator_result, dirty_result
+    ):
+        dirty_result["recovery_outcome"] = "replan_clean_fake_generator_result"
+        write_json_file(
+            run_dir_for(repo_root, run_id) / "dirty-paths-result.json",
+            dirty_result,
+        )
+        current = load_run(repo_root, run_id)
+        current["baseline_dirty_paths"] = list(run.get("baseline_dirty_paths", []))
+        current["phase"] = "planning"
+        current["next_action"] = "run_autonomous_planner"
+        current["last_result"] = "none"
+        save_run(repo_root, current)
+        return True
     current = load_run(repo_root, run_id)
+    current["baseline_dirty_paths"] = list(run.get("baseline_dirty_paths", []))
     current["phase"] = "cleanup"
     current["next_action"] = "commit_autonomous_changes"
     current["last_result"] = "none"
     save_run(repo_root, current)
+    return True
+
+
+def _clean_fake_generator_result_requires_replan(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+    dirty_result: Mapping[str, Any],
+) -> bool:
+    changed_paths = generator_result.get("changed_paths")
+    if (
+        generator_result.get("notes") != "fake autonomous generator completed"
+        or generator_result.get("commit")
+        or not isinstance(changed_paths, list)
+        or not changed_paths
+    ):
+        return False
+    actual_paths = dirty_result.get("actual_paths")
+    if not isinstance(actual_paths, list) or set(changed_paths) & set(actual_paths):
+        return False
+    evaluator_path = run_dir_for(repo_root, str(run.get("run_id") or "")) / "evaluator-result.json"
+    try:
+        evaluator_result = read_json_file(evaluator_path)
+        validate_evaluator_result_payload(evaluator_result)
+    except Exception:
+        return False
+    return (
+        evaluator_result.get("driver") == "fake"
+        and evaluator_result.get("status") == "pass"
+        and evaluator_result.get("returncode") == 0
+        and evaluator_result.get("task_id") == generator_result.get("task_id")
+    )
+
+
+def _protect_recovered_unrelated_dirt(
+    repo_root: Path,
+    run: dict[str, Any],
+    generator_result: Mapping[str, Any],
+    dirty_result: Mapping[str, Any],
+) -> bool:
+    if not _recovered_artifact_hashes_match(repo_root, generator_result):
+        return False
+    changed_paths = [str(path) for path in generator_result.get("changed_paths", [])]
+    unexpected = dirty_result.get("unexpected_paths")
+    if not isinstance(unexpected, list) or not unexpected:
+        return False
+    protected = list(run.get("baseline_dirty_paths", []))
+    protected_paths = _baseline_dirty_relative_paths(run)
+    for value in unexpected:
+        if not isinstance(value, str) or not value or value in changed_paths:
+            return False
+        if value not in protected_paths:
+            protected.append(f"?? {value}")
+            protected_paths.add(value)
+    run["baseline_dirty_paths"] = protected
+    return True
+
+
+def _recovered_artifact_hashes_match(
+    repo_root: Path, generator_result: Mapping[str, Any]
+) -> bool:
+    recovery = generator_result.get("recovery")
+    if not isinstance(recovery, Mapping) or not recovery.get("recovered_from_attempts"):
+        return False
+    changed_paths = [str(path) for path in generator_result.get("changed_paths", [])]
+    artifact_hashes = recovery.get("artifact_hashes")
+    if not changed_paths or not isinstance(artifact_hashes, Mapping):
+        return False
+    for relative in changed_paths:
+        expected = str(artifact_hashes.get(relative) or "")
+        path = repo_root / relative
+        if not expected or not path.is_file() or path.is_symlink():
+            return False
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            return False
     return True
 
 
@@ -5488,6 +5470,7 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
         validate_generator_result_payload(generator_result)
     except Exception:
         return False
+    _refresh_recovered_required_evidence_manifest(repo_root, run, generator_result)
     required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
     if required_evidence:
         _materialize_embedded_required_evidence_manifest(repo_root, run, generator_result)
@@ -5507,6 +5490,75 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
     current["next_action"] = "commit_autonomous_changes"
     current["last_result"] = "none"
     save_run(repo_root, current)
+    return True
+
+
+def _refresh_recovered_required_evidence_manifest(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    generator_result: Mapping[str, Any],
+) -> bool:
+    if not _recovered_artifact_hashes_match(repo_root, generator_result):
+        return False
+    run_id = str(run.get("run_id") or "")
+    task_id = str(run.get("task_id") or "")
+    run_dir = run_dir_for(repo_root, run_id)
+    manifest_path = run_dir / "required-evidence-manifest.json"
+    try:
+        manifest = read_json_file(manifest_path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    entries = manifest.get("items")
+    if entries is None:
+        entries = manifest.get("evidence")
+    if not isinstance(entries, list):
+        return False
+
+    candidates = [run_dir / "gap-proofs" / f"{task_id}.json"]
+    for value in generator_result.get("changed_paths", []):
+        if isinstance(value, str) and "gap-proof" in value and value.endswith(".json"):
+            candidates.append(repo_root / value)
+    artifact_ref = ""
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(repo_root.resolve())
+            if not validate_gap_proof_file(resolved, expected_task_id=task_id):
+                artifact_ref = (
+                    resolved.relative_to(run_dir).as_posix()
+                    if resolved == run_dir or run_dir in resolved.parents
+                    else resolved.relative_to(repo_root).as_posix()
+                )
+                break
+        except (OSError, ValueError):
+            continue
+    if not artifact_ref:
+        return False
+
+    gap_entry = next(
+        (
+            item
+            for item in entries
+            if isinstance(item, dict)
+            and _required_evidence_id(str(item.get("evidence_id") or "")) == "gap-proof"
+        ),
+        None,
+    )
+    if gap_entry is None:
+        return False
+    gap_entry.update(
+        {
+            "evidence_id": "gap-proof",
+            "task_id": task_id,
+            "status": "pass",
+            "summary": "Recovered current-task duplicate and gap proof.",
+            "artifacts": [artifact_ref],
+        }
+    )
+    manifest["run_id"] = run_id
+    manifest["task_id"] = task_id
+    manifest["generated_at"] = _timestamp()
+    write_json_file(manifest_path, manifest)
     return True
 
 
@@ -5554,156 +5606,1641 @@ def _resume_autonomous_commit_block(repo_root: Path, run: dict[str, Any]) -> boo
     return True
 
 
-def run_autonomous(
-    repo_root: Path | str,
-    run_id: str,
+
+
+def _bounded_failure(
+    request: ActionRequest,
+    action_name: str,
+    exc: BaseException,
+    *,
+    started_at: str,
+    repo_root: Path | None = None,
+) -> ActionResult:
+    partial_artifacts: tuple[str, ...] = ()
+    retryable_source = isinstance(
+        exc, (OSError, subprocess.SubprocessError, TimeoutError)
+    )
+    artifact_specs = {
+        "planner": ("planner-output.json", validate_planner_output_payload),
+        "generator": ("generator-result.json", validate_generator_result_payload),
+        "evaluator": ("evaluator-result.json", validate_evaluator_result_payload),
+        "evidence-gate": ("generator-result.json", validate_generator_result_payload),
+        "artifact-hygiene": (
+            "artifact-hygiene-result.json",
+            validate_artifact_hygiene_result_payload,
+        ),
+    }
+    artifact_spec = artifact_specs.get(action_name)
+    if retryable_source and repo_root is not None and artifact_spec is not None:
+        artifact_path = run_dir_for(repo_root, request.run_id) / artifact_spec[0]
+        try:
+            artifact_spec[1](read_json_file(artifact_path))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+        else:
+            partial_artifacts = (_relative_artifact(repo_root, artifact_path),)
+    return classify_bounded_failure(
+        BoundedFailure(
+            f"{action_name} failed: {exc}",
+            cause=exc,
+            artifact_paths=partial_artifacts,
+            checkpoint=action_name if partial_artifacts else "",
+        ),
+        action_id=request.action_id,
+        execution_root=repo_root,
+        started_at=started_at,
+        finished_at=_timestamp(),
+    )
+
+
+def _bounded_success(
+    summary: str,
+    *,
+    started_at: str,
+    artifact_paths: Sequence[str] = (),
+    checkpoint: str = "",
+    skill_invocations: Sequence[SkillInvocationEvidence] = (),
+) -> ActionResult:
+    return ActionResult(
+        result_class=ActionResultClass.SUCCESS,
+        summary=summary,
+        artifact_paths=tuple(artifact_paths),
+        checkpoint=checkpoint,
+        started_at=started_at,
+        finished_at=_timestamp(),
+        skill_invocations=tuple(skill_invocations),
+    )
+
+
+def _bounded_skill_invocations(
+    repo_root: Path,
+    request: ActionRequest,
+    role: str,
+    result_payload: Mapping[str, Any],
+) -> tuple[SkillInvocationEvidence, ...]:
+    if "skill_invocations" not in result_payload:
+        raise ValueError("skill_invocations is required")
+    raw_invocations = result_payload["skill_invocations"]
+    if not isinstance(raw_invocations, list):
+        raise ValueError("skill_invocations must be a list")
+    expected_prefix = (".codex", "loop-runs", request.run_id)
+    task_id = str(result_payload.get("task_id") or request.task_id)
+    invocations: list[SkillInvocationEvidence] = []
+    for raw in raw_invocations:
+        if not isinstance(raw, Mapping):
+            raise ValueError("skill invocation must be an object")
+        invocation = SkillInvocationEvidence(
+            invocation_id=str(raw.get("invocation_id") or ""),
+            skill_path=str(raw.get("skill_path") or ""),
+            artifact_path=str(raw.get("artifact_path") or ""),
+            artifact_sha256=str(raw.get("artifact_sha256") or ""),
+        )
+        relative = Path(invocation.artifact_path)
+        if tuple(relative.parts[:3]) != expected_prefix:
+            raise ValueError("skill invocation evidence is not owned by this run")
+        artifact = repo_root / relative
+        current = repo_root
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError("skill invocation evidence traverses a symlink")
+        if not artifact.is_file():
+            raise ValueError("skill invocation evidence must be a regular file")
+        actual_hash = f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}"
+        if actual_hash != invocation.artifact_sha256:
+            raise ValueError("skill invocation evidence hash does not match")
+        evidence = read_json_file(artifact)
+        expected_evidence = {
+            "schema_version": 1,
+            "invocation_id": invocation.invocation_id,
+            "run_id": request.run_id,
+            "task_id": task_id,
+            "role": role,
+            "skill_path": invocation.skill_path,
+            "status": "confirmed",
+        }
+        if evidence != expected_evidence:
+            raise ValueError("skill invocation evidence identity does not match")
+        invocations.append(invocation)
+    return tuple(invocations)
+
+
+def _bounded_driver(request: ActionRequest, role: str) -> str:
+    value = request.payload.get(
+        f"{role}_driver", request.payload.get("driver", "codex-exec")
+    )
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{role} driver must be a non-empty string")
+    return value
+
+
+def _relative_artifact(repo_root: Path, path: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
+
+
+def _run_bounded_demand_parent_planner(
+    repo_root: Path,
+    parent: dict[str, Any],
+    request: ActionRequest,
+    *,
     planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_tasks: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:autonomous:{run_id}"):
-        return _run_autonomous_locked(
-            root,
-            run_id,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-            max_tasks=max_tasks,
+) -> None:
+    parent = _ensure_parent_fields(parent)
+    if parent.get("run_kind") != "parent":
+        raise RuntimeError("demand parent planner requires run_kind=parent")
+    if parent["phase"] == "child_running":
+        child_id = str(parent.get("current_child_run_id") or "")
+        if not child_id or load_run(repo_root, child_id).get("phase") != "passed":
+            raise RuntimeError("demand parent child is not ready for aggregation")
+        parent, status = _reconcile_passed_demand_children(repo_root, parent)
+        if status == "blocked":
+            return
+        parent["phase"] = "planning"
+        parent["next_action"] = "run_parent_planner"
+        parent["reader_summary"]["current_progress"] = (
+            f"{parent['aggregate_acceptance']['passed']} children passed"
+        )
+        parent["reader_summary"]["next_step"] = "Run parent planner"
+        parent["reader_summary"]["decision_needed"] = "No"
+        save_run(repo_root, parent)
+        return
+    if parent["phase"] != "planning" or parent["next_action"] != "run_parent_planner":
+        raise RuntimeError("demand parent planner requires planning/run_parent_planner")
+
+    configured_max = request.payload.get(
+        "max_children", parent.get("limits", {}).get("max_tasks_per_run", 3)
+    )
+    if not isinstance(configured_max, int) or isinstance(configured_max, bool) or configured_max < 1:
+        raise ValueError("max_children must be a positive integer")
+    planner_payload = _run_demand_parent_planner(
+        repo_root,
+        parent,
+        planner_driver=planner_driver,
+        max_children=configured_max,
+    )
+    parent = _ensure_parent_fields(load_run(repo_root, str(parent["run_id"])))
+    parent["reader_summary"] = planner_payload["reader_summary"]
+    decision = planner_payload["planner_decision"]
+    if decision in {"blocked", "failed"}:
+        parent["phase"] = "stopped_blocked"
+        parent["last_result"] = "blocked"
+        parent["next_action"] = "inspect_parent_planner_blocked"
+        parent["aggregate_acceptance"]["user_decision_required"] = True
+        save_run(repo_root, parent)
+        return
+    if decision == "parent_done":
+        parent["phase"] = "passed_waiting_human_merge"
+        parent["last_result"] = "pass"
+        parent["next_action"] = "await_human_merge_confirmation"
+        parent["aggregate_acceptance"]["pending"] = 0
+        save_run(repo_root, parent)
+        return
+
+    child_index = len(parent["child_run_ids"]) + 1
+    if child_index > configured_max:
+        parent["phase"] = "stopped_budget"
+        parent["last_result"] = "blocked"
+        parent["next_action"] = "inspect_budget_limits"
+        save_run(repo_root, parent)
+        return
+    child = _create_child_run(
+        repo_root,
+        parent,
+        child_index,
+        planner_payload["next_child_task"],
+    )
+    parent["child_run_ids"].append(child["run_id"])
+    parent["current_child_run_id"] = child["run_id"]
+    parent["phase"] = "child_running"
+    parent["next_action"] = "run_child_generator"
+    parent["aggregate_acceptance"]["total"] = max(
+        int(parent["aggregate_acceptance"].get("total", 0)), child_index
+    )
+    parent["aggregate_acceptance"]["pending"] = _aggregate_pending(
+        parent["aggregate_acceptance"]
+    )
+    save_run(repo_root, parent)
+
+
+def _run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        driver = _bounded_driver(request, "planner")
+        if request.policy == "autonomous_knowledge":
+            if run["phase"] != "planning":
+                raise RuntimeError(f"autonomous planner requires planning; current phase is {run['phase']}")
+            if driver == "fake":
+                _run_fake_autonomous_planner(
+                    repo_root,
+                    run,
+                    task_number=_next_autonomous_task_number(run),
+                )
+            elif driver == "codex-exec":
+                if not _stop_if_autonomous_no_action(repo_root, run):
+                    if not _run_codex_autonomous_planner(repo_root, run):
+                        raise RuntimeError("autonomous planner did not produce a valid result")
+            else:
+                raise ValueError(f"unsupported autonomous planner driver: {driver}")
+        elif run.get("run_kind") == "parent":
+            _run_bounded_demand_parent_planner(
+                repo_root,
+                run,
+                request,
+                planner_driver=driver,
+            )
+        elif run.get("run_kind") == "child":
+            raise RuntimeError("demand child planning is owned by its parent planner")
+        else:
+            _run_planner(repo_root, request.run_id, driver=driver)
+        artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
+        artifacts = [_relative_artifact(repo_root, artifact)] if artifact.exists() else []
+        planner_payload = read_json_file(artifact) if artifact.exists() else {}
+        skill_invocations = _bounded_skill_invocations(
+            repo_root, request, "planner", planner_payload
+        )
+        artifacts.extend(item.artifact_path for item in skill_invocations)
+        return _bounded_success(
+            "planner phase completed",
+            started_at=started_at,
+            artifact_paths=artifacts,
+            checkpoint="planner",
+            skill_invocations=skill_invocations,
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "planner", exc, started_at=started_at, repo_root=repo_root
         )
 
 
-def _run_autonomous_locked(
-    repo_root: Path | str,
-    run_id: str,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_tasks: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    validate_run_id(run_id)
-    if planner_driver not in {"fake", "codex-exec"}:
-        raise ValueError(f"unsupported autonomous planner driver: {planner_driver}")
-    if generator_driver not in {
-        "fake",
-        "fake-denylist",
-        "fake-dependency",
-        "fake-expanded-code",
-        "fake-missing-evidence",
-        "codex-exec",
-    }:
-        raise ValueError(f"unsupported autonomous generator driver: {generator_driver}")
-    if evaluator_driver not in {"fake", "codex-exec"}:
-        raise ValueError(f"unsupported autonomous evaluator driver: {evaluator_driver}")
-
-    tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
-    while True:
-        run = load_run(root, run_id)
-        if run["policy"] != "autonomous_knowledge":
-            raise RuntimeError(f"run_autonomous requires autonomous_knowledge policy; current policy is {run['policy']}")
-        if run["phase"] == "preflight":
-            raise RuntimeError("run_autonomous requires confirmed preflight; current phase is preflight")
-        if run["phase"] == "audit_blocked":
-            task_number = _next_autonomous_task_number(run)
-            if not _start_autonomous_audit_remediation(root, run, task_number=task_number):
-                return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_audit_remediation_planner", last_result="blocked")
-            continue
-        if run["phase"] == "stopped_blocked":
-            if _resume_autonomous_push_block(root, run):
-                tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
-                continue
-            if _resume_autonomous_dirty_path_block(root, run):
-                continue
-            if _resume_autonomous_required_evidence_block(root, run):
-                continue
-            if _resume_autonomous_commit_block(root, run):
-                continue
-            return status_for_run(root, run_id)
-        if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
-            return status_for_run(root, run_id)
-        if run["phase"] not in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}:
-            raise RuntimeError(f"run_autonomous unsupported phase {run['phase']}")
-
-        if run["phase"] == "planning":
-            audit_status = _run_audit_boundary(root, run, force=tasks_completed >= max_tasks and tasks_completed > 0)
-            if audit_status is not None:
-                return audit_status
-            run = load_run(root, run_id)
-            if tasks_completed >= max_tasks:
-                return _stop_run(root, run, phase="stopped_budget", next_action="none", last_result="pass")
-            task_number = _next_autonomous_task_number(run)
-            if planner_driver != "fake" and _stop_if_autonomous_no_action(root, run):
-                return status_for_run(root, run_id)
-            if planner_driver == "fake":
-                planned = _run_fake_autonomous_planner(root, run, task_number=task_number)
+def _run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        driver = _bounded_driver(request, "generator")
+        if request.policy == "autonomous_knowledge":
+            if run["phase"] != "generating":
+                raise RuntimeError(f"autonomous generator requires generating; current phase is {run['phase']}")
+            if driver == "codex-exec":
+                if _run_codex_autonomous_generator(repo_root, run) is None:
+                    raise RuntimeError("autonomous generator did not produce a valid result")
             else:
-                planned = _run_codex_autonomous_planner(root, run)
-                if not planned:
-                    current = load_run(root, run_id)
-                    if current["phase"] not in {"stopped_no_action", "stopped_blocked"}:
-                        planned = _run_fake_autonomous_planner(
-                            root,
-                            current,
-                            task_number=task_number,
-                            count_attempt=False,
-                        )
-            if not planned:
-                current = load_run(root, run_id)
-                if current["phase"] in {"stopped_no_action", "stopped_blocked"}:
-                    return status_for_run(root, run_id)
-                return _stop_run(root, current, phase="stopped_blocked", next_action="inspect_autonomous_planner", last_result="blocked")
-            continue
-
-        run = load_run(root, run_id)
-        if run["phase"] == "generating":
-            if _generator_attempts_for_task(root, run) >= int(run["limits"]["max_generator_attempts_per_task"]):
-                return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_autonomous_generator", last_result="blocked")
-            if generator_driver == "codex-exec":
-                generator_result = _run_codex_autonomous_generator(root, run)
-                if generator_result is None:
-                    continue
-            else:
-                task_number = _next_autonomous_task_number(run)
                 _write_fake_autonomous_generator_result(
-                    root,
+                    repo_root,
                     run,
-                    driver=generator_driver,
-                    task_number=task_number,
+                    driver=driver,
+                    task_number=_next_autonomous_task_number(run),
                 )
-            continue
+        else:
+            _run_generator(repo_root, request.run_id, driver=driver)
+        artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        generator_payload = read_json_file(artifact)
+        skill_invocations = _bounded_skill_invocations(
+            repo_root, request, "generator", generator_payload
+        )
+        return _bounded_success(
+            "generator phase completed",
+            started_at=started_at,
+            artifact_paths=[
+                _relative_artifact(repo_root, artifact),
+                *(item.artifact_path for item in skill_invocations),
+            ],
+            checkpoint="generator",
+            skill_invocations=skill_invocations,
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "generator", exc, started_at=started_at, repo_root=repo_root
+        )
 
-        run = load_run(root, run_id)
-        if run["phase"] == "evaluating":
-            if evaluator_driver == "fake":
-                evaluator_result = _run_fake_autonomous_evaluator(root, run, max_attempts=max_eval_attempts)
+
+def _run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        driver = _bounded_driver(request, "evaluator")
+        max_attempts = request.payload.get("max_attempts", 2)
+        if not isinstance(max_attempts, int) or isinstance(max_attempts, bool) or max_attempts <= 0:
+            raise ValueError("max_attempts must be a positive integer")
+        if request.policy == "autonomous_knowledge":
+            if run["phase"] != "evaluating":
+                raise RuntimeError(f"autonomous evaluator requires evaluating; current phase is {run['phase']}")
+            result = (
+                _run_fake_autonomous_evaluator(
+                    repo_root, run, max_attempts=max_attempts
+                )
+                if driver == "fake"
+                else _run_codex_autonomous_evaluator(repo_root, run)
+                if driver == "codex-exec"
+                else None
+            )
+            if result is None:
+                raise RuntimeError(f"unsupported or failed autonomous evaluator driver: {driver}")
+        else:
+            _run_evaluator(
+                repo_root,
+                request.run_id,
+                driver=driver,
+                max_attempts=max_attempts,
+            )
+        artifact = run_dir_for(repo_root, request.run_id) / "evaluator-result.json"
+        evaluator_payload = read_json_file(artifact)
+        skill_invocations = _bounded_skill_invocations(
+            repo_root, request, "evaluator", evaluator_payload
+        )
+        return _bounded_success(
+            "evaluator phase completed",
+            started_at=started_at,
+            artifact_paths=[
+                _relative_artifact(repo_root, artifact),
+                *(item.artifact_path for item in skill_invocations),
+            ],
+            checkpoint="evaluator",
+            skill_invocations=skill_invocations,
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "evaluator", exc, started_at=started_at, repo_root=repo_root
+        )
+
+
+def _run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "verifying":
+            raise RuntimeError(f"evidence gate requires verifying; current phase is {run['phase']}")
+        artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        validate_generator_result_payload(read_json_file(artifact))
+        run["phase"] = "evaluating"
+        run["next_action"] = "run_evaluator"
+        save_run(repo_root, run)
+        return _bounded_success(
+            "evidence gate passed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="evidence-gate",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "evidence-gate", exc, started_at=started_at, repo_root=repo_root
+        )
+
+
+def _run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        artifact = _run_artifact_hygiene_step(repo_root, request.run_id)
+        run = load_run(repo_root, request.run_id)
+        if (
+            run["policy"] == "autonomous_knowledge"
+            and run["phase"] == "cleanup"
+            and run["next_action"] == "run_cleanup"
+        ):
+            run["next_action"] = "commit_autonomous_changes"
+            save_run(repo_root, run)
+        return _bounded_success(
+            "artifact hygiene completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="artifact-hygiene",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request,
+            "artifact-hygiene",
+            exc,
+            started_at=started_at,
+            repo_root=repo_root,
+        )
+
+
+def _run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "cleanup" or request.policy != "autonomous_knowledge":
+            raise RuntimeError("bounded commit requires autonomous cleanup phase")
+        artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        generator_result = read_json_file(artifact)
+        validate_generator_result_payload(generator_result)
+        if not _commit_autonomous_changes(
+            repo_root, run, generator_result, bounded=True
+        ):
+            raise RuntimeError("autonomous commit gates blocked")
+        commit_result = run_dir_for(repo_root, request.run_id) / "commit-result.json"
+        artifacts = [_relative_artifact(repo_root, artifact)]
+        if commit_result.exists():
+            artifacts.append(_relative_artifact(repo_root, commit_result))
+        return _bounded_success(
+            "commit phase completed",
+            started_at=started_at,
+            artifact_paths=artifacts,
+            checkpoint="commit",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "commit", exc, started_at=started_at, repo_root=repo_root
+        )
+
+
+def _run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "committed":
+            raise RuntimeError(f"push requires committed; current phase is {run['phase']}")
+        generator_path = run_dir_for(repo_root, request.run_id) / "generator-result.json"
+        generator_result = read_json_file(generator_path)
+        commit_sha = str(generator_result.get("commit") or "")
+        if not commit_sha:
+            raise RuntimeError("push requires generator-result commit")
+        push_result = _push_autonomous_commit(repo_root, run, commit_sha)
+        if push_result["status"] not in {"pass", "skipped"}:
+            raise RuntimeError(str(push_result.get("error") or "git push failed"))
+        run = load_run(repo_root, request.run_id)
+        run["phase"] = "cleanup"
+        run["next_action"] = "run_cleanup"
+        save_run(repo_root, run)
+        artifact = run_dir_for(repo_root, request.run_id) / "push-result.json"
+        return _bounded_success(
+            "push phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="push",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "push", exc, started_at=started_at, repo_root=repo_root
+        )
+
+
+def _run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["policy"] == "autonomous_knowledge":
+            if not _finish_autonomous_cleanup(repo_root, request.run_id):
+                raise RuntimeError("autonomous cleanup did not complete")
+            artifact = run_dir_for(repo_root, request.run_id) / "cleanup-result.json"
+        else:
+            artifact = _run_cleanup(repo_root, request.run_id)
+        return _bounded_success(
+            "cleanup phase completed",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="cleanup",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "cleanup", exc, started_at=started_at, repo_root=repo_root
+        )
+
+
+_CONTINUATION_PROVENANCE_FIELDS = (
+    "loop_lineage_id",
+    "previous_run_id",
+    "parent_run_id",
+    "previous_commit",
+)
+# These fields mirror reconciler fingerprint exclusions and may change without a
+# semantic run-state transition. Every other completed continuation field is exact.
+_CONTINUATION_OBSERVATION_FIELDS = frozenset(
+    {
+        "generated_at",
+        "heartbeat_at",
+        "last_heartbeat_at",
+        "last_seen_at",
+        "last_tick_at",
+        "observed_at",
+        "updated_at",
+    }
+)
+_CONTINUATION_PREFLIGHT_TIMESTAMP_RE = re.compile(
+    r"- Created At: `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`"
+)
+_CONTINUATION_PENDING_MAX_AGE_SECONDS = 24 * 60 * 60
+_CONTINUATION_STAGE_OWNER_FIELDS = frozenset(
+    {
+        "created_at",
+        "stage_device",
+        "stage_inode",
+        "preflight_sha256",
+        "partial_run_sha256",
+        "run_sha256",
+    }
+)
+
+
+def _expected_continuation_preflight(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> dict[str, Any]:
+    policy = str(source["policy"])
+    stop_conditions = list(source.get("stop_conditions", []))
+    if policy == "autonomous_knowledge":
+        stop_conditions = stop_conditions or [
+            "stopped_no_action",
+            "stopped_budget",
+            "stopped_blocked",
+        ]
+        phase = "planning"
+        next_action = "run_autonomous_planner"
+    else:
+        stop_conditions = stop_conditions or ["passed_waiting_human_merge"]
+        phase = "planned"
+        next_action = "run_planner"
+    expected = {
+        "run_id": continuation_run_id,
+        "policy": policy,
+        "phase": phase,
+        "task_id": "",
+        "domain": str(source.get("domain") or ""),
+        "branch": str(source.get("branch") or ""),
+        "worktree": str(repo_root.resolve()),
+        "requirement": str(source["requirement"]),
+        "constraints": list(source.get("constraints", [])),
+        "stop_conditions": stop_conditions,
+        "baseline_dirty_paths": list(source.get("baseline_dirty_paths", [])),
+        "allowed_paths": [],
+        "denylist_paths": [],
+        "attempts": {
+            "planner": 0,
+            "generator": 0,
+            "evaluator": 0,
+            "artifact_hygiene": 0,
+            "cleanup": 0,
+        },
+        "limits": default_limits(),
+        "last_result": "none",
+        "next_action": next_action,
+        "attempt_history": [],
+        "cleanup": {
+            "worktrees_removed": [],
+            "processes_stopped": [],
+            "retained_artifacts": [],
+        },
+    }
+    if policy == "autonomous_knowledge":
+        (
+            expected["allowed_paths"],
+            expected["denylist_paths"],
+            expected["manual_confirm_paths"],
+        ) = policy_patterns_for_run({}, domain=expected["domain"])
+    return expected
+
+
+def _continuation_stage_owner_base(
+    request: ActionRequest,
+    continuation_run_id: str,
+    identity: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "kind": "continuation-initial-publication",
+        "action_id": request.action_id,
+        "idempotency_key": request.idempotency_key,
+        "continuation_run_id": continuation_run_id,
+        "continuation_identity": dict(identity),
+    }
+
+
+def _sha256_ref(payload: bytes) -> str:
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _continuation_stage_owner(
+    owner_base: Mapping[str, Any],
+    stage_identity: os.stat_result,
+    preflight_bytes: bytes,
+    partial_run_bytes: bytes,
+    run_bytes: bytes,
+) -> dict[str, Any]:
+    return {
+        **owner_base,
+        "created_at": _timestamp(),
+        "stage_device": stage_identity.st_dev,
+        "stage_inode": stage_identity.st_ino,
+        "preflight_sha256": _sha256_ref(preflight_bytes),
+        "partial_run_sha256": _sha256_ref(partial_run_bytes),
+        "run_sha256": _sha256_ref(run_bytes),
+    }
+
+
+def _fsync_directory(path: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _write_fsynced_bytes(path: Path, payload: bytes) -> None:
+    with path.open("xb") as handle:
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _continuation_publish_cutpoint(name: str, stage_dir: Path) -> None:
+    del name, stage_dir
+
+
+def _continuation_cleanup_cutpoint(name: str, stage_dir: Path) -> None:
+    del name, stage_dir
+
+
+def _read_regular_file_at(directory_fd: int, name: str) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(name, flags, dir_fd=directory_fd)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise PermissionError(f"owned continuation staging file is not regular: {name}")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 64 * 1024):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def _same_directory_identity(actual: os.stat_result, owner: Mapping[str, Any]) -> bool:
+    return (
+        stat.S_ISDIR(actual.st_mode)
+        and actual.st_dev == owner.get("stage_device")
+        and actual.st_ino == owner.get("stage_inode")
+    )
+
+
+def _supervisor_project_root(
+    execution_root: Path, repo_relative_root: str
+) -> Path:
+    resolved_execution_root = execution_root.resolve()
+    if repo_relative_root == ".":
+        return resolved_execution_root
+    relative = Path(repo_relative_root)
+    candidate = resolved_execution_root
+    for _part in relative.parts:
+        if candidate.parent == candidate:
+            raise PermissionError("execution root cannot derive Supervisor project root")
+        candidate = candidate.parent
+    candidate = candidate.resolve()
+    if (candidate / relative).resolve() != resolved_execution_root:
+        raise PermissionError("execution root does not match trusted repository root")
+    return candidate
+
+
+def _rename_directory_noreplace(
+    source_name: str,
+    destination_name: str,
+    *,
+    source_directory_fd: int,
+    destination_directory_fd: int,
+) -> None:
+    if sys.platform != "linux":
+        raise PermissionError("atomic no-replace directory publication is unavailable")
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except (AttributeError, OSError) as exc:
+        raise PermissionError(
+            "atomic no-replace directory publication is unavailable"
+        ) from exc
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameat2(
+        source_directory_fd,
+        os.fsencode(source_name),
+        destination_directory_fd,
+        os.fsencode(destination_name),
+        1,  # RENAME_NOREPLACE
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+        raise PermissionError(
+            "continuation target appeared before atomic publication"
+        )
+    if error_number in {
+        errno.ENOSYS,
+        errno.EINVAL,
+        errno.EOPNOTSUPP,
+        errno.EXDEV,
+    }:
+        raise PermissionError(
+            "atomic no-replace directory publication is unavailable"
+        )
+    raise OSError(error_number, os.strerror(error_number), destination_name)
+
+
+def _validate_open_continuation_stage(
+    stage_fd: int,
+    owner: Mapping[str, Any],
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+    *,
+    run_name: str = "run.pending",
+    require_run: bool = False,
+    allow_partial_run: bool = True,
+) -> tuple[str, ...]:
+    if not _same_directory_identity(os.fstat(stage_fd), owner):
+        raise PermissionError("continuation staging directory identity changed")
+    entries = tuple(sorted(os.listdir(stage_fd)))
+    with_run = tuple(sorted(("preflight.md", run_name)))
+    allowed_entries = (with_run,) if require_run else (("preflight.md",), with_run)
+    if entries not in allowed_entries:
+        raise PermissionError("continuation staging directory content changed")
+    preflight = _read_regular_file_at(stage_fd, "preflight.md")
+    if _sha256_ref(preflight) != owner.get(
+        "preflight_sha256"
+    ) or not _continuation_preflight_bytes_match(
+        preflight, source, continuation_run_id
+    ):
+        raise PermissionError("continuation staging preflight content changed")
+    if run_name in entries:
+        run_hash = _sha256_ref(_read_regular_file_at(stage_fd, run_name))
+        expected_hashes = (
+            {expected_partial_run_hash, expected_run_hash}
+            if allow_partial_run
+            else {expected_run_hash}
+        )
+        if run_hash not in expected_hashes:
+            raise PermissionError("continuation staging run content changed")
+    return entries
+
+
+def _continuation_preflight_bytes_match(
+    payload: bytes,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> bool:
+    try:
+        actual = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    expected = _preflight_markdown(
+        run_id=continuation_run_id,
+        mode=str(source["policy"]),
+        requirement=str(source["requirement"]),
+    )
+    actual_normalized = _normalize_continuation_preflight_timestamp(actual)
+    expected_normalized = _normalize_continuation_preflight_timestamp(expected)
+    return actual_normalized is not None and actual_normalized == expected_normalized
+
+
+def _validate_continuation_stage_owner(
+    owner: Mapping[str, Any],
+    owner_base: Mapping[str, Any],
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+) -> None:
+    if set(owner) != set(owner_base) | _CONTINUATION_STAGE_OWNER_FIELDS:
+        raise PermissionError("continuation staging owner manifest changed")
+    if any(owner.get(key) != value for key, value in owner_base.items()):
+        raise PermissionError("continuation staging owner identity changed")
+    created_at = owner.get("created_at")
+    if not isinstance(created_at, str):
+        raise PermissionError("continuation staging owner timestamp is invalid")
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise PermissionError(
+            "continuation staging owner timestamp is invalid"
+        ) from exc
+    if created.tzinfo is None:
+        raise PermissionError("continuation staging owner timestamp is invalid")
+    age = (datetime.now(UTC) - created.astimezone(UTC)).total_seconds()
+    if age < -300 or age > _CONTINUATION_PENDING_MAX_AGE_SECONDS:
+        raise PermissionError("continuation staging owner has expired")
+    if owner.get("partial_run_sha256") != expected_partial_run_hash:
+        raise PermissionError("continuation staging partial run manifest changed")
+    if owner.get("run_sha256") != expected_run_hash:
+        raise PermissionError("continuation staging run manifest changed")
+    for key in ("stage_device", "stage_inode"):
+        value = owner.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise PermissionError("continuation staging directory identity is invalid")
+    preflight_hash = owner.get("preflight_sha256")
+    if not isinstance(preflight_hash, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", preflight_hash
+    ):
+        raise PermissionError("continuation staging preflight manifest changed")
+
+
+def _validate_owned_continuation_stage(
+    staging_fd: int,
+    stage_name: str,
+    owner: Mapping[str, Any],
+    owner_base: Mapping[str, Any],
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+    *,
+    require_run: bool = False,
+    allow_partial_run: bool = True,
+) -> tuple[int, tuple[str, ...]]:
+    _validate_continuation_stage_owner(
+        owner,
+        owner_base,
+        expected_partial_run_hash,
+        expected_run_hash,
+    )
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    stage_fd = os.open(stage_name, flags, dir_fd=staging_fd)
+    try:
+        entries = _validate_open_continuation_stage(
+            stage_fd,
+            owner,
+            source,
+            continuation_run_id,
+            expected_partial_run_hash,
+            expected_run_hash,
+            require_run=require_run,
+            allow_partial_run=allow_partial_run,
+        )
+        current = os.stat(stage_name, dir_fd=staging_fd, follow_symlinks=False)
+        if not _same_directory_identity(current, owner):
+            raise PermissionError("continuation staging directory identity changed")
+        return stage_fd, entries
+    except BaseException:
+        os.close(stage_fd)
+        raise
+
+
+def _cleanup_owned_continuation_stages(
+    staging_root: Path,
+    continuation_run_id: str,
+    owner_base: Mapping[str, Any],
+    source: Mapping[str, Any],
+    expected_partial_run_hash: str,
+    expected_run_hash: str,
+) -> None:
+    prefix = f"{continuation_run_id}-"
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    staging_fd = os.open(staging_root, flags)
+    try:
+        for sidecar_name in sorted(os.listdir(staging_fd)):
+            if not (
+                sidecar_name.startswith(prefix)
+                and sidecar_name.endswith(".owner.json")
+            ):
+                continue
+            try:
+                owner_payload = _read_regular_file_at(staging_fd, sidecar_name)
+                owner = json.loads(owner_payload.decode("utf-8"))
+            except (OSError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(owner, dict) or any(
+                owner.get(key) != value for key, value in owner_base.items()
+            ):
+                continue
+            stage_name = sidecar_name.removesuffix(".owner.json")
+            if not stage_name.startswith(prefix) or Path(stage_name).name != stage_name:
+                continue
+            stage_fd, entries = _validate_owned_continuation_stage(
+                staging_fd,
+                stage_name,
+                owner,
+                owner_base,
+                source,
+                continuation_run_id,
+                expected_partial_run_hash,
+                expected_run_hash,
+            )
+            try:
+                _continuation_cleanup_cutpoint(
+                    "before_cleanup_rmdir", staging_root / stage_name
+                )
+                _validate_open_continuation_stage(
+                    stage_fd,
+                    owner,
+                    source,
+                    continuation_run_id,
+                    expected_partial_run_hash,
+                    expected_run_hash,
+                )
+                current = os.stat(
+                    stage_name, dir_fd=staging_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(current, owner):
+                    raise PermissionError(
+                        "continuation staging directory identity changed"
+                    )
+            finally:
+                os.close(stage_fd)
+        os.fsync(staging_fd)
+    finally:
+        os.close(staging_fd)
+
+
+def _continuation_initial_artifacts(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> tuple[bytes, bytes, bytes]:
+    preflight_bytes = _preflight_markdown(
+        run_id=continuation_run_id,
+        mode=str(source["policy"]),
+        requirement=str(source["requirement"]),
+    ).encode("utf-8")
+    initial = _expected_continuation_preflight(
+        repo_root, source, continuation_run_id
+    )
+    initial["state_revision"] = 0
+    validate_run_payload(initial)
+    run_bytes = (json.dumps(initial, indent=2) + "\n").encode("utf-8")
+    midpoint = max(1, len(run_bytes) // 2)
+    return preflight_bytes, run_bytes[:midpoint], run_bytes
+
+
+def _recover_pending_continuation_publication_locked(
+    staging_fd: int,
+    runs_fd: int,
+    continuation_fd: int,
+    source: Mapping[str, Any],
+    owner_base: Mapping[str, Any],
+    continuation_run_id: str,
+    partial_run_hash: str,
+    run_hash: str,
+) -> bool:
+    continuation_identity = os.fstat(continuation_fd)
+    prefix = f"{continuation_run_id}-"
+    matching_sidecars: list[tuple[str, dict[str, Any]]] = []
+    for sidecar_name in sorted(os.listdir(staging_fd)):
+        if not (
+            sidecar_name.startswith(prefix)
+            and sidecar_name.endswith(".owner.json")
+        ):
+            continue
+        try:
+            owner_payload = _read_regular_file_at(staging_fd, sidecar_name)
+            owner = json.loads(owner_payload.decode("utf-8"))
+        except (OSError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(owner, dict) or any(
+            owner.get(key) != value for key, value in owner_base.items()
+        ):
+            continue
+        _validate_continuation_stage_owner(
+            owner,
+            owner_base,
+            partial_run_hash,
+            run_hash,
+        )
+        if _same_directory_identity(continuation_identity, owner):
+            matching_sidecars.append((sidecar_name, owner))
+    if not matching_sidecars:
+        return False
+    if len(matching_sidecars) != 1:
+        raise PermissionError("continuation pending publication owner is ambiguous")
+    sidecar_name, owner = matching_sidecars[0]
+    entries = _validate_open_continuation_stage(
+        continuation_fd,
+        owner,
+        source,
+        continuation_run_id,
+        partial_run_hash,
+        run_hash,
+        require_run=True,
+        allow_partial_run=False,
+    )
+    if entries != ("preflight.md", "run.pending"):
+        raise PermissionError("continuation pending publication is incomplete")
+    current = os.stat(
+        continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+    )
+    if not _same_directory_identity(current, owner):
+        raise PermissionError("continuation pending publication identity changed")
+    os.rename(
+        "run.pending",
+        "run.json",
+        src_dir_fd=continuation_fd,
+        dst_dir_fd=continuation_fd,
+    )
+    os.fsync(continuation_fd)
+    promoted_entries = _validate_open_continuation_stage(
+        continuation_fd,
+        owner,
+        source,
+        continuation_run_id,
+        partial_run_hash,
+        run_hash,
+        run_name="run.json",
+        require_run=True,
+        allow_partial_run=False,
+    )
+    if promoted_entries != ("preflight.md", "run.json"):
+        raise PermissionError("recovered continuation publication is incomplete")
+    current = os.stat(
+        continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+    )
+    if not _same_directory_identity(current, owner):
+        raise PermissionError("recovered continuation publication identity changed")
+    os.fsync(runs_fd)
+    os.unlink(sidecar_name, dir_fd=staging_fd)
+    os.fsync(staging_fd)
+    return True
+
+
+def _recover_pending_continuation_publication(
+    repo_root: Path,
+    supervisor_project_root: Path,
+    source: Mapping[str, Any],
+    request: ActionRequest,
+    identity: Mapping[str, Any],
+    continuation_run_id: str,
+) -> bool:
+    continuation_dir = run_dir_for(repo_root, continuation_run_id)
+    staging_root = repo_root / ".codex" / "loop-staging"
+    if staging_root.is_symlink() or not staging_root.is_dir():
+        return False
+    preflight_bytes, partial_run_bytes, run_bytes = _continuation_initial_artifacts(
+        repo_root, source, continuation_run_id
+    )
+    del preflight_bytes
+    partial_run_hash = _sha256_ref(partial_run_bytes)
+    run_hash = _sha256_ref(run_bytes)
+    owner_base = _continuation_stage_owner_base(
+        request, continuation_run_id, identity
+    )
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    staging_fd = os.open(staging_root, directory_flags)
+    runs_fd = os.open(continuation_dir.parent, directory_flags)
+    continuation_fd = os.open(
+        continuation_run_id, directory_flags, dir_fd=runs_fd
+    )
+    try:
+        from scripts.loop_supervisor.reconciler import _project_reconcile_lock
+
+        with _project_reconcile_lock(supervisor_project_root):
+            return _recover_pending_continuation_publication_locked(
+                staging_fd,
+                runs_fd,
+                continuation_fd,
+                source,
+                owner_base,
+                continuation_run_id,
+                partial_run_hash,
+                run_hash,
+            )
+    finally:
+        os.close(continuation_fd)
+        os.close(runs_fd)
+        os.close(staging_fd)
+
+
+def _publish_initial_continuation(
+    repo_root: Path,
+    supervisor_project_root: Path,
+    source: Mapping[str, Any],
+    request: ActionRequest,
+    identity: Mapping[str, Any],
+    continuation_run_id: str,
+) -> None:
+    continuation_dir = run_dir_for(repo_root, continuation_run_id)
+    runs_root = continuation_dir.parent
+    staging_root = repo_root / ".codex" / "loop-staging"
+    if staging_root.is_symlink():
+        raise PermissionError("continuation staging root is a symlink")
+    staging_root.mkdir(parents=True, exist_ok=True)
+    _fsync_directory(staging_root.parent)
+
+    preflight_bytes, partial_run_bytes, run_bytes = _continuation_initial_artifacts(
+        repo_root, source, continuation_run_id
+    )
+    midpoint = len(partial_run_bytes)
+    partial_run_hash = _sha256_ref(partial_run_bytes)
+    run_hash = _sha256_ref(run_bytes)
+    owner_base = _continuation_stage_owner_base(
+        request, continuation_run_id, identity
+    )
+    _cleanup_owned_continuation_stages(
+        staging_root,
+        continuation_run_id,
+        owner_base,
+        source,
+        partial_run_hash,
+        run_hash,
+    )
+    stage_dir = Path(
+        tempfile.mkdtemp(prefix=f"{continuation_run_id}-", dir=staging_root)
+    )
+    _write_fsynced_bytes(stage_dir / "preflight.md", preflight_bytes)
+    _fsync_directory(stage_dir)
+    stage_identity = os.stat(stage_dir, follow_symlinks=False)
+    owner = _continuation_stage_owner(
+        owner_base,
+        stage_identity,
+        preflight_bytes,
+        partial_run_bytes,
+        run_bytes,
+    )
+    sidecar = staging_root / f"{stage_dir.name}.owner.json"
+    owner_bytes = (json.dumps(owner, indent=2) + "\n").encode("utf-8")
+    _write_fsynced_bytes(sidecar, owner_bytes)
+    _fsync_directory(staging_root)
+
+    _continuation_publish_cutpoint("after_preflight", stage_dir)
+
+    run_path = stage_dir / "run.pending"
+    with run_path.open("xb") as handle:
+        handle.write(run_bytes[:midpoint])
+        handle.flush()
+        os.fsync(handle.fileno())
+        _fsync_directory(stage_dir)
+        _continuation_publish_cutpoint("partial_run_json", stage_dir)
+        handle.write(run_bytes[midpoint:])
+        handle.flush()
+        os.fsync(handle.fileno())
+    _fsync_directory(stage_dir)
+
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    staging_fd = os.open(staging_root, directory_flags)
+    runs_fd = os.open(runs_root, directory_flags)
+    stage_fd: int | None = None
+    try:
+        stage_fd, entries = _validate_owned_continuation_stage(
+            staging_fd,
+            stage_dir.name,
+            owner,
+            owner_base,
+            source,
+            continuation_run_id,
+            partial_run_hash,
+            run_hash,
+            require_run=True,
+            allow_partial_run=False,
+        )
+        if entries != ("preflight.md", "run.pending"):
+            raise PermissionError("continuation staging directory is incomplete")
+
+        _continuation_publish_cutpoint("before_publish", stage_dir)
+
+        entries = _validate_open_continuation_stage(
+            stage_fd,
+            owner,
+            source,
+            continuation_run_id,
+            partial_run_hash,
+            run_hash,
+            require_run=True,
+            allow_partial_run=False,
+        )
+        if entries != ("preflight.md", "run.pending"):
+            raise PermissionError("continuation staging directory is incomplete")
+        from scripts.loop_supervisor.reconciler import _project_reconcile_lock
+
+        with _project_reconcile_lock(supervisor_project_root):
+            directory_published = False
+            try:
+                try:
+                    os.stat(
+                        continuation_run_id,
+                        dir_fd=runs_fd,
+                        follow_symlinks=False,
+                    )
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise PermissionError(
+                        "continuation target appeared before atomic publication"
+                    )
+                current = os.stat(
+                    stage_dir.name, dir_fd=staging_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(current, owner):
+                    raise PermissionError(
+                        "continuation staging directory identity changed"
+                    )
+                _continuation_publish_cutpoint("before_stage_rename", stage_dir)
+                _rename_directory_noreplace(
+                    stage_dir.name,
+                    continuation_run_id,
+                    source_directory_fd=staging_fd,
+                    destination_directory_fd=runs_fd,
+                )
+                directory_published = True
+                published = os.stat(
+                    continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(published, owner):
+                    raise PermissionError(
+                        "published continuation directory identity changed"
+                    )
+                published_entries = _validate_open_continuation_stage(
+                    stage_fd,
+                    owner,
+                    source,
+                    continuation_run_id,
+                    partial_run_hash,
+                    run_hash,
+                    require_run=True,
+                    allow_partial_run=False,
+                )
+                if published_entries != ("preflight.md", "run.pending"):
+                    raise PermissionError(
+                        "published continuation directory is incomplete"
+                    )
+                os.fsync(stage_fd)
+                os.fsync(runs_fd)
+                os.fsync(staging_fd)
+                published = os.stat(
+                    continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(published, owner):
+                    raise PermissionError(
+                        "published continuation directory identity changed"
+                    )
+
+                _continuation_publish_cutpoint(
+                    "before_run_promotion", continuation_dir
+                )
+
+                os.rename(
+                    "run.pending",
+                    "run.json",
+                    src_dir_fd=stage_fd,
+                    dst_dir_fd=stage_fd,
+                )
+                directory_published = False
+                os.fsync(stage_fd)
+                promoted_entries = _validate_open_continuation_stage(
+                    stage_fd,
+                    owner,
+                    source,
+                    continuation_run_id,
+                    partial_run_hash,
+                    run_hash,
+                    run_name="run.json",
+                    require_run=True,
+                    allow_partial_run=False,
+                )
+                if promoted_entries != ("preflight.md", "run.json"):
+                    raise PermissionError(
+                        "promoted continuation directory is incomplete"
+                    )
+                published = os.stat(
+                    continuation_run_id, dir_fd=runs_fd, follow_symlinks=False
+                )
+                if not _same_directory_identity(published, owner):
+                    raise PermissionError(
+                        "promoted continuation directory identity changed"
+                    )
+                os.fsync(runs_fd)
+            except Exception:
+                if directory_published:
+                    try:
+                        current = os.stat(
+                            continuation_run_id,
+                            dir_fd=runs_fd,
+                            follow_symlinks=False,
+                        )
+                        entries = _validate_open_continuation_stage(
+                            stage_fd,
+                            owner,
+                            source,
+                            continuation_run_id,
+                            partial_run_hash,
+                            run_hash,
+                            require_run=True,
+                            allow_partial_run=False,
+                        )
+                        if (
+                            _same_directory_identity(current, owner)
+                            and entries == ("preflight.md", "run.pending")
+                        ):
+                            _rename_directory_noreplace(
+                                continuation_run_id,
+                                stage_dir.name,
+                                source_directory_fd=runs_fd,
+                                destination_directory_fd=staging_fd,
+                            )
+                            os.fsync(runs_fd)
+                            os.fsync(staging_fd)
+                    except Exception:
+                        pass
+                raise
+        os.unlink(sidecar.name, dir_fd=staging_fd)
+        os.fsync(staging_fd)
+    finally:
+        if stage_fd is not None:
+            os.close(stage_fd)
+        os.close(runs_fd)
+        os.close(staging_fd)
+
+
+def _validate_continuation_preflight_artifact(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation_run_id: str,
+) -> None:
+    preflight = run_dir_for(repo_root, continuation_run_id) / "preflight.md"
+    if preflight.is_symlink() or not preflight.is_file():
+        raise PermissionError(
+            "existing continuation target ownership state mismatch: preflight.md"
+        )
+    actual = preflight.read_text(encoding="utf-8")
+    expected = _preflight_markdown(
+        run_id=continuation_run_id,
+        mode=str(source["policy"]),
+        requirement=str(source["requirement"]),
+    )
+    actual_normalized = _normalize_continuation_preflight_timestamp(actual)
+    expected_normalized = _normalize_continuation_preflight_timestamp(expected)
+    if actual_normalized is None or actual_normalized != expected_normalized:
+        raise PermissionError(
+            "existing continuation target ownership state mismatch: preflight.md"
+        )
+
+
+def _normalize_continuation_preflight_timestamp(document: str) -> str | None:
+    lines = document.splitlines(keepends=True)
+    if len(lines) <= 4:
+        return None
+    metadata_line = lines[4]
+    line_ending = "\n" if metadata_line.endswith("\n") else ""
+    if not _CONTINUATION_PREFLIGHT_TIMESTAMP_RE.fullmatch(
+        metadata_line.removesuffix("\n")
+    ):
+        return None
+    lines[4] = "- Created At: `<observed>`" + line_ending
+    return "".join(lines)
+
+
+def _continuation_state_conflicts(
+    actual: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    *,
+    allow_observation_fields: bool,
+) -> list[str]:
+    actual_state = {
+        key: value
+        for key, value in actual.items()
+        if not allow_observation_fields or key not in _CONTINUATION_OBSERVATION_FIELDS
+    }
+    expected_state = dict(expected)
+    actual_state.setdefault("state_revision", 0)
+    return sorted(
+        key
+        for key in set(actual_state) | set(expected_state)
+        if actual_state.get(key) != expected_state.get(key)
+    )
+
+
+def _validate_existing_continuation_target(
+    repo_root: Path,
+    source: Mapping[str, Any],
+    continuation: Mapping[str, Any],
+    *,
+    continuation_run_id: str,
+    expected_provenance: Mapping[str, str],
+) -> bool:
+    expected = _expected_continuation_preflight(
+        repo_root, source, continuation_run_id
+    )
+    provenance_present = [
+        key for key in _CONTINUATION_PROVENANCE_FIELDS if key in continuation
+    ]
+    if provenance_present:
+        expected.update(expected_provenance)
+        expected["state_revision"] = 1
+    else:
+        expected["state_revision"] = 0
+    conflicting = _continuation_state_conflicts(
+        continuation,
+        expected,
+        allow_observation_fields=bool(provenance_present),
+    )
+    if conflicting:
+        raise PermissionError(
+            "existing continuation target ownership state mismatch: "
+            + ", ".join(conflicting)
+        )
+    _validate_continuation_preflight_artifact(
+        repo_root, source, continuation_run_id
+    )
+    return bool(provenance_present)
+
+
+def _run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        supervisor_project_root = _supervisor_project_root(
+            repo_root, request.repo_relative_root
+        )
+        source = load_run(repo_root, request.run_id)
+        if source["phase"] != "stopped_budget":
+            raise RuntimeError("continuation requires stopped_budget phase")
+        identity = request.payload.get("continuation_identity")
+        if not isinstance(identity, Mapping):
+            raise ValueError("continuation_identity payload is required")
+        trusted_lineage_id = request.payload.get("loop_lineage_id")
+        if not isinstance(trusted_lineage_id, str) or not trusted_lineage_id:
+            raise ValueError("continuation loop_lineage_id payload is required")
+        if identity.get("loop_lineage_id") != trusted_lineage_id:
+            raise ValueError("continuation lineage payload does not match identity")
+        if identity.get("source_run_id") != request.run_id:
+            raise ValueError("continuation source payload does not match action run")
+        for field in ("semantic_parent", "source_commit"):
+            if not isinstance(identity.get(field), str) or not identity[field]:
+                raise ValueError(f"continuation {field} payload is required")
+        digest = hashlib.sha256(
+            json.dumps(dict(identity), sort_keys=True).encode("utf-8")
+        ).hexdigest()[:10]
+        continuation_run_id = str(
+            request.payload.get("continuation_run_id")
+            or f"{request.run_id}-continuation-{digest}"
+        )
+        continuation_dir = run_dir_for(repo_root, continuation_run_id)
+        if continuation_dir.is_symlink():
+            raise PermissionError("existing continuation target directory is a symlink")
+        target = continuation_dir / "run.json"
+        if target.is_symlink():
+            raise PermissionError("existing continuation target is a symlink")
+        if not target.exists():
+            if continuation_dir.exists():
+                if not _recover_pending_continuation_publication(
+                    repo_root,
+                    supervisor_project_root,
+                    source,
+                    request,
+                    identity,
+                    continuation_run_id,
+                ):
+                    raise PermissionError(
+                        "existing continuation target directory has no owned run.json"
+                    )
             else:
-                evaluator_result = _run_codex_autonomous_evaluator(root, run)
-                if evaluator_result is None:
-                    return _stop_run(root, load_run(root, run_id), phase="stopped_blocked", next_action="inspect_autonomous_evaluator", last_result="blocked")
-            if evaluator_result["status"] != "pass" or evaluator_result["returncode"] != 0:
-                return _stop_run(root, load_run(root, run_id), phase="stopped_blocked", next_action="inspect_evaluator", last_result="blocked")
-            continue
+                _publish_initial_continuation(
+                    repo_root,
+                    supervisor_project_root,
+                    source,
+                    request,
+                    identity,
+                    continuation_run_id,
+                )
+        continuation = load_run(repo_root, continuation_run_id)
+        expected_provenance = {
+            "loop_lineage_id": trusted_lineage_id,
+            "previous_run_id": request.run_id,
+            "parent_run_id": request.run_id,
+            "previous_commit": identity["source_commit"],
+        }
+        if not _validate_existing_continuation_target(
+            repo_root,
+            source,
+            continuation,
+            continuation_run_id=continuation_run_id,
+            expected_provenance=expected_provenance,
+        ):
+            from scripts.loop_supervisor import reconciler
 
-        run = load_run(root, run_id)
-        if run["phase"] == "artifact_hygiene":
-            run_artifact_hygiene_step(root, run_id)
-            run = load_run(root, run_id)
-            if run["phase"] == "stopped_blocked":
-                return status_for_run(root, run_id)
-            continue
+            expected_fingerprint = reconciler._state_fingerprint(continuation)
+            completed = dict(continuation)
+            completed.update(expected_provenance)
+            reconciler.atomic_save_run(
+                repo_root,
+                continuation_run_id,
+                completed,
+                expected_revision=0,
+                expected_fingerprint=expected_fingerprint,
+            )
+        return _bounded_success(
+            f"created continuation {continuation_run_id}",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, target)],
+            checkpoint="continuation",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "continuation", exc, started_at=started_at, repo_root=repo_root
+        )
 
-        run = load_run(root, run_id)
-        if run["phase"] == "cleanup":
-            generator_result = read_json_file(run_dir_for(root, run_id) / "generator-result.json")
-            validate_generator_result_payload(generator_result)
-            if not _commit_autonomous_changes(root, run, generator_result):
-                return status_for_run(root, run_id)
-            tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
+
+def _run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        recovery = {
+            "inspect_autonomous_dirty_paths": _resume_autonomous_dirty_path_block,
+            "inspect_required_evidence": _resume_autonomous_required_evidence_block,
+            "inspect_autonomous_commit": _resume_autonomous_commit_block,
+            "retry_autonomous_push": _resume_autonomous_push_block,
+        }.get(str(run.get("next_action") or ""))
+        if recovery is None or not recovery(repo_root, run):
+            raise RuntimeError("no bounded generator-result recovery matched")
+        return _bounded_success(
+            "generator result recovered",
+            started_at=started_at,
+            checkpoint="generator-recovery",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request,
+            "generator-recovery",
+            exc,
+            started_at=started_at,
+            repo_root=repo_root,
+        )
+
+
+def _run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        if run["phase"] != "audit_blocked":
+            raise RuntimeError("alternate recovery requires audit_blocked phase")
+        if not _start_autonomous_audit_remediation(
+            repo_root, run, task_number=_next_autonomous_task_number(run)
+        ):
+            raise RuntimeError("alternate recovery did not produce a remediation task")
+        artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
+        return _bounded_success(
+            "alternate recovery planned",
+            started_at=started_at,
+            artifact_paths=[_relative_artifact(repo_root, artifact)],
+            checkpoint="alternate-recovery",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request,
+            "alternate-recovery",
+            exc,
+            started_at=started_at,
+            repo_root=repo_root,
+        )
+
+
+
+
+def _run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        run["phase"] = "planning"
+        run["next_action"] = "run_autonomous_planner"
+        run["last_result"] = "none"
+        save_run(repo_root, run)
+        return _bounded_success(
+            "run refocused to planning",
+            started_at=started_at,
+            checkpoint="refocus",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "refocus", exc, started_at=started_at, repo_root=repo_root
+        )
+
+
+def _run_bounded_stop(repo_root: Path, request: ActionRequest) -> ActionResult:
+    started_at = _timestamp()
+    try:
+        run = load_run(repo_root, request.run_id)
+        phase = str(request.payload.get("stop_phase") or "stopped_blocked")
+        _stop_run(
+            repo_root,
+            run,
+            phase=phase,
+            next_action="none",
+            last_result="blocked",
+        )
+        return _bounded_success(
+            f"run stopped in {phase}",
+            started_at=started_at,
+            checkpoint="stop",
+        )
+    except Exception as exc:
+        return _bounded_failure(
+            request, "stop", exc, started_at=started_at, repo_root=repo_root
+        )
 
 
 def status_for_run(repo_root: Path | str, run_id: str) -> dict[str, str]:
@@ -5740,78 +7277,6 @@ def _build_parser() -> argparse.ArgumentParser:
     confirm = subparsers.add_parser("confirm-preflight", help="Confirm a preflight run.")
     confirm.add_argument("--repo-root", default=".")
     confirm.add_argument("--run-id", required=True)
-
-    plan = subparsers.add_parser("plan", help="Run the Planner step.")
-    plan.add_argument("--repo-root", default=".")
-    plan.add_argument("--run-id", required=True)
-    plan.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-
-    generate = subparsers.add_parser("generate", help="Run the Generator step.")
-    generate.add_argument("--repo-root", default=".")
-    generate.add_argument("--run-id", required=True)
-    generate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-
-    evaluate = subparsers.add_parser("evaluate", help="Run the Evaluator step.")
-    evaluate.add_argument("--repo-root", default=".")
-    evaluate.add_argument("--run-id", required=True)
-    evaluate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-    evaluate.add_argument("--max-attempts", type=int, default=2)
-
-    audit = subparsers.add_parser("run-auditor", help="Run the Loop Auditor step.")
-    audit.add_argument("--repo-root", default=".")
-    audit.add_argument("--run-id", required=True)
-    audit.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-
-    artifact_hygiene = subparsers.add_parser("artifact-hygiene", help="Run artifact hygiene for generated artifacts.")
-    artifact_hygiene.add_argument("--repo-root", default=".")
-    artifact_hygiene.add_argument("--run-id", required=True)
-
-    cleanup = subparsers.add_parser("cleanup", help="Run cleanup for retained loop artifacts.")
-    cleanup.add_argument("--repo-root", default=".")
-    cleanup.add_argument("--run-id", required=True)
-
-    run = subparsers.add_parser("run", help="Run the planner/generator/evaluator loop.")
-    run.add_argument("--repo-root", default=".")
-    run.add_argument("--run-id", required=True)
-    run.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
-    run.add_argument("--generator-driver", choices=("fake", "codex-exec"), required=True)
-    run.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
-    run.add_argument("--max-eval-attempts", type=int, default=2)
-
-    run_demand_multi_parser = subparsers.add_parser("run-demand-multi", help="Run demand-development parent/child loop.")
-    run_demand_multi_parser.add_argument("--repo-root", default=".")
-    run_demand_multi_parser.add_argument("--run-id", required=True)
-    run_demand_multi_parser.add_argument("--planner-driver", choices=("fake", "fake-blocked", "fake-failed", "codex-exec"), required=True)
-    run_demand_multi_parser.add_argument(
-        "--generator-driver",
-        choices=(
-            "fake",
-            "fake-fail-child-2-once",
-            "fake-dirty-path",
-            "fake-timeout",
-            "fake-invalid-json",
-            "fake-missing-artifact",
-            "fake-stop-after-child-1",
-            "codex-exec",
-        ),
-        required=True,
-    )
-    run_demand_multi_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
-    run_demand_multi_parser.add_argument("--max-eval-attempts", type=int, default=2)
-    run_demand_multi_parser.add_argument("--max-children", type=int, default=3)
-
-    run_autonomous_parser = subparsers.add_parser("run-autonomous", help="Run the autonomous knowledge loop.")
-    run_autonomous_parser.add_argument("--repo-root", default=".")
-    run_autonomous_parser.add_argument("--run-id", required=True)
-    run_autonomous_parser.add_argument("--planner-driver", choices=("fake", "codex-exec"), required=True)
-    run_autonomous_parser.add_argument(
-        "--generator-driver",
-        choices=("fake", "fake-denylist", "fake-dependency", "fake-expanded-code", "fake-missing-evidence", "codex-exec"),
-        required=True,
-    )
-    run_autonomous_parser.add_argument("--evaluator-driver", choices=("fake", "codex-exec"), required=True)
-    run_autonomous_parser.add_argument("--max-eval-attempts", type=int, default=2)
-    run_autonomous_parser.add_argument("--max-tasks", type=int, default=3)
 
     transition_meta_parser = subparsers.add_parser(
         "transition-meta",
@@ -5850,67 +7315,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "confirm-preflight":
         with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:confirm-preflight"):
             payload = confirm_preflight(repo_root=args.repo_root, run_id=args.run_id)
-    elif args.command == "plan":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:plan"):
-            run_planner(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "generate":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:generate"):
-            run_generator(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "evaluate":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:evaluate"):
-            run_evaluator(
-                repo_root=args.repo_root,
-                run_id=args.run_id,
-                driver=args.driver,
-                max_attempts=args.max_attempts,
-            )
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "run-auditor":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:run-auditor"):
-            report_path = run_auditor(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-            payload = {
-                **status_for_run(repo_root=args.repo_root, run_id=args.run_id),
-                "audit_report_path": str(Path(report_path).resolve().relative_to(Path(args.repo_root).resolve())),
-            }
-    elif args.command == "artifact-hygiene":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:artifact-hygiene"):
-            run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "cleanup":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:cleanup"):
-            run_cleanup(repo_root=args.repo_root, run_id=args.run_id)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "run":
-        payload = run_loop(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            planner_driver=args.planner_driver,
-            generator_driver=args.generator_driver,
-            evaluator_driver=args.evaluator_driver,
-            max_eval_attempts=args.max_eval_attempts,
-        )
-    elif args.command == "run-demand-multi":
-        payload = run_demand_multi(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            planner_driver=args.planner_driver,
-            generator_driver=args.generator_driver,
-            evaluator_driver=args.evaluator_driver,
-            max_eval_attempts=args.max_eval_attempts,
-            max_children=args.max_children,
-        )
-    elif args.command == "run-autonomous":
-        payload = run_autonomous(
-            repo_root=args.repo_root,
-            run_id=args.run_id,
-            planner_driver=args.planner_driver,
-            generator_driver=args.generator_driver,
-            evaluator_driver=args.evaluator_driver,
-            max_eval_attempts=args.max_eval_attempts,
-            max_tasks=args.max_tasks,
-        )
     elif args.command == "transition-meta":
         payload = transition_meta_loop_to_expansion(
             repo_root=args.repo_root,

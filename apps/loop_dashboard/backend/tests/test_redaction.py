@@ -1,3 +1,7 @@
+import time
+
+import pytest
+
 from loop_dashboard.redaction import redact_text
 
 
@@ -62,3 +66,47 @@ def test_redacts_broader_authorization_and_key_spellings() -> None:
         "quoted-password",
     ):
         assert secret not in redacted
+
+
+@pytest.mark.parametrize("boundary", [8 * 1024, 64 * 1024, 256 * 1024])
+def test_unmatched_quoted_assignment_is_redacted_through_buffer_end(
+    boundary: int,
+) -> None:
+    prefix = 'api_key="'
+    marker = "SENSITIVE_SUFFIX"
+    filler_size = boundary - len(prefix) - len(marker) - 1
+    full_text = prefix + ("x" * filler_size) + " " + marker + '"'
+    bounded_text = full_text[:boundary]
+
+    redacted = redact_text(bounded_text)
+
+    assert len(bounded_text) == boundary
+    assert marker not in redacted
+    assert redacted == 'api_key="[REDACTED]'
+
+
+@pytest.mark.parametrize("boundary", [8 * 1024, 64 * 1024, 256 * 1024])
+def test_quoted_assignment_closing_at_buffer_end_does_not_leak(
+    boundary: int,
+) -> None:
+    prefix = 'client_secret="'
+    marker = "SENSITIVE_SUFFIX"
+    text = prefix + ("x" * (boundary - len(prefix) - len(marker) - 1)) + marker + '"'
+
+    redacted = redact_text(text)
+
+    assert len(text) == boundary
+    assert marker not in redacted
+    assert redacted == 'client_secret="[REDACTED]"'
+
+
+def test_assignment_redaction_is_linear_for_adversarial_256_kib_input() -> None:
+    text = 'api_key="' + (("escaped\\\\ value = ") * 14_000)
+    text = text[: 256 * 1024]
+
+    started = time.perf_counter()
+    redacted = redact_text(text)
+    elapsed = time.perf_counter() - started
+
+    assert redacted == 'api_key="[REDACTED]'
+    assert elapsed < 1.0

@@ -2011,6 +2011,60 @@ class HarnessAiInfraEvidenceTests(unittest.TestCase):
 
             self.assertEqual(findings, [])
 
+    def test_required_evidence_manifest_accepts_cursor_paged_completed_history(self) -> None:
+        with TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = repo_root / ".codex" / "loop-runs" / "demo"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            artifact_relative = trusted_live_evidence_artifact_path(
+                "loop-dashboard-freshness"
+            )
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            details = self._valid_freshness_details("loop-dashboard-freshness")
+            details["completed_history"]["json"] = {
+                "items": [{"run_id": "expanded-run"}],
+                "total": 1,
+                "page_size": 20,
+                "has_more": False,
+                "next_cursor": None,
+                "previous_cursor": None,
+            }
+            payload = self._freshness_payload(
+                status="pass",
+                evidence_id="loop-dashboard-freshness",
+                details=details,
+            )
+            payload["created_by"] = TRUSTED_EVIDENCE_CREATED_BY
+            artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            findings = validate_required_evidence_manifest(
+                [
+                    "loop dashboard freshness evidence for current run, child tasks, "
+                    "agent actions, evaluator scenarios, and completed history"
+                ],
+                {
+                    "items": [
+                        {
+                            "evidence_id": "loop-dashboard-freshness",
+                            "status": "pass",
+                            "created_by": TRUSTED_EVIDENCE_CREATED_BY,
+                            "summary": "validated",
+                            "artifacts": [artifact_relative],
+                        }
+                    ]
+                },
+                repo_root,
+                run_dir,
+                trusted_live_evidence_state=self._trusted_live_state_for_artifact(
+                    "loop-dashboard-freshness",
+                    artifact_relative,
+                    artifact_path,
+                ),
+            )
+
+            self.assertEqual(findings, [])
+
     def test_required_evidence_manifest_accepts_service_availability_http_302(self) -> None:
         with TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

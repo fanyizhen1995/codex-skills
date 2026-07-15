@@ -1,6 +1,6 @@
 # Planner Generator Evaluator Loop
 
-Phase 1 wires the local loop orchestrator through the existing planner,
+Phase 1 wires the loop execution primitives through the existing planner,
 generator, and evaluator harnesses. It is intentionally narrow: fake drivers
 exercise the durable state machine without calling Codex, while `codex-exec`
 remains available for planner/generator prompts and evaluator auto-gate runs.
@@ -21,72 +21,40 @@ keeps planning until no-action, budget, or blocked stop conditions apply.
   `manual_confirm_paths`, `required_evidence`, merged `limits`, and the
   fixture path itself. When no policy fixture is supplied, autonomous runtime
   scope falls back to the existing conservative defaults.
-- `plan` writes `planner-output.json` and advances to `generating`.
-- `generate` writes `generator-result.json` and advances to `evaluating`.
-- `evaluate` calls `scripts/harness_evaluator_orchestrator.py`, copies the
+- The Supervisor queues bounded Planner work, which writes `planner-output.json`
+  and advances to `generating`.
+- The Worker runs bounded Generator work, which writes `generator-result.json`
+  and advances to `evaluating`.
+- Bounded Evaluator work calls `scripts/harness_evaluator_orchestrator.py`, copies the
   evaluator result into `evaluator-result.json`, and advances to
   `artifact_hygiene`, `passed_waiting_human_merge`, or `repair_needed`.
   Scenario command stdout/stderr evidence also forces `artifact_hygiene`,
   including failing scenario command paths, before the run is repairable.
-- `artifact-hygiene` scans declared generator artifacts and scenario command
+- Bounded artifact hygiene scans declared generator artifacts and scenario command
   logs, then advances to `cleanup`, `repair_needed`, or `stopped_blocked`.
-- `cleanup` removes retained temporary worktrees and advances to the human
+- Bounded cleanup removes retained temporary worktrees and advances to the human
   merge gate.
-- `run` executes the confirmed run from its current phase through evaluator,
-  artifact hygiene, cleanup, and the human merge gate when applicable.
-- `run-autonomous` executes the confirmed autonomous run from its current phase
-  through planning, generation, evaluator pass, artifact hygiene, cleanup,
-  auto-commit, and the next planning pass until it reaches `stopped_no_action`,
-  `stopped_budget`, or `stopped_blocked`.
-  It accepts fake drivers for smoke tests and `codex-exec` drivers for real
-  planner, generator, and evaluator agent calls.
-- `run-demand-multi` executes a parent demand-development loop. The parent
-  planner emits `planner_decision` and `next_child_task`; each child writes its
+- Supervisor reconciliation advances a confirmed run one bounded action at a
+  time through its registry-defined terminal or human-gate state.
+- Demand-development parent planning emits `planner_decision` and
+  `next_child_task`; each child writes its
   own `planner-output.json`, `task-contract.json`, `generator-result.json`,
   and `evaluator-result.json`; passed children use `phase=passed`, then the
   parent planner continues until the parent reaches
   `passed_waiting_human_merge`, `stopped_budget`, or `stopped_blocked`.
-  It accepts fake drivers for deterministic smoke tests and `codex-exec`
-  drivers for real parent planner, child generator, and evaluator auto-gate
-  calls.
 
-## Commands
+## Runtime Commands
 
 ```bash
-python3 scripts/harness_loop_orchestrator.py preflight \
-  --repo-root . \
-  --mode demand-development \
-  --requirement "Phase 1 full smoke" \
-  --run-id smoke-phase-1 \
-  --constraint "Keep changes scoped to harness loop files" \
-  --stop-condition passed_waiting_human_merge \
-  --confirm
+python3 -m scripts.loop_supervisor.cli watch \
+  --project-root /home/fyz/codex-skills
 
-python3 scripts/harness_loop_orchestrator.py run \
-  --repo-root . \
-  --run-id smoke-phase-1 \
-  --planner-driver fake \
-  --generator-driver fake \
-  --evaluator-driver fake \
-  --max-eval-attempts 2
+python3 -m scripts.loop_supervisor.cli worker \
+  --project-root /home/fyz/codex-skills \
+  --worker-id worker-01
 
-python3 scripts/harness_loop_orchestrator.py status \
-  --repo-root . \
-  --run-id smoke-phase-1
-```
-
-For multi-child demand development, start with a confirmed
-`demand-development` preflight and run the parent/child loop:
-
-```bash
-python3 scripts/harness_loop_orchestrator.py run-demand-multi \
-  --repo-root . \
-  --run-id <run-id> \
-  --planner-driver codex-exec \
-  --generator-driver codex-exec \
-  --evaluator-driver codex-exec \
-  --max-children 3 \
-  --max-eval-attempts 2
+python3 -m scripts.loop_supervisor.cli status \
+  --project-root /home/fyz/codex-skills
 ```
 
 The `codex-exec` parent planner must write a planner payload that satisfies
@@ -96,84 +64,12 @@ The `codex-exec` parent planner must write a planner payload that satisfies
 does not wait for human merge by itself; the child returns `phase=passed` and
 the parent records accepted changed paths before planning the next child.
 
-### Supervisor And Auto Resume
+### Supervisor And Worker
 
-`loop-supervisor-01` is the project-level control plane for keeping the crawler
-services, Loop Dashboard, auto-resume, and eligible loop runs moving. Run it as
-its own long-running process:
-
-```bash
-python3 scripts/harness_loop_supervisor.py \
-  --project-root /home/fyz/codex-skills \
-  --watch \
-  --interval-seconds 30
-```
-
-For one-shot diagnostics, run:
-
-```bash
-python3 scripts/harness_loop_supervisor.py \
-  --project-root /home/fyz/codex-skills \
-  --once \
-  --dry-run
-```
-
-Supervisor writes runtime state under `.codex/supervisor/`, reads service
-metadata from `.codex/service-runtime/<service>.json`, and exposes its state
-through Loop Dashboard's global Supervisor panel. Service reachability is not
-enough: `running_version.freshness`, `runtime_metadata_path`, and `evidence`
-must show whether the running backend/frontend/dashboard processes match the
-intended repo version.
-
-Refresh service runtime metadata from the service startup context whenever a
-long-running process is started or restarted. The command must receive the
-long-running service PID; it writes that PID, cwd, command, tmux session, port,
-and Git head for the named service:
-
-```bash
-python3 scripts/harness_loop_supervisor.py \
-  --project-root /home/fyz/codex-skills \
-  --write-service-runtime loop-dashboard \
-  --service-command "python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766" \
-  --service-host 0.0.0.0 \
-  --service-port 8766 \
-  --service-tmux-session loop-dashboard \
-  --service-pid "$SERVICE_PID"
-```
-
-Use the same pattern for `crawler-backend`, `crawler-frontend`, and
-`loop-auto-resume`, changing the service name, command, port, and tmux session
-to match the running process. Supervisor restart actions are intentionally
-allowlisted and do not fabricate runtime metadata; metadata must be written by
-the process startup path so version freshness remains evidence-backed.
-
-`loop-auto-resume` remains the lower-level recovery executor. Keep it running so
-Supervisor can delegate actionable loop phases to the existing resume path:
-
-```bash
-python3 scripts/harness_loop_auto_resume.py \
-  --project-root /home/fyz/codex-skills \
-  --include-worktrees \
-  --planner-driver codex-exec \
-  --generator-driver codex-exec \
-  --evaluator-driver codex-exec \
-  --max-tasks 100 \
-  --watch \
-  --interval-seconds 30
-```
-
-The watcher scans `.codex/loop-runs` and `.worktrees/*/.codex/loop-runs` for
-orchestrator-actionable phases. Supported phases include `audit_blocked`,
-autonomous active phases (`planning`, `generating`, `evaluating`,
-`artifact_hygiene`, `cleanup`), and autonomous `stopped_blocked` runs whose
-`next_action` is `inspect_autonomous_dirty_paths` or
-`inspect_required_evidence`. The watcher calls
-`run-demand-multi` or `run-autonomous` for the run's policy, so Auditor
-`must_fix` findings can create remediation work, interrupted autonomous runs
-can continue their normal stage, and safe mechanical dirty-path or
-required-evidence stops can be rechecked without a manual CLI call. The watcher
-requires explicit driver choices; smoke fixtures should use fake drivers, while
-real development runs should use `codex-exec`.
+Supervisor is the only control-plane role. It discovers run artifacts, applies
+the shared registry, and queues bounded actions. Worker leases and executes one
+action at a time without owning transition policy. Detailed migration,
+rollback, health, and retention procedures are in `docs/harness/loop-supervisor.md`.
 
 Every real loop task must keep the following long-running processes online and
 verify them before reporting progress:
@@ -191,11 +87,9 @@ verify them before reporting progress:
 - Loop Dashboard remains reachable and points at the project root whose runs
   should be monitored.
 - `loop-supervisor` remains running so service health, version freshness,
-  user-decision escalation, Auditor control inputs, and continuation planning
+  user-decision escalation, Reviewer inputs, and continuation planning
   remain visible in one global panel.
-- `loop-auto-resume` remains running so `audit_blocked`, autonomous active
-  phases, safe autonomous dirty-path stops, and safe required-evidence stops
-  are re-entered without a manual CLI call.
+- `loop-supervisor-worker` remains running so queued bounded actions execute.
 - The loop run uses a stable run ID under `.codex/loop-runs` or a tracked
   worktree `.codex/loop-runs` directory so Loop Dashboard can display the
   active task, completed history, child tasks, audit results, and logs.
@@ -252,17 +146,8 @@ directly to `passed_waiting_human_merge` only when there are no scenario
 command logs. Failed scenario commands still write evidence and enter
 `artifact_hygiene`; after hygiene passes, the run returns to `repair_needed`.
 
-Run hygiene and cleanup directly when operating the loop one step at a time:
-
-```bash
-python3 scripts/harness_loop_orchestrator.py artifact-hygiene \
-  --repo-root . \
-  --run-id <run-id>
-
-python3 scripts/harness_loop_orchestrator.py cleanup \
-  --repo-root . \
-  --run-id <run-id>
-```
+Hygiene and cleanup are Worker-only bounded actions selected by the registry;
+operators do not invoke them directly.
 
 `artifact-hygiene` scans only repo-relative artifact paths, rejects path
 traversal and binary or oversized artifacts, includes scenario command
@@ -276,25 +161,10 @@ paths or back to `repair_needed` for failing scenario command paths.
 `.worktrees/` directory and records `cleanup-result.json`. It does not remove
 loop evidence under `.codex/loop-runs/<run-id>`.
 
-The Phase 2 evaluator scenario uses a self-contained smoke helper instead of
-the bare `preflight && run` flow:
-
-```bash
-python3 scripts/harness_loop_phase2_smoke.py \
-  --repo-root . \
-  --run-id evaluator-scenario-phase-2 \
-  --task-id planner-generator-evaluator-loop-phase-2-01
-```
-
-The helper clears the previous smoke run,
-`.codex/tmp/phase-2-smoke-artifact.txt`, and prior fake evaluator attempts for
-the Phase 2 task id, then runs fake planner/generator drivers, writes a
-non-empty generator artifact and `task-contract.json` with a passing
-`scenario_commands` entry, then continues `run_loop` from `evaluating`. A
-successful smoke reaches `passed_waiting_human_merge` and leaves
-`scenario-command-results.json`, `artifact-manifest.json`, and
-`cleanup-result.json` under the run directory; the fresh fake evaluator attempt
-remains under `.codex/evaluations/tasks/<task-id>/`.
+The former Phase 2 multi-round smoke executable was retired at Supervisor
+cutover. Its retained scenario contract now targets focused registry and
+Worker tests; operators cannot execute Planner, Generator, Evaluator, hygiene,
+or cleanup outside the Supervisor queue.
 
 ## Phase 3 Commands
 
@@ -407,19 +277,10 @@ python3 scripts/harness_loop_orchestrator.py preflight \
   --stop-condition stopped_blocked \
   --confirm
 
-python3 scripts/harness_loop_orchestrator.py run-autonomous \
-  --repo-root . \
-  --run-id autonomous-ai-infra-smoke \
-  --planner-driver fake \
-  --generator-driver fake \
-  --evaluator-driver fake \
-  --max-eval-attempts 2 \
-  --max-tasks 2
 ```
 
-Use `--planner-driver codex-exec --generator-driver codex-exec
---evaluator-driver codex-exec` for real autonomous agent execution. The
-orchestrator still applies deterministic no-action checks from
+The Worker uses the configured production drivers for real autonomous agent
+execution. Supervisor still applies deterministic no-action checks from
 `loop-state.json`, attempt limits, artifact hygiene, scope checks, supply-chain
 checks, wiki validation, and commit safety gates around those agent calls.
 
@@ -463,79 +324,10 @@ user work. Generator agent failures are retried up to
 `max_generator_attempts_per_task`; exhausting the limit stops the run for
 inspection.
 
-The Phase 3 evaluator scenario uses a self-contained smoke helper:
-
-```bash
-python3 scripts/harness_loop_phase3_smoke.py \
-  --repo-root . \
-  --run-id evaluator-scenario-phase-3 \
-  --domain ai_infra \
-  --task-id planner-generator-evaluator-loop-phase-3-01 \
-  --isolate-clone
-```
-
-With `--isolate-clone`, the helper clones the current checkout into a temporary
-directory, configures git identity only inside that clone, and discards the
-clone after the smoke finishes. Inside the smoke repo it clears the previous
-smoke run and prior generated autonomous raw notes for the same run id, creates
-confirmed autonomous preflight against a clean smoke baseline, seeds
-`loop-state.json` with one candidate backlog item and one known source, and runs
-fake autonomous drivers with
-`max_tasks=2`. A successful smoke proves the first pass created a git commit for
-allowlisted wiki evidence and loop state, then the second planner pass stopped
-at `stopped_no_action`. It prints JSON containing `phase`, `next_action`,
-`commit`, `loop_state_path`, and run artifact paths. Running without
-`--isolate-clone` is intended only for disposable clones; the helper refuses to
-overwrite dirty smoke loop-state or generated raw paths.
-
-The expanded AI infra runtime adds a separate evaluator scenario and smoke
-helper for repo-local code-path validation under the expanded policy:
-
-```bash
-python3 scripts/harness_ai_infra_meta_loop_smoke.py \
-  --repo-root . \
-  --run-id evaluator-scenario-ai-infra-meta-loop-runtime \
-  --isolate-clone
-```
-
-This helper clones the current checkout into a disposable temporary repo when
-`--isolate-clone` is set, configures git identity only inside that clone, and
-then runs two deterministic fake autonomous rounds against
-`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`.
-First it seeds `ai_infra` loop-state and coverage-map data, runs
-`fake-missing-evidence`, and expects the loop to stop at
-`inspect_required_evidence`. Then it resets the clone back to a clean committed
-state, reseeds the same deterministic candidate context, runs
-`fake-expanded-code`, and expects
-`scripts/ai_infra_expanded_runtime_smoke.txt` plus an expected blocked
-`inspect_required_evidence` result because synthetic freshness placeholders do
-not satisfy the expanded commit gate. The helper prints compact JSON with
-`expanded_policy_preflight`, `missing_evidence_gate`, `expanded_code_scope`,
-`service_availability_evidence`, `crawler_freshness_evidence`, and
-`loop_dashboard_freshness_evidence`.
-
-`fake-expanded-code` and `fake-missing-evidence` are smoke-only autonomous
-generator drivers. They never touch live project services, and they are valid
-only for runs that loaded
-`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`
-exactly. The expanded-code
-driver writes a deterministic local smoke file plus run-local evidence
-artifacts and stable-ID `required-evidence-manifest.json` entries. Freshness
-and visibility artifacts remain explicit synthetic smoke placeholders or
-blocked evidence; they do not claim live checks occurred, and they must block
-before commit. Valid live/pass freshness and service evidence is required
-before expanded autonomous code changes can produce `commit-result.json`. The
-missing-evidence driver writes the same smoke file but omits the manifest so
-the runtime must also block before commit.
-
-Even with `--isolate-clone`, service checks still target the live project URLs
-at `127.0.0.1:8765`, `127.0.0.1:5173`, and `127.0.0.1:8766` through
-`scripts.harness_ai_infra_evidence.check_service_availability()`. If any live
-service is unavailable, the helper reports
-`service_availability_evidence.status=blocked` instead of pretending the smoke
-passed. Placeholder-only expanded rounds also leave the smoke summary at
-`overall_status=blocked`; the command still exits 0 unless an unexpected
-failure occurs.
+The former Phase 3 and expanded AI infra multi-round smoke executables were
+retired at Supervisor cutover. Their safety contracts remain covered by
+bounded Worker, registry, required-evidence, scope, and service-evidence tests.
+No evaluator scenario imports a private multi-round policy function.
 
 When Phase A demand-development fixes finish and a reviewer has a checkpoint
 commit to preserve, transition the parent meta loop into Phase B autonomous
@@ -567,9 +359,37 @@ The local read-only Loop Dashboard lives under `apps/loop_dashboard/`. Start it
 from a project checkout to monitor that current project by default:
 
 ```bash
+python3 - <<'PY'
+from pathlib import Path
+import os
+import secrets
+import stat
+
+path = Path(".codex/session-state/loop-dashboard/cursor-secret")
+path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+path.parent.chmod(0o700)
+try:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+except FileExistsError:
+    pass
+else:
+    with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+        stream.write(secrets.token_urlsafe(48))
+        stream.write("\n")
+metadata = path.stat()
+if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600:
+    raise SystemExit(f"unsafe cursor secret file: {path}")
+if len(path.read_text(encoding="ascii").strip().encode()) < 32:
+    raise SystemExit(f"invalid cursor secret file: {path}")
+PY
+LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" \
 PYTHONPATH=apps/loop_dashboard/backend \
 python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766
 ```
+
+The cursor secret is stable uncommitted runtime state under the already ignored
+`.codex/session-state/` tree. Reuse it across Dashboard restarts; do not commit
+it or regenerate it for each launch.
 
 Open `http://127.0.0.1:8766`. The frontend is Chinese and polls the backend for
 loop runs, agent summaries, flow state, events, logs, completed states, and
@@ -587,6 +407,7 @@ in a named tmux session and bind only on a trusted network:
 ```bash
 tmux new -s loop-dashboard
 cd /home/fyz/codex-skills
+LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" \
 PYTHONPATH=apps/loop_dashboard/backend \
 python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
 ```
@@ -606,6 +427,7 @@ To inspect a different project, point `LOOP_DASHBOARD_PROJECT_ROOT` at that
 checkout:
 
 ```bash
+LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" \
 PYTHONPATH=apps/loop_dashboard/backend \
 LOOP_DASHBOARD_PROJECT_ROOT=/path/to/other/project \
 python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766

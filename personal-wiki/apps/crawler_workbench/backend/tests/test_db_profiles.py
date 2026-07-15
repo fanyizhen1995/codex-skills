@@ -61,7 +61,7 @@ def test_schema_migration_creates_profile_tables(tmp_path):
     assert "wiki_search_index_state" in tables
 
 
-def test_schema_migration_adds_search_index_source_count_to_existing_database(tmp_path):
+def test_schema_migration_adds_search_index_state_columns_to_existing_database(tmp_path):
     settings = Settings(repo_root=tmp_path, state_dir=tmp_path / ".state")
     with open_db(settings.database_path) as db:
         db.execute(
@@ -79,6 +79,7 @@ def test_schema_migration_adds_search_index_source_count_to_existing_database(tm
         columns = {row["name"] for row in db.execute("pragma table_info(wiki_search_index_state)").fetchall()}
 
     assert "source_count" in columns
+    assert "index_version" in columns
 
 
 def test_schema_migration_adds_baseline_column_to_existing_profile_table(tmp_path):

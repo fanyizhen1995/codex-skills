@@ -580,6 +580,10 @@ def _json_candidates(value: Any) -> list[Any]:
     if isinstance(value, list):
         return value
     if isinstance(value, Mapping):
+        for key in ("results", "items", "pages"):
+            candidates = value.get(key)
+            if isinstance(candidates, list):
+                return candidates
         return [value]
     return []
 

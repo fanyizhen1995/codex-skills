@@ -3,91 +3,33 @@
   "must_simulate": true,
   "user_scenarios": [
     {
-      "scenario_id": "AI-INFRA-META-LOOP-E2E-3",
-      "user_goal": "As an evaluator, confirm the expanded ai_infra runtime can run a deterministic isolated smoke round, enforce the expanded policy contract, and report expected blocked safety gates when only synthetic freshness placeholders exist.",
+      "scenario_id": "AI-INFRA-BOUNDED-SAFETY-GATES",
+      "user_goal": "As an evaluator, verify expanded AI infrastructure work remains behind every active bounded Worker commit safety gate.",
       "prerequisites": [
-        "Repository root is readable and can be cloned locally.",
-        "The expanded policy fixture exists at docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json.",
-        "The smoke helper configures git identity only inside its temporary clone."
+        "The Supervisor Worker and orchestrator primitive regressions are available.",
+        "Tests use temporary repositories and do not restart live services."
       ],
-      "entrypoint": "python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone",
+      "entrypoint": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_fails_closed_when_git_status_fails scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_enforces_active_safety_gates scripts/tests/test_harness_loop_supervisor_worker.py::test_bounded_worker_commit_checks_scope_before_supply_chain",
       "steps": [
-        "Create a confirmed autonomous-knowledge preflight using the expanded ai_infra policy fixture.",
-        "Seed ai_infra loop-state.json and coverage-map.json with deterministic local candidate context.",
-        "Run fake-missing-evidence and verify the runtime blocks at inspect_required_evidence.",
-        "Reset the isolated clone to a clean committed state and rerun with fake-expanded-code."
+        "Exercise the bounded commit primitive with an explicit Git status failure.",
+        "Lease bounded commit actions for denylist, supply-chain, required-evidence, unexpected-dirty, baseline-dirty, and commit-provenance fixtures.",
+        "Verify scope runs before supply-chain validation.",
+        "Verify no private multi-round runtime is called."
       ],
       "expected_outcomes": [
-        "The helper prints compact JSON summary output and exits 0.",
-        "expanded_policy_preflight is pass.",
-        "missing_evidence_gate is pass because the runtime blocks missing required evidence instead of committing.",
-        "expanded_code_scope is blocked with inspect_required_evidence because synthetic freshness placeholders cannot satisfy the expanded commit gate.",
-        "overall_status is blocked, the deterministic smoke file exists in the isolated clone, and no commit-result.json is produced."
+        "Git ownership failure returns a non-success Worker result with explicit evidence.",
+        "Every active gate stops the run with its authoritative next action and structured evidence.",
+        "Generator-supplied commits are rejected without exact orchestrator state and path provenance.",
+        "No live crawler, frontend, dashboard, or Supervisor service is changed."
       ],
       "failure_signals": [
-        "The helper accepts an expanded autonomous task without the policy fixture.",
-        "Missing required evidence does not stop the runtime at inspect_required_evidence.",
-        "The helper mutates live project services or requires a real Codex model call.",
-        "The expanded code path writes outside the intended deterministic local smoke artifact flow."
+        "Git failure is interpreted as a clean worktree.",
+        "Denylist, supply-chain, required-evidence, dirty-path, or commit-provenance checks are bypassed.",
+        "Supply-chain validation runs before scope validation.",
+        "An obsolete smoke or Auditor executable is invoked."
       ],
       "cleanup": [
-        "The isolated clone and all smoke commits are discarded when the helper exits."
-      ],
-      "automation_hint": "shell"
-    },
-    {
-      "scenario_id": "AI-INFRA-META-LOOP-E2E-5",
-      "user_goal": "As an evaluator, verify expanded runtime code repair stays in scope and does not bypass denylist or evidence gates.",
-      "prerequisites": [
-        "run_autonomous accepts fake-expanded-code and fake-missing-evidence as autonomous generator drivers.",
-        "Stable required evidence IDs are available for manifest emission."
-      ],
-      "entrypoint": "python3 -m unittest scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_rejects_expanded_fake_drivers_with_marker_evidence_only scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_blocks_denylist_changed_path scripts.tests.test_harness_loop_orchestrator.HarnessLoopOrchestratorTests.test_run_autonomous_expanded_policy_missing_required_evidence_manifest_blocks -v",
-      "steps": [
-        "Run the marker-only expanded driver rejection test to prove wrong or missing policy_file cannot unlock expanded fake drivers.",
-        "Run the expanded policy denylist test and verify a denylisted path is blocked by autonomous scope.",
-        "Run the missing required evidence block test."
-      ],
-      "expected_outcomes": [
-        "fake-expanded-code and fake-missing-evidence are rejected when required_evidence markers exist but policy_file is missing or points at the non-expanded autonomous policy.",
-        "Under the expanded policy, a denylisted .env write is blocked with inspect_autonomous_scope.",
-        "fake-missing-evidence blocks before commit with inspect_required_evidence."
-      ],
-      "failure_signals": [
-        "Marker-only required_evidence unlocks an expanded fake driver without the expanded policy file.",
-        "Expanded runtime code path commits with only synthetic freshness placeholders or without live/pass evidence.",
-        "Expanded runtime path touches denylist or live service processes."
-      ],
-      "cleanup": [
-        "The unit tests run in temporary repositories and discard their artifacts."
-      ],
-      "automation_hint": "shell"
-    },
-    {
-      "scenario_id": "AI-INFRA-META-LOOP-E2E-6",
-      "user_goal": "As an evaluator, verify the smoke helper reports live service, crawler freshness, and loop dashboard evidence honestly even when the runtime executes in an isolated clone.",
-      "prerequisites": [
-        "The helper can call scripts.harness_ai_infra_evidence.check_service_availability().",
-        "Local service URLs remain 127.0.0.1:8765, 127.0.0.1:5173, and 127.0.0.1:8766."
-      ],
-      "entrypoint": "python3 scripts/harness_ai_infra_meta_loop_smoke.py --repo-root . --run-id evaluator-scenario-ai-infra-meta-loop-runtime --isolate-clone",
-      "steps": [
-        "Run the helper in an isolated clone.",
-        "Inspect service_availability_evidence, crawler_freshness_evidence, and loop_dashboard_freshness_evidence in the compact JSON summary."
-      ],
-      "expected_outcomes": [
-        "If live services respond, service_availability_evidence is pass.",
-        "If any live service is unavailable, service_availability_evidence is blocked instead of being reported as pass.",
-        "crawler_freshness_evidence exists and reports synthetic smoke or blocked freshness evidence from the run-local manifest.",
-        "loop_dashboard_freshness_evidence exists and reports synthetic smoke or blocked freshness evidence from the run-local manifest.",
-        "The summary still includes evidence for expanded policy preflight, expanded code scope, and missing evidence gating, and placeholder-only freshness leaves overall_status blocked."
-      ],
-      "failure_signals": [
-        "The helper treats unavailable live services as a passing condition.",
-        "The helper skips crawler freshness or dashboard freshness evidence checks when --isolate-clone is set."
-      ],
-      "cleanup": [
-        "The helper does not restart or modify live project services."
+        "Pytest removes all temporary fixture repositories."
       ],
       "automation_hint": "shell"
     }

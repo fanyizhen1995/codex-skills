@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 import json
+import hashlib
 import os
 import re
 import signal
+import stat
 import subprocess
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -23,6 +26,128 @@ except ModuleNotFoundError:
 
 def _timestamp() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+@dataclass(frozen=True)
+class AgentAttemptEvidence:
+    attempt: int
+    status: str
+    payload: Mapping[str, Any]
+    path: Path
+    attempt_sha256: str
+    stream_sha256: Mapping[str, str]
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _absolute_lexical_path(path: Path, label: str) -> Path:
+    if ".." in path.parts:
+        raise PermissionError(f"{label} ownership escapes its owner root")
+    return path if path.is_absolute() else Path.cwd() / path
+
+
+def _lexical_lstat(path: Path, label: str) -> os.stat_result | None:
+    current = Path(path.anchor)
+    metadata = current.lstat()
+    for part in path.parts[1:]:
+        current = current / part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            return None
+        if stat.S_ISLNK(metadata.st_mode):
+            raise PermissionError(f"{label} ownership traverses a symlink: {current}")
+    return metadata
+
+
+def validate_owned_regular_file(owner_root: Path, path: Path, label: str) -> Path:
+    """Validate lexical ownership before resolving a regular evidence file."""
+    owner = _absolute_lexical_path(Path(owner_root), f"{label} owner root")
+    owner_metadata = _lexical_lstat(owner, f"{label} owner root")
+    if owner_metadata is None or not stat.S_ISDIR(owner_metadata.st_mode):
+        raise PermissionError(f"{label} owner root ownership requires a real directory")
+
+    raw_candidate = Path(path)
+    candidate = _absolute_lexical_path(raw_candidate, label)
+    if not raw_candidate.is_absolute():
+        candidate = owner / raw_candidate
+    try:
+        relative = candidate.relative_to(owner)
+    except ValueError as exc:
+        raise PermissionError(f"{label} ownership escapes its owner root") from exc
+
+    current = owner
+    candidate_metadata = owner_metadata
+    for part in relative.parts:
+        if part in {"", ".."}:
+            raise PermissionError(f"{label} ownership escapes its owner root")
+        current = current / part
+        try:
+            candidate_metadata = current.lstat()
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"missing {label}: {current}") from exc
+        if stat.S_ISLNK(candidate_metadata.st_mode):
+            raise PermissionError(f"{label} ownership traverses a symlink: {current}")
+    try:
+        resolved_owner = owner.resolve(strict=True)
+        current.resolve(strict=True).relative_to(resolved_owner)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise PermissionError(f"{label} ownership escapes its owner root") from exc
+    if not stat.S_ISREG(candidate_metadata.st_mode):
+        raise PermissionError(f"{label} ownership requires a regular file")
+    return current
+
+
+def _owned_attempt_path(run_dir: Path, value: object, field_name: str) -> Path:
+    return validate_owned_regular_file(
+        run_dir,
+        Path(str(value)),
+        f"attempt {field_name}",
+    )
+
+
+def load_validated_attempt_evidence(
+    run_dir: Path,
+    *,
+    role: str,
+    expected_run_id: str,
+) -> tuple[AgentAttemptEvidence, ...]:
+    """Load contract-valid Agent attempts and hash their owned stream evidence."""
+    owner = _absolute_lexical_path(Path(run_dir), "attempt owner root")
+    owner_metadata = _lexical_lstat(owner, "attempt owner root")
+    if owner_metadata is None or not stat.S_ISDIR(owner_metadata.st_mode):
+        raise PermissionError("attempt owner root ownership requires a real directory")
+    evidence: list[AgentAttemptEvidence] = []
+    for discovered_path in sorted(owner.glob(f"{role}-attempt-*.json")):
+        path = validate_owned_regular_file(owner, discovered_path, "attempt JSON")
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, dict):
+            raise ValueError(f"attempt payload must be an object: {path}")
+        validate_agent_attempt_payload(payload)
+        if payload["run_id"] != expected_run_id or payload["role"] != role:
+            raise PermissionError("attempt payload ownership does not match run and role")
+        streams = {
+            name: _owned_attempt_path(owner, payload[f"{name}_path"], f"{name}_path")
+            for name in ("stdout", "stderr")
+        }
+        evidence.append(
+            AgentAttemptEvidence(
+                attempt=int(payload["attempt"]),
+                status=str(payload["status"]),
+                payload=payload,
+                path=path,
+                attempt_sha256=_sha256(path),
+                stream_sha256={name: _sha256(stream) for name, stream in streams.items()},
+            )
+        )
+    return tuple(evidence)
 
 
 def codex_exec_capabilities() -> dict[str, bool]:
@@ -46,6 +171,8 @@ def build_codex_exec_command(
     repo_root: Path,
     output_message_path: Path,
     capabilities: Mapping[str, bool],
+    *,
+    sandbox_mode: str | None = None,
 ) -> list[str]:
     command = [
         "codex",
@@ -57,6 +184,10 @@ def build_codex_exec_command(
         "--color",
         "never",
     ]
+    if sandbox_mode is not None:
+        if sandbox_mode not in {"read-only", "workspace-write", "danger-full-access"}:
+            raise ValueError(f"unsupported Codex sandbox mode: {sandbox_mode}")
+        command.extend(["--sandbox", sandbox_mode])
     if capabilities.get("json", False):
         command.append("--json")
     if capabilities.get("output_last_message", False):
@@ -86,6 +217,7 @@ def run_codex_prompt(
         repo_root=repo_root,
         output_message_path=output_message_path,
         capabilities=codex_exec_capabilities(),
+        sandbox_mode="read-only" if role == "supervisor_reviewer" else None,
     )
 
     try:

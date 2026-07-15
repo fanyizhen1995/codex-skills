@@ -391,16 +391,173 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         self.assertIn("tests/test_accelerator_specs.py", entrypoint)
         self.assertIn("validate-accelerators", entrypoint)
 
-    def test_phase_3_scenario_entrypoint_uses_smoke_helper(self) -> None:
+    def test_phase_3_scenario_entrypoint_uses_bounded_worker_regression(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         contract = load_task_scenarios(repo_root, "planner-generator-evaluator-loop-phase-3-01")
         entrypoint = contract["user_scenarios"][0]["entrypoint"]
 
         self.assertEqual(contract["task_id"], "planner-generator-evaluator-loop-phase-3-01")
-        self.assertIn("scripts/harness_loop_phase3_smoke.py", entrypoint)
-        self.assertIn("--domain ai_infra", entrypoint)
-        self.assertIn("--isolate-clone", entrypoint)
+        self.assertIn("test_harness_loop_supervisor_worker.py", entrypoint)
+        self.assertIn("test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions", entrypoint)
+        self.assertNotIn("smoke", entrypoint)
 
+    def test_loop_scenarios_use_active_worker_commands_and_safety_gates(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        scenario_ids = (
+            "planner-generator-evaluator-loop-phase-1-01",
+            "planner-generator-evaluator-loop-phase-2-01",
+            "planner-generator-evaluator-loop-phase-3-01",
+            "ai-infra-meta-loop-runtime-01",
+        )
+        removed_entrypoints = (
+            "harness_loop_orchestrator.py run",
+            "harness_loop_orchestrator.py run-demand-multi",
+            "harness_loop_orchestrator.py run-autonomous",
+            "harness_loop_phase2_smoke.py",
+            "harness_loop_phase3_smoke.py",
+            "harness_ai_infra_meta_loop_smoke.py",
+            "harness_loop_auditor.py",
+        )
+        entrypoints = {
+            task_id: load_task_scenarios(repo_root, task_id)["user_scenarios"][0][
+                "entrypoint"
+            ]
+            for task_id in scenario_ids
+        }
+
+        for task_id, entrypoint in entrypoints.items():
+            with self.subTest(task_id=task_id):
+                self.assertFalse(
+                    any(command in entrypoint for command in removed_entrypoints),
+                    entrypoint,
+                )
+
+        self.assertIn(
+            "test_phase1_demand_flow_reaches_human_merge_via_bounded_workers",
+            entrypoints["planner-generator-evaluator-loop-phase-1-01"],
+        )
+        gate_entrypoint = entrypoints["ai-infra-meta-loop-runtime-01"]
+        self.assertIn(
+            "test_bounded_worker_commit_enforces_active_safety_gates",
+            gate_entrypoint,
+        )
+        self.assertIn(
+            "test_bounded_worker_commit_checks_scope_before_supply_chain",
+            gate_entrypoint,
+        )
+
+    def test_task_and_evaluator_commands_use_current_loop_runtime_surface(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        tasks = json.loads((repo_root / "tasks.json").read_text(encoding="utf-8"))
+        executable_contracts = {
+            f"task:{task['id']}": json.dumps(
+                task,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            for task in tasks["tasks"]
+        }
+        for path in sorted(
+            (repo_root / "docs/harness/evaluator-scenarios").glob("*.json")
+        ):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for scenario in payload.get("user_scenarios", []):
+                executable_contracts[
+                    f"scenario:{path.name}:{scenario['scenario_id']}"
+                ] = json.dumps(
+                    scenario,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+        removed_commands = (
+            "harness_loop_orchestrator.py run ",
+            "harness_loop_orchestrator.py run-demand-multi",
+            "harness_loop_orchestrator.py run-autonomous",
+            "harness_loop_phase2_smoke.py",
+            "harness_loop_phase3_smoke.py",
+            "harness_ai_infra_meta_loop_smoke.py",
+            "scripts.tests.test_harness_loop_auditor",
+            "scripts.tests.test_harness_loop_auto_resume",
+            "tmux has-session -t loop-auto-resume",
+            "loop-auto-resume",
+            "run_auditor(",
+            "run_demand_multi",
+        )
+
+        violations = {
+            name: [item for item in removed_commands if item in contract]
+            for name, contract in executable_contracts.items()
+            if any(item in contract for item in removed_commands)
+        }
+        self.assertEqual(violations, {})
+
+    def test_loop_runtime_scenarios_declare_and_exercise_truthful_acceptance_scope(
+        self,
+    ) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        continuation = load_task_scenarios(
+            repo_root, "loop-runtime-continuation-hardening-01"
+        )["user_scenarios"][0]
+        historical_auditor = load_task_scenarios(repo_root, "loop-auditor-engine-01")[
+            "user_scenarios"
+        ][0]
+
+        self.assertEqual(
+            continuation["acceptance_scope"],
+            "active_supervisor_worker_reviewer_tests_and_dashboard_fixture",
+        )
+        for active_test in (
+            "test_continuation_is_queued_with_stable_identity_and_not_created",
+            "test_concurrent_begin_immediate_lease_has_one_winner",
+            "test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions",
+            "test_review_due_every_two_semantic_parents_across_continuations",
+        ):
+            self.assertIn(active_test, continuation["entrypoint"])
+        self.assertIn("loop_dashboard_evaluator.py", continuation["entrypoint"])
+        self.assertIn(
+            "--scenario loop-supervisor-unification-01",
+            continuation["entrypoint"],
+        )
+        self.assertNotIn("--scenario loop-supervisor-01", continuation["entrypoint"])
+        continuation_contract = json.dumps(continuation, ensure_ascii=False)
+        for unsupported_claim in (
+            "parent-17",
+            "Four semantic parent tasks",
+            "manual continue between parent tasks",
+        ):
+            self.assertNotIn(unsupported_claim, continuation_contract)
+
+        self.assertEqual(
+            historical_auditor["acceptance_scope"],
+            "historical_fixture_display_only",
+        )
+        self.assertIn(
+            "test_auditor_engine_fixture_is_historical_disabled_and_read_only",
+            historical_auditor["entrypoint"],
+        )
+        self.assertIn(
+            "test_auditor_engine_fixture_rejects_successor_audit_report",
+            historical_auditor["entrypoint"],
+        )
+        historical_contract = json.dumps(historical_auditor, ensure_ascii=False)
+        self.assertNotIn(
+            "python3 scripts/loop_dashboard_evaluator.py",
+            historical_auditor["entrypoint"],
+        )
+        for unsupported_display_claim in (
+            "Playwright",
+            "打开 Loop Dashboard",
+            "浏览器",
+            "current control",
+            "当前控制",
+            "Supervisor",
+            "Reviewer",
+            "质量判断",
+            "控制面",
+        ):
+            self.assertNotIn(unsupported_display_claim, historical_contract)
+
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as tmp:
@@ -480,6 +637,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             ):
                 self.assertTrue((fixture / payload[key]).exists(), key)
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_rejects_dirty_loop_state_before_seeding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = Path(tmp)
@@ -521,6 +679,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
                     "planner-generator-evaluator-loop-phase-3-01",
                 )
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_does_not_delete_other_domain_raw_notes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = Path(tmp)
@@ -567,6 +726,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
 
             self.assertTrue(other_raw_note.exists())
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_rejects_dirty_current_domain_raw_note_before_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = Path(tmp)

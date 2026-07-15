@@ -1,13 +1,29 @@
 from __future__ import annotations
 
+import base64
+from collections import OrderedDict
+from dataclasses import dataclass, replace
+import fnmatch
+import heapq
+import hashlib
+import hmac
 import json
+import os
 import re
+import secrets
+import stat
+from threading import RLock
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
-from .models import AgentSummary, Event, FlowNode, LogEntry
+from .models import AgentSummary, Event, FlowNode, LogDescriptor, LogEntry
+from .pagination import CursorCodec, Page, SnapshotCapacityError, paginate_items
 from .redaction import redact_text
+
+if TYPE_CHECKING:
+    from .supervisor_store import SupervisorDashboardStore
 
 
 COMPLETED_PHASES = {"passed_waiting_human_merge", "stopped_no_action", "stopped_budget", "stopped_blocked"}
@@ -16,6 +32,11 @@ LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
+SESSION_FILE_SCAN_LIMIT = 128
+SESSION_DISCOVERY_MAX_ENTRIES = 4096
+SESSION_FILE_MAX_LINES = 10_000
+STRUCTURED_EVENT_MAX_BYTES = 1024 * 1024
+STRUCTURED_EVENT_MAX_LINES = 1000
 SKILL_SCAN_EXCLUDED_DIRS = {
     ".codex",
     ".git",
@@ -68,25 +89,15 @@ AUDIT_SIGNAL_KEYS = frozenset(
     }
 )
 SUPERVISOR_RUN_IDS = {"loop-supervisor", "supervisor"}
-SUPERVISOR_JSONL_LIMIT = 100
-SUPERVISOR_STATUS_LABELS = {
-    "available": "可用",
-    "healthy": "运行正常",
-    "degraded": "服务异常",
-    "blocked": "需要处理",
-    "unavailable": "暂无数据",
-    "invalid_artifact": "产物无效",
-}
-SUPERVISOR_SENSITIVE_KEYS = {
-    "api_key",
-    "apikey",
-    "access_token",
-    "authorization",
-    "client_secret",
-    "password",
-    "secret",
-    "token",
-}
+LOG_DETAIL_MAX_BYTES = 64 * 1024
+LOG_DETAIL_READ_BYTES = 256 * 1024
+LOG_SUMMARY_READ_BYTES = 8 * 1024
+LOG_EVENT_SCAN_BYTES = 64 * 1024
+LOG_EVENT_HANDLE_LIMIT = 1000
+LOG_HANDLE_TTL_SECONDS = 300
+LOG_HANDLE_MAX_ENTRIES = 4096
+LOG_DISCOVERY_MAX_ENTRIES = 4096
+LOG_INLINE_MAX_BYTES = 2 * 1024 * 1024
 
 
 class RunSource(NamedTuple):
@@ -105,6 +116,98 @@ class ChildRun(NamedTuple):
     source: RunSource
 
 
+@dataclass(frozen=True)
+class ArtifactReferenceStep:
+    kind: str
+    source_path: Path
+    pointer: tuple[str | int, ...]
+    reference_value: str
+    target_path: Path
+    base_dir: Path
+    allowed_roots: tuple[Path, ...]
+    relative_roots: tuple[Path, ...] = ()
+
+
+@dataclass(frozen=True)
+class LogHandle:
+    run_id: str
+    run_dir: Path
+    kind: str
+    stream: str
+    source: str
+    path: Path
+    inline_content: str = ""
+    attempt_id: str = ""
+    provenance: tuple[str | int, ...] = ()
+    evaluator_task_id: str = ""
+    reference_chain: tuple[ArtifactReferenceStep, ...] = ()
+
+
+@dataclass(frozen=True)
+class LogHandleRecord:
+    handle: LogHandle
+    expires_at: float
+
+
+class LogHandleRegistry:
+    def __init__(self, *, ttl_seconds: int, max_entries: int) -> None:
+        if ttl_seconds <= 0 or max_entries <= 0:
+            raise ValueError("log handle bounds must be positive")
+        self._ttl_seconds = ttl_seconds
+        self._max_entries = max_entries
+        self._records: OrderedDict[str, LogHandleRecord] = OrderedDict()
+        self._lock = RLock()
+
+    def issue_many(self, handles: dict[str, LogHandle]) -> None:
+        now = time.monotonic()
+        with self._lock:
+            self._prune(now)
+            if len(handles) > self._max_entries:
+                raise SnapshotCapacityError("log handle capacity exceeded")
+            protected = set(handles)
+            for log_id, handle in handles.items():
+                self._records[log_id] = LogHandleRecord(
+                    handle=handle,
+                    expires_at=now + self._ttl_seconds,
+                )
+                self._records.move_to_end(log_id)
+            while len(self._records) > self._max_entries:
+                evicted_id = next(
+                    log_id for log_id in self._records if log_id not in protected
+                )
+                self._records.pop(evicted_id)
+
+    def get(self, log_id: str) -> LogHandle | None:
+        now = time.monotonic()
+        with self._lock:
+            self._prune(now)
+            record = self._records.get(log_id)
+            if record is None:
+                return None
+            self._records.move_to_end(log_id)
+            return record.handle
+
+    def reap_expired(self) -> None:
+        with self._lock:
+            self._prune(time.monotonic())
+
+    def _prune(self, now: float) -> None:
+        expired = [
+            log_id
+            for log_id, record in self._records.items()
+            if record.expires_at <= now
+        ]
+        for log_id in expired:
+            self._records.pop(log_id, None)
+
+
+_LOG_HANDLE_REGISTRIES: OrderedDict[
+    tuple[str, str], LogHandleRegistry
+] = OrderedDict()
+_LOG_HANDLE_REGISTRIES_LOCK = RLock()
+_LOG_HANDLE_REGISTRY_LIMIT = 64
+
+
 def safe_join(root: Path, relative_path: str) -> Path:
     base = root.resolve()
     candidate_path = Path(relative_path)
@@ -119,10 +222,72 @@ def safe_join(root: Path, relative_path: str) -> Path:
 
 
 class LoopDashboardStore:
-    def __init__(self, project_root: Path | str) -> None:
+    def __init__(
+        self,
+        project_root: Path | str,
+        *,
+        cursor_codec: CursorCodec | None = None,
+        log_secret: bytes | None = None,
+        log_handle_ttl_seconds: int = LOG_HANDLE_TTL_SECONDS,
+        log_handle_max_entries: int = LOG_HANDLE_MAX_ENTRIES,
+        log_discovery_max_entries: int = LOG_DISCOVERY_MAX_ENTRIES,
+        log_inline_max_bytes: int = LOG_INLINE_MAX_BYTES,
+        session_discovery_max_entries: int = SESSION_DISCOVERY_MAX_ENTRIES,
+    ) -> None:
         self.project_root = Path(project_root).resolve()
+        if any(
+            value <= 0
+            for value in (
+                log_discovery_max_entries,
+                log_inline_max_bytes,
+                session_discovery_max_entries,
+            )
+        ):
+            raise ValueError("discovery budgets must be positive")
+        self._project_root_fd: int | None = None
+        self._lifecycle_lock = RLock()
         self.loop_runs_dir = self.project_root / ".codex" / "loop-runs"
-        self.supervisor_dir = self.project_root / ".codex" / "supervisor"
+        self._cursor_codec = cursor_codec or CursorCodec(secrets.token_bytes(32))
+        self._log_secret = log_secret or secrets.token_bytes(32)
+        self._log_discovery_max_entries = log_discovery_max_entries
+        self._log_inline_max_bytes = log_inline_max_bytes
+        self._session_discovery_max_entries = session_discovery_max_entries
+        handle_registry_key = (
+            str(self.project_root),
+            hashlib.sha256(self._log_secret).hexdigest(),
+        )
+        with _LOG_HANDLE_REGISTRIES_LOCK:
+            self._log_handles = _LOG_HANDLE_REGISTRIES.get(handle_registry_key)
+            if self._log_handles is None:
+                self._log_handles = LogHandleRegistry(
+                    ttl_seconds=log_handle_ttl_seconds,
+                    max_entries=log_handle_max_entries,
+                )
+                _LOG_HANDLE_REGISTRIES[handle_registry_key] = self._log_handles
+            _LOG_HANDLE_REGISTRIES.move_to_end(handle_registry_key)
+            while len(_LOG_HANDLE_REGISTRIES) > _LOG_HANDLE_REGISTRY_LIMIT:
+                _LOG_HANDLE_REGISTRIES.popitem(last=False)
+        self.closed = False
+
+    def start(self) -> None:
+        with self._lifecycle_lock:
+            if self._project_root_fd is not None:
+                return
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            self._project_root_fd = os.open(self.project_root, directory_flags)
+            self.closed = False
+
+    def reap_expired(self) -> None:
+        self._cursor_codec.reap_expired()
+        self._log_handles.reap_expired()
+
+    def close(self) -> None:
+        with self._lifecycle_lock:
+            descriptor = self._project_root_fd
+            self._project_root_fd = None
+            self.closed = True
+        if descriptor is not None:
+            os.close(descriptor)
 
     def project_info(self) -> dict[str, Any]:
         return {
@@ -132,188 +297,62 @@ class LoopDashboardStore:
             "history_sources": [self._source_path(source.run_dir) for source in self._run_sources()],
         }
 
-    def supervisor_summary(self) -> dict[str, Any]:
-        state, diagnostic, existed = self._read_supervisor_json("supervisor-state.json")
-        if diagnostic is not None:
-            status = "invalid_artifact"
-            return {
-                "status": status,
-                "status_label": self._supervisor_status_label(status),
-                "state": self._empty_supervisor_state(status),
-                "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
-                "diagnostics": [diagnostic],
-            }
-        if not existed:
-            status = "unavailable"
-            return {
-                "status": status,
-                "status_label": self._supervisor_status_label(status),
-                "state": self._empty_supervisor_state(status),
-                "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
-                "diagnostics": [],
-            }
-
-        status = str(state.get("status") or "available")
-        payload = self._supervisor_state_payload(state, status)
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "state": payload,
-            "artifact_path": self._supervisor_artifact_path("supervisor-state.json"),
-            "diagnostics": [],
-        }
-
-    def supervisor_services(self) -> dict[str, Any]:
-        payload, diagnostic, existed = self._read_supervisor_json("service-health.json")
-        if diagnostic is not None:
-            status = "invalid_artifact"
-            return self._supervisor_services_payload(status, [], "", [diagnostic])
-        if not existed:
-            return self._supervisor_services_payload("unavailable", [], "", [])
-
-        raw_services = payload.get("services")
-        if not isinstance(raw_services, list):
-            status = "invalid_artifact"
-            diagnostic = self._supervisor_diagnostic(
-                self.supervisor_dir / "service-health.json",
-                "service-health.json field services must be a list",
-            )
-            return self._supervisor_services_payload(status, [], str(payload.get("checked_at") or ""), [diagnostic])
-
-        services = [item for item in raw_services if isinstance(item, dict)]
-        status = "healthy" if services and all(str(item.get("status") or "") == "healthy" for item in services) else "degraded"
-        if not services:
-            status = "unavailable"
-        return self._supervisor_services_payload(status, services, str(payload.get("checked_at") or ""), [])
-
-    def supervisor_decisions(self) -> dict[str, Any]:
-        decisions = self._read_supervisor_jsonl("run-decisions.jsonl")
-        plans = self._read_supervisor_jsonl("continuation-plans.jsonl")
-        status = self._combined_supervisor_status([decisions, plans])
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "decisions": decisions["items"],
-            "continuation_plans": plans["items"],
-            "counts": {
-                "decisions_total": decisions["total_count"],
-                "decisions_returned": decisions["returned_count"],
-                "continuation_plans_total": plans["total_count"],
-                "continuation_plans_returned": plans["returned_count"],
-                "invalid_lines": decisions["invalid_count"] + plans["invalid_count"],
-            },
-            "diagnostics": [*decisions["diagnostics"], *plans["diagnostics"]],
-        }
-
-    def supervisor_recovery(self) -> dict[str, Any]:
-        attempts = self._read_supervisor_jsonl("recovery-attempts.jsonl")
-        status = str(attempts["status"])
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "attempts": attempts["items"],
-            "counts": {
-                "total": attempts["total_count"],
-                "returned": attempts["returned_count"],
-                "invalid_lines": attempts["invalid_count"],
-            },
-            "diagnostics": attempts["diagnostics"],
-        }
-
-    def supervisor_decision_required(self) -> dict[str, Any]:
-        decisions_dir = self.supervisor_dir / "needs-user-decisions"
-        safe_dir = self._safe_dir_under(decisions_dir, self.supervisor_dir)
-        if safe_dir is None:
-            status = "unavailable"
-            return {
-                "status": status,
-                "status_label": self._supervisor_status_label(status),
-                "open_count": 0,
-                "decisions": [],
-                "total_count": 0,
-                "diagnostics": [],
-            }
-
-        decisions: list[dict[str, Any]] = []
-        diagnostics: list[dict[str, str]] = []
-        total_count = 0
-        for path in sorted(safe_dir.glob("*.json"), key=lambda item: item.name):
-            safe_path = self._safe_file_under(path, safe_dir)
-            if safe_path is None:
-                continue
-            total_count += 1
-            payload, diagnostic = self._read_json_file_with_diagnostic(safe_path, allowed_root=safe_dir)
-            if diagnostic is not None:
-                diagnostics.append(diagnostic)
-                continue
-            if not isinstance(payload, dict):
-                continue
-            if payload.get("status") == "open":
-                decisions.append(payload)
-
-        decisions.sort(key=lambda item: (str(item.get("opened_at") or ""), str(item.get("decision_id") or "")))
-        status = "invalid_artifact" if diagnostics else "available"
-        if total_count == 0 and not diagnostics:
-            status = "unavailable"
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "open_count": len(decisions),
-            "decisions": decisions,
-            "total_count": total_count,
-            "diagnostics": diagnostics,
-        }
-
-    def supervisor_auditor(self) -> dict[str, Any]:
-        audits: list[dict[str, Any]] = []
-        diagnostics: list[dict[str, str]] = []
-        for run_id, record in self._run_records_by_id().items():
-            report_path, report = self._latest_audit_report(record.source.run_dir)
-            if report_path is not None and not report:
-                diagnostics.append(self._supervisor_diagnostic(report_path, "audit report could not be parsed"))
-                continue
-            if report_path is None:
-                continue
-            summary = self._audit_summary(record.source.run_dir)
-            if summary.get("status") != "available":
-                continue
-            audits.append(
-                {
-                    "run_id": run_id,
-                    "source_kind": record.source.source_kind,
-                    "updated_at": self._mtime_iso(report_path),
-                    "status": summary.get("status"),
-                    "engine_status": summary.get("engine_status"),
-                    "phase_notice": summary.get("phase_notice"),
-                    "verdict": summary.get("verdict"),
-                    "open_must_fix": summary.get("open_must_fix"),
-                    "direction_action": summary.get("direction_action"),
-                    "direction_reason": summary.get("direction_reason"),
-                    "recommended_next_focus": summary.get("recommended_next_focus"),
-                    "latest_report_path": summary.get("latest_report_path"),
-                    "findings": summary.get("findings"),
-                    "signals": summary.get("signals"),
-                    "cadence": summary.get("cadence"),
-                }
-            )
-
-        audits.sort(key=lambda item: (str(item.get("updated_at") or ""), str(item.get("run_id") or "")), reverse=True)
-        status = "invalid_artifact" if diagnostics else ("available" if audits else "unavailable")
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "audits": audits[:SUPERVISOR_JSONL_LIMIT],
-            "total_count": len(audits),
-            "returned_count": min(len(audits), SUPERVISOR_JSONL_LIMIT),
-            "diagnostics": diagnostics,
-        }
-
     def list_runs(self) -> list[dict[str, Any]]:
         runs = [self._load_run_summary(source.run_dir, source.source_kind) for source in self._run_sources()]
         runs = self._dedupe_runs(runs)
         runs = self._filter_top_level_runs(runs)
         runs = self._filter_supervisor_runs(runs)
         return sorted(runs, key=lambda run: (run.get("updated_at", ""), run.get("run_id", "")), reverse=True)
+
+    def page_runs(
+        self,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any]:
+        if cursor:
+            return paginate_items(
+                [],
+                endpoint="runs",
+                page_size=page_size,
+                cursor=cursor,
+                filters=filters,
+                timestamp_key="updated_at",
+                primary_key="run_id",
+                codec=self._cursor_codec,
+            ).to_dict()
+        runs = self.list_runs()
+        phase = filters.get("phase")
+        policy = filters.get("policy")
+        query = filters.get("query", "").lower()
+        if phase:
+            runs = [item for item in runs if str(item.get("phase") or "") == phase]
+        if policy:
+            runs = [item for item in runs if str(item.get("policy") or "") == policy]
+        if query:
+            runs = [
+                item
+                for item in runs
+                if query
+                in " ".join(
+                    (
+                        str(item.get("run_id") or ""),
+                        str(item.get("task_summary") or ""),
+                        str(item.get("task_id") or ""),
+                    )
+                ).lower()
+            ]
+        return paginate_items(
+            runs,
+            endpoint="runs",
+            page_size=page_size,
+            cursor=cursor,
+            filters=filters,
+            timestamp_key="updated_at",
+            primary_key="run_id",
+            codec=self._cursor_codec,
+        ).to_dict()
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
         source = self._run_source(run_id)
@@ -330,7 +369,10 @@ class LoopDashboardStore:
         evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if not isinstance(evaluator, dict):
             evaluator = {}
-        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        _, rich_evaluator = self._rich_evaluator_result(
+            evaluator,
+            expected_task_id=run_data.get("task_id"),
+        )
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         run_kind = self._run_kind(run_data)
@@ -398,16 +440,54 @@ class LoopDashboardStore:
         events.extend(self._structured_events(run_dir))
         for path in self._direct_artifact_files(run_dir):
             events.append(Event("artifact", self._relative_artifact(path), f"updated {path.name}", self._mtime_iso(path)))
-        for log in self._collect_logs(run_dir):
-            events.append(Event("log", log.source, self._summarize_log(log.content), log.updated_at))
-            events.append(Event(log.stream, log.source, self._summarize_log(log.content), log.updated_at))
-            lowered = log.content.lower()
+        for handle in self._collect_log_handles(run_id, run_dir, None)[
+            :LOG_EVENT_HANDLE_LIMIT
+        ]:
+            descriptor = self._log_descriptor(handle)
+            events.append(
+                Event(
+                    "log",
+                    descriptor.source,
+                    descriptor.summary,
+                    descriptor.updated_at,
+                )
+            )
+            events.append(
+                Event(
+                    descriptor.stream,
+                    descriptor.source,
+                    descriptor.summary,
+                    descriptor.updated_at,
+                )
+            )
+            lowered = self._log_scan_text(handle).lower()
             if "skill" in lowered:
-                events.append(Event("skill", log.source, self._summarize_log(log.content), log.updated_at))
+                events.append(
+                    Event(
+                        "skill",
+                        descriptor.source,
+                        descriptor.summary,
+                        descriptor.updated_at,
+                    )
+                )
             if any(name in lowered for name in ("planner", "generator", "evaluator", "agent")):
-                events.append(Event("agent", log.source, self._summarize_log(log.content), log.updated_at))
+                events.append(
+                    Event(
+                        "agent",
+                        descriptor.source,
+                        descriptor.summary,
+                        descriptor.updated_at,
+                    )
+                )
             if "tool" in lowered:
-                events.append(Event("tool", log.source, self._summarize_log(log.content), log.updated_at))
+                events.append(
+                    Event(
+                        "tool",
+                        descriptor.source,
+                        descriptor.summary,
+                        descriptor.updated_at,
+                    )
+                )
         events.extend(self._session_events(run_id))
         if self._run_kind(run_data) == "parent":
             child_runs, _diagnostics = self._children_for_parent(str(run_data.get("run_id") or run_id), run_data)
@@ -422,30 +502,423 @@ class LoopDashboardStore:
             return None
         return [log.to_dict() for log in self._collect_logs(source.run_dir)]
 
+    def page_children(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        if cursor:
+            return self._page_run_items(
+                run_id,
+                "children",
+                [],
+                page_size,
+                cursor,
+                filters,
+                primary_key="child_id",
+            )
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        fallback_timestamp = str(detail.get("updated_at") or "")
+        children = [dict(item) for item in detail.get("children", []) if isinstance(item, dict)]
+        for child in children:
+            child["child_id"] = str(child.get("run_id") or self._stable_id(child))
+            child.setdefault("updated_at", fallback_timestamp)
+        status = filters.get("status")
+        if status:
+            children = [
+                item
+                for item in children
+                if status in {str(item.get("phase") or ""), str(item.get("health") or "")}
+            ]
+        return self._page_run_items(
+            run_id,
+            "children",
+            children,
+            page_size,
+            cursor,
+            filters,
+            primary_key="child_id",
+        )
+
+    def page_acceptance(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        if cursor:
+            return self._page_run_items(
+                run_id,
+                "acceptance",
+                [],
+                page_size,
+                cursor,
+                filters,
+                primary_key="acceptance_id",
+            )
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        acceptance = detail.get("acceptance_summary")
+        if not isinstance(acceptance, dict):
+            acceptance = {}
+        fallback_timestamp = str(detail.get("updated_at") or "")
+        items: list[dict[str, Any]] = []
+        for scenario in acceptance.get("scenarios", []):
+            if not isinstance(scenario, dict):
+                continue
+            item = dict(scenario)
+            item["acceptance_id"] = str(
+                item.get("scenario_id") or self._stable_id(item)
+            )
+            item["updated_at"] = fallback_timestamp
+            items.append(item)
+        status = filters.get("status")
+        if status:
+            items = [item for item in items if str(item.get("status") or "") == status]
+        return self._page_run_items(
+            run_id,
+            "acceptance",
+            items,
+            page_size,
+            cursor,
+            filters,
+            primary_key="acceptance_id",
+        )
+
+    def page_events(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        if cursor:
+            return self._page_run_items(
+                run_id,
+                "events",
+                [],
+                page_size,
+                cursor,
+                filters,
+                primary_key="event_id",
+            )
+        raw_events = self.get_events(run_id)
+        if raw_events is None:
+            return None
+        events: list[dict[str, Any]] = []
+        occurrences: dict[str, int] = {}
+        for event in raw_events:
+            item = dict(event)
+            identity = self._stable_id(item)
+            occurrence = occurrences.get(identity, 0)
+            occurrences[identity] = occurrence + 1
+            item["event_id"] = self._stable_id(
+                {"identity": identity, "occurrence": occurrence}
+            )
+            events.append(item)
+        kind = filters.get("kind")
+        query = filters.get("query", "").lower()
+        if kind:
+            events = [item for item in events if str(item.get("kind") or "") == kind]
+        if query:
+            events = [
+                item
+                for item in events
+                if query
+                in " ".join(
+                    (str(item.get("source") or ""), str(item.get("message") or ""))
+                ).lower()
+            ]
+        return self._page_run_items(
+            run_id,
+            "events",
+            events,
+            page_size,
+            cursor,
+            filters,
+            primary_key="event_id",
+        )
+
+    def page_logs(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+        supervisor_store: SupervisorDashboardStore | None = None,
+    ) -> dict[str, Any] | None:
+        if cursor:
+            page = self._paginate_run_items(
+                run_id,
+                "logs",
+                [],
+                page_size,
+                cursor,
+                filters,
+                primary_key="log_id",
+            )
+            self._issue_page_log_handles(page)
+            return page.to_dict()
+        source = self._run_source(run_id)
+        if source is None or not source.run_dir.is_dir():
+            return None
+        handles = self._collect_log_handles(run_id, source.run_dir, supervisor_store)
+        pairs = [
+            (self._log_descriptor(handle).to_dict(), handle)
+            for handle in handles
+        ]
+        stream = filters.get("stream")
+        query = filters.get("query", "").lower()
+        if stream:
+            pairs = [pair for pair in pairs if pair[0]["stream"] == stream]
+        if query:
+            pairs = [
+                pair
+                for pair in pairs
+                if query in (
+                    f"{pair[0].get('source', '')} "
+                    f"{pair[0].get('summary', '')}"
+                ).lower()
+            ]
+        descriptors = [pair[0] for pair in pairs]
+        private_handles = [self._handle_snapshot(pair[1]) for pair in pairs]
+        page = self._paginate_run_items(
+            run_id,
+            "logs",
+            descriptors,
+            page_size,
+            cursor,
+            filters,
+            primary_key="log_id",
+            private_items=private_handles,
+        )
+        self._issue_page_log_handles(page)
+        return page.to_dict()
+
+    def page_diagnostics(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        if cursor:
+            return self._page_run_items(
+                run_id,
+                "diagnostics",
+                [],
+                page_size,
+                cursor,
+                filters,
+                primary_key="diagnostic_id",
+            )
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        fallback_timestamp = str(detail.get("updated_at") or "")
+        diagnostics: list[dict[str, Any]] = []
+        occurrences: dict[str, int] = {}
+        for diagnostic in detail.get("blocked_diagnostics", []):
+            if not isinstance(diagnostic, dict):
+                continue
+            item = dict(diagnostic)
+            identity = self._stable_id(item)
+            occurrence = occurrences.get(identity, 0)
+            occurrences[identity] = occurrence + 1
+            item["diagnostic_id"] = self._stable_id(
+                {"identity": identity, "occurrence": occurrence}
+            )
+            item["updated_at"] = str(item.get("updated_at") or fallback_timestamp)
+            diagnostics.append(item)
+        for name in ("kind", "severity"):
+            value = filters.get(name)
+            if value:
+                diagnostics = [
+                    item for item in diagnostics if str(item.get(name) or "") == value
+                ]
+        return self._page_run_items(
+            run_id,
+            "diagnostics",
+            diagnostics,
+            page_size,
+            cursor,
+            filters,
+            primary_key="diagnostic_id",
+        )
+
+    def page_artifacts(
+        self,
+        run_id: str,
+        *,
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        if cursor:
+            return self._page_run_items(
+                run_id,
+                "artifacts",
+                [],
+                page_size,
+                cursor,
+                filters,
+                primary_key="artifact_id",
+            )
+        detail = self.get_run(run_id)
+        if detail is None:
+            return None
+        timestamp = str(detail.get("updated_at") or "")
+        items = [
+            {
+                "artifact_id": hashlib.sha256(path.encode()).hexdigest()[:24],
+                "label": Path(path).name,
+                "path": path,
+                "updated_at": timestamp,
+            }
+            for path in self._path_items(detail.get("artifact_paths"))
+        ]
+        query = filters.get("query", "").lower()
+        if query:
+            items = [item for item in items if query in item["path"].lower()]
+        return self._page_run_items(
+            run_id,
+            "artifacts",
+            items,
+            page_size,
+            cursor,
+            filters,
+            primary_key="artifact_id",
+        )
+
+    def get_log_detail(
+        self,
+        run_id: str,
+        log_id: str,
+        *,
+        supervisor_store: SupervisorDashboardStore | None = None,
+    ) -> dict[str, Any] | None:
+        issued_handle = self._log_handles.get(log_id)
+        if issued_handle is None or issued_handle.run_id != run_id:
+            return None
+        handle = self._refresh_log_handle(
+            issued_handle,
+            log_id,
+            supervisor_store,
+        )
+        if handle is None:
+            return None
+        if handle.kind == "attempt":
+            if supervisor_store is None or not handle.attempt_id:
+                return None
+            path = supervisor_store.attempt_log_path(
+                run_id, handle.attempt_id, handle.stream
+            )
+            if path is None:
+                return None
+            try:
+                content, total_bytes, truncated = self._bounded_log_file(
+                    path, handle.run_dir
+                )
+            except OSError:
+                return None
+        elif handle.kind == "file":
+            try:
+                content, total_bytes, truncated = self._bounded_log_file(
+                    handle.path, handle.run_dir
+                )
+            except OSError:
+                return None
+        elif handle.kind == "inline":
+            content, total_bytes, truncated = self._bounded_log_text(
+                handle.inline_content
+            )
+        else:
+            return None
+        return {
+            "log_id": log_id,
+            "source": handle.source,
+            "stream": handle.stream,
+            "content": content,
+            "truncated": truncated,
+            "total_bytes": total_bytes,
+        }
+
+    def _page_run_items(
+        self,
+        run_id: str,
+        collection: str,
+        items: list[dict[str, Any]],
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+        *,
+        primary_key: str,
+    ) -> dict[str, Any]:
+        return self._paginate_run_items(
+            run_id,
+            collection,
+            items,
+            page_size,
+            cursor,
+            filters,
+            primary_key=primary_key,
+        ).to_dict()
+
+    def _paginate_run_items(
+        self,
+        run_id: str,
+        collection: str,
+        items: list[dict[str, Any]],
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+        *,
+        primary_key: str,
+        private_items: list[dict[str, Any]] | None = None,
+    ) -> Page[dict[str, Any]]:
+        return paginate_items(
+            items,
+            endpoint=f"runs:{run_id}:{collection}",
+            page_size=page_size,
+            cursor=cursor,
+            filters=filters,
+            timestamp_key="updated_at",
+            primary_key=primary_key,
+            codec=self._cursor_codec,
+            private_items=private_items,
+        )
+
     def _run_sources(self) -> list[RunSource]:
         sources: list[RunSource] = []
-        sources.extend(RunSource(run_dir, "current") for run_dir in self._loop_run_dirs(self.loop_runs_dir))
+        sources.extend(
+            RunSource(run_dir, "current")
+            for run_dir in self._loop_run_dirs(self.loop_runs_dir)
+        )
         worktrees_dir = self.project_root / ".worktrees"
-        if worktrees_dir.exists():
-            for worktree_path in sorted(worktrees_dir.iterdir(), key=lambda path: path.name):
-                if not worktree_path.is_dir():
-                    continue
-                safe_worktree = self._safe_dir_under(worktree_path, worktrees_dir)
-                if safe_worktree is None:
-                    continue
-                loop_runs_dir = safe_worktree / ".codex" / "loop-runs"
-                sources.extend(RunSource(run_dir, "worktree") for run_dir in self._loop_run_dirs(loop_runs_dir))
+        for worktree_path in self._child_directories(worktrees_dir):
+            loop_runs_dir = worktree_path / ".codex" / "loop-runs"
+            sources.extend(
+                RunSource(run_dir, "worktree")
+                for run_dir in self._loop_run_dirs(loop_runs_dir)
+            )
         return sources
 
     def _loop_run_dirs(self, loop_runs_dir: Path) -> list[Path]:
         safe_loop_runs_dir = self._safe_dir_under(loop_runs_dir, self.project_root)
         if safe_loop_runs_dir is None:
             return []
-        return [
-            run_dir
-            for run_dir in sorted(safe_loop_runs_dir.iterdir(), key=lambda path: path.name)
-            if self._safe_dir_under(run_dir, safe_loop_runs_dir) is not None and run_dir.is_dir()
-        ]
+        return self._child_directories(safe_loop_runs_dir)
 
     def _run_source(self, run_id: str) -> RunSource | None:
         if not self._safe_run_id(run_id) or self._is_supervisor_run_id(run_id):
@@ -1267,7 +1740,10 @@ class LoopDashboardStore:
         evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if isinstance(evaluator, dict):
             diagnostics.extend(self._evaluator_diagnostics(evaluator, run_dir / "evaluator-result.json"))
-            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            rich_path, rich_evaluator = self._rich_evaluator_result(
+                evaluator,
+                expected_task_id=run_data.get("task_id"),
+            )
             if rich_path is not None and rich_evaluator is not None:
                 diagnostics.extend(self._evaluator_diagnostics(rich_evaluator, rich_path))
         for filename, kind in (
@@ -1349,10 +1825,16 @@ class LoopDashboardStore:
         }
 
     def _acceptance_summary_for_run_dir(self, run_dir: Path) -> dict[str, Any]:
+        run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
+        if not isinstance(run_data, dict):
+            run_data = {}
         evaluator = self._read_json(run_dir / "evaluator-result.json", allowed_root=run_dir)
         if not isinstance(evaluator, dict):
             evaluator = {}
-        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        _, rich_evaluator = self._rich_evaluator_result(
+            evaluator,
+            expected_task_id=run_data.get("task_id"),
+        )
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         return self._acceptance_summary(evaluator, rich_evaluator, self._scenario_contract(evaluator))
@@ -1393,7 +1875,10 @@ class LoopDashboardStore:
         evaluator = self._read_json(child.source.run_dir / "evaluator-result.json", allowed_root=child.source.run_dir)
         if not isinstance(evaluator, dict):
             evaluator = {}
-        _, rich_evaluator = self._rich_evaluator_result(evaluator)
+        _, rich_evaluator = self._rich_evaluator_result(
+            evaluator,
+            expected_task_id=run_data.get("task_id"),
+        )
         if not isinstance(rich_evaluator, dict):
             rich_evaluator = {}
         governance_artifacts = self._governance_artifacts(child.source.run_dir, evaluator)
@@ -1575,12 +2060,10 @@ class LoopDashboardStore:
         fallback: dict[str, Any],
         scenario_contract: dict[str, Any],
     ) -> list[dict[str, str]]:
-        scenarios = self._dedupe_scenarios(
-            [
-                *self._scenario_summaries(primary.get("scenario_results")),
-                *self._scenario_summaries(fallback.get("scenario_results")),
-            ]
-        )
+        scenarios = [
+            *self._scenario_summaries(primary.get("scenario_results")),
+            *self._scenario_summaries(fallback.get("scenario_results")),
+        ]
         contract_by_id = self._contract_scenarios_by_id(scenario_contract)
         for scenario in scenarios:
             scenario_id = scenario.get("scenario_id", "")
@@ -1880,6 +2363,970 @@ class LoopDashboardStore:
             )
         return diagnostics
 
+    def _collect_log_handles(
+        self,
+        run_id: str,
+        run_dir: Path,
+        supervisor_store: SupervisorDashboardStore | None,
+    ) -> list[LogHandle]:
+        handles: list[LogHandle] = []
+        seen: set[tuple[str, str]] = set()
+        budget = {"entries": 0, "inline_bytes": 0}
+
+        def add_file(
+            path: Path,
+            stream: str,
+            *,
+            kind: str = "file",
+            attempt_id: str = "",
+        ) -> None:
+            if stream not in {"stdout", "stderr"}:
+                return
+            safe_path = self._safe_regular_file_lexical(path, run_dir)
+            if safe_path is None:
+                return
+            key = (str(safe_path), stream)
+            if key in seen:
+                return
+            seen.add(key)
+            handle = LogHandle(
+                run_id=run_id,
+                run_dir=run_dir,
+                kind=kind,
+                stream=stream,
+                source=(f"attempt {attempt_id}" if attempt_id else safe_path.name),
+                path=safe_path,
+                attempt_id=attempt_id,
+            )
+            self._consume_log_budget(budget)
+            handles.append(handle)
+
+        if supervisor_store is not None:
+            for reference in supervisor_store.attempt_log_references(
+                run_id,
+                limit=self._log_discovery_max_entries - budget["entries"],
+            ):
+                path = reference.get("path")
+                stream = reference.get("stream")
+                attempt_id = reference.get("attempt_id")
+                if isinstance(path, Path) and isinstance(stream, str) and isinstance(attempt_id, str):
+                    add_file(
+                        path,
+                        stream,
+                        kind="attempt",
+                        attempt_id=attempt_id,
+                    )
+        for path in self._direct_log_candidates(run_dir, budget):
+            stream = "stderr" if path.name.endswith(".stderr.log") else "stdout"
+            add_file(path, stream)
+
+        evaluator_path = run_dir / "evaluator-result.json"
+        evaluator = self._read_json_secure(evaluator_path, run_dir)
+        if isinstance(evaluator, dict):
+            run_data = self._read_json_secure(run_dir / "run.json", run_dir)
+            run_task_id = (
+                run_data.get("task_id") if isinstance(run_data, dict) else None
+            )
+            handles.extend(
+                self._inline_log_handles(
+                    run_id,
+                    run_dir,
+                    evaluator,
+                    evaluator_path,
+                    run_dir,
+                    seen,
+                    budget,
+                )
+            )
+            rich_path, rich_evaluator = self._rich_evaluator_result(
+                evaluator,
+                expected_task_id=run_task_id,
+            )
+            if rich_path is not None and rich_evaluator is not None:
+                evaluator_task_id = self._canonical_id_component(
+                    evaluator.get("task_id")
+                )
+                if evaluator_task_id is not None:
+                    rich_chain = self._rich_evaluator_reference_chain(
+                        evaluator_path,
+                        evaluator,
+                        rich_path,
+                    )
+                    handles.extend(
+                        self._inline_log_handles(
+                            run_id,
+                            run_dir,
+                            rich_evaluator,
+                            rich_path,
+                            rich_path.parent,
+                            seen,
+                            budget,
+                            evaluator_task_id=evaluator_task_id,
+                            reference_chain=rich_chain,
+                        )
+                    )
+            scenario_path = evaluator.get("scenario_command_results_path")
+            if isinstance(scenario_path, str) and scenario_path:
+                scenario_result = self._resolve_artifact_reference(
+                    scenario_path,
+                    run_dir,
+                    allowed_roots=[run_dir],
+                )
+                if scenario_result is not None:
+                    scenario_chain = (
+                        ArtifactReferenceStep(
+                            kind="artifact",
+                            source_path=evaluator_path,
+                            pointer=("scenario_command_results_path",),
+                            reference_value=scenario_path,
+                            target_path=scenario_result,
+                            base_dir=run_dir,
+                            allowed_roots=(run_dir,),
+                        ),
+                    )
+                    scenario_payload = self._read_json_secure(
+                        scenario_result, run_dir
+                    )
+                    if isinstance(scenario_payload, dict):
+                        handles.extend(
+                            self._inline_log_handles(
+                                run_id,
+                                run_dir,
+                                scenario_payload,
+                                scenario_result,
+                                run_dir,
+                                seen,
+                                budget,
+                                reference_chain=scenario_chain,
+                            )
+                        )
+        return sorted(
+            handles,
+            key=lambda handle: (
+                self._handle_mtime(handle),
+                handle.source,
+                handle.stream,
+            ),
+            reverse=True,
+        )
+
+    def _direct_log_candidates(
+        self,
+        run_dir: Path,
+        budget: dict[str, int],
+    ) -> list[Path]:
+        remaining = self._log_discovery_max_entries - budget["entries"]
+        try:
+            directory_fd = self._open_directory_descriptor(run_dir)
+        except OSError:
+            return []
+        candidates: list[Path] = []
+        try:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    if not any(
+                        fnmatch.fnmatchcase(entry.name, pattern)
+                        for pattern in LOG_GLOBS
+                    ):
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    if len(candidates) >= remaining:
+                        raise SnapshotCapacityError(
+                            "log discovery entry budget exceeded"
+                        )
+                    candidates.append(run_dir / entry.name)
+        finally:
+            os.close(directory_fd)
+        return sorted(candidates, key=lambda path: path.name)
+
+    def _inline_log_handles(
+        self,
+        run_id: str,
+        run_dir: Path,
+        payload: dict[str, Any],
+        source_path: Path,
+        relative_root: Path,
+        seen: set[tuple[str, str]],
+        budget: dict[str, int],
+        evaluator_task_id: str = "",
+        reference_chain: tuple[ArtifactReferenceStep, ...] = (),
+    ) -> list[LogHandle]:
+        safe_source = self._safe_regular_file_lexical(source_path, self.project_root)
+        if safe_source is None:
+            return []
+        handles: list[LogHandle] = []
+
+        def visit(value: Any, pointer: tuple[str | int, ...] = ()) -> None:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    lowered = str(key).lower()
+                    if lowered in {"stdout", "stderr"} and isinstance(child, str) and child:
+                        child_pointer = (*pointer, str(key))
+                        identity = (
+                            f"inline:{safe_source}:{json.dumps(child_pointer)}",
+                            lowered,
+                        )
+                        if identity in seen:
+                            continue
+                        seen.add(identity)
+                        handle = LogHandle(
+                            run_id=run_id,
+                            run_dir=run_dir,
+                            kind="inline",
+                            stream=lowered,
+                            source=f"{safe_source.name}:{lowered}",
+                            path=safe_source,
+                            inline_content=child,
+                            provenance=child_pointer,
+                            evaluator_task_id=evaluator_task_id,
+                            reference_chain=reference_chain,
+                        )
+                        self._consume_log_budget(
+                            budget,
+                            inline_bytes=len(child.encode()),
+                        )
+                        handles.append(handle)
+                    elif lowered in {"stdout_path", "stderr_path"} and isinstance(child, str) and child:
+                        stream = lowered.removesuffix("_path")
+                        child_pointer = (*pointer, str(key))
+                        allowed_roots = (run_dir, relative_root)
+                        path = self._resolve_artifact_reference(
+                            child,
+                            safe_source.parent,
+                            allowed_roots=list(allowed_roots),
+                            relative_roots=list(allowed_roots),
+                        )
+                        if path is None:
+                            continue
+                        safe_path = self._safe_regular_file_lexical(path, run_dir)
+                        if safe_path is None:
+                            continue
+                        identity = (str(safe_path), stream)
+                        if identity in seen:
+                            continue
+                        seen.add(identity)
+                        handle = LogHandle(
+                            run_id=run_id,
+                            run_dir=run_dir,
+                            kind="file",
+                            stream=stream,
+                            source=safe_path.name,
+                            path=safe_path,
+                            evaluator_task_id=evaluator_task_id,
+                            reference_chain=(
+                                *reference_chain,
+                                ArtifactReferenceStep(
+                                    kind="artifact",
+                                    source_path=safe_source,
+                                    pointer=child_pointer,
+                                    reference_value=child,
+                                    target_path=safe_path,
+                                    base_dir=safe_source.parent,
+                                    allowed_roots=allowed_roots,
+                                    relative_roots=allowed_roots,
+                                ),
+                            ),
+                        )
+                        self._consume_log_budget(budget)
+                        handles.append(handle)
+                    else:
+                        visit(child, (*pointer, str(key)))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    visit(child, (*pointer, index))
+
+        visit(payload)
+        return handles
+
+    def _consume_log_budget(
+        self,
+        budget: dict[str, int],
+        *,
+        inline_bytes: int = 0,
+    ) -> None:
+        if budget["entries"] >= self._log_discovery_max_entries:
+            raise SnapshotCapacityError("log discovery entry budget exceeded")
+        if budget["inline_bytes"] + inline_bytes > self._log_inline_max_bytes:
+            raise SnapshotCapacityError("inline log byte budget exceeded")
+        budget["entries"] += 1
+        budget["inline_bytes"] += inline_bytes
+
+    def _issue_page_log_handles(
+        self,
+        page: Page[dict[str, Any]],
+    ) -> None:
+        issued: dict[str, LogHandle] = {}
+        for item, private_item in zip(
+            page.items,
+            page.private_items,
+            strict=True,
+        ):
+            log_id = str(item.get("log_id") or "")
+            handle = self._handle_from_snapshot(private_item)
+            if handle is not None and self._log_id(handle) == log_id:
+                issued[log_id] = handle
+        self._log_handles.issue_many(issued)
+
+    def _handle_snapshot(self, handle: LogHandle) -> dict[str, Any]:
+        return {
+            "run_id": handle.run_id,
+            "run_dir": str(handle.run_dir),
+            "kind": handle.kind,
+            "stream": handle.stream,
+            "source": handle.source,
+            "path": str(handle.path),
+            "inline_content": handle.inline_content,
+            "attempt_id": handle.attempt_id,
+            "provenance": list(handle.provenance),
+            "evaluator_task_id": handle.evaluator_task_id,
+            "reference_chain": [
+                self._reference_step_snapshot(step)
+                for step in handle.reference_chain
+            ],
+        }
+
+    @staticmethod
+    def _reference_step_snapshot(step: ArtifactReferenceStep) -> dict[str, Any]:
+        return {
+            "kind": step.kind,
+            "source_path": str(step.source_path),
+            "pointer": list(step.pointer),
+            "reference_value": step.reference_value,
+            "target_path": str(step.target_path),
+            "base_dir": str(step.base_dir),
+            "allowed_roots": [str(root) for root in step.allowed_roots],
+            "relative_roots": [str(root) for root in step.relative_roots],
+        }
+
+    def _handle_from_snapshot(self, item: Any) -> LogHandle | None:
+        if not isinstance(item, dict):
+            return None
+        try:
+            provenance = item["provenance"]
+            if not isinstance(provenance, list) or not all(
+                isinstance(component, (str, int))
+                and not isinstance(component, bool)
+                for component in provenance
+            ):
+                return None
+            values = {
+                name: item[name]
+                for name in (
+                    "run_id",
+                    "run_dir",
+                    "kind",
+                    "stream",
+                    "source",
+                    "path",
+                    "inline_content",
+                    "attempt_id",
+                    "evaluator_task_id",
+                )
+            }
+            if not all(isinstance(value, str) for value in values.values()):
+                return None
+            if values["stream"] not in {"stdout", "stderr"}:
+                return None
+            raw_chain = item["reference_chain"]
+            if not isinstance(raw_chain, list):
+                return None
+            reference_chain = tuple(
+                self._reference_step_from_snapshot(step) for step in raw_chain
+            )
+            if any(step is None for step in reference_chain):
+                return None
+            return LogHandle(
+                run_id=values["run_id"],
+                run_dir=Path(values["run_dir"]),
+                kind=values["kind"],
+                stream=values["stream"],
+                source=values["source"],
+                path=Path(values["path"]),
+                inline_content=values["inline_content"],
+                attempt_id=values["attempt_id"],
+                provenance=tuple(provenance),
+                evaluator_task_id=values["evaluator_task_id"],
+                reference_chain=tuple(
+                    step for step in reference_chain if step is not None
+                ),
+            )
+        except (KeyError, TypeError):
+            return None
+
+    @staticmethod
+    def _reference_step_from_snapshot(item: Any) -> ArtifactReferenceStep | None:
+        if not isinstance(item, dict):
+            return None
+        try:
+            pointer = item["pointer"]
+            allowed_roots = item["allowed_roots"]
+            relative_roots = item["relative_roots"]
+            string_values = {
+                name: item[name]
+                for name in (
+                    "kind",
+                    "source_path",
+                    "reference_value",
+                    "target_path",
+                    "base_dir",
+                )
+            }
+            if not all(isinstance(value, str) for value in string_values.values()):
+                return None
+            if not isinstance(pointer, list) or not all(
+                isinstance(component, (str, int))
+                and not isinstance(component, bool)
+                for component in pointer
+            ):
+                return None
+            if not isinstance(allowed_roots, list) or not all(
+                isinstance(root, str) for root in allowed_roots
+            ):
+                return None
+            if not isinstance(relative_roots, list) or not all(
+                isinstance(root, str) for root in relative_roots
+            ):
+                return None
+            if string_values["kind"] not in {
+                "artifact",
+                "final_bundle",
+                "latest_bundle",
+            }:
+                return None
+            return ArtifactReferenceStep(
+                kind=string_values["kind"],
+                source_path=Path(string_values["source_path"]),
+                pointer=tuple(pointer),
+                reference_value=string_values["reference_value"],
+                target_path=Path(string_values["target_path"]),
+                base_dir=Path(string_values["base_dir"]),
+                allowed_roots=tuple(Path(root) for root in allowed_roots),
+                relative_roots=tuple(Path(root) for root in relative_roots),
+            )
+        except (KeyError, TypeError):
+            return None
+
+    def _refresh_log_handle(
+        self,
+        handle: LogHandle,
+        log_id: str,
+        supervisor_store: SupervisorDashboardStore | None,
+    ) -> LogHandle | None:
+        if handle.stream not in {"stdout", "stderr"}:
+            return None
+        safe_run_dir = self._safe_dir_under(handle.run_dir, self.project_root)
+        if safe_run_dir is None or safe_run_dir != self._lexical_absolute(
+            handle.run_dir
+        ):
+            return None
+        run_data = self._read_json_secure(safe_run_dir / "run.json", safe_run_dir)
+        if isinstance(run_data, dict):
+            current_run_id = str(run_data.get("run_id") or safe_run_dir.name)
+        else:
+            current_run_id = safe_run_dir.name
+        if current_run_id != handle.run_id:
+            return None
+
+        source_root = safe_run_dir
+        if handle.evaluator_task_id:
+            run_task_id = self._canonical_id_component(
+                run_data.get("task_id") if isinstance(run_data, dict) else None
+            )
+            evaluator = self._read_json_secure(
+                safe_run_dir / "evaluator-result.json",
+                safe_run_dir,
+            )
+            if (
+                self._canonical_id_component(handle.evaluator_task_id)
+                != handle.evaluator_task_id
+                or run_task_id != handle.evaluator_task_id
+                or not isinstance(evaluator, dict)
+                or self._canonical_id_component(evaluator.get("task_id"))
+                != handle.evaluator_task_id
+            ):
+                return None
+            task_dir = self._safe_task_evaluation_dir(handle.evaluator_task_id)
+            if task_dir is None:
+                return None
+            source_root = task_dir
+        else:
+            task_dir = None
+
+        if not self._revalidate_reference_chain(
+            handle,
+            safe_run_dir,
+            task_dir,
+        ):
+            return None
+
+        if handle.kind == "attempt":
+            if supervisor_store is None or not handle.attempt_id:
+                return None
+            current_path = supervisor_store.attempt_log_path(
+                handle.run_id,
+                handle.attempt_id,
+                handle.stream,
+            )
+            if current_path is None or self._lexical_absolute(
+                current_path
+            ) != self._lexical_absolute(handle.path):
+                return None
+            safe_path = self._safe_regular_file_lexical(current_path, safe_run_dir)
+            refreshed = replace(handle, run_dir=safe_run_dir, path=safe_path or handle.path)
+            return refreshed if safe_path is not None else None
+        if handle.kind == "file":
+            if handle.reference_chain:
+                return replace(handle, run_dir=safe_run_dir)
+            safe_path = self._safe_regular_file_lexical(handle.path, safe_run_dir)
+            if safe_path is None:
+                return None
+            return replace(handle, run_dir=safe_run_dir, path=safe_path)
+        if handle.kind != "inline" or not handle.provenance:
+            return None
+        safe_path = self._safe_regular_file_lexical(handle.path, source_root)
+        if safe_path is None:
+            return None
+        payload = self._read_json_secure(safe_path, source_root)
+        value: Any = payload
+        try:
+            for component in handle.provenance:
+                if isinstance(component, int) and isinstance(value, list):
+                    value = value[component]
+                elif isinstance(component, str) and isinstance(value, dict):
+                    value = value[component]
+                else:
+                    return None
+        except (IndexError, KeyError):
+            return None
+        if not isinstance(value, str) or not value:
+            return None
+        refreshed = replace(
+            handle,
+            run_dir=safe_run_dir,
+            path=safe_path,
+            inline_content=value,
+        )
+        return refreshed if self._log_id(refreshed) == log_id else None
+
+    def _revalidate_reference_chain(
+        self,
+        handle: LogHandle,
+        run_dir: Path,
+        task_dir: Path | None,
+    ) -> bool:
+        if not handle.reference_chain:
+            return True
+        evaluator_path = run_dir / "evaluator-result.json"
+        trusted_roots = (run_dir,) if task_dir is None else (run_dir, task_dir)
+        previous_target: Path | None = None
+        for index, step in enumerate(handle.reference_chain):
+            try:
+                source_path = self._lexical_absolute(step.source_path)
+                expected_source = (
+                    evaluator_path if index == 0 else previous_target
+                )
+                if expected_source is None or source_path != self._lexical_absolute(
+                    expected_source
+                ):
+                    return False
+                source_root = next(
+                    (
+                        root
+                        for root in trusted_roots
+                        if self._is_under_any(source_path, [root])
+                    ),
+                    None,
+                )
+                if source_root is None:
+                    return False
+                payload = self._read_json_secure(source_path, source_root)
+                if not isinstance(payload, dict):
+                    return False
+
+                if step.kind == "latest_bundle":
+                    if payload.get("final_bundle_id", "") != "":
+                        return False
+                    current_target, _current_payload = self._rich_evaluator_result(
+                        payload,
+                        expected_task_id=handle.evaluator_task_id,
+                    )
+                else:
+                    current_reference = self._json_pointer_value(
+                        payload,
+                        step.pointer,
+                    )
+                    if current_reference != step.reference_value:
+                        return False
+                    if step.kind == "final_bundle":
+                        if task_dir is None:
+                            return False
+                        bundle_id = self._canonical_id_component(current_reference)
+                        if bundle_id is None:
+                            return False
+                        current_target = self._safe_regular_file_lexical(
+                            task_dir / bundle_id / "result.json",
+                            task_dir,
+                        )
+                    else:
+                        if not self._reference_roots_are_trusted(
+                            step,
+                            trusted_roots,
+                        ):
+                            return False
+                        current_target = self._resolve_artifact_reference(
+                            current_reference,
+                            step.base_dir,
+                            allowed_roots=list(step.allowed_roots),
+                            relative_roots=list(step.relative_roots),
+                        )
+                if current_target is None or self._lexical_absolute(
+                    current_target
+                ) != self._lexical_absolute(step.target_path):
+                    return False
+                previous_target = current_target
+            except (OSError, TypeError, ValueError):
+                return False
+        return previous_target is not None and self._lexical_absolute(
+            previous_target
+        ) == self._lexical_absolute(handle.path)
+
+    def _reference_roots_are_trusted(
+        self,
+        step: ArtifactReferenceStep,
+        trusted_roots: tuple[Path, ...],
+    ) -> bool:
+        return all(
+            self._is_under_any(path, list(trusted_roots))
+            for path in (
+                step.base_dir,
+                *step.allowed_roots,
+                *step.relative_roots,
+            )
+        )
+
+    @staticmethod
+    def _json_pointer_value(
+        payload: Any,
+        pointer: tuple[str | int, ...],
+    ) -> Any:
+        value = payload
+        try:
+            for component in pointer:
+                if isinstance(component, int) and isinstance(value, list):
+                    value = value[component]
+                elif isinstance(component, str) and isinstance(value, dict):
+                    value = value[component]
+                else:
+                    return None
+        except (IndexError, KeyError):
+            return None
+        return value
+
+    def _log_id(self, handle: LogHandle) -> str:
+        identity = "\0".join(
+            (
+                handle.run_id,
+                handle.kind,
+                handle.stream,
+                str(handle.path),
+                handle.attempt_id,
+                json.dumps(handle.provenance, separators=(",", ":")),
+                handle.evaluator_task_id,
+                json.dumps(
+                    [
+                        self._reference_step_snapshot(step)
+                        for step in handle.reference_chain
+                    ],
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
+                hashlib.sha256(handle.inline_content.encode()).hexdigest(),
+            )
+        ).encode()
+        digest = hmac.new(self._log_secret, identity, hashlib.sha256).digest()[:18]
+        return base64.urlsafe_b64encode(digest).decode().rstrip("=")
+
+    def _log_descriptor(self, handle: LogHandle) -> LogDescriptor:
+        log_id = self._log_id(handle)
+        if handle.kind == "inline":
+            summary_text = handle.inline_content
+            total_bytes = len(handle.inline_content.encode())
+            updated_at = self._handle_mtime(handle)
+        else:
+            try:
+                raw, file_stat = self._read_regular_descriptor(
+                    handle.path,
+                    handle.run_dir,
+                    LOG_SUMMARY_READ_BYTES,
+                )
+                summary_text = raw.decode(
+                    "utf-8", errors="replace"
+                )
+                total_bytes = file_stat.st_size
+                updated_at = self._timestamp_iso(file_stat.st_mtime)
+            except OSError:
+                summary_text = ""
+                total_bytes = 0
+                updated_at = ""
+        return LogDescriptor(
+            log_id=log_id,
+            source=handle.source,
+            stream=handle.stream,
+            summary=self._summarize_log(redact_text(summary_text)),
+            updated_at=updated_at,
+            total_bytes=total_bytes,
+            attempt_id=handle.attempt_id,
+        )
+
+    def _log_scan_text(self, handle: LogHandle) -> str:
+        if handle.kind == "inline":
+            encoded = handle.inline_content.encode()[:LOG_EVENT_SCAN_BYTES]
+        else:
+            try:
+                encoded, _file_stat = self._read_regular_descriptor(
+                    handle.path,
+                    handle.run_dir,
+                    LOG_EVENT_SCAN_BYTES,
+                )
+            except OSError:
+                return ""
+        return redact_text(encoded.decode("utf-8", errors="replace"))
+
+    def _bounded_log_file(
+        self,
+        path: Path,
+        root: Path,
+    ) -> tuple[str, int, bool]:
+        raw, file_stat = self._read_regular_descriptor(
+            path,
+            root,
+            LOG_DETAIL_READ_BYTES + 1,
+        )
+        total_bytes = file_stat.st_size
+        text = raw[:LOG_DETAIL_READ_BYTES].decode("utf-8", errors="replace")
+        redacted = redact_text(text)
+        content, response_truncated = self._truncate_utf8(
+            redacted, LOG_DETAIL_MAX_BYTES
+        )
+        truncated = (
+            len(raw) > LOG_DETAIL_READ_BYTES
+            or response_truncated
+            or len(raw[:LOG_DETAIL_READ_BYTES]) < total_bytes
+        )
+        return content, total_bytes, truncated
+
+    def _bounded_log_text(self, text: str) -> tuple[str, int, bool]:
+        total_bytes = len(text.encode())
+        redacted = redact_text(text)
+        content, truncated = self._truncate_utf8(redacted, LOG_DETAIL_MAX_BYTES)
+        return content, total_bytes, truncated
+
+    def _read_regular_descriptor(
+        self,
+        path: Path,
+        root: Path,
+        limit: int,
+    ) -> tuple[bytes, os.stat_result]:
+        descriptor, file_stat = self._open_regular_descriptor(path, root)
+        try:
+            chunks: list[bytes] = []
+            remaining = min(limit, file_stat.st_size)
+            while remaining > 0:
+                chunk = os.read(descriptor, min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            return b"".join(chunks), file_stat
+        finally:
+            os.close(descriptor)
+
+    def _read_regular_tail_descriptor(
+        self,
+        path: Path,
+        root: Path,
+        limit: int,
+    ) -> tuple[bytes, os.stat_result]:
+        descriptor, file_stat = self._open_regular_descriptor(path, root)
+        try:
+            os.lseek(descriptor, max(0, file_stat.st_size - limit), os.SEEK_SET)
+            chunks: list[bytes] = []
+            remaining = limit
+            while remaining > 0:
+                chunk = os.read(descriptor, min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            return b"".join(chunks), file_stat
+        finally:
+            os.close(descriptor)
+
+    def _open_regular_descriptor(
+        self,
+        path: Path,
+        root: Path,
+    ) -> tuple[int, os.stat_result]:
+        if self.closed:
+            raise OSError("dashboard store is closed")
+        lexical_root = root if root.is_absolute() else self.project_root / root
+        lexical_path = path if path.is_absolute() else lexical_root / path
+        if ".." in lexical_root.parts or ".." in lexical_path.parts:
+            raise OSError("unsafe log path")
+        try:
+            root_relative = lexical_root.absolute().relative_to(self.project_root)
+            relative = lexical_path.absolute().relative_to(lexical_root.absolute())
+            project_relative = lexical_path.absolute().relative_to(self.project_root)
+        except ValueError as exc:
+            raise OSError("log path is outside its containment root") from exc
+        if not relative.parts or project_relative != root_relative / relative:
+            raise OSError("log path is not a file below its root")
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW
+        directory_fd = self._duplicate_project_root_descriptor()
+        try:
+            for component in project_relative.parts[:-1]:
+                next_fd = os.open(
+                    component,
+                    directory_flags,
+                    dir_fd=directory_fd,
+                )
+                os.close(directory_fd)
+                directory_fd = next_fd
+            descriptor = os.open(
+                project_relative.parts[-1],
+                file_flags,
+                dir_fd=directory_fd,
+            )
+        finally:
+            os.close(directory_fd)
+        try:
+            file_stat = os.fstat(descriptor)
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise OSError("log target is not a regular file")
+            return descriptor, file_stat
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def _open_directory_descriptor(self, path: Path) -> int:
+        if self.closed:
+            raise OSError("dashboard store is closed")
+        project_relative = self._project_relative_lexical(path)
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        directory_fd = self._duplicate_project_root_descriptor()
+        try:
+            for component in project_relative.parts:
+                next_fd = os.open(
+                    component,
+                    directory_flags,
+                    dir_fd=directory_fd,
+                )
+                os.close(directory_fd)
+                directory_fd = next_fd
+            directory_stat = os.fstat(directory_fd)
+            if not stat.S_ISDIR(directory_stat.st_mode):
+                raise OSError("path target is not a directory")
+            return directory_fd
+        except BaseException:
+            os.close(directory_fd)
+            raise
+
+    def _duplicate_project_root_descriptor(self) -> int:
+        with self._lifecycle_lock:
+            if self.closed:
+                raise OSError("dashboard store is closed")
+            if self._project_root_fd is not None:
+                return os.dup(self._project_root_fd)
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        return os.open(self.project_root, directory_flags)
+
+    def _child_directories(self, path: Path) -> list[Path]:
+        try:
+            directory_fd = self._open_directory_descriptor(path)
+        except OSError:
+            return []
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        children: list[Path] = []
+        try:
+            for name in sorted(os.listdir(directory_fd)):
+                if not name or name in {".", ".."} or Path(name).name != name:
+                    continue
+                try:
+                    child_fd = os.open(
+                        name,
+                        directory_flags,
+                        dir_fd=directory_fd,
+                    )
+                except OSError:
+                    continue
+                try:
+                    if stat.S_ISDIR(os.fstat(child_fd).st_mode):
+                        children.append(path / name)
+                finally:
+                    os.close(child_fd)
+        finally:
+            os.close(directory_fd)
+        return children
+
+    def _read_json_secure(self, path: Path, root: Path) -> Any:
+        try:
+            raw, file_stat = self._read_regular_descriptor(
+                path,
+                root,
+                SESSION_FILE_MAX_BYTES + 1,
+            )
+            if file_stat.st_size > SESSION_FILE_MAX_BYTES:
+                return None
+            return json.loads(raw.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+
+    def _handle_mtime(self, handle: LogHandle) -> str:
+        root = self.project_root if handle.kind == "inline" else handle.run_dir
+        try:
+            descriptor, file_stat = self._open_regular_descriptor(handle.path, root)
+        except OSError:
+            return ""
+        os.close(descriptor)
+        return self._timestamp_iso(file_stat.st_mtime)
+
+    @staticmethod
+    def _truncate_utf8(text: str, limit: int) -> tuple[str, bool]:
+        encoded = text.encode()
+        if len(encoded) <= limit:
+            return text, False
+        return encoded[:limit].decode("utf-8", errors="ignore"), True
+
+    @staticmethod
+    def _stable_id(value: Any) -> str:
+        serialized = json.dumps(
+            value,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        return hashlib.sha256(serialized.encode()).hexdigest()[:24]
+
+    @staticmethod
+    def _canonical_id_component(value: Any) -> str | None:
+        if (
+            not isinstance(value, str)
+            or not value
+            or value in {".", ".."}
+            or "/" in value
+            or "\\" in value
+            or "\0" in value
+        ):
+            return None
+        path = Path(value)
+        if path.parts != (value,) or path.name != value:
+            return None
+        return value
+
     def _collect_logs(self, run_dir: Path) -> list[LogEntry]:
         logs: list[LogEntry] = []
         for pattern in LOG_GLOBS:
@@ -1900,7 +3347,15 @@ class LoopDashboardStore:
         evaluator = self._read_json(evaluator_path, allowed_root=run_dir)
         if isinstance(evaluator, dict):
             logs.extend(self._inline_logs(evaluator, evaluator_path, run_dir))
-            rich_path, rich_evaluator = self._rich_evaluator_result(evaluator)
+            run_data = self._read_json(run_dir / "run.json", allowed_root=run_dir)
+            rich_path, rich_evaluator = self._rich_evaluator_result(
+                evaluator,
+                expected_task_id=(
+                    run_data.get("task_id")
+                    if isinstance(run_data, dict)
+                    else None
+                ),
+            )
             if rich_path is not None and rich_evaluator is not None:
                 logs.extend(self._inline_logs(rich_evaluator, rich_path, rich_path.parent))
             scenario_path = evaluator.get("scenario_command_results_path")
@@ -1956,10 +3411,15 @@ class LoopDashboardStore:
         events: list[Event] = []
         updated_at = self._mtime_iso(safe_path)
         try:
-            lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            raw, _file_stat = self._read_regular_tail_descriptor(
+                safe_path,
+                run_dir,
+                STRUCTURED_EVENT_MAX_BYTES,
+            )
+            lines = raw.decode("utf-8", errors="replace").splitlines()
         except OSError:
             return []
-        for line in lines:
+        for line in lines[-STRUCTURED_EVENT_MAX_LINES:]:
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError:
@@ -1981,17 +3441,18 @@ class LoopDashboardStore:
 
     def _session_events(self, run_id: str) -> list[Event]:
         sessions_dir = self.project_root / ".codex" / "sessions"
-        if not sessions_dir.exists():
-            return []
         events: list[Event] = []
         for safe_path in self._safe_jsonl_files(sessions_dir):
             try:
-                if safe_path.stat().st_size > SESSION_FILE_MAX_BYTES:
-                    continue
-                lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+                raw, _file_stat = self._read_regular_tail_descriptor(
+                    safe_path,
+                    sessions_dir,
+                    SESSION_FILE_MAX_BYTES,
+                )
+                lines = raw.decode("utf-8", errors="replace").splitlines()
             except OSError:
                 continue
-            for line in lines[-SESSION_EVENT_LIMIT:]:
+            for line in reversed(lines[-SESSION_FILE_MAX_LINES:]):
                 if len(events) >= SESSION_EVENT_LIMIT:
                     break
                 try:
@@ -2008,16 +3469,77 @@ class LoopDashboardStore:
         return events
 
     def _safe_jsonl_files(self, root: Path) -> list[Path]:
-        safe_paths: list[tuple[float, Path]] = []
-        for path in root.rglob("*.jsonl"):
-            safe_path = self._safe_file_under(path, root)
-            if safe_path is None:
-                continue
-            try:
-                safe_paths.append((safe_path.stat().st_mtime, safe_path))
-            except OSError:
-                continue
-        return [path for _mtime, path in sorted(safe_paths, reverse=True)]
+        try:
+            root_fd = self._open_directory_descriptor(root)
+        except OSError:
+            return []
+        newest: list[tuple[float, str, Path]] = []
+        directories: list[tuple[Path, int]] = [(root, root_fd)]
+        inspected = 0
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW
+        try:
+            while directories:
+                directory, directory_fd = directories.pop()
+                try:
+                    with os.scandir(directory_fd) as entries:
+                        for entry in entries:
+                            inspected += 1
+                            if inspected > self._session_discovery_max_entries:
+                                raise SnapshotCapacityError(
+                                    "session discovery entry budget exceeded"
+                                )
+                            try:
+                                entry_stat = entry.stat(follow_symlinks=False)
+                                if stat.S_ISDIR(entry_stat.st_mode):
+                                    child_fd = os.open(
+                                        entry.name,
+                                        directory_flags,
+                                        dir_fd=directory_fd,
+                                    )
+                                    directories.append(
+                                        (directory / entry.name, child_fd)
+                                    )
+                                    continue
+                                if (
+                                    not stat.S_ISREG(entry_stat.st_mode)
+                                    or not entry.name.endswith(".jsonl")
+                                ):
+                                    continue
+                                file_fd = os.open(
+                                    entry.name,
+                                    file_flags,
+                                    dir_fd=directory_fd,
+                                )
+                                try:
+                                    file_stat = os.fstat(file_fd)
+                                    if not stat.S_ISREG(file_stat.st_mode):
+                                        continue
+                                    path = directory / entry.name
+                                    candidate = (
+                                        file_stat.st_mtime,
+                                        str(path),
+                                        path,
+                                    )
+                                    if len(newest) < SESSION_FILE_SCAN_LIMIT:
+                                        heapq.heappush(newest, candidate)
+                                    elif candidate[:2] > newest[0][:2]:
+                                        heapq.heapreplace(newest, candidate)
+                                finally:
+                                    os.close(file_fd)
+                            except OSError as exc:
+                                raise SnapshotCapacityError(
+                                    "session discovery could not inspect entry"
+                                ) from exc
+                finally:
+                    os.close(directory_fd)
+        finally:
+            for _directory, directory_fd in directories:
+                os.close(directory_fd)
+        return [
+            path
+            for _mtime, _name, path in sorted(newest, reverse=True)
+        ]
 
     def _session_event_from_payload(self, payload: dict[str, Any], source_path: Path) -> Event | None:
         raw_type = str(payload.get("type") or payload.get("event") or "").lower()
@@ -2047,42 +3569,117 @@ class LoopDashboardStore:
             return Event("skill", source, self._trim(redact_text(name or json.dumps(payload, ensure_ascii=False)), 180), timestamp)
         return None
 
-    def _rich_evaluator_result(self, evaluator: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
-        task_id = evaluator.get("task_id")
-        if not isinstance(task_id, str) or not task_id:
+    def _rich_evaluator_result(
+        self,
+        evaluator: dict[str, Any],
+        *,
+        expected_task_id: Any,
+    ) -> tuple[Path | None, dict[str, Any] | None]:
+        task_id = self._canonical_id_component(evaluator.get("task_id"))
+        if task_id is None or task_id != self._canonical_id_component(
+            expected_task_id
+        ):
             return None, None
         task_dir = self._safe_task_evaluation_dir(task_id)
-        if task_dir is None or not task_dir.exists():
+        if task_dir is None:
             return None, None
         final_bundle_id = evaluator.get("final_bundle_id")
-        if isinstance(final_bundle_id, str) and final_bundle_id:
-            try:
-                final_result = safe_join(task_dir, f"{final_bundle_id}/result.json")
-            except ValueError:
-                final_result = None
-            safe_final_result = self._safe_file_under(final_result, task_dir) if final_result is not None else None
+        if final_bundle_id != "" and "final_bundle_id" in evaluator:
+            bundle_id = self._canonical_id_component(final_bundle_id)
+            if bundle_id is None:
+                return None, None
+            final_result = task_dir / bundle_id / "result.json"
+            safe_final_result = self._safe_file_under(final_result, task_dir)
             if safe_final_result is not None:
-                payload = self._read_json(safe_final_result, allowed_root=safe_final_result.parent)
+                payload = self._read_json_secure(safe_final_result, task_dir)
                 if isinstance(payload, dict):
                     return safe_final_result, payload
-        candidates = [
-            safe_path
-            for path in task_dir.glob("**/result.json")
-            if (safe_path := self._safe_file_under(path, task_dir)) is not None
-        ]
+            return None, None
+        candidates = self._direct_evaluator_result_files(task_dir)
         if not candidates:
             return None, None
-        latest = max(candidates, key=lambda path: path.stat().st_mtime)
-        payload = self._read_json(latest, allowed_root=latest.parent)
+        latest = max(candidates, key=lambda path: self._descriptor_mtime(path, task_dir))
+        payload = self._read_json_secure(latest, task_dir)
         if not isinstance(payload, dict):
             return None, None
         return latest, payload
 
+    def _rich_evaluator_reference_chain(
+        self,
+        evaluator_path: Path,
+        evaluator: dict[str, Any],
+        rich_path: Path,
+    ) -> tuple[ArtifactReferenceStep, ...]:
+        task_id = str(evaluator.get("task_id") or "")
+        task_dir = self._safe_task_evaluation_dir(task_id)
+        if task_dir is None:
+            return ()
+        bundle_id = evaluator.get("final_bundle_id")
+        if bundle_id != "" and "final_bundle_id" in evaluator:
+            canonical_bundle_id = self._canonical_id_component(bundle_id)
+            if canonical_bundle_id is None:
+                return ()
+            kind = "final_bundle"
+            reference_value = canonical_bundle_id
+        else:
+            kind = "latest_bundle"
+            reference_value = ""
+        return (
+            ArtifactReferenceStep(
+                kind=kind,
+                source_path=evaluator_path,
+                pointer=("final_bundle_id",),
+                reference_value=reference_value,
+                target_path=rich_path,
+                base_dir=task_dir,
+                allowed_roots=(task_dir,),
+            ),
+        )
+
     def _safe_task_evaluation_dir(self, task_id: str) -> Path | None:
-        try:
-            return safe_join(self.project_root / ".codex" / "evaluations" / "tasks", task_id)
-        except ValueError:
+        canonical_task_id = self._canonical_id_component(task_id)
+        if canonical_task_id is None:
             return None
+        tasks_root = self.project_root / ".codex" / "evaluations" / "tasks"
+        return self._safe_dir_under(tasks_root / canonical_task_id, tasks_root)
+
+    def _direct_evaluator_result_files(self, task_dir: Path) -> list[Path]:
+        try:
+            directory_fd = self._open_directory_descriptor(task_dir)
+        except OSError:
+            return []
+        matches: list[Path] = []
+        inspected = 0
+        try:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    inspected += 1
+                    if inspected > self._log_discovery_max_entries:
+                        raise SnapshotCapacityError(
+                            "evaluator result discovery entry budget exceeded"
+                        )
+                    bundle_id = self._canonical_id_component(entry.name)
+                    if bundle_id is None or not entry.is_dir(
+                        follow_symlinks=False
+                    ):
+                        continue
+                    result_path = self._safe_regular_file_lexical(
+                        task_dir / bundle_id / "result.json",
+                        task_dir,
+                    )
+                    if result_path is not None:
+                        matches.append(result_path)
+        finally:
+            os.close(directory_fd)
+        return matches
+
+    def _descriptor_mtime(self, path: Path, root: Path) -> float:
+        try:
+            descriptor, file_stat = self._open_regular_descriptor(path, root)
+        except OSError:
+            return 0
+        os.close(descriptor)
+        return file_stat.st_mtime
 
     def _artifact_paths(self, run_dir: Path) -> list[str]:
         paths = [
@@ -2104,218 +3701,8 @@ class LoopDashboardStore:
                 continue
         return [path for _mtime, path in sorted(safe_paths)]
 
-    def _read_supervisor_json(self, filename: str) -> tuple[dict[str, Any], dict[str, str] | None, bool]:
-        path = self.supervisor_dir / filename
-        safe_path = self._safe_file_under(path, self.supervisor_dir)
-        if safe_path is None:
-            return {}, None, False
-        payload, diagnostic = self._read_json_file_with_diagnostic(safe_path, allowed_root=self.supervisor_dir)
-        if diagnostic is not None:
-            return {}, diagnostic, True
-        if not isinstance(payload, dict):
-            return {}, self._supervisor_diagnostic(safe_path, "JSON artifact must be an object"), True
-        return payload, None, True
-
-    def _read_supervisor_jsonl(self, filename: str, limit: int = SUPERVISOR_JSONL_LIMIT) -> dict[str, Any]:
-        path = self.supervisor_dir / filename
-        safe_path = self._safe_file_under(path, self.supervisor_dir)
-        if safe_path is None:
-            return {
-                "status": "unavailable",
-                "items": [],
-                "total_count": 0,
-                "returned_count": 0,
-                "invalid_count": 0,
-                "diagnostics": [],
-            }
-
-        items: list[dict[str, Any]] = []
-        diagnostics: list[dict[str, str]] = []
-        try:
-            lines = safe_path.read_text(encoding="utf-8").splitlines()
-        except UnicodeDecodeError as exc:
-            return {
-                "status": "invalid_artifact",
-                "items": [],
-                "total_count": 0,
-                "returned_count": 0,
-                "invalid_count": 1,
-                "diagnostics": [
-                    self._supervisor_diagnostic(
-                        safe_path,
-                        f"JSONL artifact is not valid UTF-8: {exc.reason} at byte {exc.start}",
-                    )
-                ],
-            }
-        except OSError as exc:
-            return {
-                "status": "invalid_artifact",
-                "items": [],
-                "total_count": 0,
-                "returned_count": 0,
-                "invalid_count": 1,
-                "diagnostics": [self._supervisor_diagnostic(safe_path, f"could not read JSONL artifact: {exc}")],
-            }
-
-        for line_number, line in enumerate(lines, start=1):
-            stripped = line.strip()
-            if not stripped:
-                continue
-            try:
-                payload = json.loads(stripped)
-            except json.JSONDecodeError as exc:
-                diagnostics.append(
-                    self._supervisor_diagnostic(
-                        safe_path,
-                        f"malformed JSONL line {line_number}: {exc.msg} at column {exc.colno}",
-                    )
-                )
-                continue
-            if not isinstance(payload, dict):
-                diagnostics.append(self._supervisor_diagnostic(safe_path, f"JSONL line {line_number} must be an object"))
-                continue
-            items.append(self._redact_artifact_value(payload))
-
-        recent_items = items[-limit:]
-        return {
-            "status": "invalid_artifact" if diagnostics else "available",
-            "items": recent_items,
-            "total_count": len(items),
-            "returned_count": len(recent_items),
-            "invalid_count": len(diagnostics),
-            "diagnostics": diagnostics,
-        }
-
-    def _read_json_file_with_diagnostic(self, path: Path, allowed_root: Path) -> tuple[Any, dict[str, str] | None]:
-        safe_path = self._safe_file_under(path, allowed_root)
-        if safe_path is None:
-            return None, self._supervisor_diagnostic(path, "artifact is not a safe file under the supervisor directory")
-        try:
-            payload = json.loads(safe_path.read_text(encoding="utf-8"))
-        except UnicodeDecodeError as exc:
-            return None, self._supervisor_diagnostic(
-                safe_path,
-                f"artifact is not valid UTF-8: {exc.reason} at byte {exc.start}",
-            )
-        except json.JSONDecodeError as exc:
-            return None, self._supervisor_diagnostic(
-                safe_path,
-                f"malformed JSON artifact: {exc.msg} at line {exc.lineno} column {exc.colno}",
-            )
-        except OSError as exc:
-            return None, self._supervisor_diagnostic(safe_path, f"could not read artifact: {exc}")
-        return self._redact_artifact_value(payload), None
-
-    def _redact_artifact_value(self, value: Any, key: str = "") -> Any:
-        if self._is_supervisor_sensitive_key(key):
-            return "[REDACTED]"
-        if isinstance(value, str):
-            return self._trim(redact_text(value), 1000)
-        if isinstance(value, list):
-            return [self._redact_artifact_value(item) for item in value]
-        if isinstance(value, dict):
-            return {str(child_key): self._redact_artifact_value(child_value, str(child_key)) for child_key, child_value in value.items()}
-        return value
-
-    def _is_supervisor_sensitive_key(self, key: str) -> bool:
-        segments = self._supervisor_key_segments(key)
-        if not segments:
-            return False
-        normalized_key = "_".join(segments)
-        if normalized_key in SUPERVISOR_SENSITIVE_KEYS:
-            return True
-        if any(segment in {"apikey", "authorization", "password", "secret", "token"} for segment in segments):
-            return True
-        sensitive_sequences = (("api", "key"), ("access", "token"), ("client", "secret"))
-        for sequence in sensitive_sequences:
-            size = len(sequence)
-            if any(tuple(segments[index : index + size]) == sequence for index in range(0, len(segments) - size + 1)):
-                return True
-        return False
-
-    def _supervisor_key_segments(self, key: str) -> list[str]:
-        return [
-            segment.lower()
-            for segment in re.findall(r"[A-Z]+(?=[A-Z][a-z]|\d|[^A-Za-z0-9]|$)|[A-Z]?[a-z]+|\d+", key.strip())
-        ]
-
-    def _supervisor_diagnostic(self, path: Path, message: str) -> dict[str, str]:
-        return {
-            "status": "invalid_artifact",
-            "source": self._relative_artifact(path),
-            "message": self._trim(redact_text(message), 240),
-        }
-
-    def _supervisor_artifact_path(self, filename: str) -> str:
-        return self._relative_artifact(self.supervisor_dir / filename)
-
-    def _supervisor_status_label(self, status: str) -> str:
-        return SUPERVISOR_STATUS_LABELS.get(str(status), str(status) or SUPERVISOR_STATUS_LABELS["unavailable"])
-
-    def _empty_supervisor_state(self, status: str) -> dict[str, Any]:
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "service_summary": {},
-            "run_summary": {},
-            "failure_summary": {},
-            "service_health": {},
-            "last_decision": None,
-            "mode": "",
-            "last_heartbeat_at": "",
-            "last_tick_at": "",
-            "generated_at": "",
-            "watch_interval_seconds": 0,
-        }
-
-    def _supervisor_state_payload(self, state: dict[str, Any], status: str) -> dict[str, Any]:
-        payload = dict(state)
-        payload["status"] = status
-        payload["status_label"] = self._supervisor_status_label(status)
-        for key, fallback in (
-            ("service_summary", {}),
-            ("run_summary", {}),
-            ("failure_summary", {}),
-            ("service_health", {}),
-        ):
-            if not isinstance(payload.get(key), dict):
-                payload[key] = fallback
-        if "last_decision" not in payload:
-            payload["last_decision"] = None
-        return payload
-
-    def _supervisor_services_payload(
-        self,
-        status: str,
-        services: list[dict[str, Any]],
-        checked_at: str,
-        diagnostics: list[dict[str, str]],
-    ) -> dict[str, Any]:
-        return {
-            "status": status,
-            "status_label": self._supervisor_status_label(status),
-            "checked_at": checked_at,
-            "services": services,
-            "service_count": len(services),
-            "diagnostics": diagnostics,
-        }
-
-    def _combined_supervisor_status(self, streams: list[dict[str, Any]]) -> str:
-        statuses = {str(stream.get("status") or "unavailable") for stream in streams}
-        if "invalid_artifact" in statuses:
-            return "invalid_artifact"
-        if "available" in statuses:
-            return "available"
-        return "unavailable"
-
     def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
-        safe_path = self._safe_file_under(path, allowed_root or self.project_root)
-        if safe_path is None:
-            return None
-        try:
-            return json.loads(safe_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            return None
+        return self._read_json_secure(path, allowed_root or self.project_root)
 
     def _health(self, phase: str) -> str:
         if phase in BLOCKED_PHASES:
@@ -2338,14 +3725,14 @@ class LoopDashboardStore:
 
     def _relative_artifact(self, path: Path) -> str:
         try:
-            return str(path.resolve().relative_to(self.project_root))
+            return str(self._project_relative_lexical(path))
         except ValueError:
             return path.name
 
     def _source_path(self, run_dir: Path) -> str:
         try:
-            return str(run_dir.resolve().relative_to(self.project_root))
-        except (OSError, ValueError):
+            return str(self._project_relative_lexical(run_dir))
+        except ValueError:
             return run_dir.name
 
     def _resolve_artifact_reference(
@@ -2368,37 +3755,58 @@ class LoopDashboardStore:
         return None
 
     def _is_under_any(self, path: Path, roots: list[Path]) -> bool:
+        lexical_path = self._lexical_absolute(path)
         for root in roots:
             try:
-                path.resolve().relative_to(root.resolve())
+                lexical_path.relative_to(self._lexical_absolute(root))
                 return True
-            except (OSError, ValueError):
+            except ValueError:
                 continue
         return False
 
     def _safe_file_under(self, path: Path, root: Path) -> Path | None:
+        return self._safe_regular_file_lexical(path, root)
+
+    def _safe_regular_file_lexical(self, path: Path, root: Path) -> Path | None:
         try:
-            resolved_root = root.resolve()
-            resolved_path = path.resolve()
-            resolved_path.relative_to(resolved_root)
-            resolved_path.relative_to(self.project_root)
+            lexical_root = self._lexical_absolute(root)
+            lexical_path = self._lexical_absolute(
+                path if path.is_absolute() else lexical_root / path
+            )
+            lexical_path.relative_to(lexical_root)
+            descriptor, _file_stat = self._open_regular_descriptor(
+                lexical_path,
+                lexical_root,
+            )
         except (OSError, ValueError):
             return None
-        if not resolved_path.is_file():
-            return None
-        return resolved_path
+        os.close(descriptor)
+        return lexical_path
 
     def _safe_dir_under(self, path: Path, root: Path) -> Path | None:
         try:
-            resolved_root = root.resolve()
-            resolved_path = path.resolve()
-            resolved_path.relative_to(resolved_root)
-            resolved_path.relative_to(self.project_root)
+            lexical_root = self._lexical_absolute(root)
+            lexical_path = self._lexical_absolute(
+                path if path.is_absolute() else lexical_root / path
+            )
+            lexical_path.relative_to(lexical_root)
+            descriptor = self._open_directory_descriptor(lexical_path)
         except (OSError, ValueError):
             return None
-        if not resolved_path.is_dir():
-            return None
-        return resolved_path
+        os.close(descriptor)
+        return lexical_path
+
+    def _project_relative_lexical(self, path: Path) -> Path:
+        if ".." in path.parts:
+            raise ValueError("unsafe project path")
+        lexical_path = self._lexical_absolute(path)
+        return lexical_path.relative_to(self.project_root)
+
+    def _lexical_absolute(self, path: Path) -> Path:
+        if ".." in path.parts:
+            raise ValueError("unsafe lexical path")
+        candidate = path if path.is_absolute() else self.project_root / path
+        return candidate.absolute()
 
     def _safe_int(self, value: Any) -> int:
         if isinstance(value, bool):

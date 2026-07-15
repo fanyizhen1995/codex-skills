@@ -30,6 +30,12 @@
 **替代方案**：PostgreSQL、纯文件队列。当前复杂度下 SQLite 足够。
 **注意事项**：evaluator 场景应使用隔离 state dir，避免复用开发者本地状态。
 
+## SQLite Loop Supervisor control store
+**用途**：保存 loop run projection、action queue、lease、failure、Reviewer、user decision、service、freshness、skill snapshot 和 retention aggregate。
+**选择原因**：旧 JSONL 每个 tick 重复写相同决策，无法可靠提供原子租约、幂等队列、分页查询和恢复账本。标准库 `sqlite3` 的 WAL、foreign keys、busy timeout 和显式事务满足本地单仓库控制面的并发边界，无需增加服务依赖。
+**替代方案**：继续使用 JSONL watcher、引入 PostgreSQL、把控制状态写回 `run.json`。JSONL 缺少事务语义，PostgreSQL 对本地单用户运行时过重，`run.json` 不适合承载 project-global queue/review 状态。
+**注意事项**：`run.json` 和 retained artifacts 仍是可移植事实；SQLite 只是可重建运行时源。迁移必须 streaming、先 snapshot、后 validate，shadow compare 增加用户介入时必须阻止切换。Supervisor 决策与 Worker 执行分离，transition registry 是唯一 policy 来源。
+
 ## Step4 evaluator gates
 **用途**：用 Stop/SubagentStop hooks 和 repo-side evaluator bundle 强制独立验证关键任务。
 **选择原因**：用户明确要求独立 evaluator 作为使用方验证 wiki crawler 功能，Step4 提供任务级 scenario、bundle 和 result contract。

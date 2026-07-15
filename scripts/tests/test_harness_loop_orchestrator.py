@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Mapping
 from unittest.mock import patch
 
+import pytest
+
 import scripts.harness_loop_orchestrator as harness_loop_orchestrator
 from scripts.harness_loop_contracts import (
     read_json_file,
@@ -23,7 +25,7 @@ from scripts.harness_loop_contracts import (
     write_json_file,
 )
 from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
-from scripts.harness_loop_auditor import fake_audit_report
+from scripts.tests.legacy_audit_fixtures import fake_audit_report
 from scripts.harness_loop_autonomous import NoActionDecision, create_default_loop_state, write_loop_state
 from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
@@ -31,12 +33,69 @@ from scripts.harness_loop_orchestrator import (
     create_preflight_run,
     load_run,
     main,
-    run_autonomous,
-    run_auditor,
-    run_demand_multi,
     save_run,
     status_for_run,
 )
+
+
+def run_auditor(*_args: object, **_kwargs: object) -> None:
+    pytest.skip("legacy Auditor runtime was removed by Supervisor cutover")
+
+
+def run_autonomous(*_args: object, **_kwargs: object) -> None:
+    pytest.skip("legacy autonomous multi-round runtime was removed by Supervisor cutover")
+
+
+def run_demand_multi(*_args: object, **_kwargs: object) -> None:
+    pytest.skip("legacy demand multi-round runtime was removed by Supervisor cutover")
+
+
+def test_public_orchestrator_parser_rejects_removed_runtime_commands() -> None:
+    parser = harness_loop_orchestrator._build_parser()
+    removed_commands = (
+        ["run", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
+        ["run-demand-multi", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
+        ["run-autonomous", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
+        ["run-auditor", "--run-id", "run-1", "--driver", "fake"],
+        ["plan", "--run-id", "run-1", "--driver", "fake"],
+        ["generate", "--run-id", "run-1", "--driver", "fake"],
+        ["evaluate", "--run-id", "run-1", "--driver", "fake"],
+        ["artifact-hygiene", "--run-id", "run-1"],
+        ["cleanup", "--run-id", "run-1"],
+    )
+    for command in removed_commands:
+        with pytest.raises(SystemExit):
+            parser.parse_args(command)
+
+    public_bypasses = (
+        "run_loop",
+        "run_demand_multi",
+        "run_autonomous",
+        "run_auditor",
+        "run_planner",
+        "run_generator",
+        "run_evaluator",
+        "run_artifact_hygiene_step",
+        "run_cleanup",
+        "run_bounded_planner",
+        "run_bounded_generator",
+        "run_bounded_evaluator",
+        "run_bounded_artifact_hygiene",
+        "run_bounded_commit",
+        "run_bounded_push",
+        "run_bounded_cleanup",
+    )
+    assert all(not hasattr(harness_loop_orchestrator, name) for name in public_bypasses)
+
+
+def test_skill_invocation_prompt_names_canonical_hash_field_and_format() -> None:
+    prompt = harness_loop_orchestrator._skill_invocation_prompt("run-1", "planner")
+
+    assert 'artifact_sha256 with value "sha256:<64 lowercase hex>"' in prompt
+    assert "include invocation_id, skill_path, artifact_path, and artifact_sha256" in prompt
+    assert "Only report repository-owned skill files" in prompt
+    assert "repo-relative POSIX path" in prompt
+    assert "Do not report skills under ~/.codex" in prompt
 
 
 def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
@@ -71,8 +130,9 @@ def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
 
 
 def call_cli(argv: list[str]) -> int:
-    with redirect_stdout(io.StringIO()):
-        return main(argv)
+    with patch.dict(os.environ, {"HARNESS_LEGACY_MULTI_ROUND_TEST_COMPAT": "1"}):
+        with redirect_stdout(io.StringIO()):
+            return main(argv)
 
 
 def remove_fake_evaluator_attempts(eval_dir: Path) -> None:
@@ -773,6 +833,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "artifacts": [],
                 "cleanup_required": False,
                 "notes": "seeded current visibility target",
+                "skill_invocations": [],
             },
         )
         return relative_path
@@ -807,6 +868,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "artifacts": [],
                 "cleanup_required": False,
                 "notes": "seeded current visibility targets",
+                "skill_invocations": [],
             },
         )
         return relative_paths
@@ -1253,7 +1315,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["attempts"]["generator"], 1)
             self.assertEqual(run["attempts"]["evaluator"], 1)
 
-    def test_run_autonomous_open_must_fix_blocks_before_planning(self) -> None:
+    def test_run_autonomous_ignores_legacy_open_must_fix_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             init_git_repo(repo_root)
@@ -1279,9 +1341,12 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
 
             run = load_run(repo_root, "audit-run")
-            self.assertEqual(status["phase"], "audit_blocked")
-            self.assertEqual(run["next_action"], "create_audit_remediation_task")
-            self.assertEqual(run["attempts"]["planner"], 0)
+            self.assertEqual(status["phase"], "stopped_no_action")
+            self.assertNotEqual(run["phase"], "audit_blocked")
+            self.assertEqual(
+                len(list((run_dir_for(repo_root, "audit-run") / "audit-reports").glob("audit-*.json"))),
+                1,
+            )
 
     def test_run_autonomous_audit_blocked_runs_remediation_task_and_rechecks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1297,18 +1362,13 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
             seed_candidate_loop_state(repo_root, "ai_infra")
             seed_open_must_fix_audit(repo_root, "audit-remediate-run")
-            first_status = run_autonomous(
-                repo_root,
-                "audit-remediate-run",
-                planner_driver="fake",
-                generator_driver="fake",
-                evaluator_driver="fake",
-                max_eval_attempts=2,
-                max_tasks=1,
-            )
-            self.assertEqual(first_status["phase"], "audit_blocked")
+            legacy = load_run(repo_root, "audit-remediate-run")
+            legacy["phase"] = "audit_blocked"
+            legacy["next_action"] = "create_audit_remediation_task"
+            legacy["last_result"] = "blocked"
+            save_run(repo_root, legacy)
 
-            second_status = run_autonomous(
+            status = run_autonomous(
                 repo_root,
                 "audit-remediate-run",
                 planner_driver="fake",
@@ -1319,7 +1379,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
 
             run = load_run(repo_root, "audit-remediate-run")
-            self.assertEqual(second_status["phase"], "stopped_budget")
+            self.assertEqual(status["phase"], "stopped_budget")
             self.assertEqual(run["last_result"], "pass")
             self.assertTrue(run.get("_audit_remediation"))
             self.assertEqual(run["_audit_remediation"]["status"], "resolved")
@@ -1328,14 +1388,13 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run["_autonomous_completed_remediation_task_ids"],
                 ["audit-remediate-run-audit-remediation-001"],
             )
-            report = read_json_file(run_dir_for(repo_root, "audit-remediate-run") / "audit-reports" / "audit-002.json")
-            self.assertEqual(report["verdict"], "pass")
-            self.assertEqual(report["direction_control"]["action"], "resume_after_audit_remediation")
-            self.assertEqual(report["finding_lifecycle"]["open_findings"], [])
-            self.assertEqual(report["finding_lifecycle"]["closed_findings"][0]["finding_id"], "audit-001-repeat-001")
+            self.assertFalse(
+                (run_dir_for(repo_root, "audit-remediate-run") / "audit-reports" / "audit-002.json").exists()
+            )
             remediation = read_json_file(run_dir_for(repo_root, "audit-remediate-run") / "audit-remediation-result.json")
             self.assertEqual(remediation["status"], "pass")
             self.assertEqual(remediation["handled_findings"], ["audit-001-repeat-001"])
+            self.assertEqual(remediation["new_audit_report"], "")
 
     def test_run_autonomous_non_ai_infra_fake_generator_does_not_write_coverage_map(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1516,6 +1575,96 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(relative_path, dirty_result["ignored_paths"])
             self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
 
+    def test_check_autonomous_dirty_paths_ignores_supervisor_reviewer_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            reviewer_log = repo_root / ".codex" / "loop-supervisor-reviewer.log"
+            reviewer_log.parent.mkdir(parents=True)
+            reviewer_log.write_text("reviewer output\n", encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root, run, []
+            )
+
+            relative_path = reviewer_log.relative_to(repo_root).as_posix()
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertIn(relative_path, dirty_result["ignored_paths"])
+            self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
+
+    def test_dirty_path_recovery_replans_clean_fake_generator_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "fake-driver-cutover"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-3"
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": task_id,
+                    "next_action": "inspect_autonomous_dirty_paths",
+                    "last_result": "blocked",
+                }
+            )
+            save_run(repo_root, run)
+            run_dir = run_dir_for(repo_root, run_id)
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": ["knowledge/synthetic-parent-23.md"],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": ["knowledge/synthetic-parent-23.md"],
+                    "cleanup_required": False,
+                    "notes": "fake autonomous generator completed",
+                    "skill_invocations": [],
+                },
+            )
+            write_json_file(
+                run_dir / "evaluator-result.json",
+                {
+                    "status": "pass",
+                    "task_id": task_id,
+                    "driver": "fake",
+                    "returncode": 0,
+                    "stdout": "fake autonomous smoke pass\n",
+                    "stderr": "",
+                    "skill_invocations": [],
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_dirty_path_block(
+                repo_root, run
+            )
+
+            self.assertTrue(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "planning")
+            self.assertEqual(saved["next_action"], "run_autonomous_planner")
+            self.assertEqual(saved["last_result"], "none")
+            dirty_result = read_json_file(run_dir / "dirty-paths-result.json")
+            self.assertEqual(
+                dirty_result["recovery_outcome"],
+                "replan_clean_fake_generator_result",
+            )
+
     def test_autonomous_dirty_path_block_reenters_cleanup_when_only_runtime_log_is_dirty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1551,6 +1700,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "No repo changes for this regression.",
+                    "skill_invocations": [],
                 },
             )
             (repo_root / ".codex" / "ai-infra-expansion-continuation.log").write_text(
@@ -1603,6 +1753,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "No repo changes for this regression.",
+                    "skill_invocations": [],
                 },
             )
 
@@ -1651,6 +1802,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "evaluator_scenarios_path": "",
                             "stop_conditions": ["stopped_no_action", "stopped_budget", "stopped_blocked"],
                             "next_planning_hint": "continue planning",
+                            "skill_invocations": [],
                         },
                     )
                 elif role == "generator":
@@ -1672,6 +1824,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/codex-task.md"],
                             "cleanup_required": False,
                             "notes": "autonomous knowledge update without dependency changes",
+                            "skill_invocations": [],
                         },
                     )
                 elif role == "evaluator":
@@ -1684,6 +1837,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                             "returncode": 0,
                             "stdout": "codex autonomous evaluator pass\n",
                             "stderr": "",
+                            "skill_invocations": [],
                         },
                     )
                 return {
@@ -1956,7 +2110,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             seed_candidate_loop_state(repo_root, "ai_infra")
 
             with patch(
-                "scripts.harness_loop_orchestrator.run_artifact_hygiene_step",
+                "scripts.harness_loop_orchestrator._run_artifact_hygiene_step",
                 side_effect=RuntimeError("interrupted hygiene"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "interrupted hygiene"):
@@ -1999,7 +2153,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             seed_candidate_loop_state(repo_root, "ai_infra")
 
             with patch(
-                "scripts.harness_loop_orchestrator.run_cleanup",
+                "scripts.harness_loop_orchestrator._run_cleanup",
                 side_effect=RuntimeError("interrupted cleanup"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "interrupted cleanup"):
@@ -2154,6 +2308,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/fake-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 return {
@@ -2226,6 +2381,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/fake-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 write_json_file(
@@ -2352,6 +2508,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/forged-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 write_json_file(
@@ -2464,6 +2621,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "artifacts": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/forged-exact-commit.md"],
                         "cleanup_required": False,
                         "notes": "autonomous knowledge update without dependency changes",
+                        "skill_invocations": [],
                     },
                 )
                 write_json_file(
@@ -2640,6 +2798,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [changed_path],
                     "cleanup_required": False,
                     "notes": "Retry a transient commit failure.",
+                    "skill_invocations": [],
                 },
             )
             write_json_file(
@@ -3344,7 +3503,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 self.assertNotEqual(item["summary"], item["evidence_id"])
                 self.assertNotIn("evidence for", str(item["summary"]).lower())
 
-    def test_run_autonomous_parent_task_cadence_audits_every_two_completed_tasks(self) -> None:
+    def test_run_autonomous_parent_task_cadence_does_not_run_legacy_auditor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             init_git_repo(repo_root)
@@ -3377,13 +3536,9 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
             self.assertEqual(status["phase"], "stopped_budget")
             report_paths = sorted((run_dir_for(repo_root, "expanded-run") / "audit-reports").glob("audit-*.json"))
-            self.assertEqual(len(report_paths), 1)
-            report = read_json_file(report_paths[0])
-            self.assertEqual(report["cadence"]["unit"], "parent_task")
-            self.assertEqual(report["cadence"]["current_interval"], 2)
-            self.assertEqual(report["cadence"]["steps_since_last_audit"], 2)
+            self.assertEqual(report_paths, [])
             run = load_run(repo_root, "expanded-run")
-            self.assertEqual(run.get("_audit_cadence_state", {}).get("last_audited_progress_count"), 2)
+            self.assertNotIn("_audit_cadence_state", run)
 
     def test_create_preflight_run_copies_audit_cadence_from_policy_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4924,6 +5079,76 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(payload["details"]["evaluator_scenarios"]["json"]["run_id"], "expanded-run")
             self.assertTrue(payload["details"]["evaluator_scenarios"]["json"]["logs_truncated"])
 
+    def test_capture_live_loop_dashboard_freshness_accepts_cursor_page_envelopes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "expanded-run-task-2",
+                "domain": "ai_infra",
+                "worktree": str(repo_root),
+            }
+
+            def page(items: list[dict[str, object]]) -> dict[str, object]:
+                return {
+                    "items": items,
+                    "total": len(items),
+                    "page_size": 20,
+                    "has_more": False,
+                    "next_cursor": None,
+                    "previous_cursor": None,
+                }
+
+            def fake_probe(
+                url: str,
+                timeout_seconds: float = 2.0,
+                max_body_bytes: int = 16 * 1024 * 1024,
+            ) -> dict[str, object]:
+                del timeout_seconds, max_body_bytes
+                if url.endswith("/api/runs/expanded-run"):
+                    body: object = {
+                        "run_id": "expanded-run",
+                        "project_root": str(repo_root),
+                        "source_path": ".codex/loop-runs/expanded-run",
+                        "phase": "stopped_blocked",
+                        "completed": True,
+                        "children_summary": {"total": 0},
+                    }
+                elif url.endswith("/api/runs/expanded-run/events"):
+                    body = page([{"event_id": "event-1", "message": "Evaluator passed"}])
+                elif url.endswith("/api/runs/expanded-run/logs"):
+                    body = page([{"log_id": "log-1", "source": "evaluator.log"}])
+                elif url.endswith("/api/projects/current"):
+                    body = {"project_root": str(repo_root)}
+                elif url.endswith("/api/runs"):
+                    body = page(
+                        [
+                            {
+                                "run_id": "expanded-run",
+                                "project_root": str(repo_root),
+                                "source_path": ".codex/loop-runs/expanded-run",
+                            }
+                        ]
+                    )
+                else:
+                    body = {}
+                return {"url": url, "status": "pass", "http_status": 200, "json": body}
+
+            with patch.object(
+                harness_loop_orchestrator, "_http_probe", side_effect=fake_probe
+            ):
+                payload = harness_loop_orchestrator._capture_live_evidence_payload(
+                    "loop-dashboard-freshness",
+                    run=run,
+                    captured_at="2026-07-15T14:00:00Z",
+                )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["details"]["agent_actions"]["status"], "pass")
+            self.assertEqual(payload["details"]["agent_actions"]["json"]["run_id"], "expanded-run")
+            self.assertEqual(payload["details"]["evaluator_scenarios"]["status"], "pass")
+            self.assertEqual(payload["details"]["completed_history"]["status"], "pass")
+
     def test_capture_live_loop_dashboard_freshness_uses_longer_timeout_for_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -5942,93 +6167,6 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["phase"], "stopped_blocked")
             self.assertEqual(calls, ["scope", "supply_chain"])
 
-    def test_cli_run_autonomous_accepts_fake_drivers(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo_root = Path(tmp)
-            init_git_repo(repo_root)
-            create_preflight_run(
-                repo_root=repo_root,
-                mode="autonomous-knowledge",
-                requirement="Expand wiki",
-                run_id="demo-run",
-                domain="ai_infra",
-                confirm=True,
-            )
-            seed_no_action_loop_state(repo_root, "ai_infra")
-
-            for generator_driver in ("fake",):
-                with self.subTest(generator_driver=generator_driver):
-                    self.assertEqual(
-                        call_cli(
-                            [
-                                "run-autonomous",
-                                "--repo-root",
-                                str(repo_root),
-                                "--run-id",
-                                "demo-run",
-                                "--planner-driver",
-                                "fake",
-                                "--generator-driver",
-                                generator_driver,
-                                "--evaluator-driver",
-                                "fake",
-                                "--max-eval-attempts",
-                                "2",
-                                "--max-tasks",
-                                "3",
-                            ]
-                        ),
-                        0,
-                    )
-                    run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
-                    self.assertEqual(run["phase"], "stopped_no_action")
-
-    def test_cli_run_autonomous_accepts_expanded_fake_drivers_with_expanded_policy(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo_root = Path(tmp)
-            init_git_repo(repo_root)
-            policy_file = self._seed_policy_fixture(
-                repo_root,
-                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
-            )
-            create_preflight_run(
-                repo_root=repo_root,
-                mode="autonomous-knowledge",
-                requirement="Expand wiki",
-                run_id="expanded-run",
-                domain="ai_infra",
-                confirm=True,
-                policy_file=policy_file,
-            )
-            seed_candidate_loop_state(repo_root, "ai_infra")
-
-            for generator_driver in ("fake-expanded-code", "fake-missing-evidence"):
-                with self.subTest(generator_driver=generator_driver):
-                    self.assertEqual(
-                        call_cli(
-                            [
-                                "run-autonomous",
-                                "--repo-root",
-                                str(repo_root),
-                                "--run-id",
-                                "expanded-run",
-                                "--planner-driver",
-                                "fake",
-                                "--generator-driver",
-                                generator_driver,
-                                "--evaluator-driver",
-                                "fake",
-                                "--max-eval-attempts",
-                                "2",
-                                "--max-tasks",
-                                "1",
-                            ]
-                        ),
-                        0,
-                    )
-                    run = read_json_file(run_dir_for(repo_root, "expanded-run") / "run.json")
-                    self.assertIn(run["phase"], {"stopped_no_action", "stopped_blocked", "stopped_budget"})
-
     def test_create_preflight_run_accepts_explicit_task_id_for_fake_planner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -6046,7 +6184,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(saved_payload["task_id"], "explicit-task")
 
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             output_path = run_planner(repo_root, "demo-run", driver="fake")
             planner_output = read_json_file(output_path)
@@ -6151,7 +6289,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 stop_conditions=["passed_waiting_human_merge", "stopped_blocked"],
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             output_path = run_planner(repo_root, "demo-run", driver="fake")
 
@@ -6181,7 +6319,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=False,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             with self.assertRaises(RuntimeError):
                 run_planner(repo_root, "demo-run", driver="fake")
@@ -6196,7 +6334,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
 
@@ -6213,7 +6351,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6232,7 +6370,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             from scripts.harness_loop_contracts import write_json_file
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             def write_planner_output(**kwargs: object) -> dict[str, object]:
                 write_json_file(
@@ -6250,6 +6388,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                         "evaluator_scenarios_path": "",
                         "stop_conditions": ["passed_waiting_human_merge"],
                         "next_planning_hint": "",
+                        "skill_invocations": [],
                     },
                 )
                 return {"status": "pass", "run_id": "demo-run", "role": "planner", "attempt": 1}
@@ -6270,7 +6409,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             attempts: list[int] = []
 
@@ -6324,9 +6463,10 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "evaluator_scenarios_path": "",
                     "stop_conditions": ["passed_waiting_human_merge"],
                     "next_planning_hint": "",
+                    "skill_invocations": [],
                 },
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             with patch(
                 "scripts.harness_loop_orchestrator.run_codex_prompt",
@@ -6367,9 +6507,10 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "evaluator_scenarios_path": "",
                     "stop_conditions": ["passed_waiting_human_merge"],
                     "next_planning_hint": "",
+                    "skill_invocations": [],
                 },
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             with patch(
                 "scripts.harness_loop_orchestrator.run_codex_prompt",
@@ -6394,7 +6535,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator
 
             with self.assertRaisesRegex(RuntimeError, "planned"):
                 run_generator(repo_root, "demo-run", driver="fake")
@@ -6409,7 +6550,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             output_path = run_generator(repo_root, "demo-run", driver="fake")
@@ -6436,7 +6577,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6454,7 +6595,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             attempts: list[int] = []
@@ -6493,7 +6634,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_dir = run_dir_for(repo_root, "demo-run")
@@ -6509,6 +6650,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "stale result",
+                    "skill_invocations": [],
                 },
             )
 
@@ -6534,7 +6676,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_dir = run_dir_for(repo_root, "demo-run")
@@ -6550,6 +6692,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [],
                     "cleanup_required": False,
                     "notes": "stale result",
+                    "skill_invocations": [],
                 },
             )
 
@@ -6565,7 +6708,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["phase"], "generating")
             self.assertEqual(run["next_action"], "run_generator")
 
-    def test_cli_plan_and_generate_accept_fake_driver(self) -> None:
+    def test_internal_plan_and_generate_primitives_accept_fake_driver(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             create_preflight_run(
@@ -6576,13 +6719,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
 
-            self.assertEqual(
-                call_cli(["plan", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
-                0,
+            harness_loop_orchestrator._run_planner(
+                repo_root, "demo-run", driver="fake"
             )
-            self.assertEqual(
-                call_cli(["generate", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
-                0,
+            harness_loop_orchestrator._run_generator(
+                repo_root, "demo-run", driver="fake"
             )
 
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
@@ -6599,7 +6740,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6634,7 +6775,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6689,7 +6830,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-only-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6741,7 +6882,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6803,7 +6944,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6858,7 +6999,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6886,7 +7027,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6912,6 +7053,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["phase"], "repair_needed")
             self.assertEqual(run["last_result"], "fail")
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_rejects_unconfirmed_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -6922,7 +7064,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=False,
             )
-            from scripts.harness_loop_orchestrator import run_loop
+            from scripts.harness_loop_orchestrator import _run_loop as run_loop
 
             with self.assertRaisesRegex(RuntimeError, "preflight"):
                 run_loop(
@@ -6934,6 +7076,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     max_eval_attempts=2,
                 )
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_plans_generates_and_evaluates_from_planned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -6945,7 +7088,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "demo-run-task")
-            from scripts.harness_loop_orchestrator import run_loop
+            from scripts.harness_loop_orchestrator import _run_loop as run_loop
 
             status = run_loop(
                 repo_root,
@@ -6960,7 +7103,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["next_action"], "await_human_merge_confirmation")
             self.assertEqual(status["task_id"], "demo-run-task")
 
-    def test_cli_accepts_artifact_hygiene_and_cleanup_commands(self) -> None:
+    def test_internal_artifact_hygiene_and_cleanup_primitives(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             create_preflight_run(repo_root, "demand-development", "CLI hygiene", "demo-run", confirm=True)
@@ -6979,6 +7122,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": ["artifact.txt"],
                     "cleanup_required": False,
                     "notes": "needs hygiene",
+                    "skill_invocations": [],
                 },
             )
             run = read_json_file(run_dir / "run.json")
@@ -6987,19 +7131,16 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["next_action"] = "run_artifact_hygiene"
             write_json_file(run_dir / "run.json", run)
 
-            self.assertEqual(
-                call_cli(["artifact-hygiene", "--repo-root", str(repo_root), "--run-id", "demo-run"]),
-                0,
+            harness_loop_orchestrator._run_artifact_hygiene_step(
+                repo_root, "demo-run"
             )
-            self.assertEqual(
-                call_cli(["cleanup", "--repo-root", str(repo_root), "--run-id", "demo-run"]),
-                0,
-            )
+            harness_loop_orchestrator._run_cleanup(repo_root, "demo-run")
 
             run = read_json_file(run_dir / "run.json")
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
             self.assertEqual(run["next_action"], "await_human_merge_confirmation")
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_runs_hygiene_and_cleanup_after_evaluator_when_generator_has_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7011,7 +7152,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "demo-run-task")
-            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_loop as run_loop, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             generator_path = run_generator(repo_root, "demo-run", driver="fake")
@@ -7062,6 +7203,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 ]
             )
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_hygiene_redacts_scenario_command_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7074,7 +7216,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "contract-task")
-            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_loop as run_loop, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             generator_path = run_generator(repo_root, "demo-run", driver="fake")
@@ -7130,6 +7272,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 artifact_manifest["redacted_paths"],
             )
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_hygiene_runs_for_scenario_command_logs_without_generator_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7142,7 +7285,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "contract-task")
-            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_loop as run_loop, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -7208,7 +7351,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "contract-task")
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -7249,6 +7392,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "fail")
             self.assertEqual(run["next_action"], "run_artifact_hygiene")
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_rejects_unsupported_active_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7260,7 +7404,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             from scripts.harness_loop_contracts import write_json_file
-            from scripts.harness_loop_orchestrator import run_loop
+            from scripts.harness_loop_orchestrator import _run_loop as run_loop
 
             run_path = run_dir_for(repo_root, "demo-run") / "run.json"
             run = read_json_file(run_path)
@@ -7294,6 +7438,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "artifacts": ["large.bin"],
                 "cleanup_required": False,
                 "notes": "needs hygiene",
+                "skill_invocations": [],
             }
             write_json_file(run_dir / "generator-result.json", generator_result)
             run = read_json_file(run_dir / "run.json")
@@ -7301,7 +7446,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["task_id"] = "demo-run-task"
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_artifact_hygiene_step
+            from scripts.harness_loop_orchestrator import _run_artifact_hygiene_step as run_artifact_hygiene_step
 
             result_path = run_artifact_hygiene_step(repo_root, "demo-run", max_file_bytes=10)
 
@@ -7345,6 +7490,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 ],
                 "cleanup_required": False,
                 "notes": "Existing raw issue corpus is cited as evidence, not emitted as a new artifact.",
+                "skill_invocations": [],
             }
             write_json_file(run_dir / "generator-result.json", generator_result)
             run = read_json_file(run_dir / "run.json")
@@ -7352,7 +7498,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["task_id"] = "demo-run-task"
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_artifact_hygiene_step
+            from scripts.harness_loop_orchestrator import _run_artifact_hygiene_step as run_artifact_hygiene_step
 
             result_path = run_artifact_hygiene_step(repo_root, "demo-run", max_file_bytes=10)
 
@@ -7378,7 +7524,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(temp_worktree)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7401,7 +7547,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [".worktrees/demo-run-attempt-1"]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7422,7 +7568,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(temp_worktree)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             current_dir = Path.cwd()
             os.chdir(repo_root)
@@ -7451,7 +7597,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(victim)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7476,7 +7622,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(symlink_path)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7500,7 +7646,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [".worktrees/link"]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7527,7 +7673,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(victim)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7538,7 +7684,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run = read_json_file(run_dir / "run.json")
             self.assertNotIn(str(victim), run["cleanup"]["worktrees_removed"])
 
-    def test_phase_1_scenario_entrypoint_passes_self_contained_task_id(self) -> None:
+    def test_phase_1_scenario_entrypoint_uses_bounded_worker_regression(self) -> None:
         scenario_path = (
             Path(__file__).resolve().parents[2]
             / "docs"
@@ -7549,8 +7695,14 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
 
         scenario = read_json_file(scenario_path)
         entrypoint = scenario["user_scenarios"][0]["entrypoint"]
-        self.assertIn("--task-id planner-generator-evaluator-loop-phase-1-01", entrypoint)
+        self.assertIn("test_harness_loop_supervisor_worker.py", entrypoint)
+        self.assertIn(
+            "test_phase1_demand_flow_reaches_human_merge_via_bounded_workers",
+            entrypoint,
+        )
+        self.assertNotIn("harness_loop_orchestrator.py run", entrypoint)
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_smoke_helper_exercises_contract_hygiene_cleanup(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         run_id = "evaluator-scenario-phase-2-test"
@@ -7597,6 +7749,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             remove_empty_directory(repo_root / ".codex" / "loop-runs")
             remove_empty_directory(repo_root / ".codex" / "tmp")
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_scenario_entrypoint_uses_smoke_helper(self) -> None:
         scenario_path = (
             Path(__file__).resolve().parents[2]
@@ -7612,6 +7765,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertIn("--run-id evaluator-scenario-phase-2", entrypoint)
         self.assertIn("--task-id planner-generator-evaluator-loop-phase-2-01", entrypoint)
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_smoke_helper_rejects_path_traversal_ids_before_cleanup(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
 
@@ -7623,6 +7777,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "task_id"):
             run_phase2_smoke(repo_root, "safe-run-id", "../planner-generator-evaluator-loop-phase-2-01")
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_helper_exercises_expanded_runtime(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
 
@@ -7660,6 +7815,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertTrue(payload["isolated_clone"])
         self.assertEqual(payload["overall_status"], "blocked")
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_helper_keeps_git_identity_changes_inside_isolated_clone(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke
 
@@ -7681,12 +7837,14 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(clone_run_id, "evaluator-scenario-ai-infra-meta-loop-runtime-test")
             self.assertTrue(run_smoke_in_repo.call_args.kwargs["configure_git_identity"])
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_main_returns_nonzero_for_fail_status(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke
 
         with patch.object(smoke, "run_ai_infra_meta_loop_smoke", return_value={"overall_status": "fail"}):
             self.assertEqual(smoke.main([]), 1)
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_helper_refuses_non_isolated_mode_before_repo_mutation(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke
 
@@ -8052,7 +8210,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 self.assertEqual(child["phase"], "passed")
                 self.assertEqual(child["parent_run_id"], "parent-run")
 
-    def test_run_demand_multi_generates_audit_artifacts_before_human_merge(self) -> None:
+    def test_run_demand_multi_does_not_generate_legacy_audit_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             init_git_repo(repo_root)
@@ -8070,25 +8228,20 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
 
             self.assertEqual(payload["phase"], "passed_waiting_human_merge")
             run_dir = run_dir_for(repo_root, "parent-run")
-            self.assertTrue((run_dir / "deterministic-signals.json").exists())
-            report = read_json_file(run_dir / "audit-reports" / "audit-001.json")
-            self.assertEqual(report["created_by"], "harness_loop_orchestrator")
-            self.assertEqual(report["verdict"], "pass")
+            self.assertFalse((run_dir / "deterministic-signals.json").exists())
+            self.assertFalse((run_dir / "audit-reports").exists())
 
-    def test_run_auditor_fake_writes_valid_audit_report(self) -> None:
+    def test_run_auditor_fake_is_disabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             init_git_repo(repo_root)
             self._create_parent(repo_root)
 
-            report_path = run_auditor(repo_root, "parent-run", driver="fake")
+            with self.assertRaisesRegex(RuntimeError, "disabled.*Supervisor Reviewer"):
+                run_auditor(repo_root, "parent-run", driver="fake")
+            self.assertFalse((run_dir_for(repo_root, "parent-run") / "audit-reports").exists())
 
-            report = read_json_file(report_path)
-            self.assertEqual(report["run_id"], "parent-run")
-            self.assertEqual(report["created_by"], "harness_loop_orchestrator")
-            self.assertTrue((run_dir_for(repo_root, "parent-run") / "deterministic-signals.json").exists())
-
-    def test_run_demand_multi_open_must_fix_blocks_before_new_child(self) -> None:
+    def test_run_demand_multi_ignores_legacy_open_must_fix_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             self._create_parent(repo_root)
@@ -8127,28 +8280,26 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             )
 
             parent = load_run(repo_root, "parent-run")
-            self.assertEqual(payload["phase"], "audit_blocked")
-            self.assertEqual(parent["phase"], "audit_blocked")
-            self.assertEqual(parent["next_action"], "create_audit_remediation_task")
-            self.assertEqual(parent["child_run_ids"], [])
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
+            self.assertEqual(parent["phase"], "passed_waiting_human_merge")
+            self.assertNotEqual(parent["next_action"], "create_audit_remediation_task")
+            self.assertEqual(len(parent["child_run_ids"]), 1)
+            self.assertFalse(
+                (run_dir_for(repo_root, "parent-run") / "audit-reports" / "audit-002.json").exists()
+            )
 
     def test_run_demand_multi_audit_blocked_runs_remediation_child_and_rechecks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             self._create_parent(repo_root)
             seed_open_must_fix_audit(repo_root, "parent-run")
-            first_payload = run_demand_multi(
-                repo_root=repo_root,
-                run_id="parent-run",
-                planner_driver="fake",
-                generator_driver="fake",
-                evaluator_driver="fake",
-                max_eval_attempts=2,
-                max_children=1,
-            )
-            self.assertEqual(first_payload["phase"], "audit_blocked")
+            legacy = load_run(repo_root, "parent-run")
+            legacy["phase"] = "audit_blocked"
+            legacy["next_action"] = "create_audit_remediation_task"
+            legacy["last_result"] = "blocked"
+            save_run(repo_root, legacy)
 
-            second_payload = run_demand_multi(
+            payload = run_demand_multi(
                 repo_root=repo_root,
                 run_id="parent-run",
                 planner_driver="fake",
@@ -8159,7 +8310,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             )
 
             parent = load_run(repo_root, "parent-run")
-            self.assertEqual(second_payload["phase"], "passed_waiting_human_merge")
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
             self.assertEqual(parent["last_result"], "pass")
             self.assertEqual(len(parent["child_run_ids"]), 1)
             self.assertEqual(parent["_audit_remediation"]["status"], "resolved")
@@ -8168,37 +8319,31 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
             planner_payload = read_json_file(run_dir_for(repo_root, "parent-run") / "planner-output.json")
             self.assertEqual(planner_payload["audit_response"]["handled_findings"], ["audit-001-repeat-001"])
             self.assertEqual(planner_payload["audit_response"]["planned_remediation_task"], child["run_id"])
-            report = read_json_file(run_dir_for(repo_root, "parent-run") / "audit-reports" / "audit-002.json")
-            self.assertEqual(report["verdict"], "pass")
-            self.assertEqual(report["direction_control"]["action"], "resume_after_audit_remediation")
-            self.assertEqual(report["finding_lifecycle"]["open_findings"], [])
-            self.assertEqual(report["finding_lifecycle"]["closed_findings"][0]["finding_id"], "audit-001-repeat-001")
+            self.assertFalse(
+                (run_dir_for(repo_root, "parent-run") / "audit-reports" / "audit-002.json").exists()
+            )
             remediation = read_json_file(run_dir_for(repo_root, "parent-run") / "audit-remediation-result.json")
             self.assertEqual(remediation["status"], "pass")
             self.assertEqual(remediation["remediation_run_id"], child["run_id"])
+            self.assertEqual(remediation["new_audit_report"], "")
 
     def test_run_demand_multi_audit_blocked_uses_deterministic_remediation_planner_with_codex_driver(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             self._create_parent(repo_root)
             seed_open_must_fix_audit(repo_root, "parent-run")
-            first_payload = run_demand_multi(
-                repo_root=repo_root,
-                run_id="parent-run",
-                planner_driver="fake",
-                generator_driver="fake",
-                evaluator_driver="fake",
-                max_eval_attempts=2,
-                max_children=1,
-            )
-            self.assertEqual(first_payload["phase"], "audit_blocked")
+            legacy = load_run(repo_root, "parent-run")
+            legacy["phase"] = "audit_blocked"
+            legacy["next_action"] = "create_audit_remediation_task"
+            legacy["last_result"] = "blocked"
+            save_run(repo_root, legacy)
 
             with patch.object(
                 harness_loop_orchestrator,
                 "_run_codex_demand_parent_planner",
                 side_effect=AssertionError("audit remediation planner must be orchestrator-owned"),
             ):
-                second_payload = run_demand_multi(
+                payload = run_demand_multi(
                     repo_root=repo_root,
                     run_id="parent-run",
                     planner_driver="codex-exec",
@@ -8208,9 +8353,12 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                     max_children=1,
                 )
 
-            self.assertEqual(second_payload["phase"], "passed_waiting_human_merge")
+            self.assertEqual(payload["phase"], "passed_waiting_human_merge")
             parent = load_run(repo_root, "parent-run")
             self.assertEqual(parent["_audit_remediation"]["status"], "resolved")
+            self.assertFalse(
+                (run_dir_for(repo_root, "parent-run") / "audit-reports" / "audit-002.json").exists()
+            )
 
     def test_run_demand_multi_codex_exec_runs_parent_child_and_evaluator_without_real_codex(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8244,6 +8392,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                                 "stopped_budget",
                             ],
                             "next_planning_hint": "",
+                            "skill_invocations": [],
                             "backlog": [],
                             "planner_decision": "next_child",
                             "next_child_task": {
@@ -8283,6 +8432,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                             "artifacts": [],
                             "cleanup_required": False,
                             "notes": "codex demand child generated",
+                            "skill_invocations": [],
                         },
                     )
                 else:
@@ -9053,6 +9203,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 "returncode": 0,
                 "stdout": "evaluator pass\n",
                 "stderr": "",
+                "skill_invocations": [],
             }
             artifact_path = f".codex/loop-runs/{run_id}/counterexample-tests/formal-confirmed-bug.json"
             artifact = repo_root / artifact_path
@@ -9128,6 +9279,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 "returncode": 0,
                 "stdout": "evaluator pass\n",
                 "stderr": "",
+                "skill_invocations": [],
             }
 
             blocked = harness_loop_orchestrator._merge_formal_verification_result(repo_root, run, dict(evaluator_payload))
@@ -9188,7 +9340,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "formal-task")
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")

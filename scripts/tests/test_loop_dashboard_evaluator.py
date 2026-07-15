@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -75,6 +76,205 @@ def _scenario_statuses(payload: dict) -> dict[str, str]:
 
 
 class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
+    def test_supervisor_unification_scenario_dispatches_to_browser_owner(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            output_dir = Path(tmp) / "output"
+            (repo_root / "scripts").mkdir(parents=True)
+            browser_script = repo_root / "scripts" / "loop_dashboard_supervisor_playwright.py"
+            browser_script.write_text("# fixture browser owner\n", encoding="utf-8")
+
+            def run_child(command, **_kwargs):
+                result_path = Path(command[command.index("--result-json") + 1])
+                result_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "pass",
+                            "scenario_id": "LOOP-SUPERVISOR-UNIFICATION-BROWSER-E2E",
+                            "summary": "browser pass",
+                            "checked": ["desktop", "mobile"],
+                            "browser_evidence": {"desktop_screenshot": "desktop.png"},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return subprocess.CompletedProcess(command, 0, stdout="child stdout", stderr="")
+
+            with patch("scripts.loop_dashboard_evaluator.subprocess.run", side_effect=run_child) as run:
+                status = evaluator.run_loop_supervisor_unification_evaluator(
+                    repo_root,
+                    output_dir,
+                    port=9876,
+                )
+
+            self.assertEqual(status, 0)
+            command = run.call_args.args[0]
+            self.assertIn(str(browser_script), command)
+            self.assertIn("--port", command)
+            self.assertEqual(json.loads((output_dir / "result.json").read_text())["status"], "pass")
+
+    def test_supervisor_unification_browser_owner_has_real_fixture_contract(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        owner_path = repo_root / "scripts" / "loop_dashboard_supervisor_playwright.py"
+        scenario_path = (
+            repo_root
+            / "docs"
+            / "harness"
+            / "evaluator-scenarios"
+            / "loop-supervisor-unification-01.json"
+        )
+
+        owner = owner_path.read_text(encoding="utf-8")
+        scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+
+        self.assertIn("SupervisorStore.open", owner)
+        self.assertIn("LOOP_DASHBOARD_CURSOR_SECRET", owner)
+        for collection in ("actions", "reviews", "user_decisions", "inventory", "events.jsonl", ".stdout.log"):
+            self.assertIn(collection, owner)
+        for count in ("ACTION_COUNT = 26", "REVIEW_COUNT = 26", "DECISION_COUNT = 26", "SKILL_COUNT = 26", "EVENT_COUNT = 26", "LOG_COUNT = 26"):
+            self.assertIn(count, owner)
+        for viewport in ('"width": 1440, "height": 1000', '"width": 390, "height": 844'):
+            self.assertIn(viewport, owner)
+        for behavior in ("下一页", "第 21-26 条，共 26 条", "action-001", "scrollWidth", "refresh", "log-detail"):
+            self.assertIn(behavior, owner)
+        for artifact in (
+            "planner-output.json",
+            "generator-result.json",
+            "evaluator-result.json",
+            "task-contract.json",
+            "run-detail-desktop.png",
+        ):
+            self.assertIn(artifact, owner)
+        for assertion in (
+            "selected-tab-only",
+            "tab independence",
+            "page-size 50",
+            "complete task description",
+            "mobile table scrolling",
+            "page-21 reload",
+            "many-run/tab URL bound",
+            "delayed health transition",
+            "attempt page 21",
+            "visible run/tab pager pressure",
+            "current health uses the bounded health endpoint",
+            "stale current-health projection remains degraded",
+        ):
+            self.assertIn(assertion, owner)
+        self.assertIn("FIXTURE_RUN_COUNT = 5", owner)
+        self.assertIn("FRESHNESS_COUNT = 103", owner)
+        self.assertIn('f"fixture-run-{index:03d}"', owner)
+        self.assertIn("freshness-hidden-stale", owner)
+        self.assertIn("visible run/tab pager pressure", owner)
+        self.assertIn('"/api/supervisor/health"', owner)
+        self.assertIn("current_health_established_without_raw_history", owner)
+        self.assertNotIn("complete health did not request hidden service pages", owner)
+        self.assertNotIn("new window.LoopPagination.CursorPager", owner)
+        self.assertIn('"--no-access-log"', owner)
+        self.assertEqual(scenario["task_id"], "loop-supervisor-unification-01")
+        self.assertTrue(scenario["must_simulate"])
+        serialized = json.dumps(scenario, ensure_ascii=False)
+        self.assertIn("pagination.js -> supervisor.js -> app.js", serialized)
+        self.assertIn("20/50/100", serialized)
+        self.assertIn("--scenario loop-supervisor-unification-01", serialized)
+
+    def test_isolated_dashboard_child_injects_evaluator_cursor_secret(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            evaluator.os.environ,
+            {},
+            clear=True,
+        ), patch.object(evaluator.subprocess, "Popen") as popen:
+            repo_root = Path(tmp)
+            fixture_root = repo_root / "fixture"
+
+            evaluator.start_dashboard(repo_root, fixture_root, 18766)
+
+        child_env = popen.call_args.kwargs["env"]
+        self.assertEqual(
+            child_env["LOOP_DASHBOARD_CURSOR_SECRET"],
+            evaluator.EVALUATOR_CURSOR_SECRET,
+        )
+        self.assertGreaterEqual(
+            len(child_env["LOOP_DASHBOARD_CURSOR_SECRET"].encode()),
+            32,
+        )
+
+    def test_auditor_engine_fixture_is_historical_disabled_and_read_only(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            evaluator,
+            "compute_deterministic_signals",
+            side_effect=AssertionError("historical fixture must not compute active signals"),
+            create=True,
+        ), patch.object(
+            evaluator,
+            "rule_based_audit_report",
+            side_effect=AssertionError("historical fixture must not run Auditor"),
+            create=True,
+        ), patch.object(
+            evaluator,
+            "run_demand_multi",
+            side_effect=AssertionError("historical fixture must not enter audit_blocked"),
+            create=True,
+        ):
+            repo_root = Path(tmp)
+            evaluator.seed_auditor_engine_fixture(repo_root)
+            run_dir = (
+                repo_root
+                / ".codex"
+                / "loop-runs"
+                / evaluator.AUDITOR_ENGINE_RUN_ID
+            )
+
+            run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            historical_report = json.loads(
+                (run_dir / "audit-reports" / "audit-001.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            migration_result = json.loads(
+                (run_dir / "audit-remediation-result.json").read_text(encoding="utf-8")
+            )
+
+            self.assertNotIn(run["phase"], {"audit_pending", "auditing", "audit_blocked"})
+            self.assertEqual(run["legacy_audit_migration"]["status"], "migrated")
+            self.assertEqual(historical_report["audit_id"], "audit-001")
+            self.assertEqual(historical_report["verdict"], "must_fix")
+            self.assertEqual(
+                historical_report["created_by"], "historical_pre_cutover_auditor"
+            )
+            self.assertEqual(migration_result["audit_id"], "audit-001")
+            self.assertEqual(migration_result["status"], "pass")
+            self.assertEqual(
+                migration_result["migration_mode"], "disabled_legacy_auditor"
+            )
+            self.assertEqual(migration_result["new_audit_report"], "")
+            self.assertFalse((run_dir / "audit-reports" / "audit-002.json").exists())
+
+    def test_auditor_engine_fixture_rejects_successor_audit_report(self) -> None:
+        from scripts import loop_dashboard_evaluator as evaluator
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            evaluator.seed_auditor_engine_fixture(repo_root)
+            run_dir = (
+                repo_root
+                / ".codex"
+                / "loop-runs"
+                / evaluator.AUDITOR_ENGINE_RUN_ID
+            )
+            _write_json(
+                run_dir / "audit-reports" / "audit-002.json",
+                {"audit_id": "audit-002", "verdict": "pass"},
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "must not produce a successor"):
+                evaluator.validate_historical_auditor_fixture(run_dir)
+
     def test_loop_supervisor_scenario_seeds_contract_artifacts_without_synthetic_run(self) -> None:
         from scripts.loop_dashboard_evaluator import seed_loop_supervisor_fixture
 

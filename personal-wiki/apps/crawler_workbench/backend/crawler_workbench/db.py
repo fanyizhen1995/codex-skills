@@ -37,6 +37,7 @@ def migrate(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "source_profiles", "channel_id", "text references channels(id) on delete restrict")
     _ensure_column(connection, "source_profiles", "fetcher_type", "text")
     _ensure_column(connection, "wiki_search_index_state", "source_count", "integer not null default 0")
+    _ensure_column(connection, "wiki_search_index_state", "index_version", "integer not null default 0")
     _recover_legacy_dirty_baseline_failures(connection)
     connection.commit()
 

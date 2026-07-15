@@ -20,18 +20,20 @@ try:
     from scripts.harness_evaluator_scenarios import load_task_scenarios
     from scripts.harness_loop_contracts import run_dir_for, write_json_file
     from scripts.harness_loop_governance import validate_governance_preflight_evidence
-    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_auditor, run_demand_multi, save_run
+    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, save_run
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.harness_evaluator_scenarios import load_task_scenarios
     from scripts.harness_loop_contracts import run_dir_for, write_json_file
     from scripts.harness_loop_governance import validate_governance_preflight_evidence
-    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, run_auditor, run_demand_multi, save_run
+    from scripts.harness_loop_orchestrator import create_preflight_run, load_run, save_run
 
 
 SCENARIO_ID = "LOOP-DASHBOARD-CLICK-SMOKE"
 LOOP_SUPERVISOR_SCENARIO = "loop-supervisor-01"
 LOOP_SUPERVISOR_BROWSER_SCENARIO_ID = "LOOP-SUPERVISOR-BROWSER-E2E"
+LOOP_SUPERVISOR_UNIFICATION_SCENARIO = "loop-supervisor-unification-01"
+LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID = "LOOP-SUPERVISOR-UNIFICATION-BROWSER-E2E"
 GOVERNANCE_TASK_ID = "ai-infra-loop-governance-dev-01"
 GOVERNANCE_PARENT_RUN_ID = "ai-infra-loop-governance-dev"
 GOVERNANCE_EXPANSION_RUN_ID = "ai-infra-expansion-2026-07-07-r10"
@@ -39,6 +41,7 @@ GOVERNANCE_OUTPUT_DIR_NAME = "ai-infra-loop-governance-dev-01"
 GOVERNANCE_DASHBOARD_URL = "http://127.0.0.1:8766"
 GOVERNANCE_CRAWLER_HEALTH_URL = "http://127.0.0.1:8765/api/health"
 GOVERNANCE_FRONTEND_URL = "http://127.0.0.1:5173/"
+EVALUATOR_CURSOR_SECRET = "loop-dashboard-evaluator-only-secret-v1-2026"
 AUDITOR_ENGINE_RUN_ID = "loop-auditor-engine-dev"
 SENSITIVE_FIELD_NAMES = {
     "token",
@@ -78,7 +81,7 @@ CHECKED = [
     "确认 evaluator 验证功能实现完整性和设计/mock 匹配，并在验收 tab 中可见",
     "查看验收 tab 中的模拟用户验收场景",
     "查看审计与 Skill tab 中的 Auditor 结论、open must_fix、确定性信号和当前项目 Skill 使用情况",
-    "通过真实 harness auditor engine fixture 验证 active 引擎、audit_blocked 后自动整改、复审报告和确定性信号在看板可见",
+    "通过 pre-cutover historical Auditor fixture 验证旧审计只读可见、迁移结果可见且不生成后继审计报告",
     "查看阻塞诊断 tab 中的 evaluator finding",
     "查看父需求子任务队列、冲突父需求诊断和移动端父子布局",
     "在日志 tab 中按 Agent、日志类型和关键词过滤原始日志",
@@ -93,6 +96,12 @@ def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     output_dir = args.output_dir.resolve()
+    if args.scenario == LOOP_SUPERVISOR_UNIFICATION_SCENARIO:
+        return run_loop_supervisor_unification_evaluator(
+            repo_root,
+            output_dir,
+            port=args.port,
+        )
     if args.scenario == LOOP_SUPERVISOR_SCENARIO:
         return run_loop_supervisor_evaluator(repo_root, output_dir, port=args.port)
     if args.scenario:
@@ -238,6 +247,79 @@ def run_loop_supervisor_evaluator(repo_root: Path, output_dir: Path, *, port: in
     finally:
         if server is not None:
             terminate_process(server)
+
+
+def run_loop_supervisor_unification_evaluator(
+    repo_root: Path,
+    output_dir: Path,
+    *,
+    port: int | None = None,
+) -> int:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    browser_result = output_dir / "supervisor-browser-result.json"
+    command = [
+        sys.executable,
+        str(repo_root / "scripts" / "loop_dashboard_supervisor_playwright.py"),
+        "--repo-root",
+        str(repo_root),
+        "--output-dir",
+        str(output_dir),
+        "--result-json",
+        str(browser_result),
+    ]
+    if port is not None:
+        command.extend(["--port", str(port)])
+    completed = subprocess.run(
+        command,
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        child = json.loads(browser_result.read_text(encoding="utf-8"))
+        if not isinstance(child, dict):
+            raise TypeError("browser result must be an object")
+    except (OSError, TypeError, json.JSONDecodeError) as exc:
+        child = {
+            "status": "fail",
+            "scenario_id": LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID,
+            "summary": f"Browser evaluator did not produce a valid result: {exc}",
+            "checked": [],
+            "browser_evidence": {},
+        }
+    status = "pass" if completed.returncode == 0 and child.get("status") == "pass" else "fail"
+    result = {
+        "status": status,
+        "task_id": LOOP_SUPERVISOR_UNIFICATION_SCENARIO,
+        "scenario_id": LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID,
+        "summary": str(child.get("summary") or "Loop Supervisor unification browser evaluation completed."),
+        "scenario_results": [
+            {
+                "scenario_id": LOOP_SUPERVISOR_UNIFICATION_BROWSER_SCENARIO_ID,
+                "status": status,
+                "summary": str(child.get("summary") or "Browser evaluation completed."),
+                "evidence": list(child.get("checked") or []),
+            }
+        ],
+        "checked": list(child.get("checked") or []),
+        "browser_evidence": dict(child.get("browser_evidence") or {}),
+        "rerun_commands": [
+            "python3 scripts/loop_dashboard_evaluator.py --repo-root . "
+            "--output-dir .codex/loop-dashboard-eval/loop-supervisor-unification-01 "
+            "--scenario loop-supervisor-unification-01"
+        ],
+        "child_stdout": completed.stdout,
+        "child_stderr": completed.stderr,
+        "child_returncode": completed.returncode,
+    }
+    if child.get("diagnostics"):
+        result["diagnostics"] = child["diagnostics"]
+    write_json(output_dir / "result.json", result)
+    write_summary(output_dir / "summary.md", result)
+    if status != "pass":
+        print("loop supervisor unification evaluator failed", file=sys.stderr)
+    return 0 if status == "pass" else 1
 
 
 def run_governance_evaluator(
@@ -1200,35 +1282,42 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
     create_preflight_run(
         repo_root=project_root,
         mode="demand-development",
-        requirement="实现真正的 Loop Auditor 引擎，计算确定性信号、生成审计报告，并在 open must_fix 时阻断普通 loop 进展。",
+        requirement="展示 pre-cutover Auditor 历史记录及停用迁移结果。",
         run_id=AUDITOR_ENGINE_RUN_ID,
         confirm=True,
-        constraints=["审计证据必须由 orchestrator 采集", "open must_fix 必须触发 audit_blocked"],
-        stop_conditions=["audit_blocked", "passed_waiting_human_merge"],
+        constraints=["历史审计只读", "不得运行 legacy Auditor"],
+        stop_conditions=["passed_waiting_human_merge"],
     )
     parent = load_run(project_root, AUDITOR_ENGINE_RUN_ID)
     child_ids = [f"{AUDITOR_ENGINE_RUN_ID}-child-{index:03d}" for index in (1, 2)]
     parent.update(
         {
             "run_kind": "parent",
-            "phase": "planning",
+            "phase": "passed_waiting_human_merge",
+            "last_result": "pass",
+            "next_action": "await_human_merge_confirmation",
             "current_child_run_id": "",
             "child_run_ids": child_ids,
             "backlog": [],
             "accepted_changed_paths": ["generated/auditor-child-001.txt", "generated/auditor-child-002.txt"],
             "aggregate_acceptance": {
-                "total": 3,
+                "total": 2,
                 "passed": 2,
                 "failed": 0,
                 "blocked": 0,
-                "pending": 1,
+                "pending": 0,
                 "user_decision_required": False,
             },
             "reader_summary": {
-                "purpose": "验证真正 Auditor 引擎已经接入 loop。",
-                "current_progress": "两个子任务通过后，Auditor 发现重复 evaluator finding。",
-                "next_step": "创建审计整改子任务后再继续普通开发。",
+                "purpose": "验证 legacy Auditor 历史记录在停用后仍可读取。",
+                "current_progress": "pre-cutover 审计已迁移为只读历史数据。",
+                "next_step": "等待人工确认历史迁移结果。",
                 "decision_needed": "不需要",
+            },
+            "legacy_audit_migration": {
+                "source_phase": "audit_blocked",
+                "source_next_action": "create_audit_remediation_task",
+                "status": "migrated",
             },
         }
     )
@@ -1248,7 +1337,7 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
                 "domain": "",
                 "branch": "main",
                 "worktree": str(project_root),
-                "requirement": f"Auditor engine child {index}",
+                "requirement": f"Historical Auditor record {index}",
                 "constraints": ["保持审计证据可追溯"],
                 "stop_conditions": ["passed"],
                 "baseline_dirty_paths": [],
@@ -1265,10 +1354,10 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
                 ],
                 "cleanup": {"worktrees_removed": [], "processes_stopped": [], "retained_artifacts": []},
                 "reader_summary": {
-                    "purpose": f"子任务 {index} 提供审计输入。",
-                    "planner_action": "Planner 选择审计引擎验证子任务",
-                    "generator_action": "Generator 产出审计引擎实现",
-                    "evaluator_action": "Evaluator 记录同类 finding",
+                    "purpose": f"子任务 {index} 保留 pre-cutover 审计历史。",
+                    "planner_action": "Planner 归档历史审计记录",
+                    "generator_action": "Generator 保留迁移证据",
+                    "evaluator_action": "Evaluator 验证迁移记录可读",
                     "acceptance_result": "通过",
                 },
             },
@@ -1281,10 +1370,11 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
                 "changed_paths": [changed_path],
                 "commit": "",
                 "verify_commands": [],
-                "verify_results": [{"command": "auditor engine fixture", "status": "pass"}],
-                "artifacts": [changed_path],
-                "cleanup_required": False,
-                "notes": "seeded auditor engine child",
+                "verify_results": [{"command": "historical auditor fixture", "status": "pass"}],
+                    "artifacts": [changed_path],
+                    "cleanup_required": False,
+                    "notes": "seeded historical Auditor record",
+                    "skill_invocations": [],
             },
         )
         write_json_file(
@@ -1293,38 +1383,84 @@ def seed_auditor_engine_fixture(project_root: Path) -> None:
                 "status": "pass",
                 "task_id": f"{child_id}-task",
                 "driver": "fixture",
-                "returncode": 0,
-                "stdout": "same evaluator finding: dashboard must prove real auditor engine\n",
-                "stderr": "",
-            },
+                    "returncode": 0,
+                    "stdout": "historical Auditor record remains readable after migration\n",
+                    "stderr": "",
+                    "skill_invocations": [],
+                },
         )
 
-    report_path = run_auditor(project_root, AUDITOR_ENGINE_RUN_ID, driver="fake")
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    if report.get("verdict") != "must_fix":
-        raise RuntimeError("auditor engine fixture must produce a must_fix report")
-    status = run_demand_multi(
-        repo_root=project_root,
-        run_id=AUDITOR_ENGINE_RUN_ID,
-        planner_driver="fake",
-        generator_driver="fake",
-        evaluator_driver="fake",
-        max_eval_attempts=2,
-        max_children=3,
+    run_dir = run_dir_for(project_root, AUDITOR_ENGINE_RUN_ID)
+    write_json_file(
+        run_dir / "audit-reports" / "audit-001.json",
+        {
+            "schema_version": 1,
+            "run_id": AUDITOR_ENGINE_RUN_ID,
+            "audit_id": "audit-001",
+            "created_by": "historical_pre_cutover_auditor",
+            "created_at": "2026-07-09T08:00:00Z",
+            "verdict": "must_fix",
+            "deterministic_signals": {
+                "summary": {"same_evaluator_finding_count": 2},
+            },
+            "cadence": {"current_interval": 1, "steps_since_last_audit": 1},
+            "direction_control": {
+                "action": "refocus",
+                "reason": "Historical pre-cutover finding migrated to Supervisor review.",
+                "recommended_next_focus": "Review the recorded migration result.",
+            },
+            "finding_lifecycle": {
+                "open_findings": [
+                    {
+                        "finding_id": "audit-001-historical-finding",
+                        "severity": "must_fix",
+                        "title": "Historical Auditor finding",
+                        "summary": "Read-only pre-cutover finding retained for migration visibility.",
+                    }
+                ],
+                "closed_findings": [],
+            },
+        },
     )
-    if status.get("phase") != "audit_blocked":
-        raise RuntimeError(f"auditor engine fixture expected audit_blocked, got {status.get('phase')}")
-    status = run_demand_multi(
-        repo_root=project_root,
-        run_id=AUDITOR_ENGINE_RUN_ID,
-        planner_driver="fake",
-        generator_driver="fake",
-        evaluator_driver="fake",
-        max_eval_attempts=2,
-        max_children=3,
+    write_json_file(
+        run_dir / "audit-remediation-result.json",
+        {
+            "schema_version": 1,
+            "audit_id": "audit-001",
+            "status": "pass",
+            "migration_mode": "disabled_legacy_auditor",
+            "source_report_path": (
+                f".codex/loop-runs/{AUDITOR_ENGINE_RUN_ID}/audit-reports/audit-001.json"
+            ),
+            "new_audit_report": "",
+            "summary": "Legacy Auditor is disabled; this is a historical migration record.",
+        },
     )
-    if status.get("phase") != "passed_waiting_human_merge":
-        raise RuntimeError(f"auditor engine fixture expected remediation to pass, got {status.get('phase')}")
+    validate_historical_auditor_fixture(run_dir)
+
+
+def validate_historical_auditor_fixture(run_dir: Path) -> None:
+    diagnostics: list[str] = []
+    historical_report = read_json_file(
+        run_dir / "audit-reports" / "audit-001.json", diagnostics
+    )
+    migration_result = read_json_file(
+        run_dir / "audit-remediation-result.json", diagnostics
+    )
+    if (
+        diagnostics
+        or not historical_report
+        or historical_report.get("audit_id") != "audit-001"
+        or historical_report.get("created_by") != "historical_pre_cutover_auditor"
+        or not migration_result
+        or migration_result.get("audit_id") != "audit-001"
+        or migration_result.get("status") != "pass"
+        or migration_result.get("migration_mode") != "disabled_legacy_auditor"
+        or migration_result.get("new_audit_report") != ""
+    ):
+        raise RuntimeError("historical Auditor fixture migration result is invalid")
+    if (run_dir / "audit-reports" / "audit-002.json").exists():
+        raise RuntimeError("historical Auditor fixture must not produce a successor audit report")
 
 
 def seed_project_skill_fixture(project_root: Path) -> None:
@@ -1775,6 +1911,7 @@ def start_dashboard(repo_root: Path, fixture_root: Path, port: int) -> subproces
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root / "apps" / "loop_dashboard" / "backend")
     env["LOOP_DASHBOARD_PROJECT_ROOT"] = str(fixture_root)
+    env["LOOP_DASHBOARD_CURSOR_SECRET"] = EVALUATOR_CURSOR_SECRET
     return subprocess.Popen(
         [
             "python3",
@@ -1834,10 +1971,7 @@ def read_json_url(url: str) -> dict[str, Any]:
 
 
 def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
-    with urllib.request.urlopen(f"{base_url}/api/runs", timeout=5) as response:
-        runs = json.loads(response.read().decode("utf-8"))
-    if not isinstance(runs, list):
-        raise AssertionError("/api/runs should return a JSON list")
+    runs = read_json_url_items(f"{base_url}/api/runs")
     parent = find_run_summary(runs, "parent-run")
     expect_equal(parent.get("run_kind"), "parent", "parent-run should be listed as run_kind=parent")
     expect_children_summary(parent, "parent-run list summary")
@@ -1861,9 +1995,7 @@ def verify_demand_multi_task_api(base_url: str) -> dict[str, object]:
     if "relationship_diagnostics" not in detail:
         raise AssertionError("parent-run detail should include relationship_diagnostics")
     events_payload = read_json_url(f"{base_url}/api/runs/parent-run/events")
-    events = events_payload.get("events")
-    if not isinstance(events, list):
-        raise AssertionError("parent-run events endpoint should return an events list")
+    events = paged_items(events_payload, "parent-run events")
     if not any(isinstance(event, dict) and event.get("kind") == "plan" for event in events):
         raise AssertionError("parent-run events should include child plan events")
     if any("secret-token" in str(event) for event in events):
@@ -1971,7 +2103,7 @@ def read_error_detail(exc: urllib.error.HTTPError) -> object:
 
 
 def verify_loop_supervisor_api(base_url: str) -> dict[str, Any]:
-    runs = read_json_url_list(f"{base_url}/api/runs")
+    runs = read_json_url_items(f"{base_url}/api/runs")
     run_ids = [str(run.get("run_id") or "") for run in runs if isinstance(run, dict)]
     if "loop-supervisor" in run_ids or "supervisor" in run_ids:
         raise AssertionError("Supervisor must not appear as a synthetic task run")
@@ -2010,12 +2142,24 @@ def verify_loop_supervisor_api(base_url: str) -> dict[str, Any]:
     }
 
 
-def read_json_url_list(url: str) -> list[Any]:
-    with urllib.request.urlopen(url, timeout=1) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    if not isinstance(payload, list):
-        raise RuntimeError(f"unexpected JSON payload from {url}: {payload!r}")
-    return payload
+def read_json_url_items(url: str) -> list[Any]:
+    return paged_items(read_json_url(url), url)
+
+
+def paged_items(payload: dict[str, Any], context: str) -> list[Any]:
+    expected_keys = {
+        "items",
+        "next_cursor",
+        "previous_cursor",
+        "page_size",
+        "total",
+        "has_more",
+    }
+    if set(payload) != expected_keys or not isinstance(payload.get("items"), list):
+        raise RuntimeError(
+            f"unexpected paginated payload from {context}: {payload!r}"
+        )
+    return payload["items"]
 
 
 def run_loop_supervisor_browser_checks(dashboard_url: str, output_dir: Path, fixture_root: Path) -> dict[str, Any]:
@@ -2293,26 +2437,34 @@ def run_browser_checks(dashboard_url: str, output_dir: Path) -> dict[str, Any]:
             click_run(page, AUDITOR_ENGINE_RUN_ID)
             engine_detail = page.get_by_test_id("run-detail")
             expect(engine_detail).to_contain_text("通过，等待人工合并")
-            expect(engine_detail).to_contain_text("3 / 3 通过")
-            expect(engine_detail).to_contain_text("Parent planner selected audit remediation child")
-            expect(engine_detail).to_contain_text("审计整改")
+            expect(engine_detail).to_contain_text("2 / 2 通过")
+            expect(engine_detail).to_contain_text("pre-cutover 审计已迁移为只读历史数据")
             tabs.get_by_role("tab", name="子任务").click()
             engine_children_tab = page.get_by_test_id("tab-children")
-            expect(engine_children_tab).to_contain_text("审计整改")
-            expect(engine_children_tab).to_contain_text("Resolve Auditor must_fix findings")
+            expect(engine_children_tab).to_contain_text("Historical Auditor record 1")
+            expect(engine_children_tab).to_contain_text("Generator 保留迁移证据")
             tabs.get_by_role("tab", name="审计与 Skill").click()
             engine_auditor_tab = page.get_by_test_id("tab-auditor")
             expect(engine_auditor_tab).to_contain_text("Auditor 审计")
-            expect(engine_auditor_tab).to_contain_text("已接入")
-            expect(engine_auditor_tab).to_contain_text("会触发 audit_blocked")
+            expect(engine_auditor_tab).to_contain_text("仅展示")
+            expect(engine_auditor_tab).to_contain_text("不会触发硬阻塞")
             expect(engine_auditor_tab).to_contain_text("open must_fix")
-            expect(engine_auditor_tab).to_contain_text("0")
-            expect(engine_auditor_tab).to_contain_text("通过")
-            expect(engine_auditor_tab).to_contain_text("resume_after_audit_remediation")
-            expect(engine_auditor_tab).to_contain_text("审计产物：.codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-002.json")
+            expect(engine_auditor_tab).to_contain_text("1")
+            expect(engine_auditor_tab).to_contain_text("必须整改")
+            expect(engine_auditor_tab).to_contain_text("重新聚焦")
+            expect(engine_auditor_tab).not_to_contain_text("已接入")
+            expect(engine_auditor_tab).not_to_contain_text("会触发 audit_blocked")
+            expect(engine_auditor_tab).to_contain_text("审计产物：.codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-001.json")
+            expect(engine_auditor_tab).not_to_contain_text("audit-002.json")
             expect(engine_auditor_tab).to_contain_text("确定性信号")
             expect(engine_auditor_tab).to_contain_text("重复 finding")
             expect(engine_auditor_tab).to_contain_text("2")
+            tabs.get_by_role("tab", name="产物").click()
+            engine_artifacts = page.get_by_test_id("tab-artifacts")
+            expect(engine_artifacts).to_contain_text(
+                ".codex/loop-runs/loop-auditor-engine-dev/audit-remediation-result.json"
+            )
+            expect(engine_artifacts).not_to_contain_text("audit-002.json")
             click_run(page, "active-repair-run")
 
             tabs.get_by_role("tab", name="阻塞诊断").click()
