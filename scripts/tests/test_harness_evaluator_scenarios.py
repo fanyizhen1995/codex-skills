@@ -548,10 +548,14 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             "Playwright",
             "打开 Loop Dashboard",
             "浏览器",
+            "current control",
+            "当前控制",
+            "Supervisor",
+            "Reviewer",
+            "质量判断",
+            "控制面",
         ):
             self.assertNotIn(unsupported_display_claim, historical_contract)
-        self.assertNotIn("current Supervisor", historical_contract)
-        self.assertNotIn("Reviewer control plane", historical_contract)
 
     @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:

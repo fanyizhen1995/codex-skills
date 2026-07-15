@@ -5,7 +5,7 @@
     {
       "scenario_id": "LOOP-AUDITOR-ENGINE-HISTORICAL-FIXTURE",
       "acceptance_scope": "historical_fixture_display_only",
-      "user_goal": "确认 pre-cutover Auditor fixture 只作为历史 display-only 证据保留，不会授权当前控制动作或恢复已删除的审计阶段。",
+      "user_goal": "确认 pre-cutover Auditor fixture 仅作为历史 display-only 证据保留。",
       "prerequisites": [
         "Python 和 pytest 可用。",
         "Focused tests create a temporary loop-run fixture and read-only pre-cutover audit evidence without invoking a runtime or browser."
@@ -14,19 +14,18 @@
       "steps": [
         "创建临时 loop-run fixture。",
         "为 loop-auditor-engine-dev 写入已停用 Auditor 的历史 audit-001.json 和迁移结果。",
-        "验证历史 must_fix 不改变 fixture 中已经固定的 passed_waiting_human_merge 阶段。",
+        "验证历史 fixture 仍可读取且迁移结果标记为 disabled_legacy_auditor。",
         "注入 audit-002.json 并验证历史 fixture 校验拒绝后继审计报告。"
       ],
       "expected_outcomes": [
-        "loop-auditor-engine-dev 保持 passed_waiting_human_merge，不会恢复为历史审计阻塞阶段。",
         "审计报告路径为 .codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-001.json。",
         "audit-remediation-result.json 标记 disabled_legacy_auditor 且 new_audit_report 为空。",
         "任何 audit-002.json 后继报告都会使 display-only fixture 校验失败。"
       ],
       "failure_signals": [
-        "Focused tests invoke an active Auditor or control-plane runtime.",
-        "历史 open must_fix 改变父需求当前阶段。",
-        "Fixture 接受后继 audit-002.json 或把它当作当前审计结果。"
+        "Focused tests invoke a runtime or produce a successor audit report.",
+        "Fixture 缺少历史 audit-001.json 或迁移结果。",
+        "Fixture 接受后继 audit-002.json。"
       ],
       "cleanup": [
         "pytest removes the temporary fixture directory."
