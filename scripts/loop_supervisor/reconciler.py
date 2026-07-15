@@ -730,13 +730,7 @@ def _reconcile_once_locked(
         for item in existing_decisions
         if item.get("status") == "open"
     }
-    archived_legacy_run_ids = {
-        str(item.get("run_id") or "")
-        for item in existing_decisions
-        if item.get("status") == "closed"
-        and item.get("resolution") == "archived during legacy migration"
-        and str(item.get("failure_key") or "").startswith("unsupported_state:")
-    }
+    archived_legacy_states = _archived_legacy_states(existing_decisions)
     records = discover_run_records(root, include_worktrees=include_worktrees)
     inferred_lineages = infer_loop_lineages(records)
     valid_records: list[RunRecord] = []
@@ -835,18 +829,20 @@ def _reconcile_once_locked(
             desired_by_run[record.run_id] = None
             continue
 
+        decision = _decision_requirement(run)
         action = desired_by_run[record.run_id]
         if (
-            action is not None
+            decision is None
+            and action is not None
             and action.action_type is ActionType.ASK_USER
-            and record.run_id in archived_legacy_run_ids
+            and archived_legacy_states.get(record.run_id)
+            == (_state_revision(run), _state_fingerprint(run))
             and run.get("phase") == "stopped_blocked"
             and run.get("next_action") == "inspect_blocked_diagnostics"
         ):
             desired_by_run[record.run_id] = None
             continue
 
-        decision = _decision_requirement(run)
         if decision is None:
             action = desired_by_run[record.run_id]
             if action is not None and action.action_type is ActionType.ASK_USER:
@@ -988,6 +984,36 @@ def _reconcile_once_locked(
         run_records=records,
         shadow=shadow,
     )
+
+
+def _archived_legacy_states(
+    decisions: list[Mapping[str, Any]],
+) -> dict[str, tuple[int, str]]:
+    prefix = "archived during legacy migration:"
+    result: dict[str, tuple[int, str]] = {}
+    for item in decisions:
+        resolution = str(item.get("resolution") or "")
+        if (
+            item.get("status") != "closed"
+            or not resolution.startswith(prefix)
+            or not str(item.get("failure_key") or "").startswith("unsupported_state:")
+        ):
+            continue
+        try:
+            state = json.loads(resolution.removeprefix(prefix))
+            revision = state["revision"]
+            fingerprint = state["fingerprint"]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if (
+            isinstance(revision, int)
+            and not isinstance(revision, bool)
+            and revision >= 0
+            and isinstance(fingerprint, str)
+            and fingerprint
+        ):
+            result[str(item.get("run_id") or "")] = (revision, fingerprint)
+    return result
 
 
 def _records_under_repo(

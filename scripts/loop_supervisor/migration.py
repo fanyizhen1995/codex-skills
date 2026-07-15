@@ -18,6 +18,8 @@ from uuid import uuid4
 from .reconciler import (
     _decision_requirement,
     _projection,
+    _state_fingerprint,
+    _state_revision,
     desired_action_for_run,
     discover_run_records,
     infer_loop_lineages,
@@ -70,16 +72,32 @@ class MigrationReport:
     archived_decisions: int
     open_decisions: int
     run_rows: int
+    service_rows: int
+    physical_rows: int
+    valid_rows: int
+    corrupt_rows: int
+    compacted_rows: int
+    quarantine_rows: int
+    quarantine_path: str
     semantic_parent_completions: int
     snapshot_path: str
     validated: bool
     protected_paths: tuple[str, ...]
-    _transition_ids: tuple[str, ...] = field(default=(), repr=False)
-    _failure_expectations: Mapping[str, tuple[int, str, str]] = field(
+    _transition_expectations: Mapping[str, Mapping[str, Any]] = field(
         default_factory=dict, repr=False
     )
-    _decision_expectations: Mapping[str, str] = field(default_factory=dict, repr=False)
-    _run_ids: tuple[str, ...] = field(default=(), repr=False)
+    _failure_expectations: Mapping[str, Mapping[str, Any]] = field(
+        default_factory=dict, repr=False
+    )
+    _decision_expectations: Mapping[str, Mapping[str, Any]] = field(
+        default_factory=dict, repr=False
+    )
+    _run_expectations: Mapping[str, Mapping[str, Any]] = field(
+        default_factory=dict, repr=False
+    )
+    _service_expectations: Mapping[str, Mapping[str, Any]] = field(
+        default_factory=dict, repr=False
+    )
     _cadence_positions: Mapping[str, int] = field(default_factory=dict, repr=False)
 
     def as_dict(self) -> dict[str, Any]:
@@ -98,6 +116,10 @@ class ShadowDifference:
     old_action: str
     new_action: str
     summary: str
+    old_scope: str = ""
+    new_scope: str = ""
+    old_reason: str = ""
+    new_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -155,6 +177,32 @@ class _LegacyTransition:
     created_at: str
 
 
+@dataclass(frozen=True)
+class _LegacyRow:
+    path: Path
+    line_number: int
+    payload: dict[str, Any]
+    raw_sha256: str
+    raw_length: int
+
+
+@dataclass
+class _ScanCounts:
+    physical: int = 0
+    valid: int = 0
+    corrupt: int = 0
+
+
+@dataclass(frozen=True)
+class _QuarantineRow:
+    source_path: str
+    line_number: int
+    reason: str
+    raw_sha256: str
+    raw_length: int
+    source_timestamp: str = ""
+
+
 def inventory_runtime(project_root: Path) -> RuntimeInventory:
     """Inventory Git dirt, run baselines, and migration-sensitive evidence."""
     root = Path(project_root).resolve()
@@ -203,23 +251,47 @@ def migrate_jsonl(
     if store.project_root != root:
         raise ValueError("Supervisor store does not belong to project_root")
     inventory = inventory_runtime(root)
-    transitions, failures, source_rows = _scan_run_decisions(root)
-    decisions, decision_source_rows = _scan_user_decisions(root)
+    quarantine: list[_QuarantineRow] = []
+    scan_counts = _ScanCounts()
+    transitions, failures, source_rows = _scan_run_decisions(
+        root, quarantine, scan_counts
+    )
+    decisions, decision_source_rows = _scan_user_decisions(
+        root, quarantine, scan_counts
+    )
     _merge_decision_failures(failures, decisions)
     records = [record for record in discover_run_records(root) if record.valid]
+    _bind_archived_decisions_to_run_state(decisions, records)
+    services = _scan_services(root, quarantine, scan_counts)
     lineage_by_run = infer_loop_lineages(records)
     semantic_ids = _semantic_completion_ids(records)
     cadence_positions = _cadence_positions(records, lineage_by_run, semantic_ids)
     snapshot_path = ""
 
-    transition_ids = tuple(item.transition_id for item in transitions)
+    transition_expectations = {
+        item.transition_id: _expected_transition_row(item) for item in transitions
+    }
     decision_expectations = {
-        str(item["decision_id"]): "closed" if item["status"] == "archived" else "open"
-        for item in decisions
+        _decision_id(item): _expected_decision_row(item) for item in decisions
     }
     failure_expectations = {
-        key: (item.count, item.first_seen_at, item.last_seen_at)
+        key: _expected_failure_row(key, item)
         for key, item in failures.items()
+    }
+    run_expectations = {
+        record.run_id: _expected_run_row(
+            _projection(
+                root,
+                record,
+                record.payload,
+                _state_revision(record.payload),
+                loop_lineage_id=lineage_by_run[record.run_id],
+            )
+        )
+        for record in records
+    }
+    service_expectations = {
+        str(item["service_id"]): item for item in services
     }
     report = MigrationReport(
         project_root=str(root),
@@ -232,29 +304,40 @@ def migrate_jsonl(
         archived_decisions=sum(item["status"] == "archived" for item in decisions),
         open_decisions=sum(item["status"] != "archived" for item in decisions),
         run_rows=len(records),
+        service_rows=len(services),
+        physical_rows=scan_counts.physical,
+        valid_rows=scan_counts.valid,
+        corrupt_rows=scan_counts.corrupt,
+        compacted_rows=len(transitions) + len(decisions) + len(services),
+        quarantine_rows=len(quarantine),
+        quarantine_path="",
         semantic_parent_completions=sum(len(items) for items in semantic_ids.values()),
         snapshot_path="",
         validated=dry_run,
         protected_paths=inventory.protected_paths,
-        _transition_ids=transition_ids,
+        _transition_expectations=transition_expectations,
         _failure_expectations=failure_expectations,
         _decision_expectations=decision_expectations,
-        _run_ids=tuple(sorted(record.run_id for record in records)),
+        _run_expectations=run_expectations,
+        _service_expectations=service_expectations,
         _cadence_positions=cadence_positions,
     )
     if dry_run:
         return report
 
     snapshot_path = _snapshot_runtime(root)
+    quarantine_path = _write_quarantine(Path(snapshot_path), quarantine)
     _import_transitions(store, transitions)
     _import_failures(store, failures)
     _import_user_decisions(store, decisions)
     _import_run_projections(store, root, records, lineage_by_run)
+    _import_services(store, services)
     _import_cadence(store, cadence_positions)
     report = MigrationReport(
         **{
             **report.__dict__,
             "snapshot_path": snapshot_path,
+            "quarantine_path": quarantine_path,
         }
     )
     if not validate_migration(root, store, report):
@@ -272,34 +355,45 @@ def validate_migration(
     """Validate imported identities, counts, statuses, timestamps, and cadence."""
     if Path(project_root).resolve() != store.project_root:
         return False
-    transition_ids = {
-        str(row["transition_id"]) for row in store.fetch_all("transitions")
-    }
-    if not set(report._transition_ids) <= transition_ids:
+    if report.physical_rows != report.valid_rows + report.corrupt_rows:
         return False
-    failures = {
-        str(row["failure_key"]): row for row in store.fetch_all("failures")
-    }
-    for key, (count, first_seen, last_seen) in report._failure_expectations.items():
-        row = failures.get(key)
-        if row is None:
-            return False
-        if int(row["occurrence_count"]) < count:
-            return False
-        if str(row["first_seen_at"]) != first_seen or str(row["last_seen_at"]) != last_seen:
-            return False
-    decisions = {
-        str(row["decision_id"]): str(row["status"])
-        for row in store.fetch_all("user_decisions")
-    }
-    if any(decisions.get(key) != status for key, status in report._decision_expectations.items()):
+    if report.quarantine_rows != report.corrupt_rows:
         return False
-    run_ids = {str(row["run_id"]) for row in store.fetch_all("runs")}
-    if not set(report._run_ids) <= run_ids:
+    if report.valid_rows != (
+        report.source_rows + report.decision_source_rows + report.service_rows
+    ):
+        return False
+    if report.compacted_rows != (
+        report.transition_rows + report.decision_rows + report.service_rows
+    ):
+        return False
+    if not _rows_match_exactly(
+        store.fetch_all("transitions"), "transition_id", report._transition_expectations
+    ):
+        return False
+    if not _rows_match_exactly(
+        store.fetch_all("failures"), "failure_key", report._failure_expectations
+    ):
+        return False
+    if not _rows_match_exactly(
+        store.fetch_all("user_decisions"),
+        "decision_id",
+        report._decision_expectations,
+    ):
+        return False
+    if not _rows_match_exactly(
+        store.fetch_all("runs"), "run_id", report._run_expectations
+    ):
+        return False
+    if not _rows_match_exactly(
+        store.fetch_all("services"), "service_id", report._service_expectations
+    ):
         return False
     cadence = store.review_cadence_positions()
-    return all(
-        int(cadence.get(lineage, {}).get("reviewed_position", -1)) == position
+    return set(cadence) == set(report._cadence_positions) and all(
+        int(cadence[lineage]["reviewed_position"]) == position
+        and int(cadence[lineage]["reserved_position"]) == position
+        and str(cadence[lineage]["reservation_id"]) == ""
         for lineage, position in report._cadence_positions.items()
     )
 
@@ -322,25 +416,40 @@ def shadow_compare(
     }
     for record in records:
         old = legacy.get(record.run_id) or _legacy_classification(record.payload)
-        new_action = ""
-        new_requires_user = _decision_requirement(record.payload) is not None
-        if not new_requires_user:
+        decision = _decision_requirement(record.payload)
+        new = {
+            "action": "user_decision" if decision is not None else "",
+            "scope": decision[0] if decision is not None else "",
+            "reason": decision[1] if decision is not None else "",
+        }
+        if decision is None:
             try:
                 request = desired_action_for_run(record.payload)
             except (TypeError, ValueError):
-                new_requires_user = True
+                new = {
+                    "action": "user_decision",
+                    "scope": "run",
+                    "reason": "unsupported_transition",
+                }
             else:
-                new_action = request.action_type.value if request is not None else "none"
-                new_requires_user = (
-                    request is not None and request.action_type is ActionType.ASK_USER
-                )
+                new["action"] = request.action_type.value if request is not None else "none"
+                if request is not None and request.action_type is ActionType.ASK_USER:
+                    new = {
+                        "action": "user_decision",
+                        "scope": "run",
+                        "reason": (
+                            "human_merge_required"
+                            if record.payload.get("phase") == "passed_waiting_human_merge"
+                            else "registry_user_gate"
+                        ),
+                    }
                 if (
                     request is not None
                     and request.action_type is ActionType.CREATE_CONTINUATION
                     and record.run_id in child_sources
                 ):
-                    new_action = "none"
-        classification = _compare_outcomes(old, new_action, new_requires_user)
+                    new["action"] = "none"
+        classification = _compare_outcomes(old, new)
         counts[classification] += 1
         if classification != "equivalent":
             differences.append(
@@ -349,8 +458,12 @@ def shadow_compare(
                     classification=classification,
                     old_classification=str(old.get("classification") or ""),
                     old_action=str(old.get("action") or ""),
-                    new_action="user_decision" if new_requires_user else new_action,
+                    new_action=str(new["action"]),
                     summary=_difference_summary(classification),
+                    old_scope=_old_decision_scope(old),
+                    new_scope=str(new["scope"]),
+                    old_reason=str(old.get("reason") or ""),
+                    new_reason=str(new["reason"]),
                 )
             )
     return ShadowComparisonReport(
@@ -367,6 +480,8 @@ def cleanup_legacy_runtime(
     project_root: Path,
     migration: MigrationReport,
     comparison: ShadowComparisonReport,
+    *,
+    store: SupervisorStore,
 ) -> tuple[str, ...]:
     """Remove only known legacy runtime files after both migration gates pass."""
     root = Path(project_root).resolve()
@@ -376,26 +491,55 @@ def cleanup_legacy_runtime(
         raise MigrationValidationError("legacy cleanup requires a passing shadow comparison")
     if Path(migration.project_root).resolve() != root:
         raise MigrationValidationError("migration report belongs to another project root")
+    if not validate_migration(root, store, migration):
+        raise MigrationValidationError("legacy cleanup requires current exact migration validation")
     supervisor = root / ".codex" / "supervisor"
+    _require_cleanup_path(supervisor, root)
     removed: list[str] = []
     for name in LEGACY_SUPERVISOR_FILES:
         path = supervisor / name
+        _require_cleanup_path(path, root)
         if path.is_file() and not path.is_symlink():
             path.unlink()
             removed.append(path.as_posix())
     decision_dir = supervisor / "needs-user-decisions"
+    _require_cleanup_path(decision_dir, root)
     if decision_dir.is_dir() and not decision_dir.is_symlink():
         shutil.rmtree(decision_dir)
         removed.append(decision_dir.as_posix())
-    for audit_dir in (root / ".codex" / "loop-runs").glob("*/audit-reports"):
+    runs_root = root / ".codex" / "loop-runs"
+    _require_cleanup_path(runs_root, root)
+    run_dirs = tuple(runs_root.iterdir()) if runs_root.is_dir() else ()
+    for run_dir in run_dirs:
+        _require_cleanup_path(run_dir, root)
+        if not run_dir.is_dir():
+            continue
+        audit_dir = run_dir / "audit-reports"
+        _require_cleanup_path(audit_dir, root)
         if audit_dir.is_dir() and not audit_dir.is_symlink():
             shutil.rmtree(audit_dir)
             removed.append(audit_dir.as_posix())
     return tuple(removed)
 
 
+def _require_cleanup_path(path: Path, root: Path) -> None:
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise MigrationValidationError(f"cleanup path escapes project root: {path}") from exc
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise MigrationValidationError(f"cleanup path has symlink ancestor: {current}")
+        if not current.exists():
+            break
+
+
 def _scan_run_decisions(
     root: Path,
+    quarantine: list[_QuarantineRow],
+    counts: _ScanCounts,
 ) -> tuple[list[_LegacyTransition], dict[str, _FailureAggregate], int]:
     path = root / ".codex" / "supervisor" / "run-decisions.jsonl"
     transitions: list[_LegacyTransition] = []
@@ -403,16 +547,31 @@ def _scan_run_decisions(
     prior_by_run: dict[str, tuple[Any, ...]] = {}
     revision_by_run: dict[str, int] = defaultdict(int)
     source_rows = 0
-    for row in _iter_jsonl(path):
-        source_rows += 1
+    for source in _iter_jsonl(path, quarantine=quarantine, counts=counts):
+        row = source.payload
         run_id = str(row.get("run_id") or "")
-        if not run_id:
+        try:
+            timestamp = _source_timestamp(
+                row.get("created_at"), f"{path}:{source.line_number}:created_at"
+            )
+        except MigrationValidationError:
+            _quarantine_source(
+                quarantine,
+                counts,
+                source,
+                "invalid_timestamp",
+                source_timestamp=str(row.get("created_at") or ""),
+            )
             continue
+        if not run_id:
+            _quarantine_source(quarantine, counts, source, "missing_run_id")
+            continue
+        counts.valid += 1
+        source_rows += 1
         signature = _decision_signature(row)
         if prior_by_run.get(run_id) != signature:
             revision_by_run[run_id] += 1
             revision = revision_by_run[run_id]
-            timestamp = _timestamp(row.get("created_at"))
             identity = json.dumps(
                 {"run_id": run_id, "revision": revision, "signature": signature},
                 sort_keys=True,
@@ -445,28 +604,179 @@ def _scan_run_decisions(
                     summary=f"Legacy Supervisor repeatedly classified {run_id} for user intervention.",
                 ),
             )
-            aggregate.observe(_timestamp(row.get("created_at")))
+            aggregate.observe(timestamp)
     return transitions, failures, source_rows
 
 
-def _scan_user_decisions(root: Path) -> tuple[list[dict[str, Any]], int]:
+def _scan_user_decisions(
+    root: Path,
+    quarantine: list[_QuarantineRow],
+    counts: _ScanCounts,
+) -> tuple[list[dict[str, Any]], int]:
     supervisor = root / ".codex" / "supervisor"
     decisions: dict[str, dict[str, Any]] = {}
     source_rows = 0
     for name in ("user-decisions.jsonl", "archived-user-decisions.jsonl"):
-        for row in _iter_jsonl(supervisor / name):
-            source_rows += 1
+        path = supervisor / name
+        for source in _iter_jsonl(path, quarantine=quarantine, counts=counts):
+            row = source.payload
             failure_key = str(row.get("failure_key") or "")
             identity = failure_key or str(row.get("decision_id") or "")
             if not identity:
+                _quarantine_source(quarantine, counts, source, "missing_decision_identity")
                 continue
             candidate = dict(row)
-            if name.startswith("archived-"):
-                candidate["status"] = "archived"
             existing = decisions.get(identity)
+            if name.startswith("archived-"):
+                candidate = {**(existing or {}), **candidate, "status": "archived"}
+            timestamp_value = candidate.get("opened_at") or candidate.get("created_at")
+            try:
+                _source_timestamp(
+                    timestamp_value, f"{path}:{source.line_number}:opened_at"
+                )
+                if name.startswith("archived-"):
+                    _source_timestamp(
+                        candidate.get("archived_at"),
+                        f"{path}:{source.line_number}:archived_at",
+                    )
+            except MigrationValidationError:
+                _quarantine_source(
+                    quarantine,
+                    counts,
+                    source,
+                    "invalid_timestamp",
+                    source_timestamp=str(
+                        timestamp_value or candidate.get("archived_at") or ""
+                    ),
+                )
+                continue
+            counts.valid += 1
+            source_rows += 1
             if existing is None or candidate.get("status") == "archived":
                 decisions[identity] = candidate
     return sorted(decisions.values(), key=lambda item: str(item.get("decision_id") or "")), source_rows
+
+
+def _scan_services(
+    root: Path,
+    quarantine: list[_QuarantineRow],
+    counts: _ScanCounts,
+) -> list[dict[str, Any]]:
+    path = root / ".codex" / "supervisor" / "service-health.json"
+    if not path.is_file() or path.is_symlink():
+        return []
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        if b"\x00" in raw:
+            raise ValueError("nul byte")
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        counts.physical += 1
+        quarantine.append(
+            _QuarantineRow(
+                source_path=path.as_posix(),
+                line_number=1,
+                reason="nul_byte" if b"\x00" in raw else "malformed_json",
+                raw_sha256=digest,
+                raw_length=len(raw),
+            )
+        )
+        counts.corrupt += 1
+        return []
+    if not isinstance(payload, Mapping):
+        counts.physical += 1
+        quarantine.append(
+            _QuarantineRow(
+                source_path=path.as_posix(),
+                line_number=1,
+                reason="non_object",
+                raw_sha256=digest,
+                raw_length=len(raw),
+            )
+        )
+        counts.corrupt += 1
+        return []
+    counts.physical += len(payload)
+    services: list[dict[str, Any]] = []
+    for entry_number, (service_id, service) in enumerate(sorted(payload.items()), start=1):
+        if (
+            not isinstance(service_id, str)
+            or not service_id
+            or not isinstance(service, Mapping)
+        ):
+            quarantine.append(
+                _QuarantineRow(
+                    source_path=path.as_posix(),
+                    line_number=entry_number,
+                    reason="invalid_service_entry",
+                    raw_sha256=digest,
+                    raw_length=len(raw),
+                )
+            )
+            counts.corrupt += 1
+            continue
+        try:
+            heartbeat = _source_timestamp(
+                service.get("heartbeat_at"), f"{path}:{service_id}:heartbeat_at"
+            )
+        except MigrationValidationError:
+            quarantine.append(
+                _QuarantineRow(
+                    source_path=path.as_posix(),
+                    line_number=1,
+                    reason="invalid_timestamp",
+                    raw_sha256=digest,
+                    raw_length=len(raw),
+                    source_timestamp=str(service.get("heartbeat_at") or ""),
+                )
+            )
+            counts.corrupt += 1
+            continue
+        process_id = service.get("process_id")
+        if process_id is not None and (
+            not isinstance(process_id, int) or isinstance(process_id, bool) or process_id < 0
+        ):
+            quarantine.append(
+                _QuarantineRow(
+                    source_path=path.as_posix(),
+                    line_number=entry_number,
+                    reason="invalid_process_id",
+                    raw_sha256=digest,
+                    raw_length=len(raw),
+                )
+            )
+            counts.corrupt += 1
+            continue
+        details = {
+            str(key): value
+            for key, value in service.items()
+            if key
+            not in {
+                "status",
+                "endpoint",
+                "process_id",
+                "heartbeat_at",
+                "version",
+            }
+        }
+        services.append(
+            {
+                "service_id": service_id,
+                "status": str(service.get("status") or ""),
+                "endpoint": str(service.get("endpoint") or ""),
+                "process_id": process_id,
+                "heartbeat_at": heartbeat,
+                "version": str(service.get("version") or ""),
+                "details_json": json.dumps(
+                    details, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+                ),
+                "created_at": heartbeat,
+                "updated_at": heartbeat,
+            }
+        )
+        counts.valid += 1
+    return services
 
 
 def _merge_decision_failures(
@@ -477,7 +787,10 @@ def _merge_decision_failures(
         if not failure_key:
             continue
         run_ids = _string_list(decision.get("affected_runs"))
-        opened = _timestamp(decision.get("opened_at") or decision.get("created_at"))
+        opened = _source_timestamp(
+            decision.get("opened_at") or decision.get("created_at"),
+            "legacy user decision opened_at",
+        )
         closed = str(decision.get("archived_at") or "")
         aggregate = failures.get(failure_key)
         if aggregate is None:
@@ -490,8 +803,10 @@ def _merge_decision_failures(
             failures[failure_key] = aggregate
         if decision.get("status") == "archived":
             aggregate.resolution = "archived"
-            if closed and closed > aggregate.last_seen_at:
-                aggregate.last_seen_at = _timestamp(closed)
+            if closed:
+                closed_at = _source_timestamp(closed, "legacy user decision archived_at")
+                if closed_at > aggregate.last_seen_at:
+                    aggregate.last_seen_at = closed_at
 
 
 def _import_transitions(
@@ -563,19 +878,20 @@ def _import_user_decisions(
 ) -> None:
     with store._immediate_transaction():
         for item in decisions:
-            decision_id = str(item.get("decision_id") or "")
+            decision_id = _decision_id(item)
             failure_key = str(item.get("failure_key") or "")
-            if not decision_id:
-                decision_id = "legacy-decision-" + hashlib.sha256(
-                    failure_key.encode("utf-8")
-                ).hexdigest()[:24]
             run_ids = _string_list(item.get("affected_runs"))
             run_id = run_ids[0] if len(run_ids) == 1 else ""
             scope = "run" if run_id else "global"
             closed = item.get("status") == "archived"
-            created_at = _timestamp(item.get("opened_at") or item.get("created_at"))
-            updated_at = _timestamp(
-                item.get("archived_at") or item.get("updated_at") or created_at
+            resolution = _archived_resolution(item) if closed else ""
+            created_at = _source_timestamp(
+                item.get("opened_at") or item.get("created_at"),
+                "legacy user decision opened_at",
+            )
+            updated_at = _source_timestamp(
+                item.get("archived_at") or item.get("updated_at") or created_at,
+                "legacy user decision updated_at",
             )
             store._connection.execute(
                 """
@@ -599,12 +915,69 @@ def _import_user_decisions(
                     "closed" if closed else "open",
                     str(item.get("summary") or "Legacy user decision."),
                     str(item.get("required_user_decision") or "Inspect the retained evidence."),
-                    "archived during legacy migration" if closed else "",
+                    resolution,
                     created_at,
                     updated_at,
                     updated_at if closed else "",
                 ),
             )
+
+
+def _import_services(
+    store: SupervisorStore, services: Sequence[Mapping[str, Any]]
+) -> None:
+    with store._immediate_transaction():
+        for item in services:
+            store._connection.execute(
+                """
+                INSERT INTO services(
+                  service_id, status, endpoint, process_id, heartbeat_at, version,
+                  details_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(service_id) DO UPDATE SET
+                  status = excluded.status,
+                  endpoint = excluded.endpoint,
+                  process_id = excluded.process_id,
+                  heartbeat_at = excluded.heartbeat_at,
+                  version = excluded.version,
+                  details_json = excluded.details_json,
+                  created_at = excluded.created_at,
+                  updated_at = excluded.updated_at
+                """,
+                tuple(
+                    item[key]
+                    for key in (
+                        "service_id",
+                        "status",
+                        "endpoint",
+                        "process_id",
+                        "heartbeat_at",
+                        "version",
+                        "details_json",
+                        "created_at",
+                        "updated_at",
+                    )
+                ),
+            )
+
+
+def _bind_archived_decisions_to_run_state(
+    decisions: Sequence[dict[str, Any]], records: Sequence[Any]
+) -> None:
+    records_by_run = {record.run_id: record for record in records}
+    for item in decisions:
+        if item.get("status") != "archived":
+            continue
+        run_ids = _string_list(item.get("affected_runs"))
+        if len(run_ids) != 1:
+            continue
+        record = records_by_run.get(run_ids[0])
+        if record is None:
+            continue
+        item["_archived_run_state"] = {
+            "revision": _state_revision(record.payload),
+            "fingerprint": _state_fingerprint(record.payload),
+        }
 
 
 def _import_run_projections(
@@ -716,9 +1089,27 @@ def _snapshot_runtime(root: Path) -> str:
     return destination.as_posix()
 
 
+def _write_quarantine(
+    snapshot_root: Path, quarantine: Sequence[_QuarantineRow]
+) -> str:
+    if not quarantine:
+        return ""
+    path = snapshot_root / "migration-quarantine.jsonl"
+    with path.open("w", encoding="utf-8") as handle:
+        for item in quarantine:
+            handle.write(
+                json.dumps(
+                    asdict(item), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+                )
+                + "\n"
+            )
+    return path.as_posix()
+
+
 def _latest_legacy_decisions(root: Path) -> dict[str, dict[str, Any]]:
     latest: dict[str, dict[str, Any]] = {}
-    for row in _iter_jsonl(root / ".codex/supervisor/run-decisions.jsonl"):
+    for source in _iter_jsonl(root / ".codex/supervisor/run-decisions.jsonl"):
+        row = source.payload
         run_id = str(row.get("run_id") or "")
         if run_id:
             latest[run_id] = row
@@ -729,39 +1120,64 @@ def _legacy_classification(run: Mapping[str, Any]) -> dict[str, str]:
     policy = str(run.get("policy") or "")
     phase = str(run.get("phase") or "")
     next_action = str(run.get("next_action") or "")
+    base = {"phase": phase, "next_action": next_action}
     if run.get("unsafe_secret_detected") is True or run.get("secret_detected") is True:
-        return {"classification": "needs_user_decision", "action": "request_user_decision"}
+        return {
+            **base,
+            "classification": "needs_user_decision",
+            "action": "request_user_decision",
+            "scope": "global",
+            "reason": "secret_exposure",
+        }
     if policy == "autonomous_knowledge":
         if phase in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup", "audit_blocked"}:
-            return {"classification": "actionable_resume", "action": "resume"}
+            return {**base, "classification": "actionable_resume", "action": "resume"}
         if phase == "stopped_blocked":
             if next_action in {"inspect_autonomous_dirty_paths", "inspect_required_evidence"}:
-                return {"classification": "actionable_resume", "action": "resume"}
-            return {"classification": "needs_user_decision", "action": "request_user_decision"}
+                return {**base, "classification": "actionable_resume", "action": "resume"}
+            return {
+                **base,
+                "classification": "needs_user_decision",
+                "action": "request_user_decision",
+                "scope": "run",
+                "reason": "unsupported_state",
+            }
         if phase == "stopped_budget":
-            return {"classification": "continuation_candidate", "action": "create_continuation"}
+            return {**base, "classification": "continuation_candidate", "action": "create_continuation"}
     if policy == "demand_development":
         if phase in {
             "preflight", "planned", "generating", "verifying", "evaluating",
             "repair_needed", "artifact_hygiene", "cleanup", "audit_pending",
             "auditing", "child_running",
         }:
-            return {"classification": "active", "action": "observe"}
+            return {**base, "classification": "active", "action": "observe"}
         if phase == "passed_waiting_human_merge":
-            return {"classification": "awaiting_human_merge", "action": "await_human_merge"}
+            return {
+                **base,
+                "classification": "awaiting_human_merge",
+                "action": "await_human_merge",
+                "scope": "run",
+                "reason": "human_merge_required",
+            }
     if phase in {"stopped_no_action", "audit_passed", "committed"}:
-        return {"classification": "terminal", "action": "observe"}
-    return {"classification": "needs_user_decision", "action": "request_user_decision"}
+        return {**base, "classification": "terminal", "action": "observe"}
+    return {
+        **base,
+        "classification": "needs_user_decision",
+        "action": "request_user_decision",
+        "scope": "run",
+        "reason": "unsupported_state",
+    }
 
 
-def _compare_outcomes(
-    old: Mapping[str, Any], new_action: str, new_requires_user: bool
-) -> str:
+def _compare_outcomes(old: Mapping[str, Any], new: Mapping[str, str]) -> str:
     old_action = str(old.get("action") or "")
     old_requires_user = (
         old_action in {"request_user_decision", "await_human_merge"}
         or old.get("classification") in {"needs_user_decision", "awaiting_human_merge"}
     )
+    new_action = str(new.get("action") or "")
+    new_requires_user = new_action == "user_decision"
     if new_requires_user:
         if (
             old.get("reason") == "archived_user_decision"
@@ -769,18 +1185,81 @@ def _compare_outcomes(
             and old.get("next_action") == "inspect_blocked_diagnostics"
         ):
             return "equivalent"
-        return "equivalent" if old_requires_user else "new_user_intervention"
+        if not old_requires_user:
+            return "new_user_intervention"
+        if _old_decision_scope(old) != str(new.get("scope") or ""):
+            return "unsafe_divergence"
+        return (
+            "equivalent"
+            if _old_decision_reason(old) == str(new.get("reason") or "")
+            else "unsafe_divergence"
+        )
     if old_requires_user:
         return "new_auto_recovery"
     if old_action == "create_continuation":
         return "equivalent" if new_action == "create_continuation" else "unsafe_divergence"
-    if old_action in {"observe", "await_human_merge"}:
-        if new_action == "none" or old.get("classification") == "active":
-            return "equivalent"
-        return "unsafe_divergence"
+    if old_action == "observe":
+        return (
+            "equivalent"
+            if new_action in _compatible_observe_actions(old)
+            else "unsafe_divergence"
+        )
     if old_action == "resume":
-        return "equivalent" if new_action not in {"", "none"} else "unsafe_divergence"
+        return (
+            "equivalent"
+            if new_action in _compatible_resume_actions(old)
+            else "unsafe_divergence"
+        )
     return "equivalent" if new_action == "none" else "unsafe_divergence"
+
+
+def _old_decision_scope(old: Mapping[str, Any]) -> str:
+    explicit = str(old.get("scope") or "")
+    if explicit:
+        return explicit
+    reason = str(old.get("reason") or "").replace("-", "_")
+    return "global" if reason in {"unsafe_secret", "secret_exposure", "repo_corruption"} else "run"
+
+
+def _old_decision_reason(old: Mapping[str, Any]) -> str:
+    if str(old.get("action") or "") == "await_human_merge" or old.get(
+        "classification"
+    ) == "awaiting_human_merge":
+        return "human_merge_required"
+    return str(old.get("reason") or "").replace("-", "_")
+
+
+def _compatible_observe_actions(old: Mapping[str, Any]) -> set[str]:
+    if old.get("classification") == "terminal":
+        return {"none"}
+    if old.get("classification") != "active":
+        return {"none"}
+    phase = str(old.get("phase") or "")
+    return {
+        "preflight": {"ask_user"},
+        "planned": {"run_planner"},
+        "planning": {"run_planner"},
+        "generating": {"run_generator"},
+        "repair_needed": {"run_generator"},
+        "verifying": {"run_evidence_gate", "run_evaluator"},
+        "evaluating": {"run_evaluator"},
+        "artifact_hygiene": {"run_artifact_hygiene"},
+        "cleanup": {"cleanup", "commit", "push"},
+        "child_running": {"none", "run_planner"},
+    }.get(phase, set())
+
+
+def _compatible_resume_actions(old: Mapping[str, Any]) -> set[str]:
+    phase = str(old.get("phase") or "")
+    return {
+        "planning": {"run_planner"},
+        "generating": {"run_generator"},
+        "evaluating": {"run_evaluator"},
+        "artifact_hygiene": {"run_artifact_hygiene"},
+        "cleanup": {"cleanup", "commit", "push"},
+        "audit_blocked": {"run_alternate_recovery", "run_planner"},
+        "stopped_blocked": {"recover_generator_result"},
+    }.get(phase, set())
 
 
 def _difference_summary(classification: str) -> str:
@@ -814,39 +1293,203 @@ def _decision_failure_key(row: Mapping[str, Any]) -> str:
     return f"unsupported_state:{run_id}:run-state:{reason}"
 
 
-def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
+def _decision_id(item: Mapping[str, Any]) -> str:
+    decision_id = str(item.get("decision_id") or "")
+    if decision_id:
+        return decision_id
+    failure_key = str(item.get("failure_key") or "")
+    return "legacy-decision-" + hashlib.sha256(failure_key.encode("utf-8")).hexdigest()[:24]
+
+
+def _archived_resolution(item: Mapping[str, Any]) -> str:
+    archived_state = item.get("_archived_run_state")
+    if not isinstance(archived_state, Mapping):
+        return ""
+    return "archived during legacy migration:" + json.dumps(
+        dict(archived_state), sort_keys=True, separators=(",", ":")
+    )
+
+
+def _expected_transition_row(item: _LegacyTransition) -> dict[str, Any]:
+    return {
+        "transition_id": item.transition_id,
+        "run_id": item.run_id,
+        "from_revision": item.from_revision,
+        "to_revision": item.to_revision,
+        "from_phase": item.from_phase,
+        "to_phase": item.to_phase,
+        "action_id": "",
+        "summary": item.summary,
+        "artifact_json": "[]",
+        "created_at": item.created_at,
+    }
+
+
+def _expected_failure_row(key: str, item: _FailureAggregate) -> dict[str, Any]:
+    return {
+        "failure_key": key,
+        "run_id": item.run_id,
+        "task_id": "",
+        "error_class": item.error_class,
+        "summary": item.summary,
+        "resolution": item.resolution,
+        "occurrence_count": item.count,
+        "first_seen_at": item.first_seen_at,
+        "last_seen_at": item.last_seen_at,
+        "created_at": item.first_seen_at,
+        "updated_at": item.last_seen_at,
+    }
+
+
+def _expected_decision_row(item: Mapping[str, Any]) -> dict[str, Any]:
+    run_ids = _string_list(item.get("affected_runs"))
+    run_id = run_ids[0] if len(run_ids) == 1 else ""
+    closed = item.get("status") == "archived"
+    created_at = _source_timestamp(
+        item.get("opened_at") or item.get("created_at"), "legacy user decision opened_at"
+    )
+    updated_at = _source_timestamp(
+        item.get("archived_at") or item.get("updated_at") or created_at,
+        "legacy user decision updated_at",
+    )
+    return {
+        "decision_id": _decision_id(item),
+        "scope": "run" if run_id else "global",
+        "run_id": run_id,
+        "failure_key": str(item.get("failure_key") or ""),
+        "status": "closed" if closed else "open",
+        "summary": str(item.get("summary") or "Legacy user decision."),
+        "required_decision": str(
+            item.get("required_user_decision") or "Inspect the retained evidence."
+        ),
+        "resolution": _archived_resolution(item) if closed else "",
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "closed_at": updated_at if closed else "",
+    }
+
+
+def _expected_run_row(projection: Mapping[str, Any]) -> dict[str, Any]:
+    summary = {
+        "summary": projection.get("summary", ""),
+        "artifact_refs": projection.get("artifact_refs", []),
+    }
+    return {
+        "run_id": projection["run_id"],
+        "loop_lineage_id": projection.get("loop_lineage_id", ""),
+        "parent_run_id": projection.get("parent_run_id", ""),
+        "policy": projection.get("policy", ""),
+        "phase": projection.get("phase", ""),
+        "status": projection.get("status", ""),
+        "revision": projection["revision"],
+        "repo_relative_root": projection.get("repo_relative_root", "."),
+        "state_fingerprint": projection.get("state_fingerprint", ""),
+        "summary_json": json.dumps(
+            summary, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ),
+    }
+
+
+def _rows_match_exactly(
+    rows: Sequence[Mapping[str, Any]],
+    identity_key: str,
+    expected: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    actual = {str(row.get(identity_key) or ""): row for row in rows}
+    if set(actual) != set(expected):
+        return False
+    return all(
+        all(actual[identity].get(key) == value for key, value in projection.items())
+        for identity, projection in expected.items()
+    )
+
+
+def _iter_jsonl(
+    path: Path,
+    *,
+    quarantine: list[_QuarantineRow] | None = None,
+    counts: _ScanCounts | None = None,
+) -> Iterator[_LegacyRow]:
     if not path.is_file() or path.is_symlink():
         return
-    with path.open("r", encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            stripped = line.strip().rstrip("\x00").strip()
+    with path.open("rb") as handle:
+        for line_number, raw in enumerate(handle, start=1):
+            if counts is not None:
+                counts.physical += 1
+            digest = hashlib.sha256(raw).hexdigest()
+            reason = ""
+            stripped = raw.strip()
             if not stripped:
+                reason = "blank_row"
+            elif b"\x00" in raw:
+                reason = "nul_byte"
+            else:
+                try:
+                    text = stripped.decode("utf-8")
+                except UnicodeDecodeError:
+                    reason = "invalid_utf8"
+                else:
+                    try:
+                        payload = json.loads(text)
+                    except json.JSONDecodeError:
+                        reason = "malformed_json"
+                    else:
+                        if not isinstance(payload, dict):
+                            reason = "non_object"
+                        else:
+                            yield _LegacyRow(
+                                path=path,
+                                line_number=line_number,
+                                payload=payload,
+                                raw_sha256=digest,
+                                raw_length=len(raw),
+                            )
+                            continue
+            if quarantine is None:
                 continue
-            try:
-                payload = json.loads(stripped)
-            except json.JSONDecodeError as exc:
-                raise MigrationValidationError(
-                    f"invalid legacy JSONL at {path}:{line_number}: {exc}"
-                ) from exc
-            if not isinstance(payload, dict):
-                raise MigrationValidationError(
-                    f"legacy JSONL row must be an object at {path}:{line_number}"
+            quarantine.append(
+                _QuarantineRow(
+                    source_path=path.as_posix(),
+                    line_number=line_number,
+                    reason=reason,
+                    raw_sha256=digest,
+                    raw_length=len(raw),
                 )
-            yield payload
+            )
+            if counts is not None:
+                counts.corrupt += 1
 
 
-def _timestamp(value: object) -> str:
+def _quarantine_source(
+    quarantine: list[_QuarantineRow],
+    counts: _ScanCounts,
+    source: _LegacyRow,
+    reason: str,
+    *,
+    source_timestamp: str = "",
+) -> None:
+    quarantine.append(
+        _QuarantineRow(
+            source_path=source.path.as_posix(),
+            line_number=source.line_number,
+            reason=reason,
+            raw_sha256=source.raw_sha256,
+            raw_length=source.raw_length,
+            source_timestamp=source_timestamp,
+        )
+    )
+    counts.corrupt += 1
+
+
+def _source_timestamp(value: object, source: str) -> str:
     text = str(value or "")
-    if text:
-        try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        except ValueError:
-            pass
-        else:
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return parsed.astimezone(timezone.utc).isoformat(timespec="microseconds")
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise MigrationValidationError(f"invalid source timestamp at {source}: {text!r}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat(timespec="microseconds")
 
 
 def _git_paths(root: Path, args: Sequence[str]) -> tuple[str, ...]:
@@ -854,10 +1497,15 @@ def _git_paths(root: Path, args: Sequence[str]) -> tuple[str, ...]:
         completed = subprocess.run(
             ["git", *args], cwd=root, capture_output=True, check=False
         )
-    except OSError:
-        return ()
+    except OSError as exc:
+        raise MigrationValidationError(
+            f"git {' '.join(args)} failed to start: {exc}"
+        ) from exc
     if completed.returncode != 0:
-        return ()
+        raise MigrationValidationError(
+            f"git {' '.join(args)} failed with exit {completed.returncode}: "
+            f"{completed.stderr.decode('utf-8', 'replace').strip()}"
+        )
     return tuple(sorted(part.decode("utf-8", "surrogateescape") for part in completed.stdout.split(b"\0") if part))
 
 
@@ -869,10 +1517,13 @@ def _git_dirty_paths(root: Path) -> tuple[str, ...]:
             capture_output=True,
             check=False,
         )
-    except OSError:
-        return ()
+    except OSError as exc:
+        raise MigrationValidationError(f"git status failed to start: {exc}") from exc
     if completed.returncode != 0:
-        return ()
+        raise MigrationValidationError(
+            f"git status failed with exit {completed.returncode}: "
+            f"{completed.stderr.decode('utf-8', 'replace').strip()}"
+        )
     entries = completed.stdout.split(b"\0")
     paths: list[str] = []
     index = 0

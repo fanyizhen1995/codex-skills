@@ -11,12 +11,18 @@ try:
     from scripts.harness_ai_infra_evidence import check_service_availability
     from scripts.harness_loop_autonomous import create_default_coverage_map, create_default_loop_state, write_loop_state
     from scripts.harness_loop_contracts import read_json_file, run_dir_for, validate_run_payload, write_json_file
-    from scripts.harness_loop_orchestrator import create_preflight_run, run_autonomous
+    from scripts.harness_loop_orchestrator import (
+        _run_autonomous as run_autonomous,
+        create_preflight_run,
+    )
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     from harness_ai_infra_evidence import check_service_availability  # type: ignore[no-redef]
     from harness_loop_autonomous import create_default_coverage_map, create_default_loop_state, write_loop_state  # type: ignore[no-redef]
     from harness_loop_contracts import read_json_file, run_dir_for, validate_run_payload, write_json_file  # type: ignore[no-redef]
-    from harness_loop_orchestrator import create_preflight_run, run_autonomous  # type: ignore[no-redef]
+    from harness_loop_orchestrator import (  # type: ignore[no-redef]
+        _run_autonomous as run_autonomous,
+        create_preflight_run,
+    )
 
 
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")

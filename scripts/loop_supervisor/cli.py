@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import fcntl
 import json
+import os
 from pathlib import Path
 import shutil
+import sqlite3
 import sys
 import time
 from typing import Any, Mapping
+from uuid import uuid4
 
 from scripts.harness_loop_supervisor import (
     SupervisorConfig,
@@ -17,7 +21,12 @@ from scripts.harness_loop_supervisor import (
     run_supervisor_once,
 )
 
-from .migration import cleanup_legacy_runtime, migrate_jsonl, shadow_compare
+from .migration import (
+    MigrationValidationError,
+    cleanup_legacy_runtime,
+    migrate_jsonl,
+    shadow_compare,
+)
 from .store import SupervisorStore
 from .worker import clear_stop_request, worker_watch
 
@@ -98,7 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "migrate":
         if args.dry_run and args.cleanup_legacy:
             raise SystemExit("--cleanup-legacy cannot be combined with --dry-run")
-        with SupervisorStore.open(root) as store:
+        store_factory = _in_memory_store if args.dry_run else SupervisorStore.open
+        with store_factory(root) as store:
             store.migrate()
             report = migrate_jsonl(root, store, dry_run=args.dry_run)
             payload = report.as_dict()
@@ -106,12 +116,12 @@ def main(argv: list[str] | None = None) -> int:
                 comparison = shadow_compare(root, store)
                 payload["shadow_comparison"] = comparison.as_dict()
                 payload["removed_paths"] = list(
-                    cleanup_legacy_runtime(root, report, comparison)
+                    cleanup_legacy_runtime(root, report, comparison, store=store)
                 )
         _print_json(payload)
         return 0
     if args.command == "shadow-compare":
-        with SupervisorStore.open(root) as store:
+        with _in_memory_store(root) as store:
             store.migrate()
             report = shadow_compare(root, store)
         _print_json(report.as_dict())
@@ -155,6 +165,16 @@ def _run_supervisor(root: Path, args: argparse.Namespace) -> int:
         if not watching or (args.max_ticks and tick >= args.max_ticks):
             return 0
         time.sleep(max(interval, 1))
+
+
+def _in_memory_store(root: Path) -> SupervisorStore:
+    connection = sqlite3.connect(
+        ":memory:", isolation_level=None, check_same_thread=False
+    )
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout=5000")
+    connection.execute("PRAGMA foreign_keys=ON")
+    return SupervisorStore(Path(root).resolve(), connection, None)
 
 
 def _status(root: Path) -> dict[str, Any]:
@@ -201,25 +221,186 @@ def _health(root: Path) -> dict[str, Any]:
 
 
 def _rebuild_db(root: Path) -> dict[str, Any]:
+    _assert_rebuild_quiescent(root)
     supervisor = root / ".codex" / "supervisor"
+    if supervisor.is_symlink():
+        raise MigrationValidationError("Supervisor runtime directory is a symlink")
+    supervisor.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     backup = root.parent / f".{root.name}-supervisor-snapshots" / f"db-rebuild-{stamp}"
-    backup.mkdir(parents=True, exist_ok=False)
-    moved: list[str] = []
-    for name in ("supervisor.db", "supervisor.db-wal", "supervisor.db-shm"):
-        source = supervisor / name
-        if source.exists() and not source.is_symlink():
-            shutil.move(source, backup / name)
-            moved.append(name)
-    with SupervisorStore.open(root) as store:
-        store.migrate()
-        report = migrate_jsonl(root, store, dry_run=False)
+    replacement = supervisor / f".supervisor.db.rebuild-{uuid4().hex}"
+    database = supervisor / "supervisor.db"
+    database_names = ("supervisor.db", "supervisor.db-wal", "supervisor.db-shm")
+    backed_up: list[str] = []
+    sidecars_moved: list[str] = []
+    swapped = False
+    report = None
+    try:
+        with _store_at(root, replacement) as store:
+            store.migrate()
+            report = migrate_jsonl(root, store, dry_run=False)
+            if not report.validated or not store.database_integrity_ok():
+                raise MigrationValidationError("replacement database validation failed")
+            store._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            store._connection.execute("PRAGMA journal_mode=DELETE")
+
+        backup.mkdir(parents=True, exist_ok=False)
+        for name in database_names:
+            source = supervisor / name
+            if source.is_symlink():
+                raise MigrationValidationError(f"database path is a symlink: {source}")
+            if source.is_file():
+                shutil.copy2(source, backup / name)
+                backed_up.append(name)
+        for name in database_names[1:]:
+            source = supervisor / name
+            if source.is_file():
+                source.unlink()
+                sidecars_moved.append(name)
+        os.replace(replacement, database)
+        swapped = True
+        _validate_replacement_database(database)
+    except BaseException:
+        if backup.exists() and (backup / "supervisor.db").is_file():
+            restore = supervisor / f".supervisor.db.restore-{uuid4().hex}"
+            shutil.copy2(backup / "supervisor.db", restore)
+            os.replace(restore, database)
+        elif swapped:
+            database.unlink(missing_ok=True)
+        if backup.exists():
+            for name in sidecars_moved:
+                source = backup / name
+                if source.is_file():
+                    shutil.copy2(source, supervisor / name)
+        raise
+    finally:
+        for suffix in ("", "-wal", "-shm"):
+            Path(str(replacement) + suffix).unlink(missing_ok=True)
+
+    if report is None:
+        raise AssertionError("replacement migration report was not created")
     return {
         "status": "completed",
         "backup_path": backup.as_posix(),
-        "moved_database_files": moved,
+        "backed_up_database_files": backed_up,
         "migration": report.as_dict(),
     }
+
+
+def _store_at(root: Path, database: Path) -> SupervisorStore:
+    connection = sqlite3.connect(
+        database, timeout=5, isolation_level=None, check_same_thread=False
+    )
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout=5000")
+    connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA journal_mode=WAL")
+    return SupervisorStore(Path(root).resolve(), connection, None)
+
+
+def _assert_rebuild_quiescent(root: Path) -> None:
+    database = root / ".codex" / "supervisor" / "supervisor.db"
+    if database.is_file() and not database.is_symlink():
+        connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+        connection.row_factory = sqlite3.Row
+        try:
+            tables = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if "actions" in tables:
+                active = connection.execute(
+                    "SELECT action_id FROM actions WHERE status IN ('leased', 'running') LIMIT 1"
+                ).fetchone()
+                if active is not None:
+                    raise MigrationValidationError(
+                        f"rebuild requires quiescence; active action {active['action_id']}"
+                    )
+            if "workers" in tables:
+                cutoff = datetime.now(timezone.utc) - timedelta(seconds=120)
+                for row in connection.execute("SELECT worker_id, heartbeat_at FROM workers"):
+                    heartbeat = _parse_timestamp(str(row["heartbeat_at"]))
+                    if heartbeat >= cutoff:
+                        raise MigrationValidationError(
+                            "rebuild requires quiescence; recent Worker heartbeat "
+                            f"from {row['worker_id']}"
+                        )
+            if "services" in tables:
+                for row in connection.execute(
+                    "SELECT service_id, process_id FROM services WHERE process_id IS NOT NULL"
+                ):
+                    service_id = str(row["service_id"])
+                    if "supervisor" in service_id and _process_is_alive(int(row["process_id"])):
+                        raise MigrationValidationError(
+                            "rebuild requires quiescence; live Supervisor/Worker process "
+                            f"{row['process_id']} ({service_id})"
+                        )
+        finally:
+            connection.close()
+
+    runtime_dir = root / ".codex" / "service-runtime"
+    if runtime_dir.is_dir() and not runtime_dir.is_symlink():
+        for path in runtime_dir.glob("*supervisor*.json"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                process_id = int(payload.get("pid") or payload.get("process_id") or 0)
+            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if process_id > 0 and _process_is_alive(process_id):
+                raise MigrationValidationError(
+                    f"rebuild requires quiescence; live process {process_id} from {path}"
+                )
+
+    lock_dir = root / ".codex" / "loop-locks"
+    if lock_dir.is_dir() and not lock_dir.is_symlink():
+        for path in lock_dir.glob("*.lock"):
+            if path.is_symlink() or not path.is_file():
+                raise MigrationValidationError(f"unsafe loop lock path: {path}")
+            with path.open("rb") as handle:
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as exc:
+                    raise MigrationValidationError(
+                        f"rebuild requires quiescence; held loop lock {path}"
+                    ) from exc
+                finally:
+                    try:
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    except OSError:
+                        pass
+
+
+def _validate_replacement_database(database: Path) -> None:
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        row = connection.execute("PRAGMA quick_check").fetchone()
+        version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    finally:
+        connection.close()
+    if row is None or str(row[0]).lower() != "ok" or version <= 0:
+        raise MigrationValidationError("atomic replacement database validation failed")
+
+
+def _parse_timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise MigrationValidationError(f"invalid runtime heartbeat timestamp: {value!r}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _process_is_alive(process_id: int) -> bool:
+    try:
+        os.kill(process_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _print_json(payload: Mapping[str, Any]) -> None:

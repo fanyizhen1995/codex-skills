@@ -15,8 +15,8 @@ from scripts.harness_loop_auditor import write_rule_based_audit_report
 from scripts.harness_loop_orchestrator import (
     _autonomous_planner_prompt,
     _run_audit_boundary,
+    _run_auditor as run_auditor,
     _set_audit_blocked,
-    run_auditor,
 )
 from scripts.loop_supervisor import reviewer as reviewer_module
 from scripts.loop_supervisor import reviewer_outbox as reviewer_outbox_module

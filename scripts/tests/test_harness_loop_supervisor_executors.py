@@ -57,9 +57,9 @@ def test_each_handler_is_bounded_and_returns_action_result(
     def forbidden(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("multi-round loop called by bounded executor")
 
-    monkeypatch.setattr(legacy, "run_loop", forbidden)
-    monkeypatch.setattr(legacy, "run_autonomous", forbidden)
-    monkeypatch.setattr(legacy, "run_demand_multi", forbidden)
+    monkeypatch.setattr(legacy, "_run_loop", forbidden)
+    monkeypatch.setattr(legacy, "_run_autonomous", forbidden)
+    monkeypatch.setattr(legacy, "_run_demand_multi", forbidden)
 
     for action_type, handler in executor.ACTION_HANDLERS.items():
         result = handler(tmp_path, _request(action_type))

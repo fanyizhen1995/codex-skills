@@ -17,7 +17,10 @@ try:
         validate_loop_state_payload,
         validate_run_payload,
     )
-    from scripts.harness_loop_orchestrator import create_preflight_run, run_autonomous
+    from scripts.harness_loop_orchestrator import (
+        _run_autonomous as run_autonomous,
+        create_preflight_run,
+    )
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     from harness_loop_autonomous import create_default_loop_state, write_loop_state  # type: ignore[no-redef]
     from harness_loop_contracts import (  # type: ignore[no-redef]
@@ -27,7 +30,10 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
         validate_loop_state_payload,
         validate_run_payload,
     )
-    from harness_loop_orchestrator import create_preflight_run, run_autonomous  # type: ignore[no-redef]
+    from harness_loop_orchestrator import (  # type: ignore[no-redef]
+        _run_autonomous as run_autonomous,
+        create_preflight_run,
+    )
 
 
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")

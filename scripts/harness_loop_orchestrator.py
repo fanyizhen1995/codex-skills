@@ -1340,7 +1340,7 @@ def transition_meta_loop_to_expansion(
     return load_run(root, meta_run_id)
 
 
-def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+def _run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     root = Path(repo_root)
     run = load_run(root, run_id)
     if run["phase"] != "planned":
@@ -1405,7 +1405,7 @@ def run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     return output_path
 
 
-def run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+def _run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     root = Path(repo_root)
     run = load_run(root, run_id)
     if run["phase"] != "generating":
@@ -1510,7 +1510,7 @@ def _auditor_prompt(run: Mapping[str, Any], signal_path: Path, output_path: Path
     )
 
 
-def run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
+def _run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     del repo_root, run_id, driver
     raise RuntimeError(
         "legacy Auditor execution is disabled; use the Supervisor Reviewer"
@@ -1615,7 +1615,7 @@ def _formal_verification_needs_direct_repair(evaluator_payload: Mapping[str, Any
     return isinstance(formal_summary, Mapping) and formal_summary.get("status") in {"fail", "blocked"}
 
 
-def run_evaluator(
+def _run_evaluator(
     repo_root: Path | str,
     run_id: str,
     *,
@@ -1750,7 +1750,7 @@ def run_evaluator(
     return output_path
 
 
-def run_artifact_hygiene_step(
+def _run_artifact_hygiene_step(
     repo_root: Path | str,
     run_id: str,
     *,
@@ -1809,7 +1809,7 @@ def run_artifact_hygiene_step(
     return result_path
 
 
-def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
+def _run_cleanup(repo_root: Path | str, run_id: str) -> Path:
     root = Path(repo_root).resolve()
     run = load_run(root, run_id)
     if run["phase"] != "cleanup":
@@ -1859,7 +1859,7 @@ def run_cleanup(repo_root: Path | str, run_id: str) -> Path:
     return write_json_file(run_dir_for(root, run_id) / "cleanup-result.json", {"status": "pass", "worktrees_removed": removed})
 
 
-def run_loop(
+def _run_loop(
     repo_root: Path | str,
     run_id: str,
     *,
@@ -1894,13 +1894,13 @@ def _run_loop_locked(
     if run["phase"] == "preflight":
         raise RuntimeError("run_loop requires confirmed preflight; current phase is preflight")
     if run["phase"] == "planned":
-        run_planner(root, run_id, driver=planner_driver)
+        _run_planner(root, run_id, driver=planner_driver)
         run = load_run(root, run_id)
     if run["phase"] == "generating":
-        run_generator(root, run_id, driver=generator_driver)
+        _run_generator(root, run_id, driver=generator_driver)
         run = load_run(root, run_id)
     if run["phase"] == "evaluating":
-        run_evaluator(
+        _run_evaluator(
             root,
             run_id,
             driver=evaluator_driver,
@@ -1908,10 +1908,10 @@ def _run_loop_locked(
         )
         run = load_run(root, run_id)
     if run["phase"] == "artifact_hygiene":
-        run_artifact_hygiene_step(root, run_id)
+        _run_artifact_hygiene_step(root, run_id)
         run = load_run(root, run_id)
     if run["phase"] == "cleanup":
-        run_cleanup(root, run_id)
+        _run_cleanup(root, run_id)
         run = load_run(root, run_id)
     terminal_phases = {
         "passed_waiting_human_merge",
@@ -2523,7 +2523,7 @@ def _run_codex_demand_child(
         return
 
     try:
-        run_generator(repo_root, child["run_id"], driver="codex-exec")
+        _run_generator(repo_root, child["run_id"], driver="codex-exec")
     except (OSError, RuntimeError, ValueError) as exc:
         reason = f"child {child_index} generator failed: {exc}"
         _block_child(repo_root, child, reason, actor="generator")
@@ -2555,7 +2555,7 @@ def _run_codex_demand_child(
         return
 
     try:
-        run_evaluator(repo_root, child["run_id"], driver=evaluator_driver, max_attempts=max_eval_attempts)
+        _run_evaluator(repo_root, child["run_id"], driver=evaluator_driver, max_attempts=max_eval_attempts)
     except (OSError, RuntimeError, ValueError) as exc:
         reason = f"child {child_index} evaluator failed: {exc}"
         _block_child(repo_root, child, reason, actor="evaluator")
@@ -2603,7 +2603,7 @@ def _run_codex_demand_child(
     )
 
 
-def run_demand_multi(
+def _run_demand_multi(
     repo_root: Path | str,
     run_id: str,
     *,
@@ -3645,7 +3645,7 @@ def _run_fake_autonomous_evaluator(
     task_contract_path = run_dir / "task-contract.json"
     scenario_path = repo_root / "docs" / "harness" / "evaluator-scenarios" / f"{run['task_id']}.json"
     if task_contract_path.exists() or scenario_path.exists():
-        run_evaluator(repo_root, run["run_id"], driver="fake", max_attempts=max_attempts)
+        _run_evaluator(repo_root, run["run_id"], driver="fake", max_attempts=max_attempts)
         return read_json_file(output_path)
 
     payload = {
@@ -5488,7 +5488,7 @@ def _finish_autonomous_cleanup(repo_root: Path, run_id: str) -> bool:
     run["phase"] = "cleanup"
     run["next_action"] = "run_cleanup"
     save_run(repo_root, run)
-    run_cleanup(repo_root, run_id)
+    _run_cleanup(repo_root, run_id)
     run = load_run(repo_root, run_id)
     remediation = run.get("_audit_remediation")
     remediation_task_id = str(remediation.get("planned_remediation_task", "")) if isinstance(remediation, Mapping) else ""
@@ -5713,7 +5713,7 @@ def _resume_autonomous_commit_block(repo_root: Path, run: dict[str, Any]) -> boo
     return True
 
 
-def run_autonomous(
+def _run_autonomous(
     repo_root: Path | str,
     run_id: str,
     planner_driver: str,
@@ -5850,7 +5850,7 @@ def _run_autonomous_locked(
 
         run = load_run(root, run_id)
         if run["phase"] == "artifact_hygiene":
-            run_artifact_hygiene_step(root, run_id)
+            _run_artifact_hygiene_step(root, run_id)
             run = load_run(root, run_id)
             if run["phase"] == "stopped_blocked":
                 return status_for_run(root, run_id)
@@ -6077,7 +6077,7 @@ def _run_bounded_demand_parent_planner(
     save_run(repo_root, parent)
 
 
-def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6107,7 +6107,7 @@ def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult
         elif run.get("run_kind") == "child":
             raise RuntimeError("demand child planning is owned by its parent planner")
         else:
-            run_planner(repo_root, request.run_id, driver=driver)
+            _run_planner(repo_root, request.run_id, driver=driver)
         artifact = run_dir_for(repo_root, request.run_id) / "planner-output.json"
         artifacts = [_relative_artifact(repo_root, artifact)] if artifact.exists() else []
         planner_payload = read_json_file(artifact) if artifact.exists() else {}
@@ -6128,7 +6128,7 @@ def run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResult
         )
 
 
-def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6147,7 +6147,7 @@ def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResu
                     task_number=_next_autonomous_task_number(run),
                 )
         else:
-            run_generator(repo_root, request.run_id, driver=driver)
+            _run_generator(repo_root, request.run_id, driver=driver)
         artifact = run_dir_for(repo_root, request.run_id) / "generator-result.json"
         generator_payload = read_json_file(artifact)
         skill_invocations = _bounded_skill_invocations(
@@ -6169,7 +6169,7 @@ def run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionResu
         )
 
 
-def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6192,7 +6192,7 @@ def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResu
             if result is None:
                 raise RuntimeError(f"unsupported or failed autonomous evaluator driver: {driver}")
         else:
-            run_evaluator(
+            _run_evaluator(
                 repo_root,
                 request.run_id,
                 driver=driver,
@@ -6219,7 +6219,7 @@ def run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionResu
         )
 
 
-def run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6242,10 +6242,10 @@ def run_bounded_evidence_gate(repo_root: Path, request: ActionRequest) -> Action
         )
 
 
-def run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
-        artifact = run_artifact_hygiene_step(repo_root, request.run_id)
+        artifact = _run_artifact_hygiene_step(repo_root, request.run_id)
         run = load_run(repo_root, request.run_id)
         if (
             run["policy"] == "autonomous_knowledge"
@@ -6270,7 +6270,7 @@ def run_bounded_artifact_hygiene(repo_root: Path, request: ActionRequest) -> Act
         )
 
 
-def run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6299,7 +6299,7 @@ def run_bounded_commit(repo_root: Path, request: ActionRequest) -> ActionResult:
         )
 
 
-def run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6330,7 +6330,7 @@ def run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
         )
 
 
-def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6339,7 +6339,7 @@ def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult
                 raise RuntimeError("autonomous cleanup did not complete")
             artifact = run_dir_for(repo_root, request.run_id) / "cleanup-result.json"
         else:
-            artifact = run_cleanup(repo_root, request.run_id)
+            artifact = _run_cleanup(repo_root, request.run_id)
         return _bounded_success(
             "cleanup phase completed",
             started_at=started_at,
@@ -6352,7 +6352,7 @@ def run_bounded_cleanup(repo_root: Path, request: ActionRequest) -> ActionResult
         )
 
 
-def run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         source = load_run(repo_root, request.run_id)
@@ -6401,7 +6401,7 @@ def run_bounded_continuation(repo_root: Path, request: ActionRequest) -> ActionR
         )
 
 
-def run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6428,7 +6428,7 @@ def run_bounded_generator_recovery(repo_root: Path, request: ActionRequest) -> A
         )
 
 
-def run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6455,11 +6455,11 @@ def run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> A
         )
 
 
-def run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         driver = _bounded_driver(request, "reviewer")
-        artifact = run_auditor(repo_root, request.run_id, driver=driver)
+        artifact = _run_auditor(repo_root, request.run_id, driver=driver)
         return _bounded_success(
             "reviewer phase completed",
             started_at=started_at,
@@ -6472,7 +6472,7 @@ def run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResul
         )
 
 
-def run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6491,7 +6491,7 @@ def run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult
         )
 
 
-def run_bounded_stop(repo_root: Path, request: ActionRequest) -> ActionResult:
+def _run_bounded_stop(repo_root: Path, request: ActionRequest) -> ActionResult:
     started_at = _timestamp()
     try:
         run = load_run(repo_root, request.run_id)
@@ -6549,30 +6549,6 @@ def _build_parser() -> argparse.ArgumentParser:
     confirm.add_argument("--repo-root", default=".")
     confirm.add_argument("--run-id", required=True)
 
-    plan = subparsers.add_parser("plan", help="Run the Planner step.")
-    plan.add_argument("--repo-root", default=".")
-    plan.add_argument("--run-id", required=True)
-    plan.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-
-    generate = subparsers.add_parser("generate", help="Run the Generator step.")
-    generate.add_argument("--repo-root", default=".")
-    generate.add_argument("--run-id", required=True)
-    generate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-
-    evaluate = subparsers.add_parser("evaluate", help="Run the Evaluator step.")
-    evaluate.add_argument("--repo-root", default=".")
-    evaluate.add_argument("--run-id", required=True)
-    evaluate.add_argument("--driver", choices=("fake", "codex-exec"), required=True)
-    evaluate.add_argument("--max-attempts", type=int, default=2)
-
-    artifact_hygiene = subparsers.add_parser("artifact-hygiene", help="Run artifact hygiene for generated artifacts.")
-    artifact_hygiene.add_argument("--repo-root", default=".")
-    artifact_hygiene.add_argument("--run-id", required=True)
-
-    cleanup = subparsers.add_parser("cleanup", help="Run cleanup for retained loop artifacts.")
-    cleanup.add_argument("--repo-root", default=".")
-    cleanup.add_argument("--run-id", required=True)
-
     transition_meta_parser = subparsers.add_parser(
         "transition-meta",
         help="Transition a passed demand-development meta run into autonomous expansion.",
@@ -6610,31 +6586,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "confirm-preflight":
         with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:confirm-preflight"):
             payload = confirm_preflight(repo_root=args.repo_root, run_id=args.run_id)
-    elif args.command == "plan":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:plan"):
-            run_planner(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "generate":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:generate"):
-            run_generator(repo_root=args.repo_root, run_id=args.run_id, driver=args.driver)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "evaluate":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:evaluate"):
-            run_evaluator(
-                repo_root=args.repo_root,
-                run_id=args.run_id,
-                driver=args.driver,
-                max_attempts=args.max_attempts,
-            )
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "artifact-hygiene":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:artifact-hygiene"):
-            run_artifact_hygiene_step(repo_root=args.repo_root, run_id=args.run_id)
-            payload = load_run(args.repo_root, args.run_id)
-    elif args.command == "cleanup":
-        with acquire_run_lock(Path(args.repo_root), args.run_id, owner="harness-cli:cleanup"):
-            run_cleanup(repo_root=args.repo_root, run_id=args.run_id)
-            payload = load_run(args.repo_root, args.run_id)
     elif args.command == "transition-meta":
         payload = transition_meta_loop_to_expansion(
             repo_root=args.repo_root,

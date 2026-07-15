@@ -20,17 +20,17 @@ def executable_action_types() -> set[ActionType]:
 
 
 BOUNDED_PRIMITIVE_NAMES: Mapping[ActionType, str] = {
-    ActionType.RUN_PLANNER: "run_bounded_planner",
-    ActionType.RUN_GENERATOR: "run_bounded_generator",
-    ActionType.RUN_EVALUATOR: "run_bounded_evaluator",
-    ActionType.RUN_EVIDENCE_GATE: "run_bounded_evidence_gate",
-    ActionType.RUN_ARTIFACT_HYGIENE: "run_bounded_artifact_hygiene",
-    ActionType.COMMIT: "run_bounded_commit",
-    ActionType.PUSH: "run_bounded_push",
-    ActionType.CLEANUP: "run_bounded_cleanup",
-    ActionType.CREATE_CONTINUATION: "run_bounded_continuation",
-    ActionType.RECOVER_GENERATOR_RESULT: "run_bounded_generator_recovery",
-    ActionType.RUN_ALTERNATE_RECOVERY: "run_bounded_alternate_recovery",
+    ActionType.RUN_PLANNER: "_run_bounded_planner",
+    ActionType.RUN_GENERATOR: "_run_bounded_generator",
+    ActionType.RUN_EVALUATOR: "_run_bounded_evaluator",
+    ActionType.RUN_EVIDENCE_GATE: "_run_bounded_evidence_gate",
+    ActionType.RUN_ARTIFACT_HYGIENE: "_run_bounded_artifact_hygiene",
+    ActionType.COMMIT: "_run_bounded_commit",
+    ActionType.PUSH: "_run_bounded_push",
+    ActionType.CLEANUP: "_run_bounded_cleanup",
+    ActionType.CREATE_CONTINUATION: "_run_bounded_continuation",
+    ActionType.RECOVER_GENERATOR_RESULT: "_run_bounded_generator_recovery",
+    ActionType.RUN_ALTERNATE_RECOVERY: "_run_bounded_alternate_recovery",
 }
 
 
@@ -43,44 +43,44 @@ def _call_primitive(name: str, repo_root: Path, request: ActionRequest) -> Actio
 
 
 def _run_planner(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_planner", repo_root, request)
+    return _call_primitive("_run_bounded_planner", repo_root, request)
 
 
 def _run_generator(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_generator", repo_root, request)
+    return _call_primitive("_run_bounded_generator", repo_root, request)
 
 
 def _run_evaluator(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_evaluator", repo_root, request)
+    return _call_primitive("_run_bounded_evaluator", repo_root, request)
 
 
 def _run_evidence_gate(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_evidence_gate", repo_root, request)
+    return _call_primitive("_run_bounded_evidence_gate", repo_root, request)
 
 
 def _run_artifact_hygiene(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_artifact_hygiene", repo_root, request)
+    return _call_primitive("_run_bounded_artifact_hygiene", repo_root, request)
 
 
 def _commit(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_commit", repo_root, request)
+    return _call_primitive("_run_bounded_commit", repo_root, request)
 
 
 def _push(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_push", repo_root, request)
+    return _call_primitive("_run_bounded_push", repo_root, request)
 
 
 def _cleanup(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_cleanup", repo_root, request)
+    return _call_primitive("_run_bounded_cleanup", repo_root, request)
 
 
 def _create_continuation(repo_root: Path, request: ActionRequest) -> ActionResult:
-    return _call_primitive("run_bounded_continuation", repo_root, request)
+    return _call_primitive("_run_bounded_continuation", repo_root, request)
 
 
 def _recover_generator_result(repo_root: Path, request: ActionRequest) -> ActionResult:
     if not request.payload.get("recovery_failure_key"):
-        return _call_primitive("run_bounded_generator_recovery", repo_root, request)
+        return _call_primitive("_run_bounded_generator_recovery", repo_root, request)
     run = legacy.load_run(repo_root, request.run_id)
     assessment = inspect_partial_artifacts(repo_root, run, ActionType.RUN_GENERATOR)
     failure_key = str(request.payload.get("recovery_failure_key") or "")
@@ -115,7 +115,7 @@ def _recover_generator_result(repo_root: Path, request: ActionRequest) -> Action
 def _run_alternate_recovery(repo_root: Path, request: ActionRequest) -> ActionResult:
     failure_key = str(request.payload.get("recovery_failure_key") or "")
     if not failure_key:
-        return _call_primitive("run_bounded_alternate_recovery", repo_root, request)
+        return _call_primitive("_run_bounded_alternate_recovery", repo_root, request)
     run = legacy.load_run(repo_root, request.run_id)
     directives = run.setdefault("recovery_directives", [])
     if not isinstance(directives, list):

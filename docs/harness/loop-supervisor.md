@@ -66,8 +66,11 @@ python3 -m scripts.loop_supervisor.cli shadow-compare --project-root /home/fyz/c
 Apply writes a timestamped snapshot beside the repository, outside the Git
 index, before importing. It validates streamed row counts, compacted
 transitions, failure first/last/count, decision status, run projections, and
-Reviewer cadence. Legacy cleanup is a separate guarded operation and is allowed
-only after both validation and shadow comparison pass:
+Reviewer cadence. Blank, malformed, truncated, NUL-tailed, and invalid-timestamp
+records are counted and written to `migration-quarantine.jsonl` in that external
+snapshot; source timestamps are never replaced with wall clock. Legacy cleanup
+is a separate guarded operation and is allowed only after exact current-store
+validation and shadow comparison both pass:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli migrate --project-root /home/fyz/codex-skills --cleanup-legacy
@@ -82,15 +85,17 @@ the migration report's `snapshot_path`, then restart the old executor. Never use
 rollback.
 
 SQLite is rebuildable from retained run artifacts and migration streams. Stop
-both new processes before running:
+both new processes before running. The command also rejects recent Worker
+heartbeats, live Supervisor/Worker PIDs, active leases, and held loop locks:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli rebuild-db --project-root /home/fyz/codex-skills --confirm
 ```
 
-The command moves the existing database files to an external timestamped backup,
-creates the schema, and reruns validated migration. Detailed operational history
-can be compacted after the retention period:
+The command builds and validates a sibling replacement first, copies the current
+database and sidecars to an external timestamped backup, then atomically replaces
+the database. Any failure restores the prior database and sidecars. Detailed
+operational history can be compacted after the retention period:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli retention --project-root /home/fyz/codex-skills --retention-days 90

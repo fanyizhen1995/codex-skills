@@ -29,13 +29,13 @@ from scripts.harness_loop_auditor import fake_audit_report
 from scripts.harness_loop_autonomous import NoActionDecision, create_default_loop_state, write_loop_state
 from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
+    _run_auditor as run_auditor,
+    _run_autonomous as run_autonomous,
+    _run_demand_multi as run_demand_multi,
     confirm_preflight,
     create_preflight_run,
     load_run,
     main,
-    run_autonomous,
-    run_auditor,
-    run_demand_multi,
     save_run,
     status_for_run,
 )
@@ -48,14 +48,35 @@ def test_public_orchestrator_parser_rejects_removed_runtime_commands() -> None:
         ["run-demand-multi", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
         ["run-autonomous", "--run-id", "run-1", "--planner-driver", "fake", "--generator-driver", "fake", "--evaluator-driver", "fake"],
         ["run-auditor", "--run-id", "run-1", "--driver", "fake"],
+        ["plan", "--run-id", "run-1", "--driver", "fake"],
+        ["generate", "--run-id", "run-1", "--driver", "fake"],
+        ["evaluate", "--run-id", "run-1", "--driver", "fake"],
+        ["artifact-hygiene", "--run-id", "run-1"],
+        ["cleanup", "--run-id", "run-1"],
     )
     for command in removed_commands:
         with pytest.raises(SystemExit):
             parser.parse_args(command)
 
-    assert callable(harness_loop_orchestrator.run_bounded_planner)
-    assert callable(harness_loop_orchestrator.run_bounded_generator)
-    assert callable(harness_loop_orchestrator.run_bounded_evaluator)
+    public_bypasses = (
+        "run_loop",
+        "run_demand_multi",
+        "run_autonomous",
+        "run_auditor",
+        "run_planner",
+        "run_generator",
+        "run_evaluator",
+        "run_artifact_hygiene_step",
+        "run_cleanup",
+        "run_bounded_planner",
+        "run_bounded_generator",
+        "run_bounded_evaluator",
+        "run_bounded_artifact_hygiene",
+        "run_bounded_commit",
+        "run_bounded_push",
+        "run_bounded_cleanup",
+    )
+    assert all(not hasattr(harness_loop_orchestrator, name) for name in public_bypasses)
 
 
 def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
@@ -1980,7 +2001,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             seed_candidate_loop_state(repo_root, "ai_infra")
 
             with patch(
-                "scripts.harness_loop_orchestrator.run_artifact_hygiene_step",
+                "scripts.harness_loop_orchestrator._run_artifact_hygiene_step",
                 side_effect=RuntimeError("interrupted hygiene"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "interrupted hygiene"):
@@ -2023,7 +2044,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             seed_candidate_loop_state(repo_root, "ai_infra")
 
             with patch(
-                "scripts.harness_loop_orchestrator.run_cleanup",
+                "scripts.harness_loop_orchestrator._run_cleanup",
                 side_effect=RuntimeError("interrupted cleanup"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "interrupted cleanup"):
@@ -5984,7 +6005,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             saved_payload = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
             self.assertEqual(saved_payload["task_id"], "explicit-task")
 
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             output_path = run_planner(repo_root, "demo-run", driver="fake")
             planner_output = read_json_file(output_path)
@@ -6089,7 +6110,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 stop_conditions=["passed_waiting_human_merge", "stopped_blocked"],
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             output_path = run_planner(repo_root, "demo-run", driver="fake")
 
@@ -6119,7 +6140,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=False,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             with self.assertRaises(RuntimeError):
                 run_planner(repo_root, "demo-run", driver="fake")
@@ -6134,7 +6155,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
 
@@ -6151,7 +6172,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6170,7 +6191,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             from scripts.harness_loop_contracts import write_json_file
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             def write_planner_output(**kwargs: object) -> dict[str, object]:
                 write_json_file(
@@ -6209,7 +6230,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             attempts: list[int] = []
 
@@ -6266,7 +6287,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "skill_invocations": [],
                 },
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             with patch(
                 "scripts.harness_loop_orchestrator.run_codex_prompt",
@@ -6310,7 +6331,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "skill_invocations": [],
                 },
             )
-            from scripts.harness_loop_orchestrator import run_planner
+            from scripts.harness_loop_orchestrator import _run_planner as run_planner
 
             with patch(
                 "scripts.harness_loop_orchestrator.run_codex_prompt",
@@ -6335,7 +6356,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator
 
             with self.assertRaisesRegex(RuntimeError, "planned"):
                 run_generator(repo_root, "demo-run", driver="fake")
@@ -6350,7 +6371,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             output_path = run_generator(repo_root, "demo-run", driver="fake")
@@ -6377,7 +6398,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6395,7 +6416,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             attempts: list[int] = []
@@ -6434,7 +6455,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_dir = run_dir_for(repo_root, "demo-run")
@@ -6476,7 +6497,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_dir = run_dir_for(repo_root, "demo-run")
@@ -6508,7 +6529,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["phase"], "generating")
             self.assertEqual(run["next_action"], "run_generator")
 
-    def test_cli_plan_and_generate_accept_fake_driver(self) -> None:
+    def test_internal_plan_and_generate_primitives_accept_fake_driver(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             create_preflight_run(
@@ -6519,13 +6540,11 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
 
-            self.assertEqual(
-                call_cli(["plan", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
-                0,
+            harness_loop_orchestrator._run_planner(
+                repo_root, "demo-run", driver="fake"
             )
-            self.assertEqual(
-                call_cli(["generate", "--repo-root", str(repo_root), "--run-id", "demo-run", "--driver", "fake"]),
-                0,
+            harness_loop_orchestrator._run_generator(
+                repo_root, "demo-run", driver="fake"
             )
 
             run = read_json_file(run_dir_for(repo_root, "demo-run") / "run.json")
@@ -6542,7 +6561,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6577,7 +6596,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6632,7 +6651,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-only-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6684,7 +6703,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6746,7 +6765,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 task_id="contract-task",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6801,7 +6820,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6829,7 +6848,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=True,
             )
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -6865,7 +6884,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 run_id="demo-run",
                 confirm=False,
             )
-            from scripts.harness_loop_orchestrator import run_loop
+            from scripts.harness_loop_orchestrator import _run_loop as run_loop
 
             with self.assertRaisesRegex(RuntimeError, "preflight"):
                 run_loop(
@@ -6888,7 +6907,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "demo-run-task")
-            from scripts.harness_loop_orchestrator import run_loop
+            from scripts.harness_loop_orchestrator import _run_loop as run_loop
 
             status = run_loop(
                 repo_root,
@@ -6903,7 +6922,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(status["next_action"], "await_human_merge_confirmation")
             self.assertEqual(status["task_id"], "demo-run-task")
 
-    def test_cli_accepts_artifact_hygiene_and_cleanup_commands(self) -> None:
+    def test_internal_artifact_hygiene_and_cleanup_primitives(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             create_preflight_run(repo_root, "demand-development", "CLI hygiene", "demo-run", confirm=True)
@@ -6931,14 +6950,10 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["next_action"] = "run_artifact_hygiene"
             write_json_file(run_dir / "run.json", run)
 
-            self.assertEqual(
-                call_cli(["artifact-hygiene", "--repo-root", str(repo_root), "--run-id", "demo-run"]),
-                0,
+            harness_loop_orchestrator._run_artifact_hygiene_step(
+                repo_root, "demo-run"
             )
-            self.assertEqual(
-                call_cli(["cleanup", "--repo-root", str(repo_root), "--run-id", "demo-run"]),
-                0,
-            )
+            harness_loop_orchestrator._run_cleanup(repo_root, "demo-run")
 
             run = read_json_file(run_dir / "run.json")
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
@@ -6955,7 +6970,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "demo-run-task")
-            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_loop as run_loop, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             generator_path = run_generator(repo_root, "demo-run", driver="fake")
@@ -7018,7 +7033,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "contract-task")
-            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_loop as run_loop, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             generator_path = run_generator(repo_root, "demo-run", driver="fake")
@@ -7086,7 +7101,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "contract-task")
-            from scripts.harness_loop_orchestrator import run_generator, run_loop, run_planner
+            from scripts.harness_loop_orchestrator import _run_generator as run_generator, _run_loop as run_loop, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -7152,7 +7167,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "contract-task")
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")
@@ -7204,7 +7219,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 confirm=True,
             )
             from scripts.harness_loop_contracts import write_json_file
-            from scripts.harness_loop_orchestrator import run_loop
+            from scripts.harness_loop_orchestrator import _run_loop as run_loop
 
             run_path = run_dir_for(repo_root, "demo-run") / "run.json"
             run = read_json_file(run_path)
@@ -7246,7 +7261,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["task_id"] = "demo-run-task"
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_artifact_hygiene_step
+            from scripts.harness_loop_orchestrator import _run_artifact_hygiene_step as run_artifact_hygiene_step
 
             result_path = run_artifact_hygiene_step(repo_root, "demo-run", max_file_bytes=10)
 
@@ -7298,7 +7313,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["task_id"] = "demo-run-task"
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_artifact_hygiene_step
+            from scripts.harness_loop_orchestrator import _run_artifact_hygiene_step as run_artifact_hygiene_step
 
             result_path = run_artifact_hygiene_step(repo_root, "demo-run", max_file_bytes=10)
 
@@ -7324,7 +7339,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(temp_worktree)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7347,7 +7362,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [".worktrees/demo-run-attempt-1"]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7368,7 +7383,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(temp_worktree)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             current_dir = Path.cwd()
             os.chdir(repo_root)
@@ -7397,7 +7412,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(victim)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7422,7 +7437,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(symlink_path)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7446,7 +7461,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [".worktrees/link"]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -7473,7 +7488,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             run["cleanup"]["retained_artifacts"] = [str(victim)]
             write_json_file(run_dir / "run.json", run)
 
-            from scripts.harness_loop_orchestrator import run_cleanup
+            from scripts.harness_loop_orchestrator import _run_cleanup as run_cleanup
 
             result_path = run_cleanup(repo_root, "demo-run")
 
@@ -9128,7 +9143,7 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 confirm=True,
             )
             write_fake_evaluator_scenario(repo_root, "formal-task")
-            from scripts.harness_loop_orchestrator import run_evaluator, run_generator, run_planner
+            from scripts.harness_loop_orchestrator import _run_evaluator as run_evaluator, _run_generator as run_generator, _run_planner as run_planner
 
             run_planner(repo_root, "demo-run", driver="fake")
             run_generator(repo_root, "demo-run", driver="fake")

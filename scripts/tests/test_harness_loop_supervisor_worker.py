@@ -812,7 +812,7 @@ def test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_acti
     run["task_id"] = "autonomous-task-1"
     legacy.save_run(tmp_path, run)
 
-    generated = legacy.run_bounded_generator(
+    generated = legacy._run_bounded_generator(
         tmp_path,
         _phase_request(
             "autonomous-run",
@@ -821,7 +821,7 @@ def test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_acti
             action_id="setup-generator",
         ),
     )
-    evaluated = legacy.run_bounded_evaluator(
+    evaluated = legacy._run_bounded_evaluator(
         tmp_path,
         _phase_request(
             "autonomous-run",
@@ -1049,7 +1049,7 @@ def test_worker_waits_when_reconciler_holds_same_run_lock(
     release_reconciler = threading.Event()
     handler_entered = threading.Event()
     original_enqueue = SupervisorStore.enqueue_action
-    original_planner = legacy.run_planner
+    original_planner = legacy._run_planner
 
     def blocked_enqueue(
         self: SupervisorStore, request: ActionRequest, *args: object, **kwargs: object
@@ -1064,7 +1064,7 @@ def test_worker_waits_when_reconciler_holds_same_run_lock(
         return original_planner(*args, **kwargs)
 
     monkeypatch.setattr(SupervisorStore, "enqueue_action", blocked_enqueue)
-    monkeypatch.setattr(legacy, "run_planner", observed_planner)
+    monkeypatch.setattr(legacy, "_run_planner", observed_planner)
     reconcile_result: list[object] = []
     worker_result: list[object] = []
 

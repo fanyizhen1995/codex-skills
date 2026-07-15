@@ -16,10 +16,10 @@ try:
         write_json_file,
     )
     from scripts.harness_loop_orchestrator import (
+        _run_generator as run_generator,
+        _run_loop as run_loop,
+        _run_planner as run_planner,
         create_preflight_run,
-        run_generator,
-        run_loop,
-        run_planner,
     )
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     from harness_loop_contracts import (  # type: ignore[no-redef]
@@ -31,10 +31,10 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
         write_json_file,
     )
     from harness_loop_orchestrator import (  # type: ignore[no-redef]
+        _run_generator as run_generator,
+        _run_loop as run_loop,
+        _run_planner as run_planner,
         create_preflight_run,
-        run_generator,
-        run_loop,
-        run_planner,
     )
 
 
