@@ -2133,6 +2133,38 @@ class SupervisorStore:
             ).fetchone()
         return row is not None
 
+    def active_reviewer_lease_exists(
+        self,
+        *,
+        now: datetime | None = None,
+        heartbeat_stale_seconds: int = DEFAULT_HEARTBEAT_STALE_SECONDS,
+    ) -> bool:
+        """Return whether one live Reviewer already owns project-global work."""
+        self._validate_heartbeat_stale_seconds(heartbeat_stale_seconds)
+        current = now or self._now()
+        if not isinstance(current, datetime):
+            raise TypeError("now must be a datetime")
+        current_text = self._time_text(current)
+        heartbeat_cutoff = self._time_text(
+            current - timedelta(seconds=heartbeat_stale_seconds)
+        )
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT 1
+                FROM actions
+                JOIN workers AS owner ON owner.worker_id = actions.lease_owner
+                WHERE actions.action_type = 'run_reviewer'
+                  AND actions.queue_owner = 'reviewer'
+                  AND actions.status IN ('leased', 'running')
+                  AND actions.lease_expires_at > ?
+                  AND owner.heartbeat_at >= ?
+                LIMIT 1
+                """,
+                (current_text, heartbeat_cutoff),
+            ).fetchone()
+        return row is not None
+
     @staticmethod
     def _validate_lineage_positions(value: Mapping[str, int]) -> dict[str, int]:
         if not isinstance(value, Mapping) or not value:
