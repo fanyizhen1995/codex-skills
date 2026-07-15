@@ -284,7 +284,7 @@
     {
       "id": "ai-infra-expansion-continuation-20260708",
       "title": "Continue AI infra autonomous expansion loop",
-      "description": "Resume the ai_infra autonomous knowledge expansion after loop governance changes: finish prior SGLang #24456 ingest cleanup, enforce parent-task-level Auditor cadence at one audit per two completed parent tasks, create a Loop Dashboard-visible continuation run, keep Crawler Workbench backend/frontend, Loop Dashboard, and loop-auto-resume online, and continue parent task rounds until global stop conditions are reached.",
+      "description": "Resume the ai_infra autonomous knowledge expansion after loop governance changes: finish prior SGLang #24456 ingest cleanup, enforce parent-task-level Reviewer cadence at one review per two completed parent tasks, create a Loop Dashboard-visible continuation run, keep Crawler Workbench backend/frontend, Loop Dashboard, Supervisor, and Worker online, and continue parent task rounds until global stop conditions are reached.",
       "status": "todo",
       "priority": "high",
       "blocked_by": "loop-auditor-auto-resume-runner-01",
@@ -302,7 +302,7 @@
     {
       "id": "loop-supervisor-01",
       "title": "Implement unified Loop Supervisor",
-      "description": "Implemented a unified long-running Loop Supervisor that writes project-level supervisor artifacts, keeps crawler backend/frontend, Loop Dashboard, and loop-auto-resume observable, classifies loop runs, plans idempotent autonomous continuations, escalates repeated failures to user decisions, consumes Auditor control inputs, exposes global Dashboard APIs/UI, and verifies the feature with a dedicated browser evaluator scenario.",
+      "description": "Implemented a unified long-running Loop Supervisor that writes project-level supervisor artifacts, keeps crawler backend/frontend and Loop Dashboard observable, queues bounded actions for Worker execution, classifies loop runs, plans idempotent autonomous continuations, escalates repeated failures to user decisions, consumes Reviewer control inputs, exposes global Dashboard APIs/UI, and verifies the feature with a dedicated browser evaluator scenario.",
       "status": "done",
       "priority": "high",
       "blocked_by": "loop-auditor-auto-resume-runner-01",
@@ -320,7 +320,7 @@
     {
       "id": "loop-runtime-continuation-hardening-01",
       "title": "Harden autonomous loop continuation and runtime freshness",
-      "description": "Give Supervisor exclusive ownership of idempotent stopped_budget continuation creation while loop-auto-resume exclusively executes existing actionable runs under a per-run lock; preserve semantic parent and two-parent Auditor cadence state across continuations; separate service reachability from service-specific code freshness; publish target-specific crawler/wiki/frontend freshness after autonomous commits; show only current actionable decisions in the Dashboard headline; automatically push autonomous main-branch wiki commits with retryable evidence; ingest the pending July 9 SGLang raw batch; and prove uninterrupted progression across four AI infra parent tasks.",
+      "description": "Give Supervisor exclusive ownership of idempotent stopped_budget continuation creation while Worker exclusively leases and executes existing bounded actions under the shared runtime locks; preserve semantic parent and two-parent Reviewer cadence state across continuations; separate service reachability from service-specific code freshness; publish target-specific crawler/wiki/frontend freshness after autonomous commits; show only current actionable decisions in the Dashboard headline; automatically push autonomous main-branch wiki commits with retryable evidence; ingest the pending July 9 SGLang raw batch; and prove uninterrupted progression across four AI infra parent tasks.",
       "status": "done",
       "priority": "high",
       "blocked_by": "loop-supervisor-01",

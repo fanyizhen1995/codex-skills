@@ -2098,3 +2098,92 @@ def test_rebuild_db_post_swap_failure_restores_live_database(
     assert not tuple(
         (tmp_path / ".codex/supervisor").glob(".supervisor.db.rebuild-*")
     )
+
+
+def test_rebuild_db_fsyncs_live_directory_after_forward_replace_before_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    events: list[str] = []
+    real_replace = supervisor_cli.os.replace
+    real_validate = supervisor_cli._validate_replacement_database
+
+    def tracked_replace(source: Path, destination: Path) -> None:
+        real_replace(source, destination)
+        if Path(destination) == database:
+            events.append("forward_replace")
+
+    def tracked_fsync(directory: Path) -> None:
+        assert directory == database.parent
+        events.append("directory_fsync")
+
+    def tracked_validate(path: Path) -> None:
+        events.append("validate")
+        real_validate(path)
+
+    monkeypatch.setattr(supervisor_cli.os, "replace", tracked_replace)
+    monkeypatch.setattr(supervisor_cli, "_fsync_directory", tracked_fsync, raising=False)
+    monkeypatch.setattr(supervisor_cli, "_validate_replacement_database", tracked_validate)
+
+    supervisor_cli._rebuild_db(tmp_path)
+
+    assert events == ["forward_replace", "directory_fsync", "validate"]
+
+
+def test_rebuild_db_fsyncs_live_directory_after_rollback_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    events: list[str] = []
+    real_replace = supervisor_cli.os.replace
+
+    def tracked_replace(source: Path, destination: Path) -> None:
+        real_replace(source, destination)
+        if Path(destination) == database:
+            kind = "forward" if ".rebuild-" in Path(source).name else "rollback"
+            events.append(f"{kind}_replace")
+
+    def tracked_fsync(directory: Path) -> None:
+        assert directory == database.parent
+        events.append("directory_fsync")
+
+    def reject_replacement(_database: Path) -> None:
+        events.append("validate")
+        raise MigrationValidationError("post-swap validation failed")
+
+    monkeypatch.setattr(supervisor_cli.os, "replace", tracked_replace)
+    monkeypatch.setattr(supervisor_cli, "_fsync_directory", tracked_fsync, raising=False)
+    monkeypatch.setattr(supervisor_cli, "_validate_replacement_database", reject_replacement)
+
+    with pytest.raises(MigrationValidationError, match="post-swap validation failed"):
+        supervisor_cli._rebuild_db(tmp_path)
+
+    assert events == [
+        "forward_replace",
+        "directory_fsync",
+        "validate",
+        "rollback_replace",
+        "directory_fsync",
+    ]
+
+
+def test_wal_lock_preflight_contract_does_not_claim_sqlite_vfs_identity() -> None:
+    with pytest.raises(MigrationValidationError) as failure:
+        supervisor_cli._assert_supported_wal_lock_runtime(platform="darwin")
+
+    assert "VFS" not in str(failure.value)
+
+    runbook = Path("docs/harness/loop-supervisor.md").read_text(encoding="utf-8")
+    architecture = Path("docs/ARCHITECTURE.md").read_text(encoding="utf-8")
+    combined = f"{runbook}\n{architecture}"
+    normalized = " ".join(combined.split())
+    assert "standard POSIX SQLite Unix VFS" not in combined
+    assert "Linux/POSIX/`fcntl` advisory preflight" in combined
+    assert "does not identify or prove the active SQLite VFS" in normalized
+    assert "authoritative safety gate" in combined

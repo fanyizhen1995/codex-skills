@@ -450,7 +450,11 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[2]
         tasks = json.loads((repo_root / "tasks.json").read_text(encoding="utf-8"))
         executable_contracts = {
-            f"task:{task['id']}": str(task.get("verify") or "")
+            f"task:{task['id']}": json.dumps(
+                task,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
             for task in tasks["tasks"]
         }
         for path in sorted(
@@ -486,6 +490,68 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             if any(item in contract for item in removed_commands)
         }
         self.assertEqual(violations, {})
+
+    def test_loop_runtime_scenarios_declare_and_exercise_truthful_acceptance_scope(
+        self,
+    ) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        continuation = load_task_scenarios(
+            repo_root, "loop-runtime-continuation-hardening-01"
+        )["user_scenarios"][0]
+        historical_auditor = load_task_scenarios(repo_root, "loop-auditor-engine-01")[
+            "user_scenarios"
+        ][0]
+
+        self.assertEqual(
+            continuation["acceptance_scope"],
+            "active_supervisor_worker_reviewer_tests_and_dashboard_fixture",
+        )
+        for active_test in (
+            "test_continuation_is_queued_with_stable_identity_and_not_created",
+            "test_concurrent_begin_immediate_lease_has_one_winner",
+            "test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions",
+            "test_review_due_every_two_semantic_parents_across_continuations",
+        ):
+            self.assertIn(active_test, continuation["entrypoint"])
+        self.assertIn("loop_dashboard_evaluator.py", continuation["entrypoint"])
+        self.assertIn(
+            "--scenario loop-supervisor-unification-01",
+            continuation["entrypoint"],
+        )
+        self.assertNotIn("--scenario loop-supervisor-01", continuation["entrypoint"])
+        continuation_contract = json.dumps(continuation, ensure_ascii=False)
+        for unsupported_claim in (
+            "parent-17",
+            "Four semantic parent tasks",
+            "manual continue between parent tasks",
+        ):
+            self.assertNotIn(unsupported_claim, continuation_contract)
+
+        self.assertEqual(
+            historical_auditor["acceptance_scope"],
+            "historical_fixture_display_only",
+        )
+        self.assertIn(
+            "test_auditor_engine_fixture_is_historical_disabled_and_read_only",
+            historical_auditor["entrypoint"],
+        )
+        self.assertIn(
+            "test_auditor_engine_fixture_rejects_successor_audit_report",
+            historical_auditor["entrypoint"],
+        )
+        historical_contract = json.dumps(historical_auditor, ensure_ascii=False)
+        self.assertNotIn(
+            "python3 scripts/loop_dashboard_evaluator.py",
+            historical_auditor["entrypoint"],
+        )
+        for unsupported_display_claim in (
+            "Playwright",
+            "打开 Loop Dashboard",
+            "浏览器",
+        ):
+            self.assertNotIn(unsupported_display_claim, historical_contract)
+        self.assertNotIn("current Supervisor", historical_contract)
+        self.assertNotIn("Reviewer control plane", historical_contract)
 
     @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:

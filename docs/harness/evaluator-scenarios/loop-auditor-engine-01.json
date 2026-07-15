@@ -3,43 +3,35 @@
   "must_simulate": true,
   "user_scenarios": [
     {
-      "scenario_id": "LOOP-AUDITOR-ENGINE-DASHBOARD-SMOKE",
-      "user_goal": "作为 loop 操作者，打开 Loop Dashboard，确认 pre-cutover Auditor 产物只作为历史证据展示，当前控制与质量判断由 Supervisor 和 Reviewer 承担，不会再进入已删除的审计运行阶段。",
+      "scenario_id": "LOOP-AUDITOR-ENGINE-HISTORICAL-FIXTURE",
+      "acceptance_scope": "historical_fixture_display_only",
+      "user_goal": "确认 pre-cutover Auditor fixture 只作为历史 display-only 证据保留，不会授权当前控制动作或恢复已删除的审计阶段。",
       "prerequisites": [
-        "FastAPI、uvicorn 和 Python Playwright 可用。",
-        "Playwright Chromium 浏览器已安装。",
-        "Evaluator 会创建临时 loop-run fixture 和只读 pre-cutover 审计证据，不调用任何已删除的独立运行时。"
+        "Python 和 pytest 可用。",
+        "Focused tests create a temporary loop-run fixture and read-only pre-cutover audit evidence without invoking a runtime or browser."
       ],
-      "entrypoint": "python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-auditor-engine-01",
+      "entrypoint": "python3 -m pytest -q scripts/tests/test_loop_dashboard_evaluator.py::LoopDashboardEvaluatorGovernanceTests::test_auditor_engine_fixture_is_historical_disabled_and_read_only scripts/tests/test_loop_dashboard_evaluator.py::LoopDashboardEvaluatorGovernanceTests::test_auditor_engine_fixture_rejects_successor_audit_report",
       "steps": [
-        "创建临时 dashboard fixture 项目。",
-        "为 active-repair-run 写入旧 display-only 审计产物，验证看板不会宣称硬阻塞已经生效。",
-        "为 loop-auditor-engine-dev 构造已到人工合并门的父需求和两个已通过子任务，并写入可追溯的历史审计 fixture。",
-        "确认历史 deterministic-signals.json 和 audit-reports/audit-001.json 只读可见，且不会生成后继审计报告。",
-        "检查 Supervisor 当前状态和 Reviewer 控制面，确认历史 open must_fix 不改变当前 run phase。",
-        "启动 dashboard backend 并用 Playwright 点击 active-repair-run 与 loop-auditor-engine-dev。",
-        "验证人工合并门、display-only 历史状态、审计报告路径、确定性信号和 Skill inventory 都可读。"
+        "创建临时 loop-run fixture。",
+        "为 loop-auditor-engine-dev 写入已停用 Auditor 的历史 audit-001.json 和迁移结果。",
+        "验证历史 must_fix 不改变 fixture 中已经固定的 passed_waiting_human_merge 阶段。",
+        "注入 audit-002.json 并验证历史 fixture 校验拒绝后继审计报告。"
       ],
       "expected_outcomes": [
-        "active-repair-run 的历史审计区域显示“仅展示”和“硬阻塞未生效”。",
-        "loop-auditor-engine-dev 的运行阶段显示为“通过，等待人工合并”，不会恢复为历史审计阻塞阶段。",
-        "loop-auditor-engine-dev 的历史审计区域显示“仅展示”和“不会触发硬阻塞”。",
+        "loop-auditor-engine-dev 保持 passed_waiting_human_merge，不会恢复为历史审计阻塞阶段。",
         "审计报告路径为 .codex/loop-runs/loop-auditor-engine-dev/audit-reports/audit-001.json。",
-        "确定性信号中可见重复 finding 计数。",
-        "Evaluator 写入 status 为 pass 的 result.json 和 success.png。"
+        "audit-remediation-result.json 标记 disabled_legacy_auditor 且 new_audit_report 为空。",
+        "任何 audit-002.json 后继报告都会使 display-only fixture 校验失败。"
       ],
       "failure_signals": [
-        "看板把 pre-cutover fixture 当作当前 Supervisor 或 Reviewer 的执行结果。",
-        "历史 open must_fix 改变父需求当前阶段或触发新的审计执行。",
-        "历史审计区域把 display-only 产物误标成硬阻塞已接入。",
-        "历史审计区域缺少审计报告路径或确定性信号。",
-        "浏览器点击运行记录后详情没有刷新。"
+        "Focused tests invoke an active Auditor or control-plane runtime.",
+        "历史 open must_fix 改变父需求当前阶段。",
+        "Fixture 接受后继 audit-002.json 或把它当作当前审计结果。"
       ],
       "cleanup": [
-        "停止临时 dashboard server。",
-        "写入 evaluator 证据后移除临时 fixture 目录。"
+        "pytest removes the temporary fixture directory."
       ],
-      "automation_hint": "playwright"
+      "automation_hint": "pytest"
     }
   ]
 }

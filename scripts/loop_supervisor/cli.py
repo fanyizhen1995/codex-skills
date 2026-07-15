@@ -293,12 +293,14 @@ def _rebuild_db_locked(root: Path) -> dict[str, Any]:
             _copy_standalone_database(database, rollback_database)
         os.replace(replacement, database)
         swapped = True
+        _fsync_directory(database.parent)
         _validate_replacement_database(database)
     except BaseException:
         if rollback_database.is_file():
             restore = supervisor / f".supervisor.db.rollback-{uuid4().hex}"
             _copy_standalone_database(rollback_database, restore)
             os.replace(restore, database)
+            _fsync_directory(database.parent)
         elif swapped:
             database.unlink(missing_ok=True)
         raise
@@ -341,7 +343,7 @@ def _assert_supported_wal_lock_runtime(
     actual_lockf = getattr(fcntl, "lockf", None) if lockf is _UNSET else lockf
     if actual_platform != "linux":
         raise MigrationValidationError(
-            "live database rebuild requires Linux SQLite Unix-VFS lock semantics"
+            "live database rebuild advisory lock preflight requires Linux"
         )
     if actual_os_name != "posix":
         raise MigrationValidationError(
@@ -399,6 +401,15 @@ def _copy_standalone_database(source: Path, destination: Path) -> None:
     with destination.open("rb") as handle:
         os.fsync(handle.fileno())
     _validate_standalone_database(destination)
+
+
+def _fsync_directory(directory: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(directory, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _validate_standalone_database(database: Path) -> None:
