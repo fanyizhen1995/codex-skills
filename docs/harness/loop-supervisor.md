@@ -55,8 +55,10 @@ python3 -m scripts.loop_supervisor.cli shadow-compare --project-root /home/fyz/c
 ```
 
 The shadow report must contain zero `new_user_intervention` and zero
-`unsafe_divergence`. Apply only during the Task 10 cutover window, after stopping
-the old executors:
+`unsafe_divergence`. Shadow comparison first copies run and legacy decision
+artifacts outside the project, rebinds copied ownership metadata, makes copied
+files read-only, and compares only that stable copy. Apply only during the Task
+10 cutover window, after stopping the old executors:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli migrate --project-root /home/fyz/codex-skills
@@ -70,7 +72,10 @@ Reviewer cadence. Blank, malformed, truncated, NUL-tailed, and invalid-timestamp
 records are counted and written to `migration-quarantine.jsonl` in that external
 snapshot; source timestamps are never replaced with wall clock. Legacy cleanup
 is a separate guarded operation and is allowed only after exact current-store
-validation and shadow comparison both pass:
+validation and shadow comparison both pass. The migration report records each
+cleanup source's device/inode identity, byte size, and SHA-256. Cleanup holds
+the reconcile and repository mutation locks, rechecks that evidence immediately
+before deletion, and removes retained trees through no-follow descriptors:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli migrate --project-root /home/fyz/codex-skills --cleanup-legacy
@@ -85,8 +90,9 @@ the migration report's `snapshot_path`, then restart the old executor. Never use
 rollback.
 
 SQLite is rebuildable from retained run artifacts and migration streams. Stop
-both new processes before running. The command also rejects recent Worker
-heartbeats, live Supervisor/Worker PIDs, active leases, and held loop locks:
+both new processes before running. The command also rejects a recent canonical
+Supervisor heartbeat, recent Worker heartbeats, live Supervisor/Worker PIDs,
+active leases, and held loop locks:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli rebuild-db --project-root /home/fyz/codex-skills --confirm
@@ -94,8 +100,10 @@ python3 -m scripts.loop_supervisor.cli rebuild-db --project-root /home/fyz/codex
 
 The command builds and validates a sibling replacement first, copies the current
 database and sidecars to an external timestamped backup, then atomically replaces
-the database. Any failure restores the prior database and sidecars. Detailed
-operational history can be compacted after the retention period:
+the database. It holds the reconcile and repository mutation locks through the
+quiescence check, replacement build, swap, validation, and rollback. Any failure
+restores the prior database and sidecars. Detailed operational history can be
+compacted after the retention period:
 
 ```bash
 python3 -m scripts.loop_supervisor.cli retention --project-root /home/fyz/codex-skills --retention-days 90

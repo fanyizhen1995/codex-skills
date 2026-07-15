@@ -43,7 +43,7 @@ try:
     )
     from scripts.harness_loop_agents import run_codex_prompt
     from scripts.harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands
-    from scripts.harness_loop_auditor import (
+    from scripts.harness_loop_legacy_readers import (
         latest_audit_report,
         latest_audit_report_path,
         open_must_fix_findings,
@@ -102,7 +102,7 @@ except ModuleNotFoundError:
     )
     from harness_loop_agents import run_codex_prompt  # type: ignore[no-redef]
     from harness_loop_artifacts import run_artifact_hygiene, run_scenario_commands  # type: ignore[no-redef]
-    from harness_loop_auditor import (  # type: ignore[no-redef]
+    from harness_loop_legacy_readers import (  # type: ignore[no-redef]
         latest_audit_report,
         latest_audit_report_path,
         open_must_fix_findings,
@@ -1510,11 +1510,6 @@ def _auditor_prompt(run: Mapping[str, Any], signal_path: Path, output_path: Path
     )
 
 
-def _run_auditor(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
-    del repo_root, run_id, driver
-    raise RuntimeError(
-        "legacy Auditor execution is disabled; use the Supervisor Reviewer"
-    )
 
 
 def _scenario_command_results_have_logs(run_dir: Path) -> bool:
@@ -1859,72 +1854,6 @@ def _run_cleanup(repo_root: Path | str, run_id: str) -> Path:
     return write_json_file(run_dir_for(root, run_id) / "cleanup-result.json", {"status": "pass", "worktrees_removed": removed})
 
 
-def _run_loop(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:single:{run_id}"):
-        return _run_loop_locked(
-            root,
-            run_id,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-        )
-
-
-def _run_loop_locked(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    run = load_run(root, run_id)
-    if run["phase"] == "preflight":
-        raise RuntimeError("run_loop requires confirmed preflight; current phase is preflight")
-    if run["phase"] == "planned":
-        _run_planner(root, run_id, driver=planner_driver)
-        run = load_run(root, run_id)
-    if run["phase"] == "generating":
-        _run_generator(root, run_id, driver=generator_driver)
-        run = load_run(root, run_id)
-    if run["phase"] == "evaluating":
-        _run_evaluator(
-            root,
-            run_id,
-            driver=evaluator_driver,
-            max_attempts=max_eval_attempts,
-        )
-        run = load_run(root, run_id)
-    if run["phase"] == "artifact_hygiene":
-        _run_artifact_hygiene_step(root, run_id)
-        run = load_run(root, run_id)
-    if run["phase"] == "cleanup":
-        _run_cleanup(root, run_id)
-        run = load_run(root, run_id)
-    terminal_phases = {
-        "passed_waiting_human_merge",
-        "audit_blocked",
-        "repair_needed",
-        "committed",
-        "stopped_no_action",
-        "stopped_budget",
-        "stopped_blocked",
-    }
-    if run["phase"] not in terminal_phases:
-        raise RuntimeError(f"run_loop unsupported phase {run['phase']}")
-    return status_for_run(root, run_id)
 
 
 def _fake_parent_planner_payload(
@@ -2603,266 +2532,6 @@ def _run_codex_demand_child(
     )
 
 
-def _run_demand_multi(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_children: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:demand:{run_id}"):
-        return _run_demand_multi_locked(
-            root,
-            run_id,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-            max_children=max_children,
-        )
-
-
-def _run_demand_multi_locked(
-    repo_root: Path | str,
-    run_id: str,
-    *,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_children: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    validate_run_id(run_id)
-    run = load_run(root, run_id)
-    if run.get("run_kind") == "child":
-        raise RuntimeError("run_demand_multi requires a parent run_id")
-    parent = _ensure_parent_fields(run)
-    if parent["phase"] == "preflight":
-        raise RuntimeError("run_demand_multi requires confirmed preflight")
-    if parent["phase"] == "audit_blocked":
-        remediation_status = _run_demand_audit_remediation(
-            root,
-            parent,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-            max_children=max_children,
-        )
-        if remediation_status is not None:
-            return remediation_status
-        parent = _ensure_parent_fields(load_run(root, run_id))
-    if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
-        return status_for_run(root, run_id)
-    if planner_driver not in {"fake", "fake-blocked", "fake-failed", "codex-exec"}:
-        raise ValueError("unsupported demand multi planner driver")
-    if generator_driver not in {
-        "fake",
-        "fake-fail-child-2-once",
-        "fake-dirty-path",
-        "fake-timeout",
-        "fake-invalid-json",
-        "fake-missing-artifact",
-        "fake-stop-after-child-1",
-        "codex-exec",
-    }:
-        raise ValueError("unsupported demand multi generator driver")
-    if evaluator_driver not in {"fake", "codex-exec"}:
-        raise ValueError("unsupported demand multi evaluator driver")
-    if generator_driver != "codex-exec" and evaluator_driver != "fake":
-        raise ValueError("codex-exec demand multi evaluator requires codex-exec generator")
-
-    while True:
-        parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] == "audit_blocked":
-            remediation_status = _run_demand_audit_remediation(
-                root,
-                parent,
-                planner_driver=planner_driver,
-                generator_driver=generator_driver,
-                evaluator_driver=evaluator_driver,
-                max_eval_attempts=max_eval_attempts,
-                max_children=max_children,
-            )
-            if remediation_status is not None:
-                return remediation_status
-            continue
-        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
-            return status_for_run(root, run_id)
-        reconcile_status = _reconcile_demand_parent_children(root, parent)
-        if reconcile_status in {"waiting", "blocked"}:
-            return status_for_run(root, run_id)
-        parent = _ensure_parent_fields(load_run(root, run_id))
-        if parent["phase"] == "audit_blocked":
-            continue
-        if parent["phase"] in {"stopped_blocked", "stopped_budget", "passed_waiting_human_merge"}:
-            return status_for_run(root, run_id)
-        if parent["phase"] == "child_running" and parent.get("current_child_run_id"):
-            current_child = load_run(root, str(parent["current_child_run_id"]))
-            if current_child["phase"] != "passed":
-                append_loop_event(
-                    root,
-                    run_id=run_id,
-                    actor="orchestrator",
-                    event_type="wait",
-                    summary=f"Waiting for current child {current_child['run_id']} in phase {current_child['phase']}",
-                    child_id=f"child-{int(current_child['child_index']):03d}",
-                    details={"child_run_id": current_child["run_id"], "child_phase": current_child["phase"]},
-                )
-                return status_for_run(root, run_id)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="orchestrator",
-                event_type="decision",
-                summary=f"resume from passed child {current_child['run_id']}",
-                child_id=f"child-{int(current_child['child_index']):03d}",
-                details={"child_run_id": current_child["run_id"]},
-            )
-            parent, reconcile_status = _reconcile_passed_demand_children(root, parent)
-            if reconcile_status == "blocked":
-                return status_for_run(root, run_id)
-            parent["phase"] = "planning"
-            parent["next_action"] = "run_parent_planner"
-            parent["reader_summary"]["current_progress"] = f"{parent['aggregate_acceptance']['passed']} children passed"
-            parent["reader_summary"]["next_step"] = "Run parent planner"
-            parent["reader_summary"]["decision_needed"] = "No"
-            save_run(root, parent)
-            continue
-        if max_children < 1:
-            parent["phase"] = "stopped_budget"
-            parent["last_result"] = "blocked"
-            parent["next_action"] = "inspect_budget_limits"
-            parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
-            parent["aggregate_acceptance"]["user_decision_required"] = True
-            parent["reader_summary"]["current_progress"] = "Budget exhausted"
-            parent["reader_summary"]["next_step"] = "Inspect budget limits"
-            parent["reader_summary"]["decision_needed"] = "Yes"
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="orchestrator",
-                event_type="blocked",
-                summary="max_children budget exhausted",
-            )
-            return status_for_run(root, run_id)
-
-        passed = int(parent["aggregate_acceptance"]["passed"])
-        if passed >= max_children:
-            audit_status = _run_audit_boundary(root, parent, force=True)
-            if audit_status is not None:
-                return audit_status
-            parent["phase"] = "passed_waiting_human_merge"
-            parent["next_action"] = "await_human_merge_confirmation"
-            parent["last_result"] = "pass"
-            parent["aggregate_acceptance"]["total"] = max_children
-            parent["aggregate_acceptance"]["pending"] = 0
-            parent["reader_summary"]["current_progress"] = f"{passed} children passed"
-            parent["reader_summary"]["next_step"] = "Await human merge"
-            parent["reader_summary"]["decision_needed"] = "No"
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="orchestrator",
-                event_type="decision",
-                summary="All child tasks passed; awaiting human merge",
-            )
-            return status_for_run(root, run_id)
-
-        governance_preflight_result: dict[str, Any] | None = None
-        if _is_ai_infra_governance_demand_run(parent):
-            governance_preflight_result = _run_governance_preflight_gate(root, parent)
-            if governance_preflight_result["status"] != "pass":
-                return status_for_run(root, run_id)
-
-        audit_status = _run_audit_boundary(root, parent)
-        if audit_status is not None:
-            return audit_status
-
-        planner_payload = _run_demand_parent_planner(
-            root,
-            parent,
-            planner_driver=planner_driver,
-            max_children=max_children,
-        )
-        parent = _ensure_parent_fields(load_run(root, run_id))
-        parent["reader_summary"] = planner_payload["reader_summary"]
-
-        if planner_payload["planner_decision"] in {"blocked", "failed"}:
-            parent["phase"] = "stopped_blocked"
-            parent["last_result"] = "blocked"
-            parent["next_action"] = "inspect_parent_planner_blocked"
-            parent["aggregate_acceptance"]["user_decision_required"] = True
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="planner",
-                event_type="blocked",
-                summary=planner_payload["blocked_reason"],
-            )
-            return status_for_run(root, run_id)
-
-        if planner_payload["planner_decision"] == "parent_done":
-            audit_status = _run_audit_boundary(root, parent, force=True)
-            if audit_status is not None:
-                return audit_status
-            parent["phase"] = "passed_waiting_human_merge"
-            parent["next_action"] = "await_human_merge_confirmation"
-            parent["last_result"] = "pass"
-            parent["aggregate_acceptance"]["total"] = max_children
-            parent["aggregate_acceptance"]["pending"] = 0
-            save_run(root, parent)
-            append_loop_event(
-                root,
-                run_id=run_id,
-                actor="planner",
-                event_type="decision",
-                summary="Parent planner marked demand run done",
-            )
-            return status_for_run(root, run_id)
-
-        child_index = len(parent["child_run_ids"]) + 1
-        child_task = planner_payload["next_child_task"]
-        if governance_preflight_result is not None:
-            child_task = _augment_child_task_with_governance_preflight(child_task, governance_preflight_result)
-        child = _create_child_run(root, parent, child_index, child_task)
-        parent["child_run_ids"].append(child["run_id"])
-        parent["current_child_run_id"] = child["run_id"]
-        parent["phase"] = "child_running"
-        parent["next_action"] = "run_child_generator"
-        parent["aggregate_acceptance"]["total"] = max_children
-        parent["aggregate_acceptance"]["pending"] = _aggregate_pending(parent["aggregate_acceptance"])
-        save_run(root, parent)
-
-        if generator_driver == "codex-exec":
-            _run_codex_demand_child(
-                root,
-                parent,
-                child,
-                evaluator_driver=evaluator_driver,
-                max_eval_attempts=max_eval_attempts,
-            )
-        else:
-            _run_fake_demand_child(
-                root,
-                parent,
-                child,
-                generator_driver=generator_driver,
-                max_eval_attempts=max_eval_attempts,
-            )
-        parent_after_child = load_run(root, run_id)
-        if parent_after_child["phase"] in {"stopped_blocked", "stopped_budget"}:
-            return status_for_run(root, run_id)
-        if parent_after_child["phase"] == "child_running":
-            return status_for_run(root, run_id)
 
 
 def _stop_run(
@@ -3755,8 +3424,10 @@ def _commit_changed_paths(repo_root: Path, commit_sha: str) -> list[str]:
             capture_output=True,
             text=True,
         )
-    except (OSError, subprocess.CalledProcessError):
-        return []
+    except OSError as exc:
+        raise RuntimeError(f"git diff-tree failed to start: {exc}") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(_command_failure_detail(exc)) from exc
     return sorted(path.strip() for path in result.stdout.splitlines() if path.strip())
 
 
@@ -5554,10 +5225,12 @@ def _git_dirty_paths(repo_root: Path) -> list[str]:
             capture_output=True,
             text=True,
         )
-    except OSError:
-        return []
+    except OSError as exc:
+        raise RuntimeError(f"git status failed to start: {exc}") from exc
     if result.returncode != 0:
-        return []
+        raise RuntimeError(
+            f"git status failed with exit {result.returncode}: {result.stderr.strip()}"
+        )
     paths: list[str] = []
     for line in result.stdout.splitlines():
         parsed_paths = _parse_porcelain_paths(line)
@@ -5713,156 +5386,6 @@ def _resume_autonomous_commit_block(repo_root: Path, run: dict[str, Any]) -> boo
     return True
 
 
-def _run_autonomous(
-    repo_root: Path | str,
-    run_id: str,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_tasks: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    with acquire_run_lock(root, run_id, owner=f"harness-orchestrator:autonomous:{run_id}"):
-        return _run_autonomous_locked(
-            root,
-            run_id,
-            planner_driver=planner_driver,
-            generator_driver=generator_driver,
-            evaluator_driver=evaluator_driver,
-            max_eval_attempts=max_eval_attempts,
-            max_tasks=max_tasks,
-        )
-
-
-def _run_autonomous_locked(
-    repo_root: Path | str,
-    run_id: str,
-    planner_driver: str,
-    generator_driver: str,
-    evaluator_driver: str,
-    max_eval_attempts: int,
-    max_tasks: int,
-) -> dict[str, str]:
-    root = Path(repo_root)
-    validate_run_id(run_id)
-    if planner_driver not in {"fake", "codex-exec"}:
-        raise ValueError(f"unsupported autonomous planner driver: {planner_driver}")
-    if generator_driver not in {
-        "fake",
-        "fake-denylist",
-        "fake-dependency",
-        "fake-expanded-code",
-        "fake-missing-evidence",
-        "codex-exec",
-    }:
-        raise ValueError(f"unsupported autonomous generator driver: {generator_driver}")
-    if evaluator_driver not in {"fake", "codex-exec"}:
-        raise ValueError(f"unsupported autonomous evaluator driver: {evaluator_driver}")
-
-    tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
-    while True:
-        run = load_run(root, run_id)
-        if run["policy"] != "autonomous_knowledge":
-            raise RuntimeError(f"run_autonomous requires autonomous_knowledge policy; current policy is {run['policy']}")
-        if run["phase"] == "preflight":
-            raise RuntimeError("run_autonomous requires confirmed preflight; current phase is preflight")
-        if run["phase"] == "audit_blocked":
-            task_number = _next_autonomous_task_number(run)
-            if not _start_autonomous_audit_remediation(root, run, task_number=task_number):
-                return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_audit_remediation_planner", last_result="blocked")
-            continue
-        if run["phase"] == "stopped_blocked":
-            if _resume_autonomous_push_block(root, run):
-                tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
-                continue
-            if _resume_autonomous_dirty_path_block(root, run):
-                continue
-            if _resume_autonomous_required_evidence_block(root, run):
-                continue
-            if _resume_autonomous_commit_block(root, run):
-                continue
-            return status_for_run(root, run_id)
-        if run["phase"] in {"stopped_no_action", "stopped_budget", "stopped_blocked"}:
-            return status_for_run(root, run_id)
-        if run["phase"] not in {"planning", "generating", "evaluating", "artifact_hygiene", "cleanup"}:
-            raise RuntimeError(f"run_autonomous unsupported phase {run['phase']}")
-
-        if run["phase"] == "planning":
-            audit_status = _run_audit_boundary(root, run, force=tasks_completed >= max_tasks and tasks_completed > 0)
-            if audit_status is not None:
-                return audit_status
-            run = load_run(root, run_id)
-            if tasks_completed >= max_tasks:
-                return _stop_run(root, run, phase="stopped_budget", next_action="none", last_result="pass")
-            task_number = _next_autonomous_task_number(run)
-            if planner_driver != "fake" and _stop_if_autonomous_no_action(root, run):
-                return status_for_run(root, run_id)
-            if planner_driver == "fake":
-                planned = _run_fake_autonomous_planner(root, run, task_number=task_number)
-            else:
-                planned = _run_codex_autonomous_planner(root, run)
-                if not planned:
-                    current = load_run(root, run_id)
-                    if current["phase"] not in {"stopped_no_action", "stopped_blocked"}:
-                        planned = _run_fake_autonomous_planner(
-                            root,
-                            current,
-                            task_number=task_number,
-                            count_attempt=False,
-                        )
-            if not planned:
-                current = load_run(root, run_id)
-                if current["phase"] in {"stopped_no_action", "stopped_blocked"}:
-                    return status_for_run(root, run_id)
-                return _stop_run(root, current, phase="stopped_blocked", next_action="inspect_autonomous_planner", last_result="blocked")
-            continue
-
-        run = load_run(root, run_id)
-        if run["phase"] == "generating":
-            if _generator_attempts_for_task(root, run) >= int(run["limits"]["max_generator_attempts_per_task"]):
-                return _stop_run(root, run, phase="stopped_blocked", next_action="inspect_autonomous_generator", last_result="blocked")
-            if generator_driver == "codex-exec":
-                generator_result = _run_codex_autonomous_generator(root, run)
-                if generator_result is None:
-                    continue
-            else:
-                task_number = _next_autonomous_task_number(run)
-                _write_fake_autonomous_generator_result(
-                    root,
-                    run,
-                    driver=generator_driver,
-                    task_number=task_number,
-                )
-            continue
-
-        run = load_run(root, run_id)
-        if run["phase"] == "evaluating":
-            if evaluator_driver == "fake":
-                evaluator_result = _run_fake_autonomous_evaluator(root, run, max_attempts=max_eval_attempts)
-            else:
-                evaluator_result = _run_codex_autonomous_evaluator(root, run)
-                if evaluator_result is None:
-                    return _stop_run(root, load_run(root, run_id), phase="stopped_blocked", next_action="inspect_autonomous_evaluator", last_result="blocked")
-            if evaluator_result["status"] != "pass" or evaluator_result["returncode"] != 0:
-                return _stop_run(root, load_run(root, run_id), phase="stopped_blocked", next_action="inspect_evaluator", last_result="blocked")
-            continue
-
-        run = load_run(root, run_id)
-        if run["phase"] == "artifact_hygiene":
-            _run_artifact_hygiene_step(root, run_id)
-            run = load_run(root, run_id)
-            if run["phase"] == "stopped_blocked":
-                return status_for_run(root, run_id)
-            continue
-
-        run = load_run(root, run_id)
-        if run["phase"] == "cleanup":
-            generator_result = read_json_file(run_dir_for(root, run_id) / "generator-result.json")
-            validate_generator_result_payload(generator_result)
-            if not _commit_autonomous_changes(root, run, generator_result):
-                return status_for_run(root, run_id)
-            tasks_completed = _autonomous_budget_task_count(load_run(root, run_id))
 
 
 def _bounded_failure(
@@ -6455,21 +5978,6 @@ def _run_bounded_alternate_recovery(repo_root: Path, request: ActionRequest) -> 
         )
 
 
-def _run_bounded_reviewer(repo_root: Path, request: ActionRequest) -> ActionResult:
-    started_at = _timestamp()
-    try:
-        driver = _bounded_driver(request, "reviewer")
-        artifact = _run_auditor(repo_root, request.run_id, driver=driver)
-        return _bounded_success(
-            "reviewer phase completed",
-            started_at=started_at,
-            artifact_paths=[_relative_artifact(repo_root, artifact)],
-            checkpoint="reviewer",
-        )
-    except Exception as exc:
-        return _bounded_failure(
-            request, "reviewer", exc, started_at=started_at, repo_root=repo_root
-        )
 
 
 def _run_bounded_refocus(repo_root: Path, request: ActionRequest) -> ActionResult:

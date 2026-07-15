@@ -54,12 +54,9 @@ def test_each_handler_is_bounded_and_returns_action_result(
     for primitive_name in executor.BOUNDED_PRIMITIVE_NAMES.values():
         monkeypatch.setattr(legacy, primitive_name, fake_primitive)
 
-    def forbidden(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("multi-round loop called by bounded executor")
-
-    monkeypatch.setattr(legacy, "_run_loop", forbidden)
-    monkeypatch.setattr(legacy, "_run_autonomous", forbidden)
-    monkeypatch.setattr(legacy, "_run_demand_multi", forbidden)
+    assert not hasattr(legacy, "_run_loop")
+    assert not hasattr(legacy, "_run_autonomous")
+    assert not hasattr(legacy, "_run_demand_multi")
 
     for action_type, handler in executor.ACTION_HANDLERS.items():
         result = handler(tmp_path, _request(action_type))
@@ -82,3 +79,17 @@ def test_executor_source_does_not_drive_multi_round_entrypoints() -> None:
     assert "run_" + "autonomous(" not in source
     assert "run_" + "demand_multi(" not in source
     assert "run_" + "loop(" not in source
+
+
+def test_legacy_multi_round_and_auditor_runtime_surfaces_are_removed() -> None:
+    removed_files = (
+        Path("scripts/harness_loop_phase2_smoke.py"),
+        Path("scripts/harness_loop_phase3_smoke.py"),
+        Path("scripts/harness_ai_infra_meta_loop_smoke.py"),
+        Path("scripts/harness_loop_auditor.py"),
+    )
+    assert all(not path.exists() for path in removed_files)
+    assert all(
+        not hasattr(legacy, name)
+        for name in ("_run_loop", "_run_autonomous", "_run_demand_multi", "_run_auditor")
+    )

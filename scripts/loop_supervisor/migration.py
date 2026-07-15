@@ -4,22 +4,33 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import subprocess
+import tempfile
 from typing import Any
 from uuid import uuid4
+
+from scripts.harness_loop_runtime_lock import (
+    RunLockBusy,
+    acquire_repository_mutation_lock,
+)
 
 from .reconciler import (
     _decision_requirement,
     _projection,
     _state_fingerprint,
     _state_revision,
+    _open_directory_chain,
+    _project_reconcile_lock,
     desired_action_for_run,
     discover_run_records,
     infer_loop_lineages,
@@ -61,6 +72,16 @@ class RuntimeInventory:
 
 
 @dataclass(frozen=True)
+class SourceArtifactEvidence:
+    relative_path: str
+    kind: str
+    device: int
+    inode: int
+    size: int
+    sha256: str = ""
+
+
+@dataclass(frozen=True)
 class MigrationReport:
     project_root: str
     dry_run: bool
@@ -83,6 +104,7 @@ class MigrationReport:
     snapshot_path: str
     validated: bool
     protected_paths: tuple[str, ...]
+    source_artifacts: tuple[SourceArtifactEvidence, ...]
     _transition_expectations: Mapping[str, Mapping[str, Any]] = field(
         default_factory=dict, repr=False
     )
@@ -251,6 +273,7 @@ def migrate_jsonl(
     if store.project_root != root:
         raise ValueError("Supervisor store does not belong to project_root")
     inventory = inventory_runtime(root)
+    source_artifacts = _capture_cleanup_sources(root)
     quarantine: list[_QuarantineRow] = []
     scan_counts = _ScanCounts()
     transitions, failures, source_rows = _scan_run_decisions(
@@ -261,8 +284,10 @@ def migrate_jsonl(
     )
     _merge_decision_failures(failures, decisions)
     records = [record for record in discover_run_records(root) if record.valid]
-    _bind_archived_decisions_to_run_state(decisions, records)
+    _bind_archived_decisions_to_source_state(decisions)
     services = _scan_services(root, quarantine, scan_counts)
+    if _capture_cleanup_sources(root) != source_artifacts:
+        raise MigrationValidationError("legacy sources changed during migration scan")
     lineage_by_run = infer_loop_lineages(records)
     semantic_ids = _semantic_completion_ids(records)
     cadence_positions = _cadence_positions(records, lineage_by_run, semantic_ids)
@@ -315,6 +340,7 @@ def migrate_jsonl(
         snapshot_path="",
         validated=dry_run,
         protected_paths=inventory.protected_paths,
+        source_artifacts=source_artifacts,
         _transition_expectations=transition_expectations,
         _failure_expectations=failure_expectations,
         _decision_expectations=decision_expectations,
@@ -406,6 +432,15 @@ def shadow_compare(
     root = Path(project_root).resolve()
     if store.project_root != root:
         raise ValueError("Supervisor store does not belong to project_root")
+    with tempfile.TemporaryDirectory(
+        prefix=f".{root.name}-shadow-", dir=root.parent
+    ) as temporary:
+        copied_root = Path(temporary) / "project"
+        _copy_shadow_inputs(root, copied_root)
+        return _shadow_compare_copied_root(copied_root)
+
+
+def _shadow_compare_copied_root(root: Path) -> ShadowComparisonReport:
     legacy = _latest_legacy_decisions(root)
     differences: list[ShadowDifference] = []
     counts = defaultdict(int)
@@ -491,35 +526,37 @@ def cleanup_legacy_runtime(
         raise MigrationValidationError("legacy cleanup requires a passing shadow comparison")
     if Path(migration.project_root).resolve() != root:
         raise MigrationValidationError("migration report belongs to another project root")
-    if not validate_migration(root, store, migration):
-        raise MigrationValidationError("legacy cleanup requires current exact migration validation")
+    _assert_cleanup_ownership(root)
+    try:
+        with _project_reconcile_lock(root), acquire_repository_mutation_lock(
+            root, owner=f"migration-cleanup:{os.getpid()}"
+        ):
+            if not validate_migration(root, store, migration):
+                raise MigrationValidationError(
+                    "legacy cleanup requires current exact migration validation"
+                )
+            if _capture_cleanup_sources(root) != migration.source_artifacts:
+                raise MigrationValidationError(
+                    "legacy cleanup source artifacts changed since migration"
+                )
+            return _delete_cleanup_sources(root)
+    except RunLockBusy as exc:
+        raise MigrationValidationError(
+            f"legacy cleanup requires quiescence; repository lock is held: {exc}"
+        ) from exc
+
+
+def _assert_cleanup_ownership(root: Path) -> None:
     supervisor = root / ".codex" / "supervisor"
     _require_cleanup_path(supervisor, root)
-    removed: list[str] = []
-    for name in LEGACY_SUPERVISOR_FILES:
-        path = supervisor / name
-        _require_cleanup_path(path, root)
-        if path.is_file() and not path.is_symlink():
-            path.unlink()
-            removed.append(path.as_posix())
-    decision_dir = supervisor / "needs-user-decisions"
-    _require_cleanup_path(decision_dir, root)
-    if decision_dir.is_dir() and not decision_dir.is_symlink():
-        shutil.rmtree(decision_dir)
-        removed.append(decision_dir.as_posix())
-    runs_root = root / ".codex" / "loop-runs"
-    _require_cleanup_path(runs_root, root)
-    run_dirs = tuple(runs_root.iterdir()) if runs_root.is_dir() else ()
-    for run_dir in run_dirs:
-        _require_cleanup_path(run_dir, root)
-        if not run_dir.is_dir():
-            continue
-        audit_dir = run_dir / "audit-reports"
-        _require_cleanup_path(audit_dir, root)
-        if audit_dir.is_dir() and not audit_dir.is_symlink():
-            shutil.rmtree(audit_dir)
-            removed.append(audit_dir.as_posix())
-    return tuple(removed)
+    runs = root / ".codex" / "loop-runs"
+    _require_cleanup_path(runs, root)
+    if runs.is_dir():
+        for run_dir in runs.iterdir():
+            if run_dir.is_symlink():
+                raise MigrationValidationError(
+                    f"cleanup path has symlink ancestor: {run_dir}"
+                )
 
 
 def _require_cleanup_path(path: Path, root: Path) -> None:
@@ -534,6 +571,193 @@ def _require_cleanup_path(path: Path, root: Path) -> None:
             raise MigrationValidationError(f"cleanup path has symlink ancestor: {current}")
         if not current.exists():
             break
+
+
+def _capture_cleanup_sources(root: Path) -> tuple[SourceArtifactEvidence, ...]:
+    supervisor = root / ".codex" / "supervisor"
+    candidates = [
+        supervisor / name
+        for name in LEGACY_SUPERVISOR_FILES
+        if os.path.lexists(supervisor / name)
+    ]
+    decisions = supervisor / "needs-user-decisions"
+    if os.path.lexists(decisions):
+        candidates.append(decisions)
+    runs = root / ".codex" / "loop-runs"
+    if runs.is_dir() and not runs.is_symlink():
+        with os.scandir(runs) as entries:
+            for entry in entries:
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+                audit = Path(entry.path) / "audit-reports"
+                if os.path.lexists(audit):
+                    candidates.append(audit)
+    evidence: list[SourceArtifactEvidence] = []
+    for candidate in sorted(candidates, key=lambda path: path.as_posix()):
+        evidence.extend(_capture_source_tree(root, candidate))
+    return tuple(sorted(evidence, key=lambda item: item.relative_path))
+
+
+def _capture_source_tree(
+    root: Path, path: Path
+) -> list[SourceArtifactEvidence]:
+    metadata = path.lstat()
+    relative = path.relative_to(root).as_posix()
+    if stat.S_ISREG(metadata.st_mode):
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return [
+            SourceArtifactEvidence(
+                relative_path=relative,
+                kind="file",
+                device=metadata.st_dev,
+                inode=metadata.st_ino,
+                size=metadata.st_size,
+                sha256=digest.hexdigest(),
+            )
+        ]
+    if stat.S_ISLNK(metadata.st_mode):
+        target = os.readlink(path)
+        return [
+            SourceArtifactEvidence(
+                relative_path=relative,
+                kind="symlink",
+                device=metadata.st_dev,
+                inode=metadata.st_ino,
+                size=metadata.st_size,
+                sha256=hashlib.sha256(os.fsencode(target)).hexdigest(),
+            )
+        ]
+    if not stat.S_ISDIR(metadata.st_mode):
+        return [
+            SourceArtifactEvidence(
+                relative_path=relative,
+                kind="other",
+                device=metadata.st_dev,
+                inode=metadata.st_ino,
+                size=metadata.st_size,
+            )
+        ]
+    result = [
+        SourceArtifactEvidence(
+            relative_path=relative,
+            kind="directory",
+            device=metadata.st_dev,
+            inode=metadata.st_ino,
+            size=metadata.st_size,
+        )
+    ]
+    with os.scandir(path) as entries:
+        children = sorted((Path(entry.path) for entry in entries), key=lambda item: item.name)
+    for child in children:
+        result.extend(_capture_source_tree(root, child))
+    return result
+
+
+def _delete_cleanup_sources(root: Path) -> tuple[str, ...]:
+    removed: list[str] = []
+    try:
+        with _open_directory_chain(
+            root, (".codex", "supervisor"), create=False
+        ) as supervisor_fd:
+            for name in LEGACY_SUPERVISOR_FILES:
+                if _unlink_regular_at(supervisor_fd, name):
+                    removed.append((root / ".codex" / "supervisor" / name).as_posix())
+            if _remove_tree_at(supervisor_fd, "needs-user-decisions"):
+                removed.append(
+                    (root / ".codex" / "supervisor" / "needs-user-decisions").as_posix()
+                )
+    except FileNotFoundError:
+        pass
+    try:
+        with _open_directory_chain(
+            root, (".codex", "loop-runs"), create=False
+        ) as runs_fd:
+            for run_id in sorted(os.listdir(runs_fd)):
+                try:
+                    run_metadata = os.stat(
+                        run_id, dir_fd=runs_fd, follow_symlinks=False
+                    )
+                except FileNotFoundError:
+                    continue
+                if not stat.S_ISDIR(run_metadata.st_mode):
+                    continue
+                run_fd = os.open(run_id, _DIRECTORY_FLAGS, dir_fd=runs_fd)
+                try:
+                    opened = os.fstat(run_fd)
+                    if (opened.st_dev, opened.st_ino) != (
+                        run_metadata.st_dev,
+                        run_metadata.st_ino,
+                    ):
+                        raise MigrationValidationError(
+                            f"cleanup run directory ownership changed: {run_id}"
+                        )
+                    if _remove_tree_at(run_fd, "audit-reports"):
+                        removed.append(
+                            (
+                                root
+                                / ".codex"
+                                / "loop-runs"
+                                / run_id
+                                / "audit-reports"
+                            ).as_posix()
+                        )
+                finally:
+                    os.close(run_fd)
+    except FileNotFoundError:
+        pass
+    return tuple(removed)
+
+
+_DIRECTORY_FLAGS = (
+    os.O_RDONLY
+    | getattr(os, "O_DIRECTORY", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_CLOEXEC", 0)
+)
+
+
+def _unlink_regular_at(parent_fd: int, name: str) -> bool:
+    try:
+        metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISREG(metadata.st_mode):
+        raise MigrationValidationError(f"cleanup source is not a regular file: {name}")
+    os.unlink(name, dir_fd=parent_fd)
+    return True
+
+
+def _remove_tree_at(parent_fd: int, name: str) -> bool:
+    try:
+        expected = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISDIR(expected.st_mode):
+        raise MigrationValidationError(f"cleanup source is not a directory: {name}")
+    directory_fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+    try:
+        opened = os.fstat(directory_fd)
+        if (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
+            raise MigrationValidationError(
+                f"cleanup directory ownership changed: {name}"
+            )
+        for child in sorted(os.listdir(directory_fd)):
+            metadata = os.stat(child, dir_fd=directory_fd, follow_symlinks=False)
+            if stat.S_ISDIR(metadata.st_mode):
+                _remove_tree_at(directory_fd, child)
+            elif stat.S_ISREG(metadata.st_mode):
+                os.unlink(child, dir_fd=directory_fd)
+            else:
+                raise MigrationValidationError(
+                    f"cleanup tree contains unsafe entry: {name}/{child}"
+                )
+    finally:
+        os.close(directory_fd)
+    os.rmdir(name, dir_fd=parent_fd)
+    return True
 
 
 def _scan_run_decisions(
@@ -628,7 +852,17 @@ def _scan_user_decisions(
             candidate = dict(row)
             existing = decisions.get(identity)
             if name.startswith("archived-"):
-                candidate = {**(existing or {}), **candidate, "status": "archived"}
+                candidate = {
+                    **(existing or {}),
+                    **candidate,
+                    "status": "archived",
+                    "_archived_source_evidence": {
+                        "source_path": path.relative_to(root).as_posix(),
+                        "line_number": source.line_number,
+                        "source_sha256": source.raw_sha256,
+                        "source_size": source.raw_length,
+                    },
+                }
             timestamp_value = candidate.get("opened_at") or candidate.get("created_at")
             try:
                 _source_timestamp(
@@ -961,22 +1195,33 @@ def _import_services(
             )
 
 
-def _bind_archived_decisions_to_run_state(
-    decisions: Sequence[dict[str, Any]], records: Sequence[Any]
+def _bind_archived_decisions_to_source_state(
+    decisions: Sequence[dict[str, Any]],
 ) -> None:
-    records_by_run = {record.run_id: record for record in records}
     for item in decisions:
         if item.get("status") != "archived":
             continue
-        run_ids = _string_list(item.get("affected_runs"))
-        if len(run_ids) != 1:
+        state = item.get("archived_run_state")
+        if not isinstance(state, Mapping):
             continue
-        record = records_by_run.get(run_ids[0])
-        if record is None:
+        revision = state.get("revision")
+        fingerprint = state.get("fingerprint")
+        if (
+            not isinstance(revision, int)
+            or isinstance(revision, bool)
+            or revision < 0
+            or not isinstance(fingerprint, str)
+            or not fingerprint
+        ):
             continue
         item["_archived_run_state"] = {
-            "revision": _state_revision(record.payload),
-            "fingerprint": _state_fingerprint(record.payload),
+            "revision": revision,
+            "fingerprint": fingerprint,
+            **(
+                dict(item["_archived_source_evidence"])
+                if isinstance(item.get("_archived_source_evidence"), Mapping)
+                else {}
+            ),
         }
 
 
@@ -1089,6 +1334,91 @@ def _snapshot_runtime(root: Path) -> str:
     return destination.as_posix()
 
 
+def _copy_shadow_inputs(root: Path, destination: Path) -> None:
+    before = _capture_shadow_sources(root)
+    destination.mkdir(parents=True, exist_ok=False)
+    sources = [(root / ".codex" / "loop-runs", destination / ".codex" / "loop-runs")]
+    worktrees = root / ".worktrees"
+    if worktrees.is_dir() and not worktrees.is_symlink():
+        for worktree in worktrees.iterdir():
+            if not worktree.is_dir() or worktree.is_symlink():
+                continue
+            sources.append(
+                (
+                    worktree / ".codex" / "loop-runs",
+                    destination / ".worktrees" / worktree.name / ".codex" / "loop-runs",
+                )
+            )
+    for source, target in sources:
+        if not source.exists():
+            continue
+        _require_tree_without_symlinks(source)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, target)
+    legacy = root / ".codex" / "supervisor" / "run-decisions.jsonl"
+    if legacy.exists():
+        if legacy.is_symlink() or not legacy.is_file():
+            raise MigrationValidationError(f"unsafe shadow source: {legacy}")
+        target = destination / ".codex" / "supervisor" / legacy.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy, target)
+    _rebind_shadow_owners(destination)
+    for path in destination.rglob("*"):
+        if path.is_file():
+            path.chmod(0o400)
+    if _capture_shadow_sources(root) != before:
+        raise MigrationValidationError("shadow sources changed while copying")
+
+
+def _capture_shadow_sources(root: Path) -> tuple[SourceArtifactEvidence, ...]:
+    candidates = [root / ".codex" / "loop-runs"]
+    worktrees = root / ".worktrees"
+    if worktrees.is_dir() and not worktrees.is_symlink():
+        candidates.extend(
+            worktree / ".codex" / "loop-runs"
+            for worktree in worktrees.iterdir()
+            if worktree.is_dir() and not worktree.is_symlink()
+        )
+    legacy = root / ".codex" / "supervisor" / "run-decisions.jsonl"
+    candidates.append(legacy)
+    result: list[SourceArtifactEvidence] = []
+    for candidate in candidates:
+        if os.path.lexists(candidate):
+            result.extend(_capture_source_tree(root, candidate))
+    return tuple(sorted(result, key=lambda item: item.relative_path))
+
+
+def _rebind_shadow_owners(destination: Path) -> None:
+    for run_json in destination.rglob(".codex/loop-runs/*/run.json"):
+        try:
+            payload = json.loads(run_json.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        copied_repo = run_json.parents[3].resolve()
+        changed = False
+        if isinstance(payload.get("worktree"), str) and payload["worktree"]:
+            payload["worktree"] = str(copied_repo)
+            changed = True
+        if isinstance(payload.get("project_root"), str) and payload["project_root"]:
+            payload["project_root"] = str(copied_repo)
+            changed = True
+        if changed:
+            run_json.write_text(
+                json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+
+
+def _require_tree_without_symlinks(root: Path) -> None:
+    if root.is_symlink() or not root.is_dir():
+        raise MigrationValidationError(f"unsafe shadow source: {root}")
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise MigrationValidationError(f"shadow source has symlink: {path}")
+
+
 def _write_quarantine(
     snapshot_root: Path, quarantine: Sequence[_QuarantineRow]
 ) -> str:
@@ -1184,7 +1514,12 @@ def _compare_outcomes(old: Mapping[str, Any], new: Mapping[str, str]) -> str:
             and old.get("phase") == "stopped_blocked"
             and old.get("next_action") == "inspect_blocked_diagnostics"
         ):
-            return "equivalent"
+            return (
+                "equivalent"
+                if str(new.get("scope") or "") == "run"
+                and str(new.get("reason") or "") == "registry_user_gate"
+                else "unsafe_divergence"
+            )
         if not old_requires_user:
             return "new_user_intervention"
         if _old_decision_scope(old) != str(new.get("scope") or ""):

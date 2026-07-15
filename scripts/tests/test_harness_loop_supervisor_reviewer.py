@@ -11,11 +11,9 @@ import pytest
 
 import scripts.harness_loop_orchestrator as orchestrator_module
 from scripts.harness_loop_agents import build_codex_exec_command
-from scripts.harness_loop_auditor import write_rule_based_audit_report
 from scripts.harness_loop_orchestrator import (
     _autonomous_planner_prompt,
     _run_audit_boundary,
-    _run_auditor as run_auditor,
     _set_audit_blocked,
 )
 from scripts.loop_supervisor import reviewer as reviewer_module
@@ -221,22 +219,9 @@ def test_due_lineages_within_ten_minutes_coalesce_into_one_review(tmp_path: Path
     assert not list(tmp_path.rglob("audit-reports/audit-*.json"))
 
 
-def test_legacy_auditor_production_entrypoints_are_disabled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    legacy_run = {
-        "run_id": "legacy-run",
-        "policy": "autonomous_knowledge",
-        "run_kind": "single",
-        "phase": "planning",
-    }
-    monkeypatch.setattr(orchestrator_module, "load_run", lambda *_args: legacy_run)
-
-    with pytest.raises(RuntimeError, match="disabled.*Supervisor Reviewer"):
-        write_rule_based_audit_report(tmp_path, legacy_run)
-    with pytest.raises(RuntimeError, match="disabled.*Supervisor Reviewer"):
-        run_auditor(tmp_path, "legacy-run", driver="fake")
-
+def test_legacy_auditor_production_entrypoints_are_removed(tmp_path: Path) -> None:
+    assert not Path("scripts/harness_loop_auditor.py").exists()
+    assert not hasattr(orchestrator_module, "_run_auditor")
     assert not list(tmp_path.rglob("audit-reports/audit-*.json"))
 
 

@@ -391,16 +391,17 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
         self.assertIn("tests/test_accelerator_specs.py", entrypoint)
         self.assertIn("validate-accelerators", entrypoint)
 
-    def test_phase_3_scenario_entrypoint_uses_smoke_helper(self) -> None:
+    def test_phase_3_scenario_entrypoint_uses_bounded_worker_regression(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         contract = load_task_scenarios(repo_root, "planner-generator-evaluator-loop-phase-3-01")
         entrypoint = contract["user_scenarios"][0]["entrypoint"]
 
         self.assertEqual(contract["task_id"], "planner-generator-evaluator-loop-phase-3-01")
-        self.assertIn("scripts/harness_loop_phase3_smoke.py", entrypoint)
-        self.assertIn("--domain ai_infra", entrypoint)
-        self.assertIn("--isolate-clone", entrypoint)
+        self.assertIn("test_harness_loop_supervisor_worker.py", entrypoint)
+        self.assertIn("test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_actions", entrypoint)
+        self.assertNotIn("smoke", entrypoint)
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_exercises_autonomous_commit_and_no_action(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as tmp:
@@ -480,6 +481,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
             ):
                 self.assertTrue((fixture / payload[key]).exists(), key)
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_rejects_dirty_loop_state_before_seeding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = Path(tmp)
@@ -521,6 +523,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
                     "planner-generator-evaluator-loop-phase-3-01",
                 )
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_does_not_delete_other_domain_raw_notes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = Path(tmp)
@@ -567,6 +570,7 @@ class HarnessEvaluatorScenarioTests(unittest.TestCase):
 
             self.assertTrue(other_raw_note.exists())
 
+    @unittest.skip("legacy multi-round smoke runtime removed")
     def test_phase_3_smoke_helper_rejects_dirty_current_domain_raw_note_before_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = Path(tmp)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import shutil
@@ -18,7 +19,7 @@ from scripts.loop_supervisor.migration import (
     migrate_jsonl,
     shadow_compare,
 )
-from scripts.loop_supervisor.reconciler import reconcile_once
+from scripts.loop_supervisor.reconciler import _state_fingerprint, reconcile_once
 from scripts.loop_supervisor.store import SupervisorStore
 from scripts.harness_loop_runtime_lock import acquire_repository_mutation_lock
 
@@ -483,6 +484,11 @@ def test_migrated_archived_decision_stays_closed_after_reconcile(
         next_action="inspect_blocked_diagnostics",
     )
     failure_key = "unsupported_state:archived-run:run-state:unsupported-state"
+    archived_run = json.loads(
+        (tmp_path / ".codex/loop-runs/archived-run/run.json").read_text(
+            encoding="utf-8"
+        )
+    )
     open_decision = {
         "schema_version": 1,
         "decision_id": "archived-decision",
@@ -517,6 +523,10 @@ def test_migrated_archived_decision_stays_closed_after_reconcile(
             | {
                 "status": "archived",
                 "archived_at": "2026-07-14T01:00:00Z",
+                "archived_run_state": {
+                    "revision": 1,
+                    "fingerprint": _state_fingerprint(archived_run),
+                },
             }
         ],
     )
@@ -576,6 +586,16 @@ def test_archived_compatibility_requires_exact_migrated_run_state(
         "required_user_decision": "Inspect the run state.",
         "opened_at": "2026-07-14T00:00:00Z",
         "archived_at": "2026-07-14T01:00:00Z",
+    }
+    archived_run = json.loads(
+        (
+            tmp_path
+            / ".codex/loop-runs/archived-exact-state/run.json"
+        ).read_text(encoding="utf-8")
+    )
+    archived["archived_run_state"] = {
+        "revision": 1,
+        "fingerprint": _state_fingerprint(archived_run),
     }
     _write_jsonl(
         tmp_path / ".codex/supervisor/run-decisions.jsonl",
@@ -671,6 +691,90 @@ def test_archived_compatibility_never_suppresses_global_safety(
     assert len(result.open_user_decisions) == 1
     assert result.open_user_decisions[0]["scope"] == "global"
     assert "secret_exposure" in result.open_user_decisions[0]["failure_key"]
+
+
+def test_archived_compatibility_requires_archived_source_state_evidence(
+    tmp_path: Path,
+) -> None:
+    _seed_run(
+        tmp_path,
+        "archive-without-state-evidence",
+        parent_counter=0,
+        completed=[],
+        phase="stopped_blocked",
+        next_action="inspect_blocked_diagnostics",
+    )
+    failure_key = (
+        "unsupported_state:archive-without-state-evidence:run-state:unsupported-state"
+    )
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/archived-user-decisions.jsonl",
+        [
+            {
+                "decision_id": "archive-without-state-evidence-decision",
+                "failure_key": failure_key,
+                "affected_runs": ["archive-without-state-evidence"],
+                "status": "archived",
+                "opened_at": "2026-07-14T00:00:00Z",
+                "archived_at": "2026-07-14T01:00:00Z",
+            }
+        ],
+    )
+    store = _open_store(tmp_path)
+    try:
+        migrate_jsonl(tmp_path, store, dry_run=False)
+        result = reconcile_once(tmp_path, store, include_worktrees=False)
+    finally:
+        store.close()
+
+    assert len(result.open_user_decisions) == 1
+    assert result.open_user_decisions[0]["scope"] == "run"
+
+
+def test_archived_compatibility_uses_exact_archived_source_state_evidence(
+    tmp_path: Path,
+) -> None:
+    run_id = "archive-with-state-evidence"
+    _seed_run(
+        tmp_path,
+        run_id,
+        parent_counter=0,
+        completed=[],
+        phase="stopped_blocked",
+        next_action="inspect_blocked_diagnostics",
+    )
+    run = json.loads(
+        (tmp_path / f".codex/loop-runs/{run_id}/run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/archived-user-decisions.jsonl",
+        [
+            {
+                "decision_id": "archive-with-state-evidence-decision",
+                "failure_key": (
+                    f"unsupported_state:{run_id}:run-state:unsupported-state"
+                ),
+                "affected_runs": [run_id],
+                "status": "archived",
+                "opened_at": "2026-07-14T00:00:00Z",
+                "archived_at": "2026-07-14T01:00:00Z",
+                "archived_run_state": {
+                    "revision": 1,
+                    "fingerprint": _state_fingerprint(run),
+                },
+            }
+        ],
+    )
+    store = _open_store(tmp_path)
+    try:
+        migrate_jsonl(tmp_path, store, dry_run=False)
+        result = reconcile_once(tmp_path, store, include_worktrees=False)
+    finally:
+        store.close()
+
+    assert result.open_user_decisions == []
 
 
 def test_migration_validation_rejects_inexact_failure_count(
@@ -874,6 +978,46 @@ def test_cleanup_rejects_symlinked_ancestors_without_touching_external_paths(
     assert protected.read_text(encoding="utf-8") == "external evidence\n"
 
 
+def test_cleanup_rejects_source_changed_since_migration(tmp_path: Path) -> None:
+    decisions_path = tmp_path / ".codex/supervisor/run-decisions.jsonl"
+    _write_jsonl(decisions_path, [_decision(1)])
+    store = _open_store(tmp_path)
+    try:
+        migration = migrate_jsonl(tmp_path, store, dry_run=False)
+        comparison = shadow_compare(tmp_path, store)
+        decisions_path.write_text(
+            decisions_path.read_text(encoding="utf-8") + json.dumps(_decision(2)) + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(MigrationValidationError, match="changed since migration"):
+            cleanup_legacy_runtime(
+                tmp_path, migration, comparison, store=store
+            )
+    finally:
+        store.close()
+
+    assert decisions_path.is_file()
+
+
+def test_cleanup_requires_repository_transaction_lock(tmp_path: Path) -> None:
+    decisions_path = tmp_path / ".codex/supervisor/run-decisions.jsonl"
+    _write_jsonl(decisions_path, [_decision(1)])
+    store = _open_store(tmp_path)
+    try:
+        migration = migrate_jsonl(tmp_path, store, dry_run=False)
+        comparison = shadow_compare(tmp_path, store)
+        with acquire_repository_mutation_lock(tmp_path, owner="concurrent-writer"):
+            with pytest.raises(Exception, match="locked|lock|quiescence"):
+                cleanup_legacy_runtime(
+                    tmp_path, migration, comparison, store=store
+                )
+    finally:
+        store.close()
+
+    assert decisions_path.is_file()
+
+
 def test_shadow_compare_rejects_run_gate_becoming_global_safety_gate(
     tmp_path: Path,
 ) -> None:
@@ -909,6 +1053,108 @@ def test_shadow_compare_rejects_run_gate_becoming_global_safety_gate(
 
     assert report.unsafe_divergence == 1
     assert not report.passed
+
+
+def test_archived_shadow_compatibility_cannot_bypass_global_safety(
+    tmp_path: Path,
+) -> None:
+    run_id = "archived-shadow-global-safety"
+    _seed_run(
+        tmp_path,
+        run_id,
+        parent_counter=0,
+        completed=[],
+        phase="stopped_blocked",
+        next_action="inspect_blocked_diagnostics",
+    )
+    run_path = tmp_path / f".codex/loop-runs/{run_id}/run.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run["unsafe_secret_detected"] = True
+    run_path.write_text(json.dumps(run) + "\n", encoding="utf-8")
+    _write_jsonl(
+        tmp_path / ".codex/supervisor/run-decisions.jsonl",
+        [
+            _decision(
+                1,
+                phase="stopped_blocked",
+                next_action="inspect_blocked_diagnostics",
+                classification="terminal",
+                action="observe",
+                reason="archived_user_decision",
+            )
+            | {"run_id": run_id, "scope": "run"}
+        ],
+    )
+    store = _open_store(tmp_path)
+    try:
+        report = shadow_compare(tmp_path, store)
+    finally:
+        store.close()
+
+    assert report.unsafe_divergence == 1
+    assert not report.passed
+
+
+def test_shadow_compare_reads_only_an_immutable_copied_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_run(
+        tmp_path,
+        "copied-shadow",
+        parent_counter=0,
+        completed=[],
+        phase="stopped_budget",
+        next_action="none",
+    )
+    observed_roots: list[Path] = []
+    original = migration_module._latest_legacy_decisions
+
+    def observe_copy(root: Path) -> dict[str, dict[str, object]]:
+        observed_roots.append(root)
+        assert root != tmp_path.resolve()
+        result = original(root)
+        live_run = tmp_path / ".codex/loop-runs/copied-shadow/run.json"
+        changed = json.loads(live_run.read_text(encoding="utf-8"))
+        changed["phase"] = "preflight"
+        changed["next_action"] = "await_preflight_confirmation"
+        live_run.write_text(json.dumps(changed) + "\n", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(migration_module, "_latest_legacy_decisions", observe_copy)
+    store = _open_store(tmp_path)
+    try:
+        report = shadow_compare(tmp_path, store)
+    finally:
+        store.close()
+
+    assert report.equivalent == 1
+    assert len(observed_roots) == 1
+    assert not observed_roots[0].exists()
+
+
+def test_shadow_copy_rebinds_declared_worktree_to_copied_owner(
+    tmp_path: Path,
+) -> None:
+    _seed_run(
+        tmp_path,
+        "copied-owner",
+        parent_counter=0,
+        completed=[],
+        phase="stopped_budget",
+        next_action="none",
+    )
+    run_path = tmp_path / ".codex/loop-runs/copied-owner/run.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run["worktree"] = str(tmp_path.resolve())
+    run_path.write_text(json.dumps(run) + "\n", encoding="utf-8")
+    store = _open_store(tmp_path)
+    try:
+        report = shadow_compare(tmp_path, store)
+    finally:
+        store.close()
+
+    assert report.compared_runs == 1
+    assert report.passed
 
 
 def test_shadow_compare_rejects_changed_user_decision_reason(
@@ -1138,6 +1384,65 @@ def test_rebuild_db_rejects_recent_worker_heartbeat_without_touching_database(
         supervisor_cli._rebuild_db(tmp_path)
 
     assert database.read_bytes() == before
+
+
+def test_rebuild_db_rejects_fresh_canonical_supervisor_heartbeat(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    store = _open_store(tmp_path)
+    store.close()
+    database = tmp_path / ".codex/supervisor/supervisor.db"
+    before = database.read_bytes()
+    state_path = tmp_path / ".codex/supervisor/supervisor-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "mode": "watch",
+                "status": "healthy",
+                "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
+                "watch_interval_seconds": 30,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MigrationValidationError, match="Supervisor heartbeat"):
+        supervisor_cli._rebuild_db(tmp_path)
+
+    assert database.read_bytes() == before
+
+
+def test_rebuild_holds_reconcile_and_repository_locks_during_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    store = _open_store(tmp_path)
+    store.close()
+    original_migrate = supervisor_cli.migrate_jsonl
+
+    def assert_transaction_locks(*args: object, **kwargs: object) -> object:
+        reconcile = tmp_path / ".codex/supervisor/reconcile.lock"
+        fd = os.open(reconcile, os.O_RDWR)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(fd)
+        with pytest.raises(Exception, match="locked"):
+            with acquire_repository_mutation_lock(
+                tmp_path, owner="concurrent-rebuild-writer"
+            ):
+                pass
+        return original_migrate(*args, **kwargs)
+
+    monkeypatch.setattr(supervisor_cli, "migrate_jsonl", assert_transaction_locks)
+
+    result = supervisor_cli._rebuild_db(tmp_path)
+
+    assert result["status"] == "completed"
 
 
 def test_rebuild_db_rejects_live_supervisor_process_without_touching_database(

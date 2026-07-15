@@ -25,13 +25,10 @@ from scripts.harness_loop_contracts import (
     write_json_file,
 )
 from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
-from scripts.harness_loop_auditor import fake_audit_report
+from scripts.tests.legacy_audit_fixtures import fake_audit_report
 from scripts.harness_loop_autonomous import NoActionDecision, create_default_loop_state, write_loop_state
 from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
-    _run_auditor as run_auditor,
-    _run_autonomous as run_autonomous,
-    _run_demand_multi as run_demand_multi,
     confirm_preflight,
     create_preflight_run,
     load_run,
@@ -39,6 +36,18 @@ from scripts.harness_loop_orchestrator import (
     save_run,
     status_for_run,
 )
+
+
+def run_auditor(*_args: object, **_kwargs: object) -> None:
+    pytest.skip("legacy Auditor runtime was removed by Supervisor cutover")
+
+
+def run_autonomous(*_args: object, **_kwargs: object) -> None:
+    pytest.skip("legacy autonomous multi-round runtime was removed by Supervisor cutover")
+
+
+def run_demand_multi(*_args: object, **_kwargs: object) -> None:
+    pytest.skip("legacy demand multi-round runtime was removed by Supervisor cutover")
 
 
 def test_public_orchestrator_parser_rejects_removed_runtime_commands() -> None:
@@ -6874,6 +6883,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["phase"], "repair_needed")
             self.assertEqual(run["last_result"], "fail")
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_rejects_unconfirmed_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -6896,6 +6906,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     max_eval_attempts=2,
                 )
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_plans_generates_and_evaluates_from_planned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -6959,6 +6970,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["phase"], "passed_waiting_human_merge")
             self.assertEqual(run["next_action"], "await_human_merge_confirmation")
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_runs_hygiene_and_cleanup_after_evaluator_when_generator_has_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7021,6 +7033,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 ]
             )
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_hygiene_redacts_scenario_command_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7089,6 +7102,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 artifact_manifest["redacted_paths"],
             )
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_hygiene_runs_for_scenario_command_logs_without_generator_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7208,6 +7222,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(run["last_result"], "fail")
             self.assertEqual(run["next_action"], "run_artifact_hygiene")
 
+    @unittest.skip("legacy multi-round runtime removed")
     def test_run_loop_rejects_unsupported_active_phase(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -7512,6 +7527,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         entrypoint = scenario["user_scenarios"][0]["entrypoint"]
         self.assertIn("--task-id planner-generator-evaluator-loop-phase-1-01", entrypoint)
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_smoke_helper_exercises_contract_hygiene_cleanup(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         run_id = "evaluator-scenario-phase-2-test"
@@ -7558,6 +7574,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             remove_empty_directory(repo_root / ".codex" / "loop-runs")
             remove_empty_directory(repo_root / ".codex" / "tmp")
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_scenario_entrypoint_uses_smoke_helper(self) -> None:
         scenario_path = (
             Path(__file__).resolve().parents[2]
@@ -7573,6 +7590,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertIn("--run-id evaluator-scenario-phase-2", entrypoint)
         self.assertIn("--task-id planner-generator-evaluator-loop-phase-2-01", entrypoint)
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_phase_2_smoke_helper_rejects_path_traversal_ids_before_cleanup(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
 
@@ -7584,6 +7602,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "task_id"):
             run_phase2_smoke(repo_root, "safe-run-id", "../planner-generator-evaluator-loop-phase-2-01")
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_helper_exercises_expanded_runtime(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
 
@@ -7621,6 +7640,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
         self.assertTrue(payload["isolated_clone"])
         self.assertEqual(payload["overall_status"], "blocked")
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_helper_keeps_git_identity_changes_inside_isolated_clone(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke
 
@@ -7642,12 +7662,14 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(clone_run_id, "evaluator-scenario-ai-infra-meta-loop-runtime-test")
             self.assertTrue(run_smoke_in_repo.call_args.kwargs["configure_git_identity"])
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_main_returns_nonzero_for_fail_status(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke
 
         with patch.object(smoke, "run_ai_infra_meta_loop_smoke", return_value={"overall_status": "fail"}):
             self.assertEqual(smoke.main([]), 1)
 
+    @unittest.skip("legacy smoke runtime removed")
     def test_ai_infra_meta_loop_smoke_helper_refuses_non_isolated_mode_before_repo_mutation(self) -> None:
         from scripts import harness_ai_infra_meta_loop_smoke as smoke
 

@@ -896,6 +896,78 @@ def test_autonomous_workers_run_hygiene_commit_push_and_cleanup_as_separate_acti
     assert final["_autonomous_completed_task_ids"] == ["autonomous-task-1"]
 
 
+def test_bounded_worker_commit_fails_closed_when_git_status_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_git_repo(tmp_path)
+    legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="autonomous-knowledge",
+        requirement="Fail closed on unavailable Git ownership evidence",
+        run_id="git-status-failure",
+        domain="fixture",
+        confirm=True,
+    )
+    run = legacy.load_run(tmp_path, "git-status-failure")
+    run["phase"] = "generating"
+    run["next_action"] = "run_autonomous_generator"
+    run["task_id"] = "git-status-failure-task"
+    legacy.save_run(tmp_path, run)
+    generated = legacy._run_bounded_generator(
+        tmp_path,
+        _phase_request(
+            "git-status-failure",
+            "generating",
+            ActionType.RUN_GENERATOR,
+            action_id="git-status-setup-generator",
+        ),
+    )
+    evaluated = legacy._run_bounded_evaluator(
+        tmp_path,
+        _phase_request(
+            "git-status-failure",
+            "evaluating",
+            ActionType.RUN_EVALUATOR,
+            action_id="git-status-setup-evaluator",
+        ),
+    )
+    hygienic = legacy._run_bounded_artifact_hygiene(
+        tmp_path,
+        _phase_request(
+            "git-status-failure",
+            "artifact_hygiene",
+            ActionType.RUN_ARTIFACT_HYGIENE,
+            action_id="git-status-setup-hygiene",
+        ),
+    )
+    assert generated.result_class is ActionResultClass.SUCCESS
+    assert evaluated.result_class is ActionResultClass.SUCCESS
+    assert hygienic.result_class is ActionResultClass.SUCCESS
+
+    original_run = legacy.subprocess.run
+
+    def fail_status(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["git", "status"]:
+            return subprocess.CompletedProcess(
+                args, 128, stdout="", stderr="fatal: ownership unavailable\n"
+            )
+        return original_run(args, **kwargs)
+
+    monkeypatch.setattr(legacy.subprocess, "run", fail_status)
+    result = legacy._run_bounded_commit(
+        tmp_path,
+        _phase_request(
+            "git-status-failure",
+            "cleanup",
+            ActionType.COMMIT,
+            action_id="git-status-commit",
+        ),
+    )
+
+    assert result.result_class is not ActionResultClass.SUCCESS
+    assert "git status failed" in result.summary
+
+
 def test_demand_cleanup_remains_generic_and_waits_for_human_merge(
     tmp_path: Path,
 ) -> None:

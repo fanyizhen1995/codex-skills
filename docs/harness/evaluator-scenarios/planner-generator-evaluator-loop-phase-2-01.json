@@ -3,42 +3,30 @@
   "must_simulate": true,
   "user_scenarios": [
     {
-      "scenario_id": "PGE-PHASE2-CLI-FLOW",
-      "user_goal": "As an operator, run the Phase 2 demand-development loop with task-contract evaluator support, scenario command evidence, artifact hygiene, cleanup, and the final human merge gate documented as explicit steps.",
+      "scenario_id": "PGE-PHASE2-SUPERVISOR-WORKER",
+      "user_goal": "As an operator, verify demand-development cleanup is selected by the Supervisor registry, executed as one bounded Worker action, and stops at the human merge gate.",
       "prerequisites": [
-        "Repository root is writable.",
-        "Existing evaluator harness scripts are available.",
-        "No real Codex model call is required for the fake-driver scenario."
+        "The unified Supervisor registry and Worker tests are available.",
+        "No live service or Codex model call is required."
       ],
-      "entrypoint": "python3 scripts/harness_loop_phase2_smoke.py --repo-root . --run-id evaluator-scenario-phase-2 --task-id planner-generator-evaluator-loop-phase-2-01",
+      "entrypoint": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_worker.py::test_demand_cleanup_remains_generic_and_waits_for_human_merge",
       "steps": [
-        "Clear any previous evaluator-scenario-phase-2 run directory and smoke artifact.",
-        "Create a confirmed preflight run for the registered Phase 2 task id.",
-        "Run the fake Planner and Generator drivers to write planner-output.json and generator-result.json.",
-        "Write a non-empty .codex/tmp/phase-2-smoke-artifact.txt artifact and add it to generator-result.json.",
-        "Write task-contract.json with a passing scenario command.",
-        "Continue run_loop from evaluating so evaluator pass triggers artifact_hygiene, cleanup, and the human merge gate.",
-        "Verify run.json stops at passed_waiting_human_merge with scenario-command-results.json, artifact-manifest.json, and cleanup-result.json present."
+        "Create an isolated demand-development run fixture in cleanup phase.",
+        "Reconcile one cleanup action through the canonical registry.",
+        "Run one Worker lease and inspect the resulting run state."
       ],
       "expected_outcomes": [
-        ".codex/loop-runs/evaluator-scenario-phase-2/run.json exists.",
-        "planner-output.json, generator-result.json, and evaluator-result.json exist and validate.",
-        "task-contract.json includes at least one passing scenario command.",
-        "scenario-command-results.json records the scenario command output.",
-        "artifact-manifest.json records the generated smoke artifact scan before cleanup.",
-        "cleanup-result.json records cleanup before the human merge gate.",
-        "run.json phase is passed_waiting_human_merge.",
-        "run.json next_action is await_human_merge_confirmation."
+        "Exactly one bounded cleanup action executes.",
+        "The run stops at passed_waiting_human_merge.",
+        "The next action is await_human_merge_confirmation."
       ],
       "failure_signals": [
-        "The loop executes without confirmed preflight.",
-        "The loop reports complete instead of waiting for human merge.",
-        "Evaluator pass skips artifact_hygiene when generator artifacts are present.",
-        "Cleanup runs before artifact hygiene or leaves the run in an active phase."
+        "Cleanup executes outside a Worker lease.",
+        "The run bypasses the human merge gate.",
+        "A multi-round orchestrator entrypoint is invoked."
       ],
       "cleanup": [
-        "The helper removes the previous .codex/loop-runs/evaluator-scenario-phase-2 directory, .codex/tmp/phase-2-smoke-artifact.txt, and prior fake evaluator attempts for this task before each run.",
-        "A successful run may leave .codex/loop-runs/evaluator-scenario-phase-2, .codex/tmp/phase-2-smoke-artifact.txt, and fresh fake evaluator attempt evidence."
+        "Pytest removes the temporary fixture repository."
       ],
       "automation_hint": "shell"
     }

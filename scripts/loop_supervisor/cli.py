@@ -20,6 +20,10 @@ from scripts.harness_loop_supervisor import (
     _watch_error_state,
     run_supervisor_once,
 )
+from scripts.harness_loop_runtime_lock import (
+    RunLockBusy,
+    acquire_repository_mutation_lock,
+)
 
 from .migration import (
     MigrationValidationError,
@@ -27,6 +31,7 @@ from .migration import (
     migrate_jsonl,
     shadow_compare,
 )
+from .reconciler import _project_reconcile_lock
 from .store import SupervisorStore
 from .worker import clear_stop_request, worker_watch
 
@@ -221,6 +226,18 @@ def _health(root: Path) -> dict[str, Any]:
 
 
 def _rebuild_db(root: Path) -> dict[str, Any]:
+    try:
+        with _project_reconcile_lock(root), acquire_repository_mutation_lock(
+            root, owner=f"supervisor-db-rebuild:{os.getpid()}"
+        ):
+            return _rebuild_db_locked(root)
+    except RunLockBusy as exc:
+        raise MigrationValidationError(
+            f"rebuild requires quiescence; repository lock is held: {exc}"
+        ) from exc
+
+
+def _rebuild_db_locked(root: Path) -> dict[str, Any]:
     _assert_rebuild_quiescent(root)
     supervisor = root / ".codex" / "supervisor"
     if supervisor.is_symlink():
@@ -299,6 +316,24 @@ def _store_at(root: Path, database: Path) -> SupervisorStore:
 
 
 def _assert_rebuild_quiescent(root: Path) -> None:
+    state_path = root / ".codex" / "supervisor" / "supervisor-state.json"
+    if state_path.is_symlink():
+        raise MigrationValidationError(
+            "rebuild requires quiescence; canonical Supervisor state is a symlink"
+        )
+    if state_path.is_file():
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            heartbeat = _parse_timestamp(str(state["last_heartbeat_at"]))
+        except (KeyError, OSError, TypeError, json.JSONDecodeError) as exc:
+            raise MigrationValidationError(
+                "rebuild requires quiescence; canonical Supervisor state is unreadable"
+            ) from exc
+        if heartbeat >= datetime.now(timezone.utc) - timedelta(seconds=120):
+            raise MigrationValidationError(
+                "rebuild requires quiescence; recent canonical Supervisor heartbeat"
+            )
+
     database = root / ".codex" / "supervisor" / "supervisor.db"
     if database.is_file() and not database.is_symlink():
         connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
@@ -356,6 +391,8 @@ def _assert_rebuild_quiescent(root: Path) -> None:
     lock_dir = root / ".codex" / "loop-locks"
     if lock_dir.is_dir() and not lock_dir.is_symlink():
         for path in lock_dir.glob("*.lock"):
+            if path.name == "repository-mutation.lock":
+                continue
             if path.is_symlink() or not path.is_file():
                 raise MigrationValidationError(f"unsafe loop lock path: {path}")
             with path.open("rb") as handle:

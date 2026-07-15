@@ -161,25 +161,10 @@ paths or back to `repair_needed` for failing scenario command paths.
 `.worktrees/` directory and records `cleanup-result.json`. It does not remove
 loop evidence under `.codex/loop-runs/<run-id>`.
 
-The Phase 2 evaluator scenario uses a self-contained smoke helper instead of
-the bare `preflight && run` flow:
-
-```bash
-python3 scripts/harness_loop_phase2_smoke.py \
-  --repo-root . \
-  --run-id evaluator-scenario-phase-2 \
-  --task-id planner-generator-evaluator-loop-phase-2-01
-```
-
-The helper clears the previous smoke run,
-`.codex/tmp/phase-2-smoke-artifact.txt`, and prior fake evaluator attempts for
-the Phase 2 task id, then runs fake planner/generator drivers, writes a
-non-empty generator artifact and `task-contract.json` with a passing
-`scenario_commands` entry, then continues `run_loop` from `evaluating`. A
-successful smoke reaches `passed_waiting_human_merge` and leaves
-`scenario-command-results.json`, `artifact-manifest.json`, and
-`cleanup-result.json` under the run directory; the fresh fake evaluator attempt
-remains under `.codex/evaluations/tasks/<task-id>/`.
+The former Phase 2 multi-round smoke executable was retired at Supervisor
+cutover. Its retained scenario contract now targets focused registry and
+Worker tests; operators cannot execute Planner, Generator, Evaluator, hygiene,
+or cleanup outside the Supervisor queue.
 
 ## Phase 3 Commands
 
@@ -339,79 +324,10 @@ user work. Generator agent failures are retried up to
 `max_generator_attempts_per_task`; exhausting the limit stops the run for
 inspection.
 
-The Phase 3 evaluator scenario uses a self-contained smoke helper:
-
-```bash
-python3 scripts/harness_loop_phase3_smoke.py \
-  --repo-root . \
-  --run-id evaluator-scenario-phase-3 \
-  --domain ai_infra \
-  --task-id planner-generator-evaluator-loop-phase-3-01 \
-  --isolate-clone
-```
-
-With `--isolate-clone`, the helper clones the current checkout into a temporary
-directory, configures git identity only inside that clone, and discards the
-clone after the smoke finishes. Inside the smoke repo it clears the previous
-smoke run and prior generated autonomous raw notes for the same run id, creates
-confirmed autonomous preflight against a clean smoke baseline, seeds
-`loop-state.json` with one candidate backlog item and one known source, and runs
-fake autonomous drivers with
-`max_tasks=2`. A successful smoke proves the first pass created a git commit for
-allowlisted wiki evidence and loop state, then the second planner pass stopped
-at `stopped_no_action`. It prints JSON containing `phase`, `next_action`,
-`commit`, `loop_state_path`, and run artifact paths. Running without
-`--isolate-clone` is intended only for disposable clones; the helper refuses to
-overwrite dirty smoke loop-state or generated raw paths.
-
-The expanded AI infra runtime adds a separate evaluator scenario and smoke
-helper for repo-local code-path validation under the expanded policy:
-
-```bash
-python3 scripts/harness_ai_infra_meta_loop_smoke.py \
-  --repo-root . \
-  --run-id evaluator-scenario-ai-infra-meta-loop-runtime \
-  --isolate-clone
-```
-
-This helper clones the current checkout into a disposable temporary repo when
-`--isolate-clone` is set, configures git identity only inside that clone, and
-then runs two deterministic fake autonomous rounds against
-`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`.
-First it seeds `ai_infra` loop-state and coverage-map data, runs
-`fake-missing-evidence`, and expects the loop to stop at
-`inspect_required_evidence`. Then it resets the clone back to a clean committed
-state, reseeds the same deterministic candidate context, runs
-`fake-expanded-code`, and expects
-`scripts/ai_infra_expanded_runtime_smoke.txt` plus an expected blocked
-`inspect_required_evidence` result because synthetic freshness placeholders do
-not satisfy the expanded commit gate. The helper prints compact JSON with
-`expanded_policy_preflight`, `missing_evidence_gate`, `expanded_code_scope`,
-`service_availability_evidence`, `crawler_freshness_evidence`, and
-`loop_dashboard_freshness_evidence`.
-
-`fake-expanded-code` and `fake-missing-evidence` are smoke-only autonomous
-generator drivers. They never touch live project services, and they are valid
-only for runs that loaded
-`docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json`
-exactly. The expanded-code
-driver writes a deterministic local smoke file plus run-local evidence
-artifacts and stable-ID `required-evidence-manifest.json` entries. Freshness
-and visibility artifacts remain explicit synthetic smoke placeholders or
-blocked evidence; they do not claim live checks occurred, and they must block
-before commit. Valid live/pass freshness and service evidence is required
-before expanded autonomous code changes can produce `commit-result.json`. The
-missing-evidence driver writes the same smoke file but omits the manifest so
-the runtime must also block before commit.
-
-Even with `--isolate-clone`, service checks still target the live project URLs
-at `127.0.0.1:8765`, `127.0.0.1:5173`, and `127.0.0.1:8766` through
-`scripts.harness_ai_infra_evidence.check_service_availability()`. If any live
-service is unavailable, the helper reports
-`service_availability_evidence.status=blocked` instead of pretending the smoke
-passed. Placeholder-only expanded rounds also leave the smoke summary at
-`overall_status=blocked`; the command still exits 0 unless an unexpected
-failure occurs.
+The former Phase 3 and expanded AI infra multi-round smoke executables were
+retired at Supervisor cutover. Their safety contracts remain covered by
+bounded Worker, registry, required-evidence, scope, and service-evidence tests.
+No evaluator scenario imports a private multi-round policy function.
 
 When Phase A demand-development fixes finish and a reviewer has a checkpoint
 commit to preserve, transition the parent meta loop into Phase B autonomous
