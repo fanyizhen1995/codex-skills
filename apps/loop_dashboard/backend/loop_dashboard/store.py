@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import base64
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import fnmatch
 import hashlib
 import hmac
 import json
@@ -17,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from .models import AgentSummary, Event, FlowNode, LogDescriptor, LogEntry
-from .pagination import CursorCodec, SnapshotCapacityError, paginate_items
+from .pagination import CursorCodec, Page, SnapshotCapacityError, paginate_items
 from .redaction import redact_text
 
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
 SESSION_FILE_SCAN_LIMIT = 128
+SESSION_FILE_MAX_LINES = 10_000
 STRUCTURED_EVENT_MAX_BYTES = 1024 * 1024
 STRUCTURED_EVENT_MAX_LINES = 1000
 SKILL_SCAN_EXCLUDED_DIRS = {
@@ -123,6 +125,7 @@ class LogHandle:
     inline_content: str = ""
     attempt_id: str = ""
     provenance: tuple[str | int, ...] = ()
+    evaluator_task_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -218,8 +221,8 @@ class LoopDashboardStore:
         self.project_root = Path(project_root).resolve()
         if log_discovery_max_entries <= 0 or log_inline_max_bytes <= 0:
             raise ValueError("log discovery budgets must be positive")
-        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        self._project_root_fd = os.open(self.project_root, directory_flags)
+        self._project_root_fd: int | None = None
+        self._lifecycle_lock = RLock()
         self.loop_runs_dir = self.project_root / ".codex" / "loop-runs"
         self._cursor_codec = cursor_codec or CursorCodec(secrets.token_bytes(32))
         self._log_secret = log_secret or secrets.token_bytes(32)
@@ -242,15 +245,25 @@ class LoopDashboardStore:
                 _LOG_HANDLE_REGISTRIES.popitem(last=False)
         self.closed = False
 
+    def start(self) -> None:
+        with self._lifecycle_lock:
+            if self._project_root_fd is not None:
+                return
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            self._project_root_fd = os.open(self.project_root, directory_flags)
+            self.closed = False
+
     def reap_expired(self) -> None:
         self._cursor_codec.reap_expired()
         self._log_handles.reap_expired()
 
     def close(self) -> None:
-        if self.closed:
-            return
-        self.closed = True
-        os.close(self._project_root_fd)
+        with self._lifecycle_lock:
+            descriptor = self._project_root_fd
+            self._project_root_fd = None
+            self.closed = True
+        if descriptor is not None:
+            os.close(descriptor)
 
     def project_info(self) -> dict[str, Any]:
         return {
@@ -274,6 +287,17 @@ class LoopDashboardStore:
         cursor: str | None,
         filters: dict[str, str],
     ) -> dict[str, Any]:
+        if cursor:
+            return paginate_items(
+                [],
+                endpoint="runs",
+                page_size=page_size,
+                cursor=cursor,
+                filters=filters,
+                timestamp_key="updated_at",
+                primary_key="run_id",
+                codec=self._cursor_codec,
+            ).to_dict()
         runs = self.list_runs()
         phase = filters.get("phase")
         policy = filters.get("policy")
@@ -607,7 +631,7 @@ class LoopDashboardStore:
         supervisor_store: SupervisorDashboardStore | None = None,
     ) -> dict[str, Any] | None:
         if cursor:
-            page = self._page_run_items(
+            page = self._paginate_run_items(
                 run_id,
                 "logs",
                 [],
@@ -616,30 +640,32 @@ class LoopDashboardStore:
                 filters,
                 primary_key="log_id",
             )
-            source = self._run_source(run_id)
-            if source is not None and source.run_dir.is_dir():
-                handles = self._collect_log_handles(
-                    run_id, source.run_dir, supervisor_store
-                )
-                self._issue_page_log_handles(page, handles)
-            return page
+            self._issue_page_log_handles(page)
+            return page.to_dict()
         source = self._run_source(run_id)
         if source is None or not source.run_dir.is_dir():
             return None
         handles = self._collect_log_handles(run_id, source.run_dir, supervisor_store)
-        descriptors = [self._log_descriptor(handle).to_dict() for handle in handles]
+        pairs = [
+            (self._log_descriptor(handle).to_dict(), handle)
+            for handle in handles
+        ]
         stream = filters.get("stream")
         query = filters.get("query", "").lower()
         if stream:
-            descriptors = [item for item in descriptors if item["stream"] == stream]
+            pairs = [pair for pair in pairs if pair[0]["stream"] == stream]
         if query:
-            descriptors = [
-                item
-                for item in descriptors
-                if query
-                in f"{item.get('source', '')} {item.get('summary', '')}".lower()
+            pairs = [
+                pair
+                for pair in pairs
+                if query in (
+                    f"{pair[0].get('source', '')} "
+                    f"{pair[0].get('summary', '')}"
+                ).lower()
             ]
-        page = self._page_run_items(
+        descriptors = [pair[0] for pair in pairs]
+        private_handles = [self._handle_snapshot(pair[1]) for pair in pairs]
+        page = self._paginate_run_items(
             run_id,
             "logs",
             descriptors,
@@ -647,9 +673,10 @@ class LoopDashboardStore:
             cursor,
             filters,
             primary_key="log_id",
+            private_items=private_handles,
         )
-        self._issue_page_log_handles(page, handles)
-        return page
+        self._issue_page_log_handles(page)
+        return page.to_dict()
 
     def page_diagnostics(
         self,
@@ -757,25 +784,12 @@ class LoopDashboardStore:
         issued_handle = self._log_handles.get(log_id)
         if issued_handle is None or issued_handle.run_id != run_id:
             return None
-        source = self._run_source(run_id)
-        if source is None:
-            return None
-        current_handles = self._collect_log_handles(
-            run_id,
-            source.run_dir,
+        handle = self._refresh_log_handle(
+            issued_handle,
+            log_id,
             supervisor_store,
         )
-        handle = next(
-            (
-                candidate
-                for candidate in current_handles
-                if self._log_id(candidate) == log_id
-            ),
-            None,
-        )
         if handle is None:
-            return None
-        if source.run_dir.absolute() != handle.run_dir.absolute():
             return None
         if handle.kind == "attempt":
             if supervisor_store is None or not handle.attempt_id:
@@ -824,6 +838,28 @@ class LoopDashboardStore:
         *,
         primary_key: str,
     ) -> dict[str, Any]:
+        return self._paginate_run_items(
+            run_id,
+            collection,
+            items,
+            page_size,
+            cursor,
+            filters,
+            primary_key=primary_key,
+        ).to_dict()
+
+    def _paginate_run_items(
+        self,
+        run_id: str,
+        collection: str,
+        items: list[dict[str, Any]],
+        page_size: int,
+        cursor: str | None,
+        filters: dict[str, str],
+        *,
+        primary_key: str,
+        private_items: list[dict[str, Any]] | None = None,
+    ) -> Page[dict[str, Any]]:
         return paginate_items(
             items,
             endpoint=f"runs:{run_id}:{collection}",
@@ -833,32 +869,29 @@ class LoopDashboardStore:
             timestamp_key="updated_at",
             primary_key=primary_key,
             codec=self._cursor_codec,
-        ).to_dict()
+            private_items=private_items,
+        )
 
     def _run_sources(self) -> list[RunSource]:
         sources: list[RunSource] = []
-        sources.extend(RunSource(run_dir, "current") for run_dir in self._loop_run_dirs(self.loop_runs_dir))
+        sources.extend(
+            RunSource(run_dir, "current")
+            for run_dir in self._loop_run_dirs(self.loop_runs_dir)
+        )
         worktrees_dir = self.project_root / ".worktrees"
-        if worktrees_dir.exists():
-            for worktree_path in sorted(worktrees_dir.iterdir(), key=lambda path: path.name):
-                if not worktree_path.is_dir():
-                    continue
-                safe_worktree = self._safe_dir_under(worktree_path, worktrees_dir)
-                if safe_worktree is None:
-                    continue
-                loop_runs_dir = safe_worktree / ".codex" / "loop-runs"
-                sources.extend(RunSource(run_dir, "worktree") for run_dir in self._loop_run_dirs(loop_runs_dir))
+        for worktree_path in self._child_directories(worktrees_dir):
+            loop_runs_dir = worktree_path / ".codex" / "loop-runs"
+            sources.extend(
+                RunSource(run_dir, "worktree")
+                for run_dir in self._loop_run_dirs(loop_runs_dir)
+            )
         return sources
 
     def _loop_run_dirs(self, loop_runs_dir: Path) -> list[Path]:
         safe_loop_runs_dir = self._safe_dir_under(loop_runs_dir, self.project_root)
         if safe_loop_runs_dir is None:
             return []
-        return [
-            run_dir
-            for run_dir in sorted(safe_loop_runs_dir.iterdir(), key=lambda path: path.name)
-            if self._safe_dir_under(run_dir, safe_loop_runs_dir) is not None and run_dir.is_dir()
-        ]
+        return self._child_directories(safe_loop_runs_dir)
 
     def _run_source(self, run_id: str) -> RunSource | None:
         if not self._safe_run_id(run_id) or self._is_supervisor_run_id(run_id):
@@ -2330,7 +2363,10 @@ class LoopDashboardStore:
             handles.append(handle)
 
         if supervisor_store is not None:
-            for reference in supervisor_store.attempt_log_references(run_id):
+            for reference in supervisor_store.attempt_log_references(
+                run_id,
+                limit=self._log_discovery_max_entries + 1,
+            ):
                 path = reference.get("path")
                 stream = reference.get("stream")
                 attempt_id = reference.get("attempt_id")
@@ -2341,10 +2377,9 @@ class LoopDashboardStore:
                         kind="attempt",
                         attempt_id=attempt_id,
                     )
-        for pattern in LOG_GLOBS:
-            for path in sorted(run_dir.glob(pattern)):
-                stream = "stderr" if path.name.endswith(".stderr.log") else "stdout"
-                add_file(path, stream)
+        for path in self._direct_log_candidates(run_dir, budget):
+            stream = "stderr" if path.name.endswith(".stderr.log") else "stdout"
+            add_file(path, stream)
 
         evaluator_path = run_dir / "evaluator-result.json"
         evaluator = self._read_json_secure(evaluator_path, run_dir)
@@ -2371,6 +2406,7 @@ class LoopDashboardStore:
                         rich_path.parent,
                         seen,
                         budget,
+                        evaluator_task_id=str(evaluator.get("task_id") or ""),
                     )
                 )
             scenario_path = evaluator.get("scenario_command_results_path")
@@ -2406,6 +2442,38 @@ class LoopDashboardStore:
             reverse=True,
         )
 
+    def _direct_log_candidates(
+        self,
+        run_dir: Path,
+        budget: dict[str, int],
+    ) -> list[Path]:
+        remaining = self._log_discovery_max_entries - budget["entries"]
+        if remaining <= 0:
+            return []
+        try:
+            directory_fd = self._open_directory_descriptor(run_dir)
+        except OSError:
+            return []
+        candidates: list[Path] = []
+        try:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    if not any(
+                        fnmatch.fnmatchcase(entry.name, pattern)
+                        for pattern in LOG_GLOBS
+                    ):
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    if len(candidates) >= remaining:
+                        raise SnapshotCapacityError(
+                            "log discovery entry budget exceeded"
+                        )
+                    candidates.append(run_dir / entry.name)
+        finally:
+            os.close(directory_fd)
+        return sorted(candidates, key=lambda path: path.name)
+
     def _inline_log_handles(
         self,
         run_id: str,
@@ -2415,6 +2483,7 @@ class LoopDashboardStore:
         relative_root: Path,
         seen: set[tuple[str, str]],
         budget: dict[str, int],
+        evaluator_task_id: str = "",
     ) -> list[LogHandle]:
         safe_source = self._safe_regular_file_lexical(source_path, self.project_root)
         if safe_source is None:
@@ -2443,6 +2512,7 @@ class LoopDashboardStore:
                             path=safe_source,
                             inline_content=child,
                             provenance=child_pointer,
+                            evaluator_task_id=evaluator_task_id,
                         )
                         self._consume_log_budget(
                             budget,
@@ -2500,17 +2570,161 @@ class LoopDashboardStore:
 
     def _issue_page_log_handles(
         self,
-        page: dict[str, Any],
-        handles: list[LogHandle],
+        page: Page[dict[str, Any]],
     ) -> None:
-        by_id = {self._log_id(handle): handle for handle in handles}
         issued: dict[str, LogHandle] = {}
-        for item in page["items"]:
+        for item, private_item in zip(
+            page.items,
+            page.private_items,
+            strict=True,
+        ):
             log_id = str(item.get("log_id") or "")
-            handle = by_id.get(log_id)
-            if handle is not None:
+            handle = self._handle_from_snapshot(private_item)
+            if handle is not None and self._log_id(handle) == log_id:
                 issued[log_id] = handle
         self._log_handles.issue_many(issued)
+
+    def _handle_snapshot(self, handle: LogHandle) -> dict[str, Any]:
+        return {
+            "run_id": handle.run_id,
+            "run_dir": str(handle.run_dir),
+            "kind": handle.kind,
+            "stream": handle.stream,
+            "source": handle.source,
+            "path": str(handle.path),
+            "inline_content": handle.inline_content,
+            "attempt_id": handle.attempt_id,
+            "provenance": list(handle.provenance),
+            "evaluator_task_id": handle.evaluator_task_id,
+        }
+
+    def _handle_from_snapshot(self, item: Any) -> LogHandle | None:
+        if not isinstance(item, dict):
+            return None
+        try:
+            provenance = item["provenance"]
+            if not isinstance(provenance, list) or not all(
+                isinstance(component, (str, int))
+                and not isinstance(component, bool)
+                for component in provenance
+            ):
+                return None
+            values = {
+                name: item[name]
+                for name in (
+                    "run_id",
+                    "run_dir",
+                    "kind",
+                    "stream",
+                    "source",
+                    "path",
+                    "inline_content",
+                    "attempt_id",
+                    "evaluator_task_id",
+                )
+            }
+            if not all(isinstance(value, str) for value in values.values()):
+                return None
+            if values["stream"] not in {"stdout", "stderr"}:
+                return None
+            return LogHandle(
+                run_id=values["run_id"],
+                run_dir=Path(values["run_dir"]),
+                kind=values["kind"],
+                stream=values["stream"],
+                source=values["source"],
+                path=Path(values["path"]),
+                inline_content=values["inline_content"],
+                attempt_id=values["attempt_id"],
+                provenance=tuple(provenance),
+                evaluator_task_id=values["evaluator_task_id"],
+            )
+        except (KeyError, TypeError):
+            return None
+
+    def _refresh_log_handle(
+        self,
+        handle: LogHandle,
+        log_id: str,
+        supervisor_store: SupervisorDashboardStore | None,
+    ) -> LogHandle | None:
+        if handle.stream not in {"stdout", "stderr"}:
+            return None
+        safe_run_dir = self._safe_dir_under(handle.run_dir, self.project_root)
+        if safe_run_dir is None or safe_run_dir != self._lexical_absolute(
+            handle.run_dir
+        ):
+            return None
+        run_data = self._read_json_secure(safe_run_dir / "run.json", safe_run_dir)
+        if isinstance(run_data, dict):
+            current_run_id = str(run_data.get("run_id") or safe_run_dir.name)
+        else:
+            current_run_id = safe_run_dir.name
+        if current_run_id != handle.run_id:
+            return None
+
+        source_root = safe_run_dir
+        if handle.evaluator_task_id:
+            evaluator = self._read_json_secure(
+                safe_run_dir / "evaluator-result.json",
+                safe_run_dir,
+            )
+            if (
+                not isinstance(evaluator, dict)
+                or evaluator.get("task_id") != handle.evaluator_task_id
+            ):
+                return None
+            task_dir = self._safe_task_evaluation_dir(handle.evaluator_task_id)
+            if task_dir is None:
+                return None
+            source_root = task_dir
+
+        if handle.kind == "attempt":
+            if supervisor_store is None or not handle.attempt_id:
+                return None
+            current_path = supervisor_store.attempt_log_path(
+                handle.run_id,
+                handle.attempt_id,
+                handle.stream,
+            )
+            if current_path is None or self._lexical_absolute(
+                current_path
+            ) != self._lexical_absolute(handle.path):
+                return None
+            safe_path = self._safe_regular_file_lexical(current_path, safe_run_dir)
+            refreshed = replace(handle, run_dir=safe_run_dir, path=safe_path or handle.path)
+            return refreshed if safe_path is not None else None
+        if handle.kind == "file":
+            safe_path = self._safe_regular_file_lexical(handle.path, safe_run_dir)
+            if safe_path is None:
+                return None
+            return replace(handle, run_dir=safe_run_dir, path=safe_path)
+        if handle.kind != "inline" or not handle.provenance:
+            return None
+        safe_path = self._safe_regular_file_lexical(handle.path, source_root)
+        if safe_path is None:
+            return None
+        payload = self._read_json_secure(safe_path, source_root)
+        value: Any = payload
+        try:
+            for component in handle.provenance:
+                if isinstance(component, int) and isinstance(value, list):
+                    value = value[component]
+                elif isinstance(component, str) and isinstance(value, dict):
+                    value = value[component]
+                else:
+                    return None
+        except (IndexError, KeyError):
+            return None
+        if not isinstance(value, str) or not value:
+            return None
+        refreshed = replace(
+            handle,
+            run_dir=safe_run_dir,
+            path=safe_path,
+            inline_content=value,
+        )
+        return refreshed if self._log_id(refreshed) == log_id else None
 
     def _log_id(self, handle: LogHandle) -> str:
         identity = "\0".join(
@@ -2521,6 +2735,7 @@ class LoopDashboardStore:
                 str(handle.path),
                 handle.attempt_id,
                 json.dumps(handle.provenance, separators=(",", ":")),
+                handle.evaluator_task_id,
                 hashlib.sha256(handle.inline_content.encode()).hexdigest(),
             )
         ).encode()
@@ -2611,7 +2826,7 @@ class LoopDashboardStore:
         descriptor, file_stat = self._open_regular_descriptor(path, root)
         try:
             chunks: list[bytes] = []
-            remaining = limit
+            remaining = min(limit, file_stat.st_size)
             while remaining > 0:
                 chunk = os.read(descriptor, min(remaining, 64 * 1024))
                 if not chunk:
@@ -2664,7 +2879,7 @@ class LoopDashboardStore:
             raise OSError("log path is not a file below its root")
         directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
         file_flags = os.O_RDONLY | os.O_NOFOLLOW
-        directory_fd = os.dup(self._project_root_fd)
+        directory_fd = self._duplicate_project_root_descriptor()
         try:
             for component in project_relative.parts[:-1]:
                 next_fd = os.open(
@@ -2689,6 +2904,66 @@ class LoopDashboardStore:
         except BaseException:
             os.close(descriptor)
             raise
+
+    def _open_directory_descriptor(self, path: Path) -> int:
+        if self.closed:
+            raise OSError("dashboard store is closed")
+        project_relative = self._project_relative_lexical(path)
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        directory_fd = self._duplicate_project_root_descriptor()
+        try:
+            for component in project_relative.parts:
+                next_fd = os.open(
+                    component,
+                    directory_flags,
+                    dir_fd=directory_fd,
+                )
+                os.close(directory_fd)
+                directory_fd = next_fd
+            directory_stat = os.fstat(directory_fd)
+            if not stat.S_ISDIR(directory_stat.st_mode):
+                raise OSError("path target is not a directory")
+            return directory_fd
+        except BaseException:
+            os.close(directory_fd)
+            raise
+
+    def _duplicate_project_root_descriptor(self) -> int:
+        with self._lifecycle_lock:
+            if self.closed:
+                raise OSError("dashboard store is closed")
+            if self._project_root_fd is not None:
+                return os.dup(self._project_root_fd)
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        return os.open(self.project_root, directory_flags)
+
+    def _child_directories(self, path: Path) -> list[Path]:
+        try:
+            directory_fd = self._open_directory_descriptor(path)
+        except OSError:
+            return []
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        children: list[Path] = []
+        try:
+            for name in sorted(os.listdir(directory_fd)):
+                if not name or name in {".", ".."} or Path(name).name != name:
+                    continue
+                try:
+                    child_fd = os.open(
+                        name,
+                        directory_flags,
+                        dir_fd=directory_fd,
+                    )
+                except OSError:
+                    continue
+                try:
+                    if stat.S_ISDIR(os.fstat(child_fd).st_mode):
+                        children.append(path / name)
+                finally:
+                    os.close(child_fd)
+        finally:
+            os.close(directory_fd)
+        return children
 
     def _read_json_secure(self, path: Path, root: Path) -> Any:
         try:
@@ -2849,7 +3124,7 @@ class LoopDashboardStore:
                 lines = raw.decode("utf-8", errors="replace").splitlines()
             except OSError:
                 continue
-            for line in lines[-SESSION_EVENT_LIMIT:]:
+            for line in reversed(lines[-SESSION_FILE_MAX_LINES:]):
                 if len(events) >= SESSION_EVENT_LIMIT:
                     break
                 try:
@@ -2915,37 +3190,85 @@ class LoopDashboardStore:
         if not isinstance(task_id, str) or not task_id:
             return None, None
         task_dir = self._safe_task_evaluation_dir(task_id)
-        if task_dir is None or not task_dir.exists():
+        if task_dir is None:
             return None, None
         final_bundle_id = evaluator.get("final_bundle_id")
         if isinstance(final_bundle_id, str) and final_bundle_id:
-            try:
-                final_result = safe_join(task_dir, f"{final_bundle_id}/result.json")
-            except ValueError:
-                final_result = None
+            bundle_path = Path(final_bundle_id)
+            final_result = (
+                task_dir / bundle_path / "result.json"
+                if not bundle_path.is_absolute()
+                and ".." not in bundle_path.parts
+                else None
+            )
             safe_final_result = self._safe_file_under(final_result, task_dir) if final_result is not None else None
             if safe_final_result is not None:
                 payload = self._read_json_secure(safe_final_result, task_dir)
                 if isinstance(payload, dict):
                     return safe_final_result, payload
-        candidates = [
-            safe_path
-            for path in task_dir.glob("**/result.json")
-            if (safe_path := self._safe_file_under(path, task_dir)) is not None
-        ]
+        candidates = self._descendant_named_files(
+            task_dir,
+            "result.json",
+            limit=self._log_discovery_max_entries,
+        )
         if not candidates:
             return None, None
-        latest = max(candidates, key=lambda path: path.stat().st_mtime)
+        latest = max(candidates, key=lambda path: self._descriptor_mtime(path, task_dir))
         payload = self._read_json_secure(latest, task_dir)
         if not isinstance(payload, dict):
             return None, None
         return latest, payload
 
     def _safe_task_evaluation_dir(self, task_id: str) -> Path | None:
-        try:
-            return safe_join(self.project_root / ".codex" / "evaluations" / "tasks", task_id)
-        except ValueError:
+        task_path = Path(task_id)
+        if task_path.is_absolute() or ".." in task_path.parts:
             return None
+        tasks_root = self.project_root / ".codex" / "evaluations" / "tasks"
+        return self._safe_dir_under(tasks_root / task_path, tasks_root)
+
+    def _descendant_named_files(
+        self,
+        root: Path,
+        filename: str,
+        *,
+        limit: int,
+    ) -> list[Path]:
+        directories = [root]
+        matches: list[Path] = []
+        inspected = 0
+        while directories:
+            directory = directories.pop()
+            try:
+                directory_fd = self._open_directory_descriptor(directory)
+            except OSError:
+                continue
+            try:
+                with os.scandir(directory_fd) as entries:
+                    for entry in entries:
+                        inspected += 1
+                        if inspected > limit:
+                            raise SnapshotCapacityError(
+                                "evaluator result discovery entry budget exceeded"
+                            )
+                        path = directory / entry.name
+                        if entry.is_dir(follow_symlinks=False):
+                            directories.append(path)
+                        elif (
+                            entry.name == filename
+                            and entry.is_file(follow_symlinks=False)
+                        ):
+                            matches.append(path)
+            finally:
+                os.close(directory_fd)
+        return matches
+
+    def _descriptor_mtime(self, path: Path, root: Path) -> float:
+        try:
+            descriptor, file_stat = self._open_regular_descriptor(path, root)
+        except OSError:
+            return 0
+        os.close(descriptor)
+        return file_stat.st_mtime
 
     def _artifact_paths(self, run_dir: Path) -> list[str]:
         paths = [
@@ -2968,13 +3291,7 @@ class LoopDashboardStore:
         return [path for _mtime, path in sorted(safe_paths)]
 
     def _read_json(self, path: Path, allowed_root: Path | None = None) -> Any:
-        safe_path = self._safe_file_under(path, allowed_root or self.project_root)
-        if safe_path is None:
-            return None
-        try:
-            return json.loads(safe_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            return None
+        return self._read_json_secure(path, allowed_root or self.project_root)
 
     def _health(self, phase: str) -> str:
         if phase in BLOCKED_PHASES:
@@ -2997,14 +3314,14 @@ class LoopDashboardStore:
 
     def _relative_artifact(self, path: Path) -> str:
         try:
-            return str(path.resolve().relative_to(self.project_root))
+            return str(self._project_relative_lexical(path))
         except ValueError:
             return path.name
 
     def _source_path(self, run_dir: Path) -> str:
         try:
-            return str(run_dir.resolve().relative_to(self.project_root))
-        except (OSError, ValueError):
+            return str(self._project_relative_lexical(run_dir))
+        except ValueError:
             return run_dir.name
 
     def _resolve_artifact_reference(
@@ -3027,11 +3344,12 @@ class LoopDashboardStore:
         return None
 
     def _is_under_any(self, path: Path, roots: list[Path]) -> bool:
+        lexical_path = self._lexical_absolute(path)
         for root in roots:
             try:
-                path.resolve().relative_to(root.resolve())
+                lexical_path.relative_to(self._lexical_absolute(root))
                 return True
-            except (OSError, ValueError):
+            except ValueError:
                 continue
         return False
 
@@ -3040,55 +3358,44 @@ class LoopDashboardStore:
 
     def _safe_regular_file_lexical(self, path: Path, root: Path) -> Path | None:
         try:
-            resolved_root = root.resolve()
-            lexical_path = path if path.is_absolute() else resolved_root / path
-            if ".." in lexical_path.parts:
-                return None
-            lexical_path = lexical_path.absolute()
-            relative = lexical_path.relative_to(resolved_root)
-            current = resolved_root
-            for part in relative.parts:
-                current = current / part
-                if current.is_symlink():
-                    return None
-            resolved_path = lexical_path.resolve(strict=True)
-            resolved_path.relative_to(resolved_root)
-            resolved_path.relative_to(self.project_root)
+            lexical_root = self._lexical_absolute(root)
+            lexical_path = self._lexical_absolute(
+                path if path.is_absolute() else lexical_root / path
+            )
+            lexical_path.relative_to(lexical_root)
+            descriptor, _file_stat = self._open_regular_descriptor(
+                lexical_path,
+                lexical_root,
+            )
         except (OSError, ValueError):
             return None
-        try:
-            mode = resolved_path.lstat().st_mode
-        except OSError:
-            return None
-        if not stat.S_ISREG(mode):
-            return None
-        return resolved_path
+        os.close(descriptor)
+        return lexical_path
 
     def _safe_dir_under(self, path: Path, root: Path) -> Path | None:
         try:
-            resolved_root = root.resolve()
-            lexical_path = path if path.is_absolute() else resolved_root / path
-            if ".." in lexical_path.parts:
-                return None
-            lexical_path = lexical_path.absolute()
-            relative = lexical_path.relative_to(resolved_root)
-            current = resolved_root
-            for part in relative.parts:
-                current = current / part
-                if current.is_symlink():
-                    return None
-            resolved_path = lexical_path.resolve(strict=True)
-            resolved_path.relative_to(resolved_root)
-            resolved_path.relative_to(self.project_root)
+            lexical_root = self._lexical_absolute(root)
+            lexical_path = self._lexical_absolute(
+                path if path.is_absolute() else lexical_root / path
+            )
+            lexical_path.relative_to(lexical_root)
+            descriptor = self._open_directory_descriptor(lexical_path)
         except (OSError, ValueError):
             return None
-        try:
-            mode = resolved_path.lstat().st_mode
-        except OSError:
-            return None
-        if not stat.S_ISDIR(mode):
-            return None
-        return resolved_path
+        os.close(descriptor)
+        return lexical_path
+
+    def _project_relative_lexical(self, path: Path) -> Path:
+        if ".." in path.parts:
+            raise ValueError("unsafe project path")
+        lexical_path = self._lexical_absolute(path)
+        return lexical_path.relative_to(self.project_root)
+
+    def _lexical_absolute(self, path: Path) -> Path:
+        if ".." in path.parts:
+            raise ValueError("unsafe lexical path")
+        candidate = path if path.is_absolute() else self.project_root / path
+        return candidate.absolute()
 
     def _safe_int(self, value: Any) -> int:
         if isinstance(value, bool):

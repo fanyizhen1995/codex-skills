@@ -372,7 +372,6 @@ class SupervisorDashboardStore:
                     max_sessions=max_snapshot_sessions,
                 )
                 _SQLITE_SNAPSHOT_REGISTRIES[registry_key] = self._sqlite_snapshots
-            self._sqlite_snapshots.acquire_owner()
             _SQLITE_SNAPSHOT_REGISTRIES.move_to_end(registry_key)
             while (
                 len(_SQLITE_SNAPSHOT_REGISTRIES)
@@ -380,16 +379,28 @@ class SupervisorDashboardStore:
             ):
                 _key, evicted = _SQLITE_SNAPSHOT_REGISTRIES.popitem(last=False)
                 evicted.close_all()
+        self._lifecycle_lock = RLock()
+        self._owner_acquired = False
         self.closed = False
+
+    def start(self) -> None:
+        with self._lifecycle_lock:
+            if self._owner_acquired:
+                return
+            self._sqlite_snapshots.acquire_owner()
+            self._owner_acquired = True
+            self.closed = False
 
     def reap_expired(self) -> None:
         self._sqlite_snapshots.reap_expired()
 
     def close(self) -> None:
-        if self.closed:
-            return
-        self.closed = True
-        self._sqlite_snapshots.release_owner()
+        with self._lifecycle_lock:
+            release_owner = self._owner_acquired
+            self._owner_acquired = False
+            self.closed = True
+        if release_owner:
+            self._sqlite_snapshots.release_owner()
 
     def summary(self) -> dict[str, Any]:
         try:
@@ -592,7 +603,14 @@ class SupervisorDashboardStore:
         except (SupervisorStoreError, sqlite3.Error):
             return None
 
-    def attempt_log_references(self, run_id: str) -> list[dict[str, Any]]:
+    def attempt_log_references(
+        self,
+        run_id: str,
+        *,
+        limit: int = 4096,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("attempt log reference limit must be positive")
         try:
             with closing(self._connect()) as connection:
                 rows = connection.execute(
@@ -603,8 +621,9 @@ class SupervisorDashboardStore:
                     JOIN actions ON actions.action_id = attempts.action_id
                     WHERE actions.run_id = ?
                     ORDER BY attempts.created_at, attempts.attempt_id
+                    LIMIT ?
                     """,
-                    (run_id,),
+                    (run_id, limit),
                 ).fetchall()
             references: list[dict[str, Any]] = []
             for row in rows:
@@ -790,16 +809,21 @@ class SupervisorDashboardStore:
             )
             self._sqlite_snapshots.add(session)
             registered = True
-            page = self._page_from_sqlite_session(
-                session,
-                payload=None,
-                page_size=page_size,
-            )
+            with session.lock:
+                if session.expires_at <= time.monotonic():
+                    raise CursorError("cursor snapshot is unavailable or expired")
+                page = self._page_from_sqlite_session(
+                    session,
+                    payload=None,
+                    page_size=page_size,
+                )
             if page.next_cursor is None and page.previous_cursor is None:
                 self._sqlite_snapshots.discard(session.snapshot_id)
             return page
         except BaseException:
-            if not registered:
+            if registered:
+                self._sqlite_snapshots.discard(session.snapshot_id)
+            else:
                 try:
                     connection.rollback()
                 finally:

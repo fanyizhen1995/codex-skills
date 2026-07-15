@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 from collections import OrderedDict
 import copy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import hashlib
 import hmac
 import json
@@ -50,6 +50,8 @@ class CursorPayload:
     snapshot_total: int
     snapshot_id: str
     snapshot_sequence: int | None = None
+    occurrence: int = 0
+    snapshot_occurrence: int = 0
 
 
 T = TypeVar("T")
@@ -63,16 +65,26 @@ class Page(Generic[T]):
     page_size: int
     total: int
     has_more: bool
+    private_items: list[Any] = field(default_factory=list, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return {
+            "items": self.items,
+            "next_cursor": self.next_cursor,
+            "previous_cursor": self.previous_cursor,
+            "page_size": self.page_size,
+            "total": self.total,
+            "has_more": self.has_more,
+        }
 
 
 @dataclass(frozen=True)
 class SnapshotRow:
     item: dict[str, Any]
     timestamp: str
-    pagination_id: str
+    source_id: str
+    occurrence: int
+    private_item: Any = None
 
 
 @dataclass(frozen=True)
@@ -182,13 +194,25 @@ class CursorCodec:
         *,
         timestamp_key: str,
         primary_key: str,
+        private_items: Sequence[Any] | None = None,
     ) -> CollectionSnapshot:
         if len(items) > self._max_snapshot_items:
             raise SnapshotCapacityError("snapshot item limit exceeded")
         copied_items = copy.deepcopy(list(items))
+        copied_private = (
+            copy.deepcopy(list(private_items))
+            if private_items is not None
+            else [None] * len(copied_items)
+        )
+        if len(copied_private) != len(copied_items):
+            raise ValueError("private snapshot items must align with public items")
         total_bytes = 0
-        for item in copied_items:
+        for item, private_item in zip(
+            copied_items, copied_private, strict=True
+        ):
             row_bytes = len(self._serialize(item))
+            if private_item is not None:
+                row_bytes += len(self._serialize(private_item))
             if row_bytes > self._max_snapshot_row_bytes:
                 raise SnapshotCapacityError("snapshot row byte budget exceeded")
             total_bytes += row_bytes
@@ -197,18 +221,25 @@ class CursorCodec:
         source_positions = [
             _position(item, timestamp_key, primary_key) for item in copied_items
         ]
-        position_counts: dict[tuple[str, str], int] = {}
-        for position in source_positions:
-            position_counts[position] = position_counts.get(position, 0) + 1
         occurrences: dict[tuple[str, str], int] = {}
         rows: list[SnapshotRow] = []
-        for item, position in zip(copied_items, source_positions, strict=True):
+        for item, private_item, position in zip(
+            copied_items,
+            copied_private,
+            source_positions,
+            strict=True,
+        ):
             occurrence = occurrences.get(position, 0)
             occurrences[position] = occurrence + 1
-            pagination_id = position[1]
-            if position_counts[position] > 1:
-                pagination_id = f"{position[1]}\x1f{occurrence:012d}"
-            rows.append(SnapshotRow(item, position[0], pagination_id))
+            rows.append(
+                SnapshotRow(
+                    item,
+                    position[0],
+                    position[1],
+                    occurrence,
+                    private_item,
+                )
+            )
         rows.sort(key=_row_position, reverse=True)
         now = time.monotonic()
         snapshot = CollectionSnapshot(
@@ -297,6 +328,13 @@ class CursorCodec:
             or payload.snapshot_sequence < 0
         ):
             raise CursorError("cursor snapshot sequence is invalid")
+        for occurrence in (payload.occurrence, payload.snapshot_occurrence):
+            if (
+                not isinstance(occurrence, int)
+                or isinstance(occurrence, bool)
+                or occurrence < 0
+            ):
+                raise CursorError("cursor occurrence is invalid")
 
 
 def validate_page_size(page_size: int) -> None:
@@ -320,6 +358,7 @@ def paginate_items(
     timestamp_key: str,
     primary_key: str,
     codec: CursorCodec,
+    private_items: Sequence[Any] | None = None,
 ) -> Page[dict[str, Any]]:
     validate_page_size(page_size)
     fingerprint = codec.filter_fingerprint(filters)
@@ -342,26 +381,28 @@ def paginate_items(
             items,
             timestamp_key=timestamp_key,
             primary_key=primary_key,
+            private_items=private_items,
         )
         ordered = list(collection_snapshot.rows)
         snapshot = _row_position(ordered[0])
         total = len(ordered)
         snapshot_id = collection_snapshot.snapshot_id
         direction = "next"
-        boundary: tuple[str, str] | None = None
+        boundary: tuple[str, str, int] | None = None
     else:
         collection_snapshot = codec.get_snapshot(payload)
         ordered = list(collection_snapshot.rows)
         snapshot = (
             payload.snapshot_timestamp,
             payload.snapshot_primary_key,
+            payload.snapshot_occurrence,
         )
         total = payload.snapshot_total
         snapshot_id = payload.snapshot_id
         if total != len(ordered):
             raise CursorError("cursor snapshot total mismatch")
         direction = payload.direction
-        boundary = (payload.timestamp, payload.primary_key)
+        boundary = (payload.timestamp, payload.primary_key, payload.occurrence)
 
     eligible = [
         row for row in ordered if _row_position(row) <= snapshot
@@ -436,6 +477,7 @@ def paginate_items(
         page_size,
         total,
         next_cursor is not None,
+        [copy.deepcopy(row.private_item) for row in selected],
     )
     if page.next_cursor is None and page.previous_cursor is None:
         codec.discard_snapshot(snapshot_id)
@@ -447,25 +489,31 @@ def _cursor_payload(
     fingerprint: str,
     page_size: int,
     direction: str,
-    position: tuple[str, str],
-    snapshot: tuple[str, str],
+    position: tuple[str, str] | tuple[str, str, int],
+    snapshot: tuple[str, str] | tuple[str, str, int],
     total: int,
     snapshot_id: str,
     snapshot_sequence: int | None = None,
 ) -> CursorPayload:
+    position_timestamp, position_key, occurrence = _structural_position(position)
+    snapshot_timestamp, snapshot_key, snapshot_occurrence = _structural_position(
+        snapshot
+    )
     return CursorPayload(
         version=CURSOR_VERSION,
         endpoint=endpoint,
         filter_fingerprint=fingerprint,
         page_size=page_size,
-        timestamp=position[0],
-        primary_key=position[1],
+        timestamp=position_timestamp,
+        primary_key=position_key,
         direction=direction,
-        snapshot_timestamp=snapshot[0],
-        snapshot_primary_key=snapshot[1],
+        snapshot_timestamp=snapshot_timestamp,
+        snapshot_primary_key=snapshot_key,
         snapshot_total=total,
         snapshot_id=snapshot_id,
         snapshot_sequence=snapshot_sequence,
+        occurrence=occurrence,
+        snapshot_occurrence=snapshot_occurrence,
     )
 
 
@@ -498,5 +546,13 @@ def _position(
     return timestamp, key
 
 
-def _row_position(row: SnapshotRow) -> tuple[str, str]:
-    return row.timestamp, row.pagination_id
+def _row_position(row: SnapshotRow) -> tuple[str, str, int]:
+    return row.timestamp, row.source_id, row.occurrence
+
+
+def _structural_position(
+    position: tuple[str, str] | tuple[str, str, int],
+) -> tuple[str, str, int]:
+    if len(position) == 2:
+        return position[0], position[1], 0
+    return position

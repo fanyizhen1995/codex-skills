@@ -209,6 +209,45 @@ def test_duplicate_source_positions_cross_page_boundaries_without_skips() -> Non
     assert reverse.items == pages[-2].items
 
 
+def test_delimiter_shaped_source_ids_cannot_collide_with_occurrences() -> None:
+    codec = CursorCodec(b"test-secret")
+    timestamp = "2026-07-15T00:00:00Z"
+    items = [
+        {"item_id": "natural", "updated_at": timestamp, "marker": index}
+        for index in range(21)
+    ]
+    items.extend(
+        {
+            "item_id": f"natural\x1f{index:012d}",
+            "updated_at": timestamp,
+            "marker": 100 + index,
+        }
+        for index in range(24)
+    )
+
+    pages = []
+    cursor = None
+    while not pages or cursor:
+        page = paginate_items(
+            items,
+            endpoint="adversarial-positions",
+            page_size=20,
+            cursor=cursor,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=codec,
+        )
+        pages.append(page)
+        cursor = page.next_cursor
+
+    assert len(pages) == 3
+    assert {item["marker"] for page in pages for item in page.items} == {
+        item["marker"] for item in items
+    }
+    assert sum(len(page.items) for page in pages) == 45
+
+
 def test_cursor_rejects_tampering_collection_filter_and_page_size_mismatch() -> None:
     codec = CursorCodec(b"test-secret")
     first = paginate_items(

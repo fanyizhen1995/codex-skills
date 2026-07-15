@@ -855,6 +855,173 @@ def test_log_discovery_rejects_every_lexical_symlink_component(tmp_path: Path) -
     assert logs["items"] == []
 
 
+def test_log_list_rejects_task_root_replaced_by_cross_task_alias(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    for run_id in ("task-a", "task-b"):
+        write_json(
+            tmp_path / ".codex" / "loop-runs" / run_id / "run.json",
+            {
+                "run_id": run_id,
+                "policy": "demand_development",
+                "phase": "generating",
+                "task_id": run_id,
+                "requirement": run_id,
+                "attempts": {},
+                "last_result": "none",
+                "next_action": "run_generator",
+            },
+        )
+    task_a = tmp_path / ".codex" / "loop-runs" / "task-a"
+    task_b = tmp_path / ".codex" / "loop-runs" / "task-b"
+    (task_a / "worker-attempt-1.stdout.log").write_text(
+        "task-a output\n", encoding="utf-8"
+    )
+    (task_b / "worker-attempt-1.stdout.log").write_text(
+        "cross-task-secret\n", encoding="utf-8"
+    )
+    app = create_test_app(project_root=tmp_path)
+    original_collect = app.state.store._collect_log_handles
+    swapped = False
+
+    def racing_collect(run_id, run_dir, supervisor_store):
+        nonlocal swapped
+        if run_id == "task-a" and not swapped:
+            swapped = True
+            task_a.rename(task_a.with_name("task-a-original"))
+            task_a.symlink_to(task_b, target_is_directory=True)
+        return original_collect(run_id, run_dir, supervisor_store)
+
+    monkeypatch.setattr(app.state.store, "_collect_log_handles", racing_collect)
+    with TestClient(app) as client:
+        response = client.get("/api/runs/task-a/logs")
+
+    assert swapped is True
+    assert "cross-task-secret" not in response.text
+    if response.status_code == 200:
+        assert response.json()["items"] == []
+    else:
+        assert response.status_code == 404
+
+
+def test_log_list_traverses_lexical_task_root_without_resolving_it(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    (run_dir / "worker-attempt-1.stdout.log").write_text(
+        "lexical output\n", encoding="utf-8"
+    )
+    app = create_test_app(project_root=tmp_path)
+    original_resolve = Path.resolve
+
+    def reject_task_root_resolve(path: Path, *args, **kwargs):
+        if path == run_dir or run_dir in path.parents:
+            raise AssertionError("lexical task root was resolved")
+        return original_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", reject_task_root_resolve)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/runs/demo-run/logs")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+
+def test_log_detail_traverses_lexical_task_root_without_resolving_it(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    (run_dir / "worker-attempt-1.stdout.log").write_text(
+        "lexical detail\n", encoding="utf-8"
+    )
+    app = create_test_app(project_root=tmp_path)
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        original_resolve = Path.resolve
+
+        def reject_task_root_resolve(path: Path, *args, **kwargs):
+            if path == run_dir or run_dir in path.parents:
+                raise AssertionError("lexical task root was resolved")
+            return original_resolve(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", reject_task_root_resolve)
+        client.raise_server_exceptions = False
+        response = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "lexical detail\n"
+
+
+def test_log_list_rejects_cross_task_evaluation_alias(tmp_path: Path) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": "task-a",
+            "final_bundle_id": "bundle-1",
+        },
+    )
+    tasks_dir = tmp_path / ".codex" / "evaluations" / "tasks"
+    write_json(
+        tasks_dir / "task-b" / "bundle-1" / "result.json",
+        {"stdout": "cross-task-evaluation-secret\n"},
+    )
+    (tasks_dir / "task-a").symlink_to(
+        tasks_dir / "task-b", target_is_directory=True
+    )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        response = client.get("/api/runs/demo-run/logs")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert "cross-task-evaluation-secret" not in response.text
+
+
+def test_log_detail_rejects_cross_task_evaluation_alias_after_issue(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    write_json(
+        run_dir / "evaluator-result.json",
+        {
+            "status": "fail",
+            "task_id": "task-a",
+            "final_bundle_id": "bundle-1",
+        },
+    )
+    tasks_dir = tmp_path / ".codex" / "evaluations" / "tasks"
+    task_a = tasks_dir / "task-a"
+    task_b = tasks_dir / "task-b"
+    write_json(
+        task_a / "bundle-1" / "result.json",
+        {"stdout": "owned evaluation output\n"},
+    )
+    write_json(
+        task_b / "bundle-1" / "result.json",
+        {"stdout": "replacement evaluation secret\n"},
+    )
+    app = create_test_app(project_root=tmp_path)
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        task_a.rename(tasks_dir / "task-a-original")
+        task_a.symlink_to(task_b, target_is_directory=True)
+
+        detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert detail.status_code == 404
+    assert "replacement evaluation secret" not in detail.text
+
+
 def test_log_detail_reads_same_leaf_descriptor_during_swap(
     tmp_path: Path,
     monkeypatch,
@@ -1134,6 +1301,117 @@ def test_run_cursor_secret_and_snapshot_are_shared_across_app_instances(
     assert second.json()["previous_cursor"] is not None
 
 
+def test_run_cursor_resolves_snapshot_before_live_scan(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    for index in range(25):
+        run_id = f"frozen-run-{index:03d}"
+        write_json(
+            tmp_path / ".codex" / "loop-runs" / run_id / "run.json",
+            {
+                "run_id": run_id,
+                "policy": "demand_development",
+                "phase": "generating",
+                "task_id": run_id,
+                "requirement": run_id,
+                "attempts": {},
+                "last_result": "none",
+                "next_action": "run_generator",
+            },
+        )
+    app = create_test_app(project_root=tmp_path)
+    with TestClient(app) as client:
+        first = client.get("/api/runs").json()
+
+        def fail_live_scan():
+            raise AssertionError("live run scan must not run for a cursor")
+
+        monkeypatch.setattr(app.state.store, "list_runs", fail_live_scan)
+        malformed = client.get("/api/runs", params={"cursor": "bad"})
+        continuation = client.get(
+            "/api/runs", params={"cursor": first["next_cursor"]}
+        )
+
+    assert malformed.status_code == 400
+    assert continuation.status_code == 200
+    assert continuation.json()["total"] == 25
+    assert len(continuation.json()["items"]) == 5
+
+
+def test_frozen_log_cursor_does_not_rediscover_live_collection(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    for index in range(25):
+        (run_dir / f"worker-attempt-{index:03d}.stdout.log").write_text(
+            f"output {index}\n", encoding="utf-8"
+        )
+    app = create_test_app(project_root=tmp_path)
+    with TestClient(app) as client:
+        first = client.get("/api/runs/demo-run/logs").json()
+        for index in range(30):
+            (run_dir / f"newer-attempt-{index:03d}.stderr.log").write_text(
+                f"new output {index}\n", encoding="utf-8"
+            )
+
+        def fail_live_discovery(*_args, **_kwargs):
+            raise AssertionError("live log discovery must not run for a cursor")
+
+        monkeypatch.setattr(
+            app.state.store,
+            "_collect_log_handles",
+            fail_live_discovery,
+        )
+        continuation = client.get(
+            "/api/runs/demo-run/logs",
+            params={"cursor": first["next_cursor"]},
+        )
+
+    assert continuation.status_code == 200
+    assert continuation.json()["total"] == 25
+    assert len(continuation.json()["items"]) == 5
+
+
+def test_growing_log_detail_is_capped_to_opening_size(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_minimal_run(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
+    log_path = run_dir / "worker-attempt-1.stdout.log"
+    original = b"opening content\n"
+    appended = b"appended after open\n"
+    log_path.write_bytes(original)
+    app = create_test_app(project_root=tmp_path)
+    with TestClient(app) as client:
+        item = client.get("/api/runs/demo-run/logs").json()["items"][0]
+        original_read = os.read
+        appended_once = False
+
+        def append_before_read(descriptor: int, size: int) -> bytes:
+            nonlocal appended_once
+            if (
+                not appended_once
+                and os.fstat(descriptor).st_ino == log_path.stat().st_ino
+            ):
+                appended_once = True
+                with log_path.open("ab") as stream:
+                    stream.write(appended)
+            return original_read(descriptor, size)
+
+        monkeypatch.setattr("loop_dashboard.store.os.read", append_before_read)
+        detail = client.get(f"/api/runs/demo-run/logs/{item['log_id']}")
+
+    assert appended_once is True
+    assert detail.status_code == 200
+    assert detail.json()["content"] == original.decode()
+    assert detail.json()["total_bytes"] == len(original)
+    assert detail.json()["truncated"] is False
+
+
 def test_event_ids_are_content_stable_not_list_indexes(tmp_path: Path) -> None:
     seed_minimal_run(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / "demo-run"
@@ -1187,8 +1465,9 @@ def test_event_api_declares_retention_and_total_matches_exposed_snapshot(
 
     assert response.headers["X-Loop-Event-Retention"] == (
         "structured=last-1000-lines-within-1048576-bytes;"
-        "sessions=last-200-events-from-newest-128-files-within-"
-        "2097152-bytes-each;logs=newest-1000"
+        "sessions=last-200-matching-supported-events-scanning-last-10000-"
+        "lines-from-newest-128-files-within-2097152-bytes-each;"
+        "logs=newest-1000"
     )
     assert len(items) == first["total"]
     messages = {item["message"] for item in items}
@@ -1231,6 +1510,63 @@ def test_session_event_candidates_are_sorted_by_freshness_before_retention(
 
     assert events is not None
     assert any(item["message"] == "newest retained session" for item in events)
+
+
+def test_session_event_retention_counts_only_matching_supported_events(
+    tmp_path: Path,
+) -> None:
+    seed_minimal_run(tmp_path)
+    session_path = tmp_path / ".codex" / "sessions" / "mixed.jsonl"
+    for index in range(200):
+        append_jsonl(
+            session_path,
+            {
+                "run_id": "demo-run",
+                "type": "agent_message",
+                "message": f"matching {index}",
+                "timestamp": f"2026-07-15T00:00:{index:04d}Z",
+            },
+        )
+        append_jsonl(
+            session_path,
+            {
+                "run_id": "other-run",
+                "type": "agent_message",
+                "message": f"unrelated {index}",
+            },
+        )
+        append_jsonl(
+            session_path,
+            {
+                "run_id": "demo-run",
+                "type": "unsupported",
+                "message": f"unsupported {index}",
+            },
+        )
+    app = create_test_app(project_root=tmp_path)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/runs/demo-run/events", params={"kind": "agent"}
+        )
+        first = response.json()
+        items = list(first["items"])
+        cursor = first["next_cursor"]
+        while cursor:
+            page = client.get(
+                "/api/runs/demo-run/events",
+                params={"kind": "agent", "cursor": cursor},
+            ).json()
+            items.extend(page["items"])
+            cursor = page["next_cursor"]
+
+    matching = [item for item in items if item["message"].startswith("matching ")]
+    assert len(matching) == 200
+    assert response.headers["X-Loop-Event-Retention"] == (
+        "structured=last-1000-lines-within-1048576-bytes;"
+        "sessions=last-200-matching-supported-events-scanning-last-10000-lines-"
+        "from-newest-128-files-within-2097152-bytes-each;logs=newest-1000"
+    )
 
 
 def test_snapshot_capacity_returns_status_error_not_cursor_400(tmp_path: Path) -> None:

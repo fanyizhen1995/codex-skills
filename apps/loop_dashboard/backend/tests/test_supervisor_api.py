@@ -133,6 +133,177 @@ def test_app_periodically_reaps_idle_sqlite_snapshots_and_closes_on_shutdown(
     connection.close()
 
 
+def test_first_sqlite_page_holds_session_lock(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    connection = _seed_supervisor_database(tmp_path, action_count=25)
+    app = create_test_app(project_root=tmp_path)
+    store = app.state.supervisor_store
+    original_page = store._page_from_sqlite_session
+    observed = False
+
+    def assert_locked(session, *, payload, page_size):
+        nonlocal observed
+        observed = True
+        assert session.lock._is_owned()  # type: ignore[attr-defined]
+        return original_page(session, payload=payload, page_size=page_size)
+
+    monkeypatch.setattr(store, "_page_from_sqlite_session", assert_locked)
+    with TestClient(app) as client:
+        response = client.get("/api/supervisor/actions")
+
+    assert response.status_code == 200
+    assert observed is True
+    connection.close()
+
+
+def test_first_sqlite_page_encode_failure_discards_registered_session(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    connection = _seed_supervisor_database(tmp_path, action_count=25)
+    app = create_test_app(project_root=tmp_path)
+    registry = app.state.supervisor_store._sqlite_snapshots
+    captured: list[SQLitePageSession] = []
+    original_add = registry.add
+
+    def capture_add(session: SQLitePageSession) -> SQLitePageSession:
+        captured.append(session)
+        return original_add(session)
+
+    def fail_encode(_payload) -> str:
+        raise RuntimeError("encode failed")
+
+    monkeypatch.setattr(registry, "add", capture_add)
+    monkeypatch.setattr(app.state.supervisor_store._cursor_codec, "encode", fail_encode)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/supervisor/actions")
+        assert len(captured) == 1
+        assert captured[0].closed is True
+        assert captured[0].snapshot_id not in registry._sessions
+
+    assert response.status_code == 500
+    connection.close()
+
+
+def test_first_sqlite_page_discards_session_that_expires_during_creation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    connection = _seed_supervisor_database(tmp_path, action_count=25)
+    app = create_test_app(project_root=tmp_path)
+    registry = app.state.supervisor_store._sqlite_snapshots
+    captured: list[SQLitePageSession] = []
+    original_add = registry.add
+
+    def capture_add(session: SQLitePageSession) -> SQLitePageSession:
+        captured.append(session)
+        return original_add(session)
+
+    monkeypatch.setattr(registry, "add", capture_add)
+    monkeypatch.setattr(registry, "deadline", lambda: time.monotonic() - 1)
+    with TestClient(app) as client:
+        response = client.get("/api/supervisor/actions")
+
+    assert response.status_code == 400
+    assert len(captured) == 1
+    assert captured[0].closed is True
+    assert captured[0].snapshot_id not in registry._sessions
+    connection.close()
+
+
+def test_app_dispatches_blocking_reapers_off_event_loop(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app = create_app(
+        project_root=tmp_path,
+        cursor_secret=TEST_CURSOR_SECRET,
+        reaper_interval_seconds=0.01,
+    )
+    dispatched = []
+
+    async def record_to_thread(function, *args, **kwargs):
+        dispatched.append(function)
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr("loop_dashboard.main.asyncio.to_thread", record_to_thread)
+    with TestClient(app):
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and len(dispatched) < 2:
+            time.sleep(0.01)
+
+    assert app.state.store.reap_expired in dispatched
+    assert app.state.supervisor_store.reap_expired in dispatched
+
+
+def test_app_shutdown_waits_for_inflight_reaper_before_closing_resources(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app = create_app(
+        project_root=tmp_path,
+        cursor_secret=TEST_CURSOR_SECRET,
+        reaper_interval_seconds=0.01,
+    )
+    reaper_started = threading.Event()
+    release_reaper = threading.Event()
+    reaper_finished = threading.Event()
+
+    def blocking_reap() -> None:
+        reaper_started.set()
+        release_reaper.wait(timeout=2)
+        reaper_finished.set()
+
+    monkeypatch.setattr(app.state.store, "reap_expired", blocking_reap)
+    client = TestClient(app)
+    client.__enter__()
+    assert reaper_started.wait(timeout=1)
+
+    shutdown = threading.Thread(
+        target=lambda: client.__exit__(None, None, None)
+    )
+    shutdown.start()
+    time.sleep(0.03)
+
+    assert shutdown.is_alive()
+    assert app.state.store.closed is False
+    assert app.state.supervisor_store.closed is False
+
+    release_reaper.set()
+    shutdown.join(timeout=1)
+
+    assert shutdown.is_alive() is False
+    assert reaper_finished.is_set()
+    assert app.state.store.closed is True
+    assert app.state.supervisor_store.closed is True
+
+
+def test_app_resources_are_owned_only_during_lifespan(tmp_path: Path) -> None:
+    app = create_test_app(project_root=tmp_path)
+    store = app.state.store
+    supervisor_store = app.state.supervisor_store
+    registry = supervisor_store._sqlite_snapshots
+
+    assert store._project_root_fd is None
+    assert registry._owners == 0
+
+    with TestClient(app) as client:
+        assert client.get("/api/health").status_code == 200
+        assert isinstance(store._project_root_fd, int)
+        assert registry._owners == 1
+
+    assert store._project_root_fd is None
+    assert registry._owners == 0
+    assert store.closed is True
+    assert supervisor_store.closed is True
+
+    store.close()
+    supervisor_store.close()
+    assert registry._owners == 0
+
+
 def _open_seeded_database(project_root: Path) -> sqlite3.Connection:
     store = SupervisorStore.open(project_root)
     store.migrate()

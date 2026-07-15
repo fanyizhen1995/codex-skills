@@ -134,7 +134,7 @@ and Git head for the named service:
 python3 scripts/harness_loop_supervisor.py \
   --project-root /home/fyz/codex-skills \
   --write-service-runtime loop-dashboard \
-  --service-command "python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766" \
+  --service-command 'LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" PYTHONPATH=apps/loop_dashboard/backend python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766' \
   --service-host 0.0.0.0 \
   --service-port 8766 \
   --service-tmux-session loop-dashboard \
@@ -567,9 +567,37 @@ The local read-only Loop Dashboard lives under `apps/loop_dashboard/`. Start it
 from a project checkout to monitor that current project by default:
 
 ```bash
+python3 - <<'PY'
+from pathlib import Path
+import os
+import secrets
+import stat
+
+path = Path(".codex/session-state/loop-dashboard/cursor-secret")
+path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+path.parent.chmod(0o700)
+try:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+except FileExistsError:
+    pass
+else:
+    with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+        stream.write(secrets.token_urlsafe(48))
+        stream.write("\n")
+metadata = path.stat()
+if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600:
+    raise SystemExit(f"unsafe cursor secret file: {path}")
+if len(path.read_text(encoding="ascii").strip().encode()) < 32:
+    raise SystemExit(f"invalid cursor secret file: {path}")
+PY
+LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" \
 PYTHONPATH=apps/loop_dashboard/backend \
 python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766
 ```
+
+The cursor secret is stable uncommitted runtime state under the already ignored
+`.codex/session-state/` tree. Reuse it across Dashboard restarts; do not commit
+it or regenerate it for each launch.
 
 Open `http://127.0.0.1:8766`. The frontend is Chinese and polls the backend for
 loop runs, agent summaries, flow state, events, logs, completed states, and
@@ -587,6 +615,7 @@ in a named tmux session and bind only on a trusted network:
 ```bash
 tmux new -s loop-dashboard
 cd /home/fyz/codex-skills
+LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" \
 PYTHONPATH=apps/loop_dashboard/backend \
 python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
 ```
@@ -606,6 +635,7 @@ To inspect a different project, point `LOOP_DASHBOARD_PROJECT_ROOT` at that
 checkout:
 
 ```bash
+LOOP_DASHBOARD_CURSOR_SECRET="$(cat .codex/session-state/loop-dashboard/cursor-secret)" \
 PYTHONPATH=apps/loop_dashboard/backend \
 LOOP_DASHBOARD_PROJECT_ROOT=/path/to/other/project \
 python3 -m uvicorn loop_dashboard.main:app --host 127.0.0.1 --port 8766

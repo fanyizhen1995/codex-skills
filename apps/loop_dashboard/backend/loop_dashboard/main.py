@@ -81,17 +81,32 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        async def reap_idle_state() -> None:
-            while True:
-                await asyncio.sleep(reaper_interval_seconds)
-                store.reap_expired()
-                supervisor_store.reap_expired()
+        stop_reaper = asyncio.Event()
 
+        async def reap_idle_state() -> None:
+            while not stop_reaper.is_set():
+                try:
+                    await asyncio.wait_for(
+                        stop_reaper.wait(),
+                        timeout=reaper_interval_seconds,
+                    )
+                    continue
+                except TimeoutError:
+                    pass
+                await asyncio.to_thread(store.reap_expired)
+                await asyncio.to_thread(supervisor_store.reap_expired)
+
+        store.start()
+        try:
+            supervisor_store.start()
+        except BaseException:
+            store.close()
+            raise
         reaper = asyncio.create_task(reap_idle_state())
         try:
             yield
         finally:
-            reaper.cancel()
+            stop_reaper.set()
             await asyncio.gather(reaper, return_exceptions=True)
             supervisor_store.close()
             store.close()
@@ -300,8 +315,9 @@ def create_app(
     def get_events(run_id: str, request: Request, response: Response) -> dict:
         response.headers["X-Loop-Event-Retention"] = (
             "structured=last-1000-lines-within-1048576-bytes;"
-            "sessions=last-200-events-from-newest-128-files-within-"
-            "2097152-bytes-each;logs=newest-1000"
+            "sessions=last-200-matching-supported-events-scanning-last-10000-"
+            "lines-from-newest-128-files-within-2097152-bytes-each;"
+            "logs=newest-1000"
         )
         return _run_page(
             request,
