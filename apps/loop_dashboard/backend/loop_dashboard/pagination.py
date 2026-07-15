@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
+import copy
 from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
+import secrets
+from threading import RLock
+import time
 from typing import Any, Generic, Mapping, Sequence, TypeVar
 
 
 CURSOR_VERSION = 1
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
+MAX_CURSOR_CHARS = 4096
+DEFAULT_SNAPSHOT_TTL_SECONDS = 300
+DEFAULT_MAX_SNAPSHOTS = 128
+DEFAULT_MAX_SNAPSHOT_ITEMS = 10_000
 
 
 class CursorError(ValueError):
@@ -32,6 +41,7 @@ class CursorPayload:
     snapshot_timestamp: str
     snapshot_primary_key: str
     snapshot_total: int
+    snapshot_id: str
     snapshot_sequence: int | None = None
 
 
@@ -51,11 +61,39 @@ class Page(Generic[T]):
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CollectionSnapshot:
+    snapshot_id: str
+    endpoint: str
+    filter_fingerprint: str
+    items: tuple[dict[str, Any], ...]
+    created_at: float
+    expires_at: float
+
+
 class CursorCodec:
-    def __init__(self, secret: bytes) -> None:
+    def __init__(
+        self,
+        secret: bytes,
+        *,
+        snapshot_ttl_seconds: int = DEFAULT_SNAPSHOT_TTL_SECONDS,
+        max_snapshots: int = DEFAULT_MAX_SNAPSHOTS,
+        max_snapshot_items: int = DEFAULT_MAX_SNAPSHOT_ITEMS,
+    ) -> None:
         if not isinstance(secret, bytes) or not secret:
             raise ValueError("cursor secret must be non-empty bytes")
+        if snapshot_ttl_seconds <= 0 or max_snapshots <= 0 or max_snapshot_items <= 0:
+            raise ValueError("snapshot bounds must be positive")
         self._secret = secret
+        self._snapshot_ttl_seconds = snapshot_ttl_seconds
+        self._max_snapshots = max_snapshots
+        self._max_snapshot_items = max_snapshot_items
+        self._snapshots: OrderedDict[str, CollectionSnapshot] = OrderedDict()
+        self._snapshot_lock = RLock()
+
+    @property
+    def namespace(self) -> str:
+        return hashlib.sha256(self._secret).hexdigest()
 
     def encode(self, payload: CursorPayload) -> str:
         payload_data = asdict(payload)
@@ -67,6 +105,8 @@ class CursorCodec:
     def decode(self, cursor: str) -> CursorPayload:
         if not isinstance(cursor, str) or not cursor:
             raise CursorError("cursor is malformed")
+        if len(cursor) > MAX_CURSOR_CHARS:
+            raise CursorError("cursor is too large")
         try:
             padding = "=" * (-len(cursor) % 4)
             raw = base64.b64decode(cursor + padding, altchars=b"-_", validate=True)
@@ -99,6 +139,61 @@ class CursorCodec:
     def filter_fingerprint(self, filters: Mapping[str, Any]) -> str:
         return hashlib.sha256(self._serialize(dict(filters))).hexdigest()
 
+    def create_snapshot(
+        self,
+        endpoint: str,
+        filter_fingerprint: str,
+        items: Sequence[dict[str, Any]],
+    ) -> CollectionSnapshot:
+        if len(items) > self._max_snapshot_items:
+            raise CursorError(
+                f"collection exceeds snapshot limit {self._max_snapshot_items}"
+            )
+        now = time.monotonic()
+        snapshot = CollectionSnapshot(
+            snapshot_id=secrets.token_urlsafe(18),
+            endpoint=endpoint,
+            filter_fingerprint=filter_fingerprint,
+            items=tuple(copy.deepcopy(list(items))),
+            created_at=now,
+            expires_at=now + self._snapshot_ttl_seconds,
+        )
+        with self._snapshot_lock:
+            self._prune_snapshots(now)
+            self._snapshots[snapshot.snapshot_id] = snapshot
+            self._snapshots.move_to_end(snapshot.snapshot_id)
+            while len(self._snapshots) > self._max_snapshots:
+                self._snapshots.popitem(last=False)
+        return snapshot
+
+    def get_snapshot(self, payload: CursorPayload) -> CollectionSnapshot:
+        now = time.monotonic()
+        with self._snapshot_lock:
+            self._prune_snapshots(now)
+            snapshot = self._snapshots.get(payload.snapshot_id)
+            if snapshot is None:
+                raise CursorError("cursor snapshot is unavailable or expired")
+            if (
+                snapshot.endpoint != payload.endpoint
+                or snapshot.filter_fingerprint != payload.filter_fingerprint
+            ):
+                raise CursorError("cursor snapshot collection mismatch")
+            self._snapshots.move_to_end(payload.snapshot_id)
+            return snapshot
+
+    def discard_snapshot(self, snapshot_id: str) -> None:
+        with self._snapshot_lock:
+            self._snapshots.pop(snapshot_id, None)
+
+    def _prune_snapshots(self, now: float) -> None:
+        expired = [
+            snapshot_id
+            for snapshot_id, snapshot in self._snapshots.items()
+            if snapshot.expires_at <= now
+        ]
+        for snapshot_id in expired:
+            self._snapshots.pop(snapshot_id, None)
+
     @staticmethod
     def _serialize(value: object) -> bytes:
         return json.dumps(
@@ -123,6 +218,8 @@ class CursorCodec:
             raise CursorError("cursor direction is invalid")
         if not payload.snapshot_timestamp or not payload.snapshot_primary_key:
             raise CursorError("cursor snapshot is invalid")
+        if not isinstance(payload.snapshot_id, str) or not payload.snapshot_id:
+            raise CursorError("cursor snapshot id is invalid")
         if (
             not isinstance(payload.snapshot_total, int)
             or isinstance(payload.snapshot_total, bool)
@@ -161,11 +258,6 @@ def paginate_items(
 ) -> Page[dict[str, Any]]:
     validate_page_size(page_size)
     fingerprint = codec.filter_fingerprint(filters)
-    ordered = sorted(
-        items,
-        key=lambda item: _position(item, timestamp_key, primary_key),
-        reverse=True,
-    )
     payload: CursorPayload | None = None
     if cursor:
         payload = codec.decode(cursor)
@@ -177,18 +269,30 @@ def paginate_items(
         )
 
     if payload is None:
+        ordered = sorted(
+            items,
+            key=lambda item: _position(item, timestamp_key, primary_key),
+            reverse=True,
+        )
         if not ordered:
             return Page([], None, None, page_size, 0, False)
+        collection_snapshot = codec.create_snapshot(endpoint, fingerprint, ordered)
         snapshot = _position(ordered[0], timestamp_key, primary_key)
         total = len(ordered)
+        snapshot_id = collection_snapshot.snapshot_id
         direction = "next"
         boundary: tuple[str, str] | None = None
     else:
+        collection_snapshot = codec.get_snapshot(payload)
+        ordered = list(collection_snapshot.items)
         snapshot = (
             payload.snapshot_timestamp,
             payload.snapshot_primary_key,
         )
         total = payload.snapshot_total
+        snapshot_id = payload.snapshot_id
+        if total != len(ordered):
+            raise CursorError("cursor snapshot total mismatch")
         direction = payload.direction
         boundary = (payload.timestamp, payload.primary_key)
 
@@ -238,6 +342,7 @@ def paginate_items(
                 last_position,
                 snapshot,
                 total,
+                snapshot_id,
             )
         )
     if any(
@@ -253,6 +358,7 @@ def paginate_items(
                 first_position,
                 snapshot,
                 total,
+                snapshot_id,
             )
         )
     return Page(
@@ -273,6 +379,7 @@ def _cursor_payload(
     position: tuple[str, str],
     snapshot: tuple[str, str],
     total: int,
+    snapshot_id: str,
     snapshot_sequence: int | None = None,
 ) -> CursorPayload:
     return CursorPayload(
@@ -286,6 +393,7 @@ def _cursor_payload(
         snapshot_timestamp=snapshot[0],
         snapshot_primary_key=snapshot[1],
         snapshot_total=total,
+        snapshot_id=snapshot_id,
         snapshot_sequence=snapshot_sequence,
     )
 

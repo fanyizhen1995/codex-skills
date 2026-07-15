@@ -97,6 +97,71 @@ def test_keyset_pages_are_stable_when_a_newer_item_arrives() -> None:
     assert previous.items == first.items
 
 
+def test_snapshot_survives_backdated_same_timestamp_inserts_and_deletions() -> None:
+    codec = CursorCodec(b"test-secret")
+    original = _items(45)
+    expected_ids = [item["item_id"] for item in reversed(original)]
+    first = paginate_items(
+        original,
+        endpoint="runs",
+        page_size=20,
+        cursor=None,
+        filters={},
+        timestamp_key="updated_at",
+        primary_key="item_id",
+        codec=codec,
+    )
+    mutated = [item for item in original if item["item_id"] != "item-015"]
+    mutated.extend(
+        [
+            {
+                "item_id": "item-backdated",
+                "updated_at": "2026-07-15T00:10:30Z",
+            },
+            {
+                "item_id": "item-010-a",
+                "updated_at": "2026-07-15T00:10:00Z",
+            },
+        ]
+    )
+
+    pages = [first]
+    while pages[-1].next_cursor:
+        pages.append(
+            paginate_items(
+                mutated,
+                endpoint="runs",
+                page_size=20,
+                cursor=pages[-1].next_cursor,
+                filters={},
+                timestamp_key="updated_at",
+                primary_key="item_id",
+                codec=codec,
+            )
+        )
+
+    assert [
+        item["item_id"] for page in pages for item in page.items
+    ] == expected_ids
+    assert all(page.total == 45 for page in pages)
+
+    reverse_pages = [pages[-1]]
+    while reverse_pages[-1].previous_cursor:
+        reverse_pages.append(
+            paginate_items(
+                mutated,
+                endpoint="runs",
+                page_size=20,
+                cursor=reverse_pages[-1].previous_cursor,
+                filters={},
+                timestamp_key="updated_at",
+                primary_key="item_id",
+                codec=codec,
+            )
+        )
+    assert reverse_pages[-1].items == first.items
+
+
 def test_cursor_rejects_tampering_collection_filter_and_page_size_mismatch() -> None:
     codec = CursorCodec(b"test-secret")
     first = paginate_items(
@@ -146,6 +211,66 @@ def test_cursor_rejects_tampering_collection_filter_and_page_size_mismatch() -> 
             page_size=50,
             cursor=first.next_cursor,
             filters={"status": "active"},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=codec,
+        )
+
+
+def test_cursor_rejects_oversized_input_before_decode() -> None:
+    with pytest.raises(CursorError, match="too large"):
+        CursorCodec(b"test-secret").decode("A" * 5000)
+
+
+def test_snapshot_sessions_have_ttl_and_capacity_bounds(monkeypatch) -> None:
+    now = [100.0]
+    monkeypatch.setattr("loop_dashboard.pagination.time.monotonic", lambda: now[0])
+    codec = CursorCodec(
+        b"test-secret",
+        snapshot_ttl_seconds=1,
+        max_snapshots=1,
+    )
+    first = paginate_items(
+        _items(25),
+        endpoint="runs-a",
+        page_size=20,
+        cursor=None,
+        filters={},
+        timestamp_key="updated_at",
+        primary_key="item_id",
+        codec=codec,
+    )
+    second = paginate_items(
+        _items(25),
+        endpoint="runs-b",
+        page_size=20,
+        cursor=None,
+        filters={},
+        timestamp_key="updated_at",
+        primary_key="item_id",
+        codec=codec,
+    )
+
+    with pytest.raises(CursorError, match="unavailable or expired"):
+        paginate_items(
+            _items(25),
+            endpoint="runs-a",
+            page_size=20,
+            cursor=first.next_cursor,
+            filters={},
+            timestamp_key="updated_at",
+            primary_key="item_id",
+            codec=codec,
+        )
+
+    now[0] = 102.0
+    with pytest.raises(CursorError, match="unavailable or expired"):
+        paginate_items(
+            _items(25),
+            endpoint="runs-b",
+            page_size=20,
+            cursor=second.next_cursor,
+            filters={},
             timestamp_key="updated_at",
             primary_key="item_id",
             codec=codec,

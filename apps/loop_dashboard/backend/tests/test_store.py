@@ -2119,3 +2119,41 @@ def test_weird_run_kind_falls_back_to_single_without_crashing(tmp_path: Path) ->
     listed = next(run for run in runs if run["run_id"] == "weird-run")
     assert listed["run_kind"] == "single"
     assert detail["run_kind"] == "single"
+
+
+def test_log_handle_registry_expires_and_caps_issued_handles(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    seed_run(tmp_path, "handle-run", "generating")
+    run_dir = tmp_path / ".codex" / "loop-runs" / "handle-run"
+    (run_dir / "generator-attempt-1.stdout.log").write_text(
+        "first\n", encoding="utf-8"
+    )
+    (run_dir / "generator-attempt-1.stderr.log").write_text(
+        "second\n", encoding="utf-8"
+    )
+    now = [100.0]
+    monkeypatch.setattr("loop_dashboard.store.time.monotonic", lambda: now[0])
+    store = LoopDashboardStore(
+        tmp_path,
+        log_handle_ttl_seconds=1,
+        log_handle_max_entries=1,
+    )
+
+    page = store.page_logs(
+        "handle-run",
+        page_size=20,
+        cursor=None,
+        filters={},
+    )
+    assert page is not None
+    items = page["items"]
+    assert len(items) >= 2
+    for item in items[:-1]:
+        assert store.get_log_detail("handle-run", item["log_id"]) is None
+    retained = items[-1]
+    assert store.get_log_detail("handle-run", retained["log_id"]) is not None
+
+    now[0] = 102.0
+    assert store.get_log_detail("handle-run", retained["log_id"]) is None

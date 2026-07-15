@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
+from collections import OrderedDict
 from pathlib import Path
+from threading import RLock
 from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException, Request
@@ -9,15 +13,49 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .pagination import CursorError, PageSizeError
+from .pagination import CursorCodec, CursorError, PageSizeError
 from .store import LoopDashboardStore
 from .supervisor_store import SupervisorDashboardStore
 
 
-def create_app(project_root: Path | str | None = None) -> FastAPI:
+_CURSOR_CODECS: OrderedDict[tuple[str, str], CursorCodec] = OrderedDict()
+_CURSOR_CODECS_LOCK = RLock()
+_CURSOR_CODEC_LIMIT = 64
+
+
+def create_app(
+    project_root: Path | str | None = None,
+    *,
+    cursor_secret: bytes | str | None = None,
+) -> FastAPI:
     resolved_root = Path(project_root or os.getenv("LOOP_DASHBOARD_PROJECT_ROOT") or _discover_project_root()).resolve()
-    store = LoopDashboardStore(resolved_root)
-    supervisor_store = SupervisorDashboardStore(resolved_root)
+    resolved_secret = _resolve_cursor_secret(resolved_root, cursor_secret)
+    codec_key = (
+        str(resolved_root),
+        hashlib.sha256(resolved_secret).hexdigest(),
+    )
+    with _CURSOR_CODECS_LOCK:
+        cursor_codec = _CURSOR_CODECS.get(codec_key)
+        if cursor_codec is None:
+            cursor_codec = CursorCodec(resolved_secret)
+            _CURSOR_CODECS[codec_key] = cursor_codec
+        _CURSOR_CODECS.move_to_end(codec_key)
+        while len(_CURSOR_CODECS) > _CURSOR_CODEC_LIMIT:
+            _CURSOR_CODECS.popitem(last=False)
+    log_secret = hmac.new(
+        resolved_secret,
+        b"loop-dashboard-log-handles",
+        hashlib.sha256,
+    ).digest()
+    store = LoopDashboardStore(
+        resolved_root,
+        cursor_codec=cursor_codec,
+        log_secret=log_secret,
+    )
+    supervisor_store = SupervisorDashboardStore(
+        resolved_root,
+        cursor_codec=cursor_codec,
+    )
     app = FastAPI(title="Loop Dashboard", version="0.1.0")
     app.state.store = store
     app.state.supervisor_store = supervisor_store
@@ -147,13 +185,28 @@ def create_app(project_root: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/supervisor/recovery")
     def supervisor_recovery(request: Request) -> dict:
-        return _supervisor_page(
+        page_size, cursor, filters = _page_query(
             request,
-            supervisor_store,
-            "action_attempts",
-            "supervisor-recovery",
             {"result_class", "error_class", "recovery_tier"},
         )
+        if "recovery_tier" in filters and filters["recovery_tier"] not in {
+            "1",
+            "2",
+            "3",
+        }:
+            raise HTTPException(
+                status_code=400,
+                detail="recovery_tier must be 1, 2, or 3",
+            )
+        try:
+            return supervisor_store.recovery_page(
+                endpoint="supervisor-recovery",
+                page_size=page_size,
+                cursor=cursor,
+                filters=filters,
+            )
+        except (CursorError, PageSizeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/supervisor/decision-required")
     def supervisor_decision_required(request: Request) -> dict:
@@ -295,6 +348,27 @@ def _discover_project_root() -> Path:
         if (candidate / ".git").exists() or (candidate / "tasks.json").exists():
             return candidate
     return current
+
+
+def _resolve_cursor_secret(
+    project_root: Path,
+    configured: bytes | str | None,
+) -> bytes:
+    value = configured or os.getenv("LOOP_DASHBOARD_CURSOR_SECRET")
+    if isinstance(value, str):
+        value = value.encode()
+    if isinstance(value, bytes) and value:
+        return hashlib.sha256(value).digest()
+    try:
+        machine_seed = Path("/etc/machine-id").read_bytes().strip()
+    except OSError:
+        machine_seed = os.uname().nodename.encode()
+    return hashlib.sha256(
+        b"loop-dashboard-local-cursor\0"
+        + machine_seed
+        + b"\0"
+        + str(project_root).encode()
+    ).digest()
 
 
 def _supervisor_page(

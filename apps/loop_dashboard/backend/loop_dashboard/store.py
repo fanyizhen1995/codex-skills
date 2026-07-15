@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
 from dataclasses import dataclass
 import hashlib
 import hmac
 import json
+import os
 import re
 import secrets
 import stat
+from threading import RLock
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -26,6 +30,9 @@ LOG_GLOBS = ("*-attempt-*.stdout.log", "*-attempt-*.stderr.log")
 FALLBACK_SUMMARY = "暂无可用摘要"
 SESSION_EVENT_LIMIT = 200
 SESSION_FILE_MAX_BYTES = 2 * 1024 * 1024
+SESSION_FILE_SCAN_LIMIT = 128
+STRUCTURED_EVENT_MAX_BYTES = 1024 * 1024
+STRUCTURED_EVENT_MAX_LINES = 1000
 SKILL_SCAN_EXCLUDED_DIRS = {
     ".codex",
     ".git",
@@ -81,6 +88,10 @@ SUPERVISOR_RUN_IDS = {"loop-supervisor", "supervisor"}
 LOG_DETAIL_MAX_BYTES = 64 * 1024
 LOG_DETAIL_READ_BYTES = 256 * 1024
 LOG_SUMMARY_READ_BYTES = 8 * 1024
+LOG_EVENT_SCAN_BYTES = 64 * 1024
+LOG_EVENT_HANDLE_LIMIT = 1000
+LOG_HANDLE_TTL_SECONDS = 300
+LOG_HANDLE_MAX_ENTRIES = 4096
 
 
 class RunSource(NamedTuple):
@@ -109,6 +120,61 @@ class LogHandle:
     path: Path
     inline_content: str = ""
     attempt_id: str = ""
+    provenance: tuple[str | int, ...] = ()
+
+
+@dataclass(frozen=True)
+class LogHandleRecord:
+    handle: LogHandle
+    expires_at: float
+
+
+class LogHandleRegistry:
+    def __init__(self, *, ttl_seconds: int, max_entries: int) -> None:
+        if ttl_seconds <= 0 or max_entries <= 0:
+            raise ValueError("log handle bounds must be positive")
+        self._ttl_seconds = ttl_seconds
+        self._max_entries = max_entries
+        self._records: OrderedDict[str, LogHandleRecord] = OrderedDict()
+        self._lock = RLock()
+
+    def issue(self, log_id: str, handle: LogHandle) -> None:
+        now = time.monotonic()
+        with self._lock:
+            self._prune(now)
+            self._records[log_id] = LogHandleRecord(
+                handle=handle,
+                expires_at=now + self._ttl_seconds,
+            )
+            self._records.move_to_end(log_id)
+            while len(self._records) > self._max_entries:
+                self._records.popitem(last=False)
+
+    def get(self, log_id: str) -> LogHandle | None:
+        now = time.monotonic()
+        with self._lock:
+            self._prune(now)
+            record = self._records.get(log_id)
+            if record is None:
+                return None
+            self._records.move_to_end(log_id)
+            return record.handle
+
+    def _prune(self, now: float) -> None:
+        expired = [
+            log_id
+            for log_id, record in self._records.items()
+            if record.expires_at <= now
+        ]
+        for log_id in expired:
+            self._records.pop(log_id, None)
+
+
+_LOG_HANDLE_REGISTRIES: OrderedDict[
+    tuple[str, str], LogHandleRegistry
+] = OrderedDict()
+_LOG_HANDLE_REGISTRIES_LOCK = RLock()
+_LOG_HANDLE_REGISTRY_LIMIT = 64
 
 
 def safe_join(root: Path, relative_path: str) -> Path:
@@ -125,12 +191,34 @@ def safe_join(root: Path, relative_path: str) -> Path:
 
 
 class LoopDashboardStore:
-    def __init__(self, project_root: Path | str) -> None:
+    def __init__(
+        self,
+        project_root: Path | str,
+        *,
+        cursor_codec: CursorCodec | None = None,
+        log_secret: bytes | None = None,
+        log_handle_ttl_seconds: int = LOG_HANDLE_TTL_SECONDS,
+        log_handle_max_entries: int = LOG_HANDLE_MAX_ENTRIES,
+    ) -> None:
         self.project_root = Path(project_root).resolve()
         self.loop_runs_dir = self.project_root / ".codex" / "loop-runs"
-        self._cursor_codec = CursorCodec(secrets.token_bytes(32))
-        self._log_secret = secrets.token_bytes(32)
-        self._log_handles: dict[str, LogHandle] = {}
+        self._cursor_codec = cursor_codec or CursorCodec(secrets.token_bytes(32))
+        self._log_secret = log_secret or secrets.token_bytes(32)
+        handle_registry_key = (
+            str(self.project_root),
+            hashlib.sha256(self._log_secret).hexdigest(),
+        )
+        with _LOG_HANDLE_REGISTRIES_LOCK:
+            self._log_handles = _LOG_HANDLE_REGISTRIES.get(handle_registry_key)
+            if self._log_handles is None:
+                self._log_handles = LogHandleRegistry(
+                    ttl_seconds=log_handle_ttl_seconds,
+                    max_entries=log_handle_max_entries,
+                )
+                _LOG_HANDLE_REGISTRIES[handle_registry_key] = self._log_handles
+            _LOG_HANDLE_REGISTRIES.move_to_end(handle_registry_key)
+            while len(_LOG_HANDLE_REGISTRIES) > _LOG_HANDLE_REGISTRY_LIMIT:
+                _LOG_HANDLE_REGISTRIES.popitem(last=False)
 
     def project_info(self) -> dict[str, Any]:
         return {
@@ -269,7 +357,9 @@ class LoopDashboardStore:
         events.extend(self._structured_events(run_dir))
         for path in self._direct_artifact_files(run_dir):
             events.append(Event("artifact", self._relative_artifact(path), f"updated {path.name}", self._mtime_iso(path)))
-        for handle in self._collect_log_handles(run_id, run_dir, None):
+        for handle in self._collect_log_handles(run_id, run_dir, None)[
+            :LOG_EVENT_HANDLE_LIMIT
+        ]:
             descriptor = self._log_descriptor(handle)
             events.append(
                 Event(
@@ -287,7 +377,7 @@ class LoopDashboardStore:
                     descriptor.updated_at,
                 )
             )
-            lowered = descriptor.summary.lower()
+            lowered = self._log_scan_text(handle).lower()
             if "skill" in lowered:
                 events.append(
                     Event(
@@ -378,12 +468,12 @@ class LoopDashboardStore:
             acceptance = {}
         fallback_timestamp = str(detail.get("updated_at") or "")
         items: list[dict[str, Any]] = []
-        for index, scenario in enumerate(acceptance.get("scenarios", [])):
+        for scenario in acceptance.get("scenarios", []):
             if not isinstance(scenario, dict):
                 continue
             item = dict(scenario)
             item["acceptance_id"] = str(
-                item.get("scenario_id") or f"scenario-{index:06d}"
+                item.get("scenario_id") or self._stable_id(item)
             )
             item["updated_at"] = fallback_timestamp
             items.append(item)
@@ -412,9 +502,15 @@ class LoopDashboardStore:
         if raw_events is None:
             return None
         events: list[dict[str, Any]] = []
-        for index, event in enumerate(raw_events):
+        occurrences: dict[str, int] = {}
+        for event in raw_events:
             item = dict(event)
-            item["event_id"] = f"{index:08d}:{self._stable_id(item)}"
+            identity = self._stable_id(item)
+            occurrence = occurrences.get(identity, 0)
+            occurrences[identity] = occurrence + 1
+            item["event_id"] = self._stable_id(
+                {"identity": identity, "occurrence": occurrence}
+            )
             events.append(item)
         kind = filters.get("kind")
         query = filters.get("query", "").lower()
@@ -487,11 +583,17 @@ class LoopDashboardStore:
             return None
         fallback_timestamp = str(detail.get("updated_at") or "")
         diagnostics: list[dict[str, Any]] = []
-        for index, diagnostic in enumerate(detail.get("blocked_diagnostics", [])):
+        occurrences: dict[str, int] = {}
+        for diagnostic in detail.get("blocked_diagnostics", []):
             if not isinstance(diagnostic, dict):
                 continue
             item = dict(diagnostic)
-            item["diagnostic_id"] = f"{index:08d}:{self._stable_id(item)}"
+            identity = self._stable_id(item)
+            occurrence = occurrences.get(identity, 0)
+            occurrences[identity] = occurrence + 1
+            item["diagnostic_id"] = self._stable_id(
+                {"identity": identity, "occurrence": occurrence}
+            )
             item["updated_at"] = str(item.get("updated_at") or fallback_timestamp)
             diagnostics.append(item)
         for name in ("kind", "severity"):
@@ -551,11 +653,26 @@ class LoopDashboardStore:
         *,
         supervisor_store: SupervisorDashboardStore | None = None,
     ) -> dict[str, Any] | None:
-        handle = self._log_handles.get(log_id)
-        if handle is None or handle.run_id != run_id:
+        issued_handle = self._log_handles.get(log_id)
+        if issued_handle is None or issued_handle.run_id != run_id:
             return None
         source = self._run_source(run_id)
         if source is None:
+            return None
+        current_handles = self._collect_log_handles(
+            run_id,
+            source.run_dir,
+            supervisor_store,
+        )
+        handle = next(
+            (
+                candidate
+                for candidate in current_handles
+                if self._log_id(candidate) == log_id
+            ),
+            None,
+        )
+        if handle is None:
             return None
         try:
             if source.run_dir.resolve() != handle.run_dir.resolve():
@@ -570,18 +687,20 @@ class LoopDashboardStore:
             )
             if path is None:
                 return None
-            safe_path = self._safe_regular_file_lexical(path, handle.run_dir)
-            if safe_path is None:
+            try:
+                content, total_bytes, truncated = self._bounded_log_file(
+                    path, handle.run_dir
+                )
+            except OSError:
                 return None
-            content, total_bytes, truncated = self._bounded_log_file(safe_path)
         elif handle.kind == "file":
-            safe_path = self._safe_regular_file_lexical(handle.path, handle.run_dir)
-            if safe_path is None:
+            try:
+                content, total_bytes, truncated = self._bounded_log_file(
+                    handle.path, handle.run_dir
+                )
+            except OSError:
                 return None
-            content, total_bytes, truncated = self._bounded_log_file(safe_path)
         elif handle.kind == "inline":
-            if self._safe_regular_file_lexical(handle.path, self.project_root) is None:
-                return None
             content, total_bytes, truncated = self._bounded_log_text(
                 handle.inline_content
             )
@@ -2082,11 +2201,6 @@ class LoopDashboardStore:
         run_dir: Path,
         supervisor_store: SupervisorDashboardStore | None,
     ) -> list[LogHandle]:
-        self._log_handles = {
-            log_id: handle
-            for log_id, handle in self._log_handles.items()
-            if handle.run_id != run_id
-        }
         handles: list[LogHandle] = []
         seen: set[tuple[str, str]] = set()
 
@@ -2136,7 +2250,7 @@ class LoopDashboardStore:
                 add_file(path, stream)
 
         evaluator_path = run_dir / "evaluator-result.json"
-        evaluator = self._read_json(evaluator_path, allowed_root=run_dir)
+        evaluator = self._read_json_secure(evaluator_path, run_dir)
         if isinstance(evaluator, dict):
             handles.extend(
                 self._inline_log_handles(
@@ -2168,8 +2282,8 @@ class LoopDashboardStore:
                     allowed_roots=[run_dir],
                 )
                 if scenario_result is not None:
-                    scenario_payload = self._read_json(
-                        scenario_result, allowed_root=run_dir
+                    scenario_payload = self._read_json_secure(
+                        scenario_result, run_dir
                     )
                     if isinstance(scenario_payload, dict):
                         handles.extend(
@@ -2185,7 +2299,7 @@ class LoopDashboardStore:
         return sorted(
             handles,
             key=lambda handle: (
-                self._mtime_iso(handle.path),
+                self._handle_mtime(handle),
                 handle.source,
                 handle.stream,
             ),
@@ -2206,12 +2320,16 @@ class LoopDashboardStore:
             return []
         handles: list[LogHandle] = []
 
-        def visit(value: Any) -> None:
+        def visit(value: Any, pointer: tuple[str | int, ...] = ()) -> None:
             if isinstance(value, dict):
                 for key, child in value.items():
                     lowered = str(key).lower()
                     if lowered in {"stdout", "stderr"} and isinstance(child, str) and child:
-                        identity = (f"inline:{safe_source}:{len(handles)}", lowered)
+                        child_pointer = (*pointer, str(key))
+                        identity = (
+                            f"inline:{safe_source}:{json.dumps(child_pointer)}",
+                            lowered,
+                        )
                         if identity in seen:
                             continue
                         seen.add(identity)
@@ -2223,6 +2341,7 @@ class LoopDashboardStore:
                             source=f"{safe_source.name}:{lowered}",
                             path=safe_source,
                             inline_content=child,
+                            provenance=child_pointer,
                         )
                         self._register_log_handle(handle)
                         handles.append(handle)
@@ -2254,15 +2373,20 @@ class LoopDashboardStore:
                         self._register_log_handle(handle)
                         handles.append(handle)
                     else:
-                        visit(child)
+                        visit(child, (*pointer, str(key)))
             elif isinstance(value, list):
-                for child in value:
-                    visit(child)
+                for index, child in enumerate(value):
+                    visit(child, (*pointer, index))
 
         visit(payload)
         return handles
 
     def _register_log_handle(self, handle: LogHandle) -> str:
+        log_id = self._log_id(handle)
+        self._log_handles.issue(log_id, handle)
+        return log_id
+
+    def _log_id(self, handle: LogHandle) -> str:
         identity = "\0".join(
             (
                 handle.run_id,
@@ -2270,31 +2394,35 @@ class LoopDashboardStore:
                 handle.stream,
                 str(handle.path),
                 handle.attempt_id,
+                json.dumps(handle.provenance, separators=(",", ":")),
                 hashlib.sha256(handle.inline_content.encode()).hexdigest(),
             )
         ).encode()
         digest = hmac.new(self._log_secret, identity, hashlib.sha256).digest()[:18]
-        log_id = base64.urlsafe_b64encode(digest).decode().rstrip("=")
-        self._log_handles[log_id] = handle
-        return log_id
+        return base64.urlsafe_b64encode(digest).decode().rstrip("=")
 
     def _log_descriptor(self, handle: LogHandle) -> LogDescriptor:
         log_id = self._register_log_handle(handle)
-        try:
-            total_bytes = len(handle.inline_content.encode()) if handle.kind == "inline" else handle.path.stat().st_size
-            updated_at = self._mtime_iso(handle.path)
-        except OSError:
-            total_bytes = 0
-            updated_at = ""
         if handle.kind == "inline":
             summary_text = handle.inline_content
+            total_bytes = len(handle.inline_content.encode())
+            updated_at = self._handle_mtime(handle)
         else:
             try:
-                summary_text = handle.path.read_bytes()[:LOG_SUMMARY_READ_BYTES].decode(
+                raw, file_stat = self._read_regular_descriptor(
+                    handle.path,
+                    handle.run_dir,
+                    LOG_SUMMARY_READ_BYTES,
+                )
+                summary_text = raw.decode(
                     "utf-8", errors="replace"
                 )
+                total_bytes = file_stat.st_size
+                updated_at = self._timestamp_iso(file_stat.st_mtime)
             except OSError:
                 summary_text = ""
+                total_bytes = 0
+                updated_at = ""
         return LogDescriptor(
             log_id=log_id,
             source=handle.source,
@@ -2305,10 +2433,31 @@ class LoopDashboardStore:
             attempt_id=handle.attempt_id,
         )
 
-    def _bounded_log_file(self, path: Path) -> tuple[str, int, bool]:
-        total_bytes = path.stat().st_size
-        with path.open("rb") as handle:
-            raw = handle.read(LOG_DETAIL_READ_BYTES + 1)
+    def _log_scan_text(self, handle: LogHandle) -> str:
+        if handle.kind == "inline":
+            encoded = handle.inline_content.encode()[:LOG_EVENT_SCAN_BYTES]
+        else:
+            try:
+                encoded, _file_stat = self._read_regular_descriptor(
+                    handle.path,
+                    handle.run_dir,
+                    LOG_EVENT_SCAN_BYTES,
+                )
+            except OSError:
+                return ""
+        return redact_text(encoded.decode("utf-8", errors="replace"))
+
+    def _bounded_log_file(
+        self,
+        path: Path,
+        root: Path,
+    ) -> tuple[str, int, bool]:
+        raw, file_stat = self._read_regular_descriptor(
+            path,
+            root,
+            LOG_DETAIL_READ_BYTES + 1,
+        )
+        total_bytes = file_stat.st_size
         text = raw[:LOG_DETAIL_READ_BYTES].decode("utf-8", errors="replace")
         redacted = redact_text(text)
         content, response_truncated = self._truncate_utf8(
@@ -2326,6 +2475,112 @@ class LoopDashboardStore:
         redacted = redact_text(text)
         content, truncated = self._truncate_utf8(redacted, LOG_DETAIL_MAX_BYTES)
         return content, total_bytes, truncated
+
+    def _read_regular_descriptor(
+        self,
+        path: Path,
+        root: Path,
+        limit: int,
+    ) -> tuple[bytes, os.stat_result]:
+        descriptor, file_stat = self._open_regular_descriptor(path, root)
+        try:
+            chunks: list[bytes] = []
+            remaining = limit
+            while remaining > 0:
+                chunk = os.read(descriptor, min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            return b"".join(chunks), file_stat
+        finally:
+            os.close(descriptor)
+
+    def _read_regular_tail_descriptor(
+        self,
+        path: Path,
+        root: Path,
+        limit: int,
+    ) -> tuple[bytes, os.stat_result]:
+        descriptor, file_stat = self._open_regular_descriptor(path, root)
+        try:
+            os.lseek(descriptor, max(0, file_stat.st_size - limit), os.SEEK_SET)
+            chunks: list[bytes] = []
+            remaining = limit
+            while remaining > 0:
+                chunk = os.read(descriptor, min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            return b"".join(chunks), file_stat
+        finally:
+            os.close(descriptor)
+
+    def _open_regular_descriptor(
+        self,
+        path: Path,
+        root: Path,
+    ) -> tuple[int, os.stat_result]:
+        resolved_root = root.resolve(strict=True)
+        lexical_path = path if path.is_absolute() else resolved_root / path
+        if ".." in lexical_path.parts:
+            raise OSError("unsafe log path")
+        try:
+            relative = lexical_path.absolute().relative_to(resolved_root)
+        except ValueError as exc:
+            raise OSError("log path is outside its containment root") from exc
+        if not relative.parts:
+            raise OSError("log path is not a file below its root")
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW
+        directory_fd = os.open(resolved_root, directory_flags)
+        try:
+            for component in relative.parts[:-1]:
+                next_fd = os.open(
+                    component,
+                    directory_flags,
+                    dir_fd=directory_fd,
+                )
+                os.close(directory_fd)
+                directory_fd = next_fd
+            descriptor = os.open(
+                relative.parts[-1],
+                file_flags,
+                dir_fd=directory_fd,
+            )
+        finally:
+            os.close(directory_fd)
+        try:
+            file_stat = os.fstat(descriptor)
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise OSError("log target is not a regular file")
+            return descriptor, file_stat
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def _read_json_secure(self, path: Path, root: Path) -> Any:
+        try:
+            raw, file_stat = self._read_regular_descriptor(
+                path,
+                root,
+                SESSION_FILE_MAX_BYTES + 1,
+            )
+            if file_stat.st_size > SESSION_FILE_MAX_BYTES:
+                return None
+            return json.loads(raw.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+
+    def _handle_mtime(self, handle: LogHandle) -> str:
+        root = self.project_root if handle.kind == "inline" else handle.run_dir
+        try:
+            descriptor, file_stat = self._open_regular_descriptor(handle.path, root)
+        except OSError:
+            return ""
+        os.close(descriptor)
+        return self._timestamp_iso(file_stat.st_mtime)
 
     @staticmethod
     def _truncate_utf8(text: str, limit: int) -> tuple[str, bool]:
@@ -2421,10 +2676,15 @@ class LoopDashboardStore:
         events: list[Event] = []
         updated_at = self._mtime_iso(safe_path)
         try:
-            lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            raw, _file_stat = self._read_regular_tail_descriptor(
+                safe_path,
+                run_dir,
+                STRUCTURED_EVENT_MAX_BYTES,
+            )
+            lines = raw.decode("utf-8", errors="replace").splitlines()
         except OSError:
             return []
-        for line in lines:
+        for line in lines[-STRUCTURED_EVENT_MAX_LINES:]:
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError:
@@ -2451,9 +2711,12 @@ class LoopDashboardStore:
         events: list[Event] = []
         for safe_path in self._safe_jsonl_files(sessions_dir):
             try:
-                if safe_path.stat().st_size > SESSION_FILE_MAX_BYTES:
-                    continue
-                lines = safe_path.read_text(encoding="utf-8", errors="replace").splitlines()
+                raw, _file_stat = self._read_regular_tail_descriptor(
+                    safe_path,
+                    sessions_dir,
+                    SESSION_FILE_MAX_BYTES,
+                )
+                lines = raw.decode("utf-8", errors="replace").splitlines()
             except OSError:
                 continue
             for line in lines[-SESSION_EVENT_LIMIT:]:
@@ -2474,7 +2737,9 @@ class LoopDashboardStore:
 
     def _safe_jsonl_files(self, root: Path) -> list[Path]:
         safe_paths: list[tuple[float, Path]] = []
-        for path in root.rglob("*.jsonl"):
+        for index, path in enumerate(root.rglob("*.jsonl")):
+            if index >= SESSION_FILE_SCAN_LIMIT:
+                break
             safe_path = self._safe_file_under(path, root)
             if safe_path is None:
                 continue
@@ -2527,7 +2792,7 @@ class LoopDashboardStore:
                 final_result = None
             safe_final_result = self._safe_file_under(final_result, task_dir) if final_result is not None else None
             if safe_final_result is not None:
-                payload = self._read_json(safe_final_result, allowed_root=safe_final_result.parent)
+                payload = self._read_json_secure(safe_final_result, task_dir)
                 if isinstance(payload, dict):
                     return safe_final_result, payload
         candidates = [
@@ -2538,7 +2803,7 @@ class LoopDashboardStore:
         if not candidates:
             return None, None
         latest = max(candidates, key=lambda path: path.stat().st_mtime)
-        payload = self._read_json(latest, allowed_root=latest.parent)
+        payload = self._read_json_secure(latest, task_dir)
         if not isinstance(payload, dict):
             return None, None
         return latest, payload
