@@ -1835,6 +1835,48 @@ def test_http_probe_parses_bounded_json_payload(monkeypatch) -> None:
     assert result["payload"] == {"status": "available", "diagnostics": []}
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "expected_accept"),
+    [
+        ("http://127.0.0.1:5173/", "text/html"),
+        ("http://127.0.0.1:8766/api/health", "application/json"),
+    ],
+)
+def test_http_probe_uses_endpoint_appropriate_accept_header(
+    monkeypatch,
+    endpoint: str,
+    expected_accept: str,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    observed_accept: list[str | None] = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def getcode(self) -> int:
+            return 200
+
+        def read(self, _limit: int) -> bytes:
+            return b""
+
+    class Opener:
+        def open(self, request, **_kwargs: object) -> Response:
+            observed_accept.append(request.get_header("Accept"))
+            return Response()
+
+    monkeypatch.setattr(services, "build_opener", lambda *_args: Opener())
+
+    result = services._http_probe(endpoint, 1.0)
+
+    assert result["status"] == "healthy"
+    assert observed_accept == [expected_accept]
+
+
 def test_freshness_summary_is_redacted_and_bounded(tmp_path: Path) -> None:
     from scripts.loop_supervisor.services import observe_runtime_health
 

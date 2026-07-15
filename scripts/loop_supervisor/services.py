@@ -1371,7 +1371,12 @@ def _safe_details(details: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _http_probe(endpoint: str, timeout_seconds: float) -> Mapping[str, Any]:
-    request = Request(endpoint, headers={"Accept": "application/json"}, method="GET")
+    accept = (
+        "text/html"
+        if endpoint == _MANAGED_SERVICES["crawler-frontend"].endpoint
+        else "application/json"
+    )
+    request = Request(endpoint, headers={"Accept": accept}, method="GET")
     opener = build_opener(ProxyHandler({}))
     try:
         with opener.open(request, timeout=timeout_seconds) as response:
