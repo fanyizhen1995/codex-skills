@@ -340,10 +340,9 @@ button {
 
 .section {
   margin-bottom: 12px;
-  padding: 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  padding: 14px 0;
+  background: transparent;
+  border: 0;
 }
 
 .section-head {
@@ -607,7 +606,11 @@ tr:last-child td {
 }
 
 .agent-result.compact {
-  background: var(--surface);
+  padding: 9px 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
 }
 
 .child-agent-grid {
@@ -642,6 +645,12 @@ tr:last-child td {
 
 .recovery-log-detail[hidden] {
   display: none;
+}
+
+.attempt-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
 }
 
 .severity-bad {

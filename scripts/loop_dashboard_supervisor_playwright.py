@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,7 @@ DECISION_COUNT = 26
 SKILL_COUNT = 26
 EVENT_COUNT = 26
 LOG_COUNT = 26
+ATTEMPT_COUNT = 421
 RUN_ID = "dashboard-parent-001"
 CHILD_RUN_ID = "dashboard-run-001"
 TASK_ID = "task-8-browser"
@@ -67,11 +69,16 @@ def main() -> int:
                     "real parent/child Planner, Generator, Evaluator and task-contract artifacts drove run semantics",
                     "26 run events and 26 run logs paginated through exact Task 7 envelopes",
                     "stale requests were aborted or generation-rejected and structured Next failure rolled back",
-                    "only visited numeric pages were exposed and compact session state restored cursor history",
+                    "page-21 offset window restored with one globally bounded dashboard session token",
+                    "Supervisor deactivation cancelled delayed service responses before run selection",
+                    "complete service and freshness coverage included hidden unhealthy rows",
                     "page 2 stayed stable after a newer SQLite action was inserted",
+                    "421 recovery attempts remained reachable through exact paged envelopes",
                     "log detail was fetched only after explicit expansion",
                     "direct URL selected-tab-only loading, ARIA keyboard tabs and independent page-size 50 state passed",
                     "complete task description, parent/child Agent results, acceptance, diagnostics and provenance were visible",
+                    "contract-driven Chinese mappings, honest Reviewer metrics, child filters and structured diagnostics passed",
+                    "run sections were unframed without nested cards",
                     "exact seven Supervisor tabs and seven run-detail tabs were visible",
                     "removed control roles were absent from visible UI",
                     "desktop, run-detail and mobile screenshots passed canvas, internal table scrolling and overflow checks",
@@ -224,15 +231,26 @@ def seed_supervisor_sqlite(project_root: Path) -> None:
         ("crawler-backend", "healthy", "http://127.0.0.1:8765/api/health", "1983168", "2026-07-15T12:20:00Z", "abc123"),
         ("crawler-frontend", "healthy", "http://127.0.0.1:5173", "1983724", "2026-07-15T12:20:00Z", "abc123"),
         ("loop-dashboard", "healthy", "http://127.0.0.1:8766/api/health", "1983192", "2026-07-15T12:20:00Z", "abc123"),
-        ("supervisor-worker", "unavailable", "", "", "", ""),
+        ("supervisor-worker", "healthy", "worker://worker-01", "worker-01", "2026-07-15T12:20:00Z", "fixture-v1"),
     ]
+    services.extend(
+        (
+            f"managed-service-{index:03d}",
+            "healthy" if index <= 101 else "unavailable",
+            f"http://127.0.0.1:{19000 + index}/health" if index <= 101 else "",
+            str(2_000_000 + index) if index <= 101 else "",
+            "2026-07-15T12:10:00Z" if index <= 101 else "",
+            "fixture-v1" if index <= 101 else "",
+        )
+        for index in range(1, 103)
+    )
     for service_id, status, endpoint, process_id, heartbeat, version in services:
         connection.execute(
             """
             INSERT INTO services(
               service_id, status, endpoint, process_id, heartbeat_at, version,
               details_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, '2026-07-15T12:20:00Z', '2026-07-15T12:20:00Z')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 service_id,
@@ -245,6 +263,20 @@ def seed_supervisor_sqlite(project_root: Path) -> None:
                     {"reachable": status == "healthy", "freshness": "通过" if status == "healthy" else "暂无数据"},
                     ensure_ascii=False,
                 ),
+                (
+                    "2026-07-15T12:20:00Z"
+                    if not service_id.startswith("managed-service")
+                    else "2026-07-15T10:00:00Z"
+                    if status == "unavailable"
+                    else "2026-07-15T11:00:00Z"
+                ),
+                (
+                    "2026-07-15T12:20:00Z"
+                    if not service_id.startswith("managed-service")
+                    else "2026-07-15T10:00:00Z"
+                    if status == "unavailable"
+                    else "2026-07-15T11:00:00Z"
+                ),
             ),
         )
     connection.execute(
@@ -253,21 +285,33 @@ def seed_supervisor_sqlite(project_root: Path) -> None:
         VALUES ('worker-01', '2026-07-15T12:20:00Z', '2026-07-15T09:00:00Z', '2026-07-15T12:20:00Z')
         """
     )
-    connection.execute(
-        """
-        INSERT INTO action_attempts(
-          attempt_id, action_id, worker_id, result_class, summary, failure_key,
-          error_class, artifact_json, checkpoint, recovery_tier,
-          started_at, finished_at, created_at
-        ) VALUES (
-          'attempt-action-001', 'action-001', 'worker-01', 'recoverable_partial',
-          '已验证 Generator 结果并从检查点恢复 Evaluator envelope', '', '', ?,
-          'generator-result-validated', 2,
-          '2026-07-15T12:26:00Z', '2026-07-15T12:27:00Z', '2026-07-15T12:27:00Z'
+    attempt_base = datetime(2026, 7, 15, 12, 27, tzinfo=timezone.utc)
+    for index in range(1, ATTEMPT_COUNT + 1):
+        finished = attempt_base - timedelta(seconds=index)
+        started = finished - timedelta(seconds=30)
+        summary = (
+            "已验证 Generator 结果并从检查点恢复 Evaluator envelope"
+            if index == 1
+            else f"恢复尝试 {index:03d}：按稳定游标读取完整恢复证据"
         )
-        """,
-        (json.dumps([f".codex/loop-runs/{RUN_ID}/generator-result.json"], ensure_ascii=False),),
-    )
+        connection.execute(
+            """
+            INSERT INTO action_attempts(
+              attempt_id, action_id, worker_id, result_class, summary, failure_key,
+              error_class, artifact_json, checkpoint, recovery_tier,
+              started_at, finished_at, created_at
+            ) VALUES (?, 'action-001', 'worker-01', 'recoverable_partial', ?, '', '', ?, ?, 2, ?, ?, ?)
+            """,
+            (
+                f"attempt-action-001-{index:03d}",
+                summary,
+                json.dumps([f".codex/loop-runs/{RUN_ID}/generator-result.json"], ensure_ascii=False),
+                "generator-result-validated" if index == 1 else f"checkpoint-{index:03d}",
+                started.isoformat().replace("+00:00", "Z"),
+                finished.isoformat().replace("+00:00", "Z"),
+                finished.isoformat().replace("+00:00", "Z"),
+            ),
+        )
     freshness = [
         ("freshness-dashboard", "loop-dashboard", "fresh", "Dashboard API 与运行产物一致", {"lag_seconds": 2}),
         ("freshness-crawler", "crawler-workbench", "stale", "Crawler 最近同步已过期", {"lag_seconds": 420}),
@@ -584,9 +628,15 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             (() => {
               const originalFetch = window.fetch.bind(window);
               let delayed = false;
+              let delayServices = false;
+              window.__armDelayedServices = () => { delayServices = true; };
               window.fetch = (input, init) => {
                 const url = new URL(typeof input === "string" ? input : input.url, window.location.origin);
                 const response = originalFetch(input, init);
+                if (delayServices && url.pathname === "/api/supervisor/services") {
+                  delayServices = false;
+                  return response.then((value) => new Promise((resolve) => setTimeout(() => resolve(value), 700)));
+                }
                 if (!delayed && url.pathname === "/api/supervisor/actions"
                     && !url.searchParams.has("run_id") && !url.searchParams.has("status")) {
                   delayed = true;
@@ -613,10 +663,32 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             expect(supervisor_panel).to_contain_text("活动运行")
             expect(supervisor_panel).to_contain_text("Task 7 未提供活动运行聚合")
             expect(desktop.locator("#top-status")).to_contain_text("Supervisor 降级")
+            if not any(
+                urlparse(url).path == "/api/supervisor/services" and parse_qs(urlparse(url).query).get("cursor")
+                for url in request_urls
+            ):
+                raise AssertionError("complete health did not request hidden service pages")
+
+            desktop.evaluate("window.__armDelayedServices()")
+            with desktop.expect_request(
+                lambda request: urlparse(request.url).path == "/api/supervisor/services"
+                and parse_qs(urlparse(request.url).query).get("page_size") == ["100"]
+            ):
+                desktop.get_by_role("tab", name="服务", exact=True).click()
+            desktop.locator(f'[data-run-id="{RUN_ID}"]').click()
+            expect(desktop.locator("#run-title")).to_have_text(RUN_ID)
+            desktop.wait_for_timeout(850)
+            expect(desktop.locator("#top-status")).to_contain_text("运行需要修复")
+            if not desktop.locator("#supervisor-view").evaluate("node => node.classList.contains('is-hidden')"):
+                raise AssertionError("delayed-services transition restored Supervisor over the run view")
+            desktop.locator("#supervisor-nav").click()
+            expect(desktop.get_by_role("tab", name="服务", exact=True)).to_have_attribute("aria-selected", "true")
             desktop.get_by_role("tab", name="服务", exact=True).click()
             expect(supervisor_panel).to_contain_text("Supervisor Worker")
             expect(supervisor_panel).to_contain_text("Worker freshness 不可用")
             expect(supervisor_panel).to_contain_text("Crawler 最近同步已过期")
+            if supervisor_panel.get_by_text("managed-service-102", exact=True).count():
+                raise AssertionError("hidden unhealthy service unexpectedly appeared on the first service page")
             verify_collection_pagination(
                 desktop,
                 supervisor_panel,
@@ -657,6 +729,27 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             expect(supervisor_panel).to_contain_text("已验证 Generator 结果并从检查点恢复 Evaluator envelope")
             expect(supervisor_panel).to_contain_text("generator-result-validated")
             expect(supervisor_panel).to_contain_text(f".codex/loop-runs/{RUN_ID}/generator-result.json")
+            attempt_detail = supervisor_panel.locator("#recovery-log-action-001")
+            expect(attempt_detail.get_by_text("第 1-20 条，共 421 条", exact=False)).to_be_visible()
+            for page_number in range(2, 22):
+                attempt_detail.get_by_role("button", name="下一页", exact=True).click()
+                start = (page_number - 1) * 20 + 1
+                end = min(page_number * 20, ATTEMPT_COUNT)
+                expect(attempt_detail.get_by_text(f"第 {start}-{end} 条，共 {ATTEMPT_COUNT} 条", exact=False)).to_be_visible()
+            expect(attempt_detail.get_by_text("checkpoint-401", exact=False)).to_be_visible()
+            if attempt_detail.get_by_role("button", name="1", exact=True).count() != 0:
+                raise AssertionError("page-21 window retained unknown page 1")
+            desktop.reload(wait_until="networkidle")
+            expect(desktop.get_by_role("tab", name="任务恢复", exact=True)).to_have_attribute("aria-selected", "true")
+            expect(desktop.get_by_label("运行 ID")).to_have_value(RUN_ID)
+            recovery_expand = supervisor_panel.locator('[aria-controls="recovery-log-action-001"]')
+            recovery_expand.click()
+            attempt_detail = supervisor_panel.locator("#recovery-log-action-001")
+            expect(attempt_detail.get_by_text("第 401-420 条，共 421 条", exact=False)).to_be_visible()
+            expect(attempt_detail.get_by_text("checkpoint-401", exact=False)).to_be_visible()
+            recovery_expand.click()
+
+            main_recovery_pager = supervisor_panel.locator('[data-pager-key="supervisor-recovery"]')
 
             failure = {"pending": True}
 
@@ -684,10 +777,10 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                     route.continue_()
 
             desktop.route("**/api/supervisor/actions?*", fail_first_cursor)
-            supervisor_panel.get_by_role("button", name="下一页", exact=True).click()
+            main_recovery_pager.get_by_role("button", name="下一页", exact=True).click()
             expect(supervisor_panel).to_contain_text("snapshot_capacity_exceeded：稳定快照容量已满；建议：缩小过滤范围后重试")
             expect(supervisor_panel.get_by_text("action-001", exact=True)).to_be_visible()
-            if supervisor_panel.get_by_role("button", name="2", exact=True).count() != 0:
+            if main_recovery_pager.get_by_role("button", name="2", exact=True).count() != 0:
                 raise AssertionError("failed Next exposed unknown numeric page 2")
             supervisor_panel.get_by_role("button", name="重试", exact=True).click()
             expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
@@ -722,6 +815,7 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
             expect(supervisor_panel.get_by_label("每页条数")).to_have_value("50")
             desktop.get_by_role("tab", name="任务恢复", exact=True).click()
             expect(supervisor_panel.get_by_text("第 21-26 条，共 26 条", exact=False)).to_be_visible()
+            session_bound = assert_global_pager_bound(desktop)
             url_state = desktop.url
             if len(url_state) > 1200 or "cursor=" in url_state or "eyJwYXls" in url_state:
                 raise AssertionError(f"pager URL is not compact: {url_state}")
@@ -843,6 +937,8 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                 "log_detail_requests_before_expand": details_before,
                 "log_detail_requests_after_expand": details_after,
                 "compact_url_length": len(url_state),
+                "global_session_bound": session_bound,
+                "attempt_page_21": ["attempt-action-001-401", "attempt-action-001-420"],
                 "request_count": len(request_urls) + len(direct_requests),
                 "assertions": [
                     "selected-tab-only direct URL request timing",
@@ -850,6 +946,10 @@ def run_browser_actions(dashboard_url: str, output_dir: Path, fixture_root: Path
                     "page-size 50 persists independently",
                     "complete task description and artifact-backed run semantics",
                     "mobile table scrolling remains internal",
+                    "page-21 reload restores the retained offset window",
+                    "many-run/tab URL bound uses one dashboard token",
+                    "delayed-services transition cannot overwrite run UI",
+                    "attempt page 21 remains reachable through exact envelopes",
                 ],
             }
         except Exception:
@@ -914,6 +1014,40 @@ def assert_selected_tab_only_requests(request_urls: list[str]) -> None:
 
 def request_path_count(request_urls: list[str], prefix: str) -> int:
     return sum(urlparse(url).path.startswith(prefix) for url in request_urls)
+
+
+def assert_global_pager_bound(page) -> dict[str, int]:
+    metrics = page.evaluate(
+        """() => {
+          for (let index = 0; index < 40; index += 1) {
+            const pager = new window.LoopPagination.CursorPager({
+              key: `run-many-${index}-tab-${index % 7}`,
+              endpoint: "/api/runs",
+              container: document.createElement("div"),
+              renderItems: () => {},
+            });
+            pager.persistState();
+          }
+          const url = new URL(window.location.href);
+          const token = url.searchParams.get("dashboard_state");
+          const raw = sessionStorage.getItem(`loop-dashboard-state:${token}`) || "";
+          const state = raw ? JSON.parse(raw) : { pagers: {} };
+          return {
+            urlLength: url.href.length,
+            dashboardTokens: url.searchParams.getAll("dashboard_state").length,
+            pagerParams: Array.from(url.searchParams.keys()).filter((name) => name.startsWith("pager.")).length,
+            dashboardSessions: Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index))
+              .filter((key) => key && key.startsWith("loop-dashboard-state:")).length,
+            storedPagers: Object.keys(state.pagers || {}).length,
+            stateBytes: raw.length,
+          };
+        }"""
+    )
+    if metrics["dashboardTokens"] != 1 or metrics["pagerParams"] != 0 or metrics["dashboardSessions"] != 1:
+        raise AssertionError(f"many-run/tab URL bound failed: {metrics}")
+    if metrics["storedPagers"] > 24 or metrics["stateBytes"] > 256 * 1024 or metrics["urlLength"] > 600:
+        raise AssertionError(f"global pager session bound failed: {metrics}")
+    return metrics
 
 
 def verify_collection_pagination(page, panel, tab_name: str, first_id: str) -> None:

@@ -8,6 +8,18 @@
   } = window.LoopSupervisor;
 
   const RUN_TABS = ["overview", "children", "agents", "acceptance", "logs", "diagnostics", "artifacts"];
+  const CHILD_STATUS_OPTIONS = [
+    ["", "全部状态"],
+    ["progressing", "进行中"], ["completed", "已完成"], ["blocked", "阻塞"],
+    ["planned", "已计划"], ["generating", "生成中"], ["evaluating", "验收中"],
+    ["repair_needed", "需要修复"], ["artifact_hygiene", "产物清理"], ["cleanup", "清理中"],
+    ["passed", "通过"], ["stopped_budget", "停止：预算耗尽"],
+    ["stopped_blocked", "停止：阻塞"], ["stopped_by_reviewer", "Reviewer 已停止"],
+  ];
+  const ACCEPTANCE_STATUS_OPTIONS = [
+    ["", "全部状态"], ["pass", "通过"], ["passed", "通过"], ["fail", "失败"],
+    ["failed", "失败"], ["blocked", "阻塞"], ["pending", "等待"], ["partial", "部分完成"],
+  ];
   const state = {
     view: "supervisor",
     selectedRunId: "",
@@ -188,6 +200,7 @@
 
   async function selectRun(runId) {
     if (!runId) return;
+    supervisor.deactivate();
     state.view = "run";
     state.selectedRunId = runId;
     state.activeRunTab = "overview";
@@ -279,11 +292,11 @@
       },
       children: {
         endpoint: "children", title: "子任务", note: "完整展示每个子任务和 Agent 结果",
-        filters: ["status"], empty: "暂无子任务", render: renderChildren,
+        filters: ["status"], filterOptions: CHILD_STATUS_OPTIONS, empty: "暂无子任务", render: renderChildren,
       },
       acceptance: {
         endpoint: "acceptance", title: "验收", note: "模拟用户验收与 Evaluator 结论",
-        filters: ["status"], empty: "暂无结构化验收场景", render: renderAcceptance,
+        filters: ["status"], filterOptions: ACCEPTANCE_STATUS_OPTIONS, empty: "暂无结构化验收场景", render: renderAcceptance,
         prelude: () => renderAcceptanceEvidence(state.detail.acceptance_summary),
       },
       logs: {
@@ -326,7 +339,7 @@
     if (!config.filters.length && !config.query) return null;
     const toolbar = node("div", "toolbar run-filters");
     if (config.filters.includes("kind")) toolbar.append(selectFilter("kind", "类型", [["", "全部类型"], ["transition", "状态变化"], ["agent", "Agent"], ["skill", "Skill"], ["tool", "工具"]]));
-    if (config.filters.includes("status")) toolbar.append(selectFilter("status", "状态", [["", "全部状态"], ["pass", "通过"], ["failed", "失败"], ["blocked", "阻塞"], ["pending", "等待"]]));
+    if (config.filters.includes("status")) toolbar.append(selectFilter("status", "状态", config.filterOptions || ACCEPTANCE_STATUS_OPTIONS));
     if (config.filters.includes("stream")) toolbar.append(selectFilter("stream", "日志流", [["", "全部日志"], ["stdout", "stdout"], ["stderr", "stderr"]]));
     if (config.filters.includes("severity")) toolbar.append(selectFilter("severity", "严重性", [["", "全部严重性"], ["critical", "严重"], ["major", "重要"], ["minor", "一般"]]));
     if (config.query) {
@@ -667,32 +680,39 @@
 
   function phaseLabel(value) {
     const labels = {
-      planned: "已计划", child_running: "子任务运行中", generating: "生成中", evaluating: "验收中",
-      passed: "通过", passed_waiting_human_merge: "通过，等待人工合并", stopped_budget: "停止：预算耗尽",
-      stopped_blocked: "停止：阻塞", stopped_no_action: "停止：无需操作", repair_needed: "需要修复",
-      invalid_artifact: "产物无效", audit_blocked: "审视阻塞", terminal: "已终止",
+      preflight: "预检中", planned: "已计划", generating: "生成中", verifying: "证据验证中",
+      evaluating: "验收中", repair_needed: "需要修复", artifact_hygiene: "产物清理中",
+      cleanup: "清理中", passed_waiting_human_merge: "通过，等待人工合并", planning: "规划中",
+      committed: "已提交", stopped_no_action: "停止：无需操作", stopped_by_reviewer: "Reviewer 已停止",
+      stopped_budget: "停止：预算耗尽", stopped_blocked: "停止：阻塞", audit_pending: "历史审视待处理",
+      auditing: "历史审视中", audit_passed: "历史审视通过", audit_blocked: "历史审视阻塞",
+      child_running: "子任务运行中", passed: "通过", invalid_artifact: "产物无效", terminal: "已终止",
     };
     return labels[value] || "阶段不可用";
   }
 
   function phaseTone(value) {
-    if (["passed", "passed_waiting_human_merge", "stopped_no_action"].includes(value)) return "good";
-    if (["stopped_blocked", "invalid_artifact", "audit_blocked", "terminal"].includes(value)) return "bad";
-    if (["planned", "child_running", "generating", "evaluating", "repair_needed", "stopped_budget"].includes(value)) return "warn";
+    if (["passed", "passed_waiting_human_merge", "stopped_no_action", "audit_passed", "committed"].includes(value)) return "good";
+    if (["stopped_blocked", "stopped_by_reviewer", "invalid_artifact", "audit_blocked", "terminal"].includes(value)) return "bad";
+    if ([
+      "preflight", "planned", "child_running", "planning", "generating", "verifying", "evaluating",
+      "repair_needed", "artifact_hygiene", "cleanup", "stopped_budget", "audit_pending", "auditing",
+    ].includes(value)) return "warn";
     return "neutral";
   }
 
   function agentStatusLabel(value) {
     const labels = {
-      done: "完成", implemented: "已实现", passed: "通过", pass: "通过", ready: "就绪", running: "运行中",
-      waiting: "等待", blocked: "阻塞", skipped: "跳过", fail: "失败", failed: "失败", missing: "暂无产物",
+      done: "完成", implemented: "已实现", repaired: "已修复", passed: "通过", pass: "通过", ready: "就绪",
+      running: "运行中", waiting: "等待", blocked: "阻塞", skipped: "跳过", fail: "失败", failed: "失败",
+      timeout: "超时", invalid_json: "结果格式无效", missing: "暂无产物",
     };
     return labels[value] || "状态不可用";
   }
 
   function agentStatusTone(value) {
-    if (["done", "implemented", "passed", "pass", "ready"].includes(value)) return "good";
-    if (["blocked", "fail", "failed", "missing"].includes(value)) return "bad";
+    if (["done", "implemented", "repaired", "passed", "pass", "ready"].includes(value)) return "good";
+    if (["blocked", "fail", "failed", "timeout", "invalid_json", "missing"].includes(value)) return "bad";
     if (["running", "waiting", "skipped"].includes(value)) return "warn";
     return "neutral";
   }

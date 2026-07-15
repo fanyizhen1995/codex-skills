@@ -4,9 +4,12 @@
   const PAGE_SIZES = [20, 50, 100];
   const PAGE_KEYS = ["items", "next_cursor", "previous_cursor", "page_size", "total", "has_more"];
   const MAX_VISITED_PAGES = 20;
+  const MAX_STORED_PAGERS = 24;
   const MAX_CURSOR_CHARS = 4096;
-  const MAX_STATE_BYTES = 96 * 1024;
-  const STATE_VERSION = 1;
+  const MAX_STATE_BYTES = 256 * 1024;
+  const STATE_VERSION = 2;
+  const DASHBOARD_STATE_PARAM = "dashboard_state";
+  const DASHBOARD_STORAGE_PREFIX = "loop-dashboard-state:";
   const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
   class DashboardError extends Error {
@@ -131,6 +134,54 @@
     return `${Date.now().toString(36)}${Math.random().toString(36).substring(2, 14)}`;
   }
 
+  function dashboardStorageKey(token) {
+    return `${DASHBOARD_STORAGE_PREFIX}${token}`;
+  }
+
+  function emptyDashboardState() {
+    return { version: STATE_VERSION, pagers: {} };
+  }
+
+  function readDashboardState(token) {
+    const raw = sessionStorage.getItem(dashboardStorageKey(token));
+    if (!raw || raw.length > MAX_STATE_BYTES) return emptyDashboardState();
+    try {
+      const payload = JSON.parse(raw);
+      if (!payload || payload.version !== STATE_VERSION || !payload.pagers || typeof payload.pagers !== "object") {
+        return emptyDashboardState();
+      }
+      const pagers = Object.fromEntries(
+        Object.entries(payload.pagers)
+          .filter(([key, entry]) => (
+            typeof key === "string"
+            && key.length > 0
+            && key.length <= 240
+            && entry
+            && typeof entry === "object"
+            && Number.isSafeInteger(entry.updatedAt)
+            && entry.updatedAt >= 0
+            && entry.state
+            && typeof entry.state === "object"
+          ))
+          .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
+          .slice(0, MAX_STORED_PAGERS),
+      );
+      return { version: STATE_VERSION, pagers };
+    } catch (_error) {
+      return emptyDashboardState();
+    }
+  }
+
+  function pruneInactiveDashboardStates(activeToken) {
+    const activeKey = dashboardStorageKey(activeToken);
+    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+      const key = sessionStorage.key(index);
+      if (key && key.startsWith(DASHBOARD_STORAGE_PREFIX) && key !== activeKey) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  }
+
   class CursorPager {
     constructor(options) {
       this.key = options.key;
@@ -151,38 +202,34 @@
       this.retryLastRequest = () => this.refresh();
     }
 
-    param(name) {
-      return `pager.${this.key}.${name}`;
-    }
-
-    storageKey(token = this.stateToken) {
-      return `loop-pager-state:${this.key}:${token}`;
-    }
-
     restoreToken() {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get(this.param("state"));
+      const token = params.get(DASHBOARD_STATE_PARAM);
       return token && TOKEN_PATTERN.test(token) ? token : compactToken();
     }
 
     restoreState() {
-      const raw = sessionStorage.getItem(this.storageKey());
-      if (!raw || raw.length > MAX_STATE_BYTES) return initialState();
+      const dashboard = readDashboardState(this.stateToken);
+      const entry = dashboard.pagers[this.key];
+      const payload = entry && typeof entry === "object" ? entry.state : null;
+      if (!payload || typeof payload !== "object") return initialState();
       try {
-        const payload = JSON.parse(raw);
-        if (!payload || payload.version !== STATE_VERSION) return initialState();
         const cursors = payload.visitedCursors;
         if (
           !Array.isArray(cursors)
           || cursors.length < 1
           || cursors.length > MAX_VISITED_PAGES
-          || cursors[0] !== null
           || cursors.some((cursor) => cursor !== null && (typeof cursor !== "string" || cursor.length > MAX_CURSOR_CHARS))
+        ) return initialState();
+        const pageOffset = Number.isSafeInteger(payload.pageOffset) && payload.pageOffset >= 0 ? payload.pageOffset : -1;
+        if (
+          pageOffset < 0
+          || (pageOffset === 0 && cursors[0] !== null)
+          || (pageOffset > 0 && (typeof cursors[0] !== "string" || !cursors[0]))
         ) return initialState();
         const pageIndex = Number.isInteger(payload.pageIndex) && payload.pageIndex >= 0 && payload.pageIndex < cursors.length
           ? payload.pageIndex
           : 0;
-        const pageOffset = Number.isInteger(payload.pageOffset) && payload.pageOffset >= 0 ? payload.pageOffset : 0;
         const pageSize = PAGE_SIZES.includes(payload.pageSize) ? payload.pageSize : 20;
         const query = typeof payload.query === "string" ? payload.query.substring(0, 500) : "";
         const filters = {};
@@ -207,11 +254,32 @@
     }
 
     persistState() {
-      const payload = JSON.stringify({ version: STATE_VERSION, ...this.state });
-      if (payload.length > MAX_STATE_BYTES) throw new DashboardError("pager_state_too_large", "分页状态超过本地保存上限");
-      sessionStorage.setItem(this.storageKey(), payload);
+      const dashboard = readDashboardState(this.stateToken);
+      dashboard.pagers[this.key] = {
+        updatedAt: Date.now(),
+        state: cloneState(this.state),
+      };
+      const ordered = Object.entries(dashboard.pagers).sort(
+        (left, right) => Number(right[1]?.updatedAt || 0) - Number(left[1]?.updatedAt || 0),
+      );
+      dashboard.pagers = Object.fromEntries(ordered.slice(0, MAX_STORED_PAGERS));
+      let payload = JSON.stringify(dashboard);
+      while (payload.length > MAX_STATE_BYTES && Object.keys(dashboard.pagers).length > 1) {
+        const removable = Object.keys(dashboard.pagers).reverse().find((key) => key !== this.key);
+        if (!removable) break;
+        delete dashboard.pagers[removable];
+        payload = JSON.stringify(dashboard);
+      }
+      if (payload.length > MAX_STATE_BYTES) {
+        throw new DashboardError("pager_state_too_large", "分页状态超过本地保存上限");
+      }
+      pruneInactiveDashboardStates(this.stateToken);
+      sessionStorage.setItem(dashboardStorageKey(this.stateToken), payload);
       const url = new URL(window.location.href);
-      url.searchParams.set(this.param("state"), this.stateToken);
+      Array.from(url.searchParams.keys()).forEach((name) => {
+        if (name.startsWith("pager.")) url.searchParams.delete(name);
+      });
+      url.searchParams.set(DASHBOARD_STATE_PARAM, this.stateToken);
       window.history.replaceState({}, "", url);
       this.onStateChange(cloneState(this.state));
     }

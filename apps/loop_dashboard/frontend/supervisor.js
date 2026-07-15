@@ -15,9 +15,12 @@
       this.activeTab = SUPERVISOR_TABS.includes(requested) ? requested : "overview";
       this.canonicalizeActiveTab(requested);
       this.pagers = new Map();
+      this.recoveryAttemptPagers = new Map();
       this.activePagerKeys = [];
       this.summary = null;
       this.requestSequence = 0;
+      this.viewAbortController = null;
+      this.isActive = false;
       this.bindTabs();
     }
 
@@ -46,17 +49,31 @@
     }
 
     async show() {
+      this.isActive = true;
       this.syncTabs();
       await this.loadActiveTab();
     }
 
     async refresh() {
+      if (!this.isActive) return;
       await this.loadActiveTab({ refresh: true });
     }
 
-    async selectTab(tab) {
-      if (!SUPERVISOR_TABS.includes(tab)) return;
+    deactivate() {
+      this.isActive = false;
+      this.requestSequence += 1;
+      if (this.viewAbortController) this.viewAbortController.abort();
+      this.viewAbortController = null;
       this.activePagerKeys.forEach((key) => this.pagers.get(key)?.destroy());
+      this.recoveryAttemptPagers.forEach((pager) => pager.destroy());
+      this.activePagerKeys = [];
+    }
+
+    async selectTab(tab) {
+      if (!SUPERVISOR_TABS.includes(tab) || !this.isActive) return;
+      if (this.viewAbortController) this.viewAbortController.abort();
+      this.activePagerKeys.forEach((key) => this.pagers.get(key)?.destroy());
+      this.recoveryAttemptPagers.forEach((pager) => pager.destroy());
       this.activePagerKeys = [];
       this.activeTab = tab;
       const url = new URL(window.location.href);
@@ -77,75 +94,114 @@
     }
 
     async loadActiveTab(options = {}) {
+      if (!this.isActive) return;
+      if (this.viewAbortController) this.viewAbortController.abort();
+      this.viewAbortController = new AbortController();
+      const signal = this.viewAbortController.signal;
       const request = ++this.requestSequence;
       if (!options.refresh) this.panel.replaceChildren(messageNode("正在读取...", "empty-state"));
       try {
-        if (this.activeTab === "overview") await this.renderOverview(request);
-        else if (this.activeTab === "services") await this.renderServices(request, options);
-        else if (this.activeTab === "recovery") await this.renderRecovery(request, options);
-        else if (this.activeTab === "reviewer") await this.renderReviewer(request, options);
-        else if (this.activeTab === "decisions") await this.renderDecisions(request, options);
-        else if (this.activeTab === "skills") await this.renderSkills(request, options);
-        else await this.renderConfig(request);
+        if (this.activeTab === "overview") await this.renderOverview(request, signal);
+        else if (this.activeTab === "services") await this.renderServices(request, signal, options);
+        else if (this.activeTab === "recovery") await this.renderRecovery(request, signal, options);
+        else if (this.activeTab === "reviewer") await this.renderReviewer(request, signal, options);
+        else if (this.activeTab === "decisions") await this.renderDecisions(request, signal, options);
+        else if (this.activeTab === "skills") await this.renderSkills(request, signal, options);
+        else await this.renderConfig(request, signal);
       } catch (error) {
-        if (request !== this.requestSequence || error.name === "AbortError") return;
+        if (!this.isCurrentRequest(request, signal) || error.name === "AbortError") return;
         this.panel.replaceChildren(messageNode(errorText(error), "error-state"));
-        this.setHealth("unavailable", "健康状态不可用");
+        this.setHealth("unchecked", "健康状态未检查");
       }
     }
 
-    async loadSummary() {
-      const summary = await this.fetchJson("/api/supervisor");
+    isCurrentRequest(request, signal) {
+      return this.isActive && request === this.requestSequence && !signal.aborted;
+    }
+
+    async loadSummary(signal) {
+      const summary = await this.fetchJson("/api/supervisor", { signal });
       if (summary.status !== "available") {
-        const message = summary.error?.message || summary.diagnostics?.join("；") || "Supervisor 数据不可用";
-        throw new DashboardError(summary.status || "unavailable", message);
+        const diagnostic = objectValue(summary.error);
+        const message = structuredDiagnosticText({
+          status: summary.status,
+          code: diagnostic.code,
+          message: diagnostic.message,
+          diagnostics: summary.diagnostics,
+        });
+        throw new DashboardError(diagnostic.code || summary.status || "unavailable", message, { payload: summary });
       }
       this.summary = summary;
       return summary;
     }
 
     setHealth(mode, label) {
-      const tone = mode === "healthy" ? "good" : mode === "degraded" ? "warn" : "bad";
-      this.navStatus.textContent = mode === "healthy" ? "正常" : mode === "degraded" ? "降级" : "不可用";
+      const tone = mode === "healthy" ? "good" : mode === "degraded" ? "warn" : mode === "unchecked" ? "neutral" : "bad";
+      this.navStatus.textContent = mode === "healthy" ? "正常" : mode === "degraded" ? "降级" : mode === "unchecked" ? "未检查" : "不可用";
       this.navStatus.className = `status-text ${tone}`;
       this.topStatus.replaceChildren(
         chip(label, tone),
-        chip(mode === "healthy" ? "服务健康已验证" : mode === "degraded" ? "数据可读，服务未全部健康" : "健康状态不可用", tone),
+        chip(
+          mode === "healthy"
+            ? "服务与 freshness 全量验证"
+            : mode === "degraded"
+              ? "数据可读，服务或 freshness 未全部健康"
+              : mode === "unchecked"
+                ? "服务与 freshness 未检查"
+                : "健康状态不可用",
+          tone,
+        ),
         chip("无独立控制角色", "neutral"),
       );
     }
 
-    deriveHealth(summary, services) {
+    deriveHealth(summary, services, freshness, coverageComplete) {
       const rows = services?.items || [];
+      const freshnessRows = freshness?.items || [];
       if (!summary || summary.status !== "available" || !rows.length) {
-        this.setHealth("unavailable", summary ? "Supervisor 数据可读" : "健康状态不可用");
+        this.setHealth("unchecked", summary ? "Supervisor 数据可读，健康未检查" : "健康状态未检查");
         return;
       }
       const allHealthy = rows.every((service) => service.status === "healthy");
+      const allFresh = freshnessRows.length > 0 && freshnessRows.every((item) => ["fresh", "pass"].includes(item.status));
       const workers = summary.counts?.workers;
-      if (allHealthy && Number.isInteger(workers) && workers > 0) this.setHealth("healthy", "Supervisor 正常");
+      if (coverageComplete && allHealthy && allFresh && Number.isInteger(workers) && workers > 0) {
+        this.setHealth("healthy", "Supervisor 正常");
+      }
       else this.setHealth("degraded", "Supervisor 降级");
     }
 
-    updateHero(summary, services) {
+    updateHero(summary, services, freshness, coverageComplete) {
       const rows = services?.items || [];
       const healthy = rows.filter((item) => item.status === "healthy").length;
+      const freshnessRows = freshness?.items || [];
+      const fresh = freshnessRows.filter((item) => ["fresh", "pass"].includes(item.status)).length;
       this.hero.replaceChildren(
-        chip(rows.length ? `${healthy} / ${services.total} 服务健康` : "服务健康不可用", healthy === services?.total ? "good" : "warn"),
+        chip(rows.length ? `${healthy} / ${services.total} 服务健康` : "服务健康未检查", coverageComplete && healthy === services?.total ? "good" : "warn"),
+        chip(freshnessRows.length ? `${fresh} / ${freshness.total} freshness 通过` : "freshness 未覆盖", coverageComplete && fresh === freshness?.total ? "good" : "warn"),
         chip(`${valueText(summary.counts?.workers)} Worker 记录`, summary.counts?.workers ? "good" : "warn"),
-        chip("排序：最新优先", "neutral"),
       );
     }
 
-    async renderOverview(request) {
-      const summary = await this.loadSummary();
-      const pendingActions = await firstPage("/api/supervisor/actions", { status: "pending" });
-      const reviews = await firstPage("/api/supervisor/reviews");
-      const required = await firstPage("/api/supervisor/decision-required");
-      const services = await firstPage("/api/supervisor/services");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, services);
-      this.updateHero(summary, services);
+    async loadHealthEvidence(signal) {
+      const services = await fetchAllPages("/api/supervisor/services", signal);
+      const freshness = await fetchAllPages("/api/supervisor/services/freshness", signal);
+      return {
+        services,
+        freshness,
+        coverageComplete: services.coverageComplete && freshness.coverageComplete,
+      };
+    }
+
+    async renderOverview(request, signal) {
+      const summary = await this.loadSummary(signal);
+      const pendingActions = await firstPage("/api/supervisor/actions", { status: "pending" }, signal);
+      const reviews = await firstPage("/api/supervisor/reviews", {}, signal);
+      const required = await firstPage("/api/supervisor/decision-required", {}, signal);
+      const health = await this.loadHealthEvidence(signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const recentReview = reviews.items[0];
       const content = document.createDocumentFragment();
       content.append(metrics([
@@ -175,12 +231,12 @@
       this.panel.replaceChildren(content);
     }
 
-    async renderServices(request, options) {
-      const summary = await this.loadSummary();
-      const initialServices = await firstPage("/api/supervisor/services");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, initialServices);
-      this.updateHero(summary, initialServices);
+    async renderServices(request, signal, options) {
+      const summary = await this.loadSummary(signal);
+      const health = await this.loadHealthEvidence(signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const fragment = document.createDocumentFragment();
       const servicesHost = pagerSection(fragment, "服务状态", "可达性、进程、版本和数据新鲜度分别判断");
       const freshnessHost = pagerSection(fragment, "数据新鲜度", "目标、检查状态、摘要和证据明细");
@@ -216,15 +272,16 @@
         ])),
       });
       await loadPager(servicesPager, options.refresh);
+      if (!this.isCurrentRequest(request, signal)) return;
       await loadPager(freshnessPager, options.refresh);
     }
 
-    async renderRecovery(request, options) {
-      const summary = await this.loadSummary();
-      const services = await firstPage("/api/supervisor/services");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, services);
-      this.updateHero(summary, services);
+    async renderRecovery(request, signal, options) {
+      const summary = await this.loadSummary(signal);
+      const health = await this.loadHealthEvidence(signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const wrapper = node("section", "section");
       wrapper.append(sectionHeading("任务恢复", "动作与恢复尝试均来自 Task 7 分页接口"));
       const toolbar = node("div", "toolbar");
@@ -243,7 +300,7 @@
         container: host,
         allowedFilters: ["status", "run_id"],
         emptyMessage: "暂无恢复动作",
-        renderItems: (target, items) => renderRecoveryTable(target, items, this.fetchJson),
+        renderItems: (target, items) => renderRecoveryTable(target, items, this),
       });
       status.select.value = pager.state.filters.status || "";
       runId.input.value = pager.state.filters.run_id || "";
@@ -258,18 +315,18 @@
       await loadPager(pager, options.refresh);
     }
 
-    async renderReviewer(request, options) {
-      const summary = await this.loadSummary();
-      const services = await firstPage("/api/supervisor/services");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, services);
-      this.updateHero(summary, services);
+    async renderReviewer(request, signal, options) {
+      const summary = await this.loadSummary(signal);
+      const health = await this.loadHealthEvidence(signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const fragment = document.createDocumentFragment();
       fragment.append(metrics([
         ["审视范围", "项目全局"],
-        ["常规节奏", "由 Supervisor 配置"],
+        ["常规节奏", "不可用"],
         ["审视记录", valueText(summary.counts?.reviews)],
-        ["开放 finding", valueText(summary.counts?.review_findings)],
+        ["finding 总数", valueText(summary.counts?.review_findings)],
       ]));
       const host = pagerSection(fragment, "Reviewer 历史", "结论、证据范围和请求动作均来自 Reviewer 记录");
       this.panel.replaceChildren(fragment);
@@ -292,12 +349,12 @@
       await loadPager(pager, options.refresh);
     }
 
-    async renderDecisions(request, options) {
-      const summary = await this.loadSummary();
-      const services = await firstPage("/api/supervisor/services");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, services);
-      this.updateHero(summary, services);
+    async renderDecisions(request, signal, options) {
+      const summary = await this.loadSummary(signal);
+      const health = await this.loadHealthEvidence(signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const wrapper = node("section", "section");
       wrapper.append(sectionHeading("决策", "人工决策默认只影响单个 run"));
       const status = selectControl("决策状态", [["", "全部决策"], ["open", "需要用户"], ["closed", "已解决"]]);
@@ -328,13 +385,13 @@
       await loadPager(pager, options.refresh);
     }
 
-    async renderSkills(request, options) {
-      const summary = await this.loadSummary();
-      const services = await firstPage("/api/supervisor/services");
-      const snapshots = await firstPage("/api/supervisor/skills");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, services);
-      this.updateHero(summary, services);
+    async renderSkills(request, signal, options) {
+      const summary = await this.loadSummary(signal);
+      const health = await this.loadHealthEvidence(signal);
+      const snapshots = await firstPage("/api/supervisor/skills", {}, signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const snapshot = snapshots.items[0];
       if (!snapshot) {
         this.panel.replaceChildren(messageNode("暂无 Skill 快照", "empty-state"));
@@ -364,12 +421,12 @@
       await loadPager(pager, options.refresh);
     }
 
-    async renderConfig(request) {
-      const summary = await this.loadSummary();
-      const services = await firstPage("/api/supervisor/services");
-      if (request !== this.requestSequence) return;
-      this.deriveHealth(summary, services);
-      this.updateHero(summary, services);
+    async renderConfig(request, signal) {
+      const summary = await this.loadSummary(signal);
+      const health = await this.loadHealthEvidence(signal);
+      if (!this.isCurrentRequest(request, signal)) return;
+      this.deriveHealth(summary, health.services, health.freshness, health.coverageComplete);
+      this.updateHero(summary, health.services, health.freshness, health.coverageComplete);
       const split = node("div", "split");
       split.append(
         section("恢复策略", "Task 7 未提供配置读取 API", definitionList([
@@ -388,6 +445,30 @@
       );
     }
 
+    createRecoveryAttemptPager(actionId, container) {
+      const key = `supervisor-recovery-attempts-${actionId}`;
+      const existing = this.recoveryAttemptPagers.get(key);
+      if (existing) {
+        existing.container = container;
+        return existing;
+      }
+      const pager = new CursorPager({
+        key,
+        endpoint: `/api/supervisor/actions/${encodeURIComponent(actionId)}/attempts`,
+        container,
+        allowedFilters: ["result_class", "error_class", "recovery_tier"],
+        fixedSort: "newest",
+        emptyMessage: "暂无恢复尝试",
+        renderItems: (target, items) => {
+          const list = node("div", "attempt-list");
+          items.forEach((attempt) => list.append(attemptSummary(attempt)));
+          target.append(list);
+        },
+      });
+      this.recoveryAttemptPagers.set(key, pager);
+      return pager;
+    }
+
     pager(key, options) {
       const existing = this.pagers.get(key);
       if (existing) {
@@ -403,8 +484,24 @@
     }
   }
 
-  async function firstPage(endpoint, filters = {}) {
-    return fetchPage(endpoint, { cursor: null, pageSize: 20, query: "", filters });
+  async function firstPage(endpoint, filters = {}, signal) {
+    return fetchPage(endpoint, { cursor: null, pageSize: 20, query: "", filters }, signal);
+  }
+
+  async function fetchAllPages(endpoint, signal) {
+    const items = [];
+    let cursor = null;
+    let total = 0;
+    let pages = 0;
+    do {
+      const page = await fetchPage(endpoint, { cursor, pageSize: 100, query: "", filters: {} }, signal);
+      items.push(...page.items);
+      total = page.total;
+      cursor = page.next_cursor;
+      pages += 1;
+      if (pages > 1000) throw new DashboardError("page_limit_exceeded", "健康数据分页超过安全上限");
+    } while (cursor);
+    return { items, total, coverageComplete: items.length === total };
   }
 
   async function loadPager(pager, refresh) {
@@ -412,7 +509,7 @@
     return pager.load();
   }
 
-  function renderRecoveryTable(target, items, fetchJson) {
+  function renderRecoveryTable(target, items, supervisorView) {
     const wrap = node("div", "table-wrap");
     const table = document.createElement("table");
     table.innerHTML = "<thead><tr><th>运行 / 动作</th><th>恢复判断</th><th>层级</th><th>状态 / 日志</th></tr></thead>";
@@ -438,10 +535,9 @@
         }
         button.disabled = true;
         try {
-          const page = await fetchJson(`/api/supervisor/actions/${encodeURIComponent(actionId)}/attempts?page_size=20`);
           detail.replaceChildren();
-          if (!page.items?.length) detail.append(messageNode("暂无恢复尝试", "empty-state"));
-          else page.items.forEach((attempt) => detail.append(attemptSummary(attempt)));
+          const pager = supervisorView.createRecoveryAttemptPager(actionId, detail);
+          await pager.load();
           detail.hidden = false;
           button.dataset.loaded = "true";
           button.setAttribute("aria-expanded", "true");
@@ -483,7 +579,7 @@
   }
 
   function attemptSummary(attempt) {
-    const item = node("div", "list-item");
+    const item = node("div", "attempt-row");
     item.append(
       node("strong", "", text(attempt.summary, "恢复尝试")),
       node("div", "cell-detail", `结果：${attemptResultLabel(attempt.result_class)} · 错误：${text(attempt.error_class, "无")}`),
@@ -607,10 +703,11 @@
 
   function reviewSummary(item) {
     const wrapper = node("div", "list-item");
+    const accepted = objectValue(item.accepted_review);
     wrapper.append(
       node("strong", "", reviewDecisionLabel(item.decision)),
       node("div", "full-text", text(item.summary, "暂无 Reviewer 摘要")),
-      node("div", "cell-detail", `请求动作：${readableValue(objectValue(item.accepted_review).actions || item.decision, reviewDecisionLabel(item.decision))}`),
+      node("div", "cell-detail", `请求动作：${readableValue(accepted.actions || accepted.requested_actions || item.decision, reviewDecisionLabel(item.decision))}`),
     );
     return wrapper;
   }
@@ -647,7 +744,16 @@
   function reviewStatusTone(value) { return value === "review_complete" ? "good" : value === "review_degraded" ? "warn" : "neutral"; }
   function actionStatusLabel(value) { return { pending: "待执行", leased: "已分配", running: "执行中", completed: "已完成", failed: "失败", cancelled: "已取消" }[value] || "状态不可用"; }
   function actionStatusTone(value) { return value === "completed" ? "good" : ["failed", "cancelled"].includes(value) ? "bad" : "warn"; }
-  function actionTypeLabel(value) { return { run_planner: "运行 Planner", run_generator: "运行 Generator", run_evaluator: "运行 Evaluator", recover_generator_result: "恢复 Generator 结果", recover_partial_artifact: "恢复部分产物", restart_service: "重启服务", ask_user: "请求用户决策" }[value] || "动作不可用"; }
+  function actionTypeLabel(value) {
+    return {
+      no_op: "无需操作", run_planner: "运行 Planner", run_generator: "运行 Generator",
+      run_evaluator: "运行 Evaluator", run_evidence_gate: "运行证据门禁",
+      run_artifact_hygiene: "运行产物清理", commit: "提交变更", push: "推送变更", cleanup: "清理运行环境",
+      create_continuation: "创建续跑", restart_service: "重启服务", recover_partial_artifact: "恢复部分产物",
+      recover_generator_result: "恢复 Generator 结果", run_alternate_recovery: "运行替代恢复",
+      run_reviewer: "运行 Reviewer", refocus_run: "重新聚焦运行", stop_run: "停止运行", ask_user: "请求用户决策",
+    }[value] || "动作不可用";
+  }
   function attemptResultLabel(value) { return { success: "成功", retryable_failure: "可重试失败", recoverable_partial: "部分产物可恢复", policy_block: "策略阻塞", terminal_failure: "终止失败" }[value] || "结果不可用"; }
   function decisionStatusLabel(value) { return { open: "需要用户", closed: "已解决" }[value] || "状态不可用"; }
   function decisionStatusTone(value) { return value === "closed" ? "good" : value === "open" ? "warn" : "neutral"; }
@@ -678,6 +784,21 @@
     if (!value) return "不可用";
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("zh-CN", { hour12: false });
+  }
+
+  function structuredDiagnosticText(value) {
+    if (Array.isArray(value)) {
+      const items = value.map((item) => structuredDiagnosticText(item)).filter(Boolean);
+      return items.length ? items.join("；") : "暂无诊断";
+    }
+    if (!value || typeof value !== "object") return text(value, "暂无诊断");
+    const diagnostic = value;
+    const parts = [];
+    if (diagnostic.status) parts.push(`状态：${text(diagnostic.status)}`);
+    if (diagnostic.code) parts.push(`代码：${text(diagnostic.code)}`);
+    if (diagnostic.message) parts.push(`说明：${text(diagnostic.message)}`);
+    if (diagnostic.diagnostics) parts.push(`诊断：${structuredDiagnosticText(diagnostic.diagnostics)}`);
+    return parts.length ? parts.join("；") : "结构化诊断不可用";
   }
 
   function errorText(error) {

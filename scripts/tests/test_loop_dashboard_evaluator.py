@@ -153,6 +153,10 @@ class LoopDashboardEvaluatorGovernanceTests(unittest.TestCase):
             "page-size 50",
             "complete task description",
             "mobile table scrolling",
+            "page-21 reload",
+            "many-run/tab URL bound",
+            "delayed-services transition",
+            "attempt page 21",
         ):
             self.assertIn(assertion, owner)
         self.assertEqual(scenario["task_id"], "loop-supervisor-unification-01")
