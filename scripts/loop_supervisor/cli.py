@@ -270,6 +270,8 @@ def _launch_due_reviewer(root: Path, payload: Mapping[str, Any]) -> bool:
         return False
     _reviewer_process = None
     now = datetime.now(timezone.utc)
+    if _durable_reviewer_lease_is_active(root, now):
+        return False
     payload_has_due_review = any(
         _reviewer_action_is_due(item, now) for item in payload.get("queued_actions", [])
     )
@@ -324,6 +326,14 @@ def _durable_reviewer_action_is_due(root: Path, now: datetime) -> bool:
         return False
     with SupervisorStore.open(root) as store:
         return store.reviewer_launcher_needed(now=now)
+
+
+def _durable_reviewer_lease_is_active(root: Path, now: datetime) -> bool:
+    database = root / ".codex" / "supervisor" / "supervisor.db"
+    if not database.is_file() or database.is_symlink():
+        return False
+    with SupervisorStore.open(root) as store:
+        return store.active_reviewer_lease_exists(now=now)
 
 
 def _reviewer_action_is_due(value: object, now: datetime) -> bool:

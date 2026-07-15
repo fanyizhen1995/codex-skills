@@ -3156,6 +3156,8 @@ def test_reviewer_prompt_embeds_exact_schema_and_valid_candidate_fixture() -> No
     }
     governance_variants = schema["properties"]["skill_governance"]["items"]["oneOf"]
 
+    assert "top-level evidence_refs must include every hash referenced by findings" in prompt
+    assert "and skill_governance" in prompt
     assert schema["additionalProperties"] is False
     assert set(schema["required"]) == top_level_keys
     assert schema["properties"]["findings"]["items"]["additionalProperties"] is False

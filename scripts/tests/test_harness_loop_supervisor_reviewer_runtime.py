@@ -253,6 +253,84 @@ def test_canonical_watch_relaunches_reclaimable_reviewer_lease(
     assert len(launched) == 1
 
 
+def test_canonical_watch_does_not_launch_second_reviewer_after_cold_restart(
+    tmp_path, monkeypatch
+) -> None:
+    from scripts.loop_supervisor import cli
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        due = store.current_time() - timedelta(minutes=20)
+        for index in (1, 2):
+            run_id = f"run-review-{index}"
+            lineage_id = f"lineage-review-{index}"
+            store.upsert_run_projection(
+                {
+                    "run_id": run_id,
+                    "revision": 1,
+                    "loop_lineage_id": lineage_id,
+                    "parent_run_id": "",
+                    "policy": "autonomous_knowledge",
+                    "phase": "passed",
+                    "status": "completed",
+                    "state_fingerprint": f"fingerprint-review-{index}",
+                    "summary": "{}",
+                    "artifact_refs": [],
+                }
+            )
+            request = ActionRequest(
+                action_id=f"action-review-{index}",
+                run_id=run_id,
+                run_revision=1,
+                policy="autonomous_knowledge",
+                phase="passed",
+                action_type=ActionType.RUN_REVIEWER,
+                idempotency_key=f"review-{index}",
+                queue_owner=ActionOwner.REVIEWER,
+                task_id=f"review:{index}",
+                next_action="supervisor_reviewer",
+                payload={
+                    "trigger": "regular_cadence",
+                    "triggering_lineages": [lineage_id],
+                    "cadence_positions": {lineage_id: 2},
+                    "reservation_id": f"reservation-review-{index}",
+                    "worker_executable": False,
+                },
+            )
+            store.reserve_review_action(
+                request,
+                reservation_id=f"reservation-review-{index}",
+                lineage_positions={lineage_id: 2},
+                due_at=due,
+                not_before=due,
+            )
+        leased = store.lease_next_action(
+            "live-reviewer",
+            lease_seconds=300,
+            allowed_action_types={ActionType.RUN_REVIEWER.value},
+            allowed_queue_owners={ActionOwner.REVIEWER.value},
+        )
+        assert leased is not None
+
+    monkeypatch.setattr(cli, "_reviewer_process", None)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("second Reviewer was launched"),
+    )
+    payload = {
+        "queued_actions": [
+            {
+                "action_type": "run_reviewer",
+                "queue_owner": "reviewer",
+                "not_before": "",
+            }
+        ]
+    }
+
+    assert cli._launch_due_reviewer(tmp_path, payload) is False
+
+
 def test_canonical_watch_checks_durable_reviewer_queue_before_reconcile(
     tmp_path, monkeypatch
 ) -> None:
