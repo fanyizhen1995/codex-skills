@@ -838,6 +838,90 @@ def test_expired_lease_can_be_reclaimed_once(tmp_path):
     )
 
 
+def test_reviewer_lease_prioritizes_persisted_application_recovery(tmp_path):
+    clock = FakeClock()
+    store = migrated_store(tmp_path, clock=clock)
+    project_run(store, "run-without-outbox", revision=1)
+    project_run(store, "run-with-outbox", revision=1)
+
+    def reviewer_request(action_id: str, run_id: str) -> ActionRequest:
+        return ActionRequest(
+            action_id=action_id,
+            run_id=run_id,
+            run_revision=1,
+            policy="autonomous_knowledge",
+            phase="planning",
+            action_type=ActionType.RUN_REVIEWER,
+            idempotency_key=action_id,
+            queue_owner=ActionOwner.REVIEWER,
+            task_id=f"review:{run_id}",
+        )
+
+    without_outbox = store.enqueue_action(
+        reviewer_request("reviewer-without-outbox", "run-without-outbox")
+    )
+    store.record_review(
+        review_id="review-without-outbox",
+        trigger="project_global",
+        status="review_applying",
+        decision="auto_remediate",
+        accepted_review={"review_id": "review-without-outbox"},
+        source_action_id=without_outbox.action_id,
+    )
+    clock.advance(seconds=1)
+    with_outbox = store.enqueue_action(
+        reviewer_request("reviewer-with-outbox", "run-with-outbox")
+    )
+    store.record_review(
+        review_id="review-with-outbox",
+        trigger="project_global",
+        status="review_applying",
+        decision="auto_remediate",
+        accepted_review={"review_id": "review-with-outbox"},
+        source_action_id=with_outbox.action_id,
+    )
+    target_action = ActionRequest(
+        action_id="review-application-target",
+        run_id="run-with-outbox",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="planning",
+        action_type=ActionType.RUN_ALTERNATE_RECOVERY,
+        idempotency_key="review-application-target",
+        queue_owner=ActionOwner.SUPERVISOR,
+        task_id="review:review-with-outbox:run-with-outbox",
+        next_action="auto_remediate",
+    )
+    store.prepare_review_application(
+        review_id="review-with-outbox",
+        decision="auto_remediate",
+        targets=[
+            (
+                target_action,
+                {
+                    "expected_revision": 1,
+                    "expected_fingerprint": "fingerprint-before",
+                    "expected_post_write_fingerprint": "fingerprint-after",
+                    "source_phase": "planning",
+                    "target_phase": "planning",
+                    "target_next_action": "run_autonomous_planner",
+                    "target_last_result": "none",
+                },
+            )
+        ],
+    )
+
+    leased = store.lease_next_action(
+        "reviewer-recovery",
+        lease_seconds=120,
+        allowed_action_types={ActionType.RUN_REVIEWER.value},
+        allowed_queue_owners={ActionOwner.REVIEWER.value},
+    )
+
+    assert leased is not None
+    assert leased.action_id == with_outbox.action_id
+
+
 def test_lease_next_action_uses_compatible_default_heartbeat_threshold(tmp_path):
     store = migrated_store(tmp_path)
     project_run(store, "run-1", revision=1)

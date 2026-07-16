@@ -2305,7 +2305,26 @@ class SupervisorStore:
                 )
                 {action_type_clause}
                 AND a.queue_owner IN ({owner_placeholders})
-                ORDER BY a.priority ASC, a.created_at ASC, a.action_id ASC
+                ORDER BY
+                  CASE
+                    WHEN a.queue_owner = 'reviewer' AND EXISTS (
+                      SELECT 1 FROM reviews AS resumable_reviews
+                      JOIN review_applications AS resumable_applications
+                        ON resumable_applications.review_id = resumable_reviews.review_id
+                      WHERE resumable_reviews.source_action_id = a.action_id
+                        AND resumable_reviews.status IN ('review_applying', 'review_complete')
+                        AND resumable_reviews.accepted_review_json != '{{}}'
+                        AND resumable_applications.status IN ('applying', 'completed')
+                    ) THEN 0
+                    WHEN a.queue_owner = 'reviewer' AND EXISTS (
+                      SELECT 1 FROM reviews AS accepted_reviews
+                      WHERE accepted_reviews.source_action_id = a.action_id
+                        AND accepted_reviews.status IN ('review_applying', 'review_complete')
+                        AND accepted_reviews.accepted_review_json != '{{}}'
+                    ) THEN 1
+                    ELSE 2
+                  END ASC,
+                  a.priority ASC, a.created_at ASC, a.action_id ASC
                 LIMIT 1
                 """,
                 select_parameters,

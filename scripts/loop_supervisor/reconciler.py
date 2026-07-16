@@ -53,7 +53,6 @@ _STATE_SUMMARY_KEYS = (
     "child_run_ids",
     "aggregate_acceptance",
     "skill_roots",
-    "reviewer_directives",
     "legacy_audit_migration",
     "previous_run_id",
     "commit",

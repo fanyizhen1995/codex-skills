@@ -1436,6 +1436,123 @@ def test_queued_reviewer_resumes_persisted_outbox_after_cold_store_reopen(
     )
 
 
+def test_queued_reviewer_cold_recovery_bounds_projection_directive_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(
+        store,
+        "lineage-a",
+        run_id="run-a2",
+        parent=2,
+        project=False,
+    )
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-a2" / "run.json"
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    payload["reviewer_directives"] = [
+        {
+            "review_id": f"review-history-{index}",
+            "decision": "auto_remediate",
+            "summary": "Historic process finding. " * 45,
+            "evidence_refs": [f"sha256:{str(index) * 64}"],
+        }
+        for index in range(4)
+    ]
+    run_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    store.upsert_run_projection(
+        {
+            "run_id": "run-a2",
+            "revision": 1,
+            "repo_relative_root": ".",
+            "loop_lineage_id": "lineage-a",
+            "parent_run_id": "",
+            "policy": "autonomous_knowledge",
+            "phase": "stopped_budget",
+            "status": "actionable",
+            "state_fingerprint": _state_fingerprint(payload),
+            "summary": json.dumps(
+                {
+                    "parent_task_counter": 2,
+                    "task_id": "parent-2",
+                },
+                sort_keys=True,
+            ),
+            "artifact_refs": [run_path.relative_to(tmp_path).as_posix()],
+        }
+    )
+    request = schedule_due_reviews(store, now=NOW)[0]
+    clock.value = NOW + timedelta(minutes=10)
+
+    def driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        evidence = json.loads(
+            next(review_dir.glob("review-*-evidence.json")).read_text(encoding="utf-8")
+        )
+        candidate = valid_review_payload(
+            review_id=str(kwargs["run_id"]),
+            decision="refocus",
+            affected_run_ids=["run-a2"],
+            evidence_refs=list(evidence["evidence_hashes"].values()),
+        )
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(candidate) + "\n",
+            encoding="utf-8",
+        )
+        return {"status": "pass", "exit_code": 0}
+
+    original_apply = reviewer_module.apply_review_decision
+
+    def cut_after_projection(store_arg, review, **kwargs):
+        def cutpoint(stage: str, _run_id: str) -> None:
+            if stage == "after_file_write":
+                raise RuntimeError("injected process loss after projection")
+
+        return original_apply(
+            store_arg,
+            review,
+            application_cutpoint=cutpoint,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(reviewer_module, "apply_review_decision", cut_after_projection)
+    with pytest.raises(RuntimeError, match="process loss after projection"):
+        run_queued_reviewer(
+            store,
+            reviewer_id="reviewer-before-restart",
+            driver=driver,
+            timeout_seconds=1,
+            heartbeat_seconds=0.01,
+        )
+    monkeypatch.setattr(reviewer_module, "apply_review_decision", original_apply)
+
+    assert store.fetch_all("reviews")[0]["status"] == "review_applying"
+    assert store.fetch_all("review_applications")[0]["status"] == "applying"
+    store.close()
+    clock.value += timedelta(seconds=121)
+    reopened = SupervisorStore.open(tmp_path, clock=clock)
+    reopened.migrate()
+
+    result = run_queued_reviewer(
+        reopened,
+        reviewer_id="reviewer-after-restart",
+        driver=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("cold recovery must not invoke a new LLM")
+        ),
+        timeout_seconds=1,
+        heartbeat_seconds=0.01,
+    )
+
+    assert result is not None and result.status == "review_complete"
+    assert reopened.get_action(request.action_id).status == "completed"
+    assert reopened.fetch_all("review_applications")[0]["status"] == "completed"
+    projected = reopened.get_run("run-a2")
+    projected_summary = json.loads(projected["summary"]["summary"])
+    assert "reviewer_directives" not in projected_summary
+
+
 def test_queued_continue_without_skill_evidence_finalizes_without_recommendation_snapshot(
     tmp_path: Path,
 ) -> None:
