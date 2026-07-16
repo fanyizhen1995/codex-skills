@@ -69,7 +69,31 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md
-updated: 2026-07-15
+  - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028348348Z-github-com-sgl-project-sglang-issues-30510-6de6fa5346.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028349170Z-github-com-sgl-project-sglang-issues-30648-f55715c3f3.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028350087Z-github-com-sgl-project-sglang-issues-31046-6b8079d983.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028350373Z-github-com-sgl-project-sglang-issues-31274-6df5967a1d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354212Z-github-com-sgl-project-sglang-pull-31245-b795db74d5.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354905Z-github-com-sgl-project-sglang-pull-31239-863696c394.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355369Z-github-com-sgl-project-sglang-pull-31321-d4c52a31fb.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028356357Z-github-com-sgl-project-sglang-pull-31027-f947154f0e.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028369710Z-github-com-sgl-project-sglang-pull-30621-4c4a356edb.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028356825Z-github-com-sgl-project-sglang-pull-30359-9887c73a87.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028371746Z-github-com-sgl-project-sglang-pull-27141-a8fdf2d63d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373678Z-github-com-sgl-project-sglang-pull-31211-999d09855b.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373456Z-github-com-sgl-project-sglang-pull-30507-5c531655f1.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028378657Z-github-com-sgl-project-sglang-pull-26293-879eb34158.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028380579Z-github-com-sgl-project-sglang-pull-29662-c2701ea657.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028381963Z-github-com-sgl-project-sglang-pull-22337-ebcfd6bb6b.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028383611Z-github-com-sgl-project-sglang-pull-31092-35a378d1c7.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028370752Z-github-com-sgl-project-sglang-pull-30774-d009a9776f.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379133Z-github-com-sgl-project-sglang-pull-29508-9a1f9ae94f.md
+updated: 2026-07-16
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -112,6 +136,9 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | Scheduled crawler July 10-14 capture | 383 Markdown page snapshots captured 2026-07-10 through 2026-07-14 |
 | Scheduled crawler July 10-14 composition | 65 issues and 318 pull requests, including 317 page-visible merged pull requests and one closed-unmerged pull request |
 | Scheduled crawler July 10-14 reconciliation | 375 unique identities, 5 duplicate identities inside the batch, 21 API-corpus overlaps, 3 prior-page-supplement overlaps, and 352 new unique identities after API/prior-page reconciliation |
+| Scheduled crawler July 15 capture | 103 Markdown page snapshots captured 2026-07-15 |
+| Scheduled crawler July 15 composition | 7 issues and 96 pull requests, including 67 page-visible merged pull requests and 29 closed-unmerged pull requests |
+| Scheduled crawler July 15 reconciliation | 103 unique identities, no duplicate identities inside the batch, 4 API-corpus overlaps, 2 prior-page-supplement overlaps, and 98 new unique identities after API/prior-page reconciliation |
 
 Raw files:
 
@@ -129,6 +156,7 @@ Raw files:
 - [Scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 - [Scheduled crawler supplement manifest, 2026-07-09](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260709.json)
 - [Scheduled crawler supplement manifest, 2026-07-10 to 2026-07-14](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json)
+- [Scheduled crawler supplement manifest, 2026-07-15](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json)
 
 # Capture Notes
 
@@ -147,6 +175,8 @@ The 2026-07-08 scheduled crawler supplement adds 97 page snapshots under the sam
 The 2026-07-09 scheduled crawler supplement adds 102 page snapshots: 6 issues and 96 pull requests, including 69 page-visible merged PRs and 27 closed-unmerged PRs. Identity comparison finds 98 new items and four repeated pull requests (#2, #9754, #22416, and #27988). The repeated captures remain raw evidence but are not counted as new knowledge. The batch is still page-level evidence without joined comments or review comments.
 
 The 2026-07-10 through 2026-07-14 scheduled crawler supplement adds 383 page snapshots: 65 issues and 318 pull requests, including 317 page-visible merged PRs and one closed-unmerged PR. Identity comparison finds 375 unique item identities, five duplicate identities inside the batch, 21 overlaps with the June API corpus, three overlaps with earlier page supplements, and 352 new unique identities after API/prior-page reconciliation. The batch is page-level evidence only; do not merge it into the API corpus, infer unavailable comments or review comments, treat closed-unmerged PRs as shipped fixes, or promote source-owned benchmark tables into local baselines, SLOs, rankings, or general performance guarantees. [raw](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json)
+
+The 2026-07-15 scheduled crawler supplement adds 103 page snapshots: 7 issues and 96 pull requests, including 67 page-visible merged PRs and 29 closed-unmerged PRs. Identity comparison finds 103 unique item identities, no duplicate identities inside the batch, four overlaps with the June API corpus (#5131, #7348, #2, and #20890), two overlaps with earlier page supplements (#2 and #30851), and 98 new unique identities after API/prior-page reconciliation. The batch remains page-level evidence only: do not merge it into API corpus counts, infer unavailable comments or PR reviews, treat issue-only or closed-unmerged pages as shipped fixes, or promote source-owned validation tables into local baselines, SLOs, rankings, or general performance guarantees. [raw](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json)
 
 # Operational Signals
 
@@ -212,6 +242,21 @@ Selected 2026-07-10 through 2026-07-14 merged page-level leads now promoted into
 | #30839 and #31083 | GLM-5.2 MTP IndexShare | Merged PR #30839 and release/v0.5.15 backport #31083 transfer per-request DSA top-k seeds across PD disaggregation, keep validity state through context parallelism, overlap scheduling, batch splitting, and CUDA graph replay, and fall back when no valid seed exists. [#30839](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021683488Z-github-com-sgl-project-sglang-pull-30839-7f7f00ec6c.md) [#31083](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md) | Narrow GLM-5.2 MTP/DSA state-transfer evidence, not broad speculative-decoding availability. |
 | #30408 and #30574 | HiSparse, SWA, and UnifiedRadixCache tooling | #30408 forwards SWA-tail allocation through the DeepSeekV4 HiSparse allocator and preserves admission/preallocation behavior; #30574 teaches kv-canary to inspect UnifiedRadixCache and bracket nested `model.forward` calls so only the outermost call runs canary pre/post operations. [#30408](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md) [#30574](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md) | Cache bookkeeping and inspection evidence only; not a storage benchmark or SLO. |
 
+Selected 2026-07-15 page-level leads now promoted into [Inference Runtime Infrastructure](inference-runtime-infrastructure.md), [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md), or [Network Storage Cluster Infrastructure](network-storage-cluster-infrastructure.md):
+
+| Item | Surface | Operational signal | Caveat |
+| --- | --- | --- | --- |
+| #30510 and #31027 | GLM image API multi-output | Issue #30510 records GLM-image `/v1/images/generations` returning one `b64_json` item for `n: 2`; merged PR #31027 expands the GLM-Image AR prior, embeddings, latents, size/crop/reference tensors, output seeds, and NPU fallback so one prompt can produce multiple outputs. [issue](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028348348Z-github-com-sgl-project-sglang-issues-30510-6de6fa5346.md) [pr](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028356357Z-github-com-sgl-project-sglang-pull-31027-f947154f0e.md) | Page-level issue plus merged PR evidence; scoped to GLM-Image/OpenAI image API behavior. |
+| #30648 and #30621 | URL-format image responses | Issue #30648 records URL responses returning one item when multiple output images were saved; merged PR #30621 returns one URL item per output and adds variant query support for persisted local output downloads. [issue](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028349170Z-github-com-sgl-project-sglang-issues-30648-f55715c3f3.md) [pr](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028369710Z-github-com-sgl-project-sglang-pull-30621-4c4a356edb.md) | Page-level issue plus merged PR evidence; no broader image-service SLO is inferred. |
+| #31046 and #31274 | DeepSeek-V4 and Gemma/modelopt_fp4 startup crashes | Issue #31046 reports v0.5.15 DeepSeek-V4 fallback passing `_DeepseekV4ConfigAlias` into Hugging Face `AutoModel.from_config`, causing an unrecognized-configuration crash; issue #31274 reports Gemma-4 with `--quantization modelopt_fp4` failing with tuple index out of range through the Gemma image-feature path. [#31046](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028350087Z-github-com-sgl-project-sglang-issues-31046-6b8079d983.md) [#31274](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028350373Z-github-com-sgl-project-sglang-issues-31274-6df5967a1d.md) | Issue-only crash reports; no shipped fix or production incident lifecycle is inferred. |
+| #30355 | AMD MI355 DeepSeek MLA Triton backend | Merged PR #30355 scopes gfx95/MI355 DeepSeek MLA failures to aiter fused paths leaking into `--attention-backend triton`, causing prefill null-K GPU fault, decode dispatch fault, and RoPE-skip accuracy collapse; the fix gates fused paths on the selected attention backend and leaves triton+EAGLE speculative decode out of scope. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md) | Source-owned MI355X/gfx950 validation context only; not a local benchmark baseline. |
+| #31245 and #31239 | DP-attention and disaggregated-prefill cached-prefix boundaries | Merged PR #31245 keys DP-attention graph admission on `original_global_num_tokens_cpu` raw sync request counts instead of algorithm-specific multiply/divide reconstruction; closed-unmerged PR #31239 reports default early-send cached-prefix behavior causing an accuracy regression through non-staging KV-transfer races. [#31245](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354212Z-github-com-sgl-project-sglang-pull-31245-b795db74d5.md) [#31239](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354905Z-github-com-sgl-project-sglang-pull-31239-863696c394.md) | #31245 is page-visible merged evidence; #31239 is closed-unmerged boundary evidence only. |
+| #31321 and #30359/#27141 | Mamba/SWA/radix lifecycle | Merged PR #31321 releases Mamba cache slots allocated by PP dynamic chunk profiling before freeing request-pool entries; merged PR #30359 enables Qwen3.5 mamba-extra-buffer on ROCm by accepting `is_hip()`, while closed-unmerged #27141 documents richer radix/spec context. [#31321](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355369Z-github-com-sgl-project-sglang-pull-31321-d4c52a31fb.md) [#30359](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028356825Z-github-com-sgl-project-sglang-pull-30359-9887c73a87.md) [#27141](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028371746Z-github-com-sgl-project-sglang-pull-27141-a8fdf2d63d.md) | Closed-unmerged radix/spec details are boundary context only. |
+| #30997 | Heterogeneous attention-TP state transfer | Merged PR #30997 fixes Qwen3.5 GDN+GQA disaggregated scatter transfer by slicing GDN `conv_state` q/k/v sub-blocks independently and mapping GQA replicated KV heads for Mooncake/NIXL senders and staging helpers. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md) | Source accuracy context stays page-scoped; this is runtime transfer evidence, not a storage-fabric benchmark. |
+| #31211 | Object-storage model paths | Merged PR #31211 resolves `model_name` through the object-storage cache before `AutoConfig` for RunAI-backed S3/GCS/Azure model paths whose metadata has already been mirrored locally. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373678Z-github-com-sgl-project-sglang-pull-31211-999d09855b.md) | Model-loading boundary evidence only; not object-store performance evidence. |
+| #30507 and #26293 | QoS/cache-aware routing proposals | Closed-unmerged PR #30507 proposes priority-weighted radix eviction and `qos-lpm` scheduling; closed-unmerged PR #26293 proposes `cache_balance_weight` to trade strict best-prefix routing against shadow-cache footprint balance. [#30507](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373456Z-github-com-sgl-project-sglang-pull-30507-5c531655f1.md) [#26293](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028378657Z-github-com-sgl-project-sglang-pull-26293-879eb34158.md) | Closed-unmerged proposal evidence only; not shipped routing behavior. |
+| #31333 and #31272 | Crash-dump and router attribution | Merged PR #31333 documents that `--crash-dump-folder` also configures NVIDIA CUDA device coredumps and separates those from OS process core dumps; merged PR #31272 appends `engine.worker` to `Server-Timing` on dispatch-stage router errors that name a selected worker. [#31333](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md) [#31272](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md) | Observability/diagnostic surface evidence; not an incident postmortem or alerting threshold. |
+
 # Retrieval Notes
 
 Use the joined raw corpus for exact lookup by issue or PR number. Use the summary JSON for aggregate counts, theme examples, label counts, top-discussed items, and capture caveats.
@@ -230,6 +275,31 @@ High-discussion examples in the captured corpus include:
 | #22217 | PR | 113 | Eagle beta test failure debugging |
 | #19225 | PR | 111 | Stable Diffusion 3 backend support |
 | #27196 | PR | 107 | Pickle to msgpack migration |
+
+- [SGLang scheduled crawler supplement manifest, 2026-07-15](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json)
+- [SGLang July 15 issue #30510](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028348348Z-github-com-sgl-project-sglang-issues-30510-6de6fa5346.md)
+- [SGLang July 15 pull_request #31027](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028356357Z-github-com-sgl-project-sglang-pull-31027-f947154f0e.md)
+- [SGLang July 15 issue #30648](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028349170Z-github-com-sgl-project-sglang-issues-30648-f55715c3f3.md)
+- [SGLang July 15 pull_request #30621](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028369710Z-github-com-sgl-project-sglang-pull-30621-4c4a356edb.md)
+- [SGLang July 15 issue #31046](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028350087Z-github-com-sgl-project-sglang-issues-31046-6b8079d983.md)
+- [SGLang July 15 issue #31274](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028350373Z-github-com-sgl-project-sglang-issues-31274-6df5967a1d.md)
+- [SGLang July 15 pull_request #30355](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md)
+- [SGLang July 15 pull_request #31245](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354212Z-github-com-sgl-project-sglang-pull-31245-b795db74d5.md)
+- [SGLang July 15 pull_request #31239](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354905Z-github-com-sgl-project-sglang-pull-31239-863696c394.md)
+- [SGLang July 15 pull_request #31321](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355369Z-github-com-sgl-project-sglang-pull-31321-d4c52a31fb.md)
+- [SGLang July 15 pull_request #30997](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md)
+- [SGLang July 15 pull_request #30359](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028356825Z-github-com-sgl-project-sglang-pull-30359-9887c73a87.md)
+- [SGLang July 15 pull_request #27141](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028371746Z-github-com-sgl-project-sglang-pull-27141-a8fdf2d63d.md)
+- [SGLang July 15 pull_request #31211](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373678Z-github-com-sgl-project-sglang-pull-31211-999d09855b.md)
+- [SGLang July 15 pull_request #30507](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373456Z-github-com-sgl-project-sglang-pull-30507-5c531655f1.md)
+- [SGLang July 15 pull_request #26293](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028378657Z-github-com-sgl-project-sglang-pull-26293-879eb34158.md)
+- [SGLang July 15 pull_request #31333](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md)
+- [SGLang July 15 pull_request #31272](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md)
+- [SGLang July 15 pull_request #29662](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028380579Z-github-com-sgl-project-sglang-pull-29662-c2701ea657.md)
+- [SGLang July 15 pull_request #22337](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028381963Z-github-com-sgl-project-sglang-pull-22337-ebcfd6bb6b.md)
+- [SGLang July 15 pull_request #31092](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028383611Z-github-com-sgl-project-sglang-pull-31092-35a378d1c7.md)
+- [SGLang July 15 pull_request #30774](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028370752Z-github-com-sgl-project-sglang-pull-30774-d009a9776f.md)
+- [SGLang July 15 pull_request #29508](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379133Z-github-com-sgl-project-sglang-pull-29508-9a1f9ae94f.md)
 
 # Relationships
 

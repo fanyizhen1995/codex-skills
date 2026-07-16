@@ -36,7 +36,11 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md
-updated: 2026-07-15
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md
+updated: 2026-07-16
 related:
   - ai-infra-coverage-map.md
   - data-rag-pipeline-infrastructure.md
@@ -92,6 +96,8 @@ The July 8 SGLang page supplement adds two more source-owned benchmark contexts.
 
 The July 10-14 SGLang pages add two more source-scoped validation contexts. PR #30457 includes GSM8K and throughput tables for `scheduler_recv_interval` under DP attention on a DeepSeek-R1-MXFP4 MI355X setup, while PR #31001 includes before/after reproduction output for a GLM-5.2-NVFP4 FlashInfer `routing_bias` dtype fix on 4 x B300. Use these as examples of page-visible run metadata and validation context only; they are not local benchmarks, MLCommons results, service SLOs, alert thresholds, product rankings, or general performance guarantees. [#30457](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md) [#31001](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md)
 
+The July 15 SGLang pages add source-scoped validation and diagnostic contexts. PR #30355 records MI355X/gfx950 DeepSeek-R1-MXFP4 validation for the triton DeepSeek MLA backend after selected-backend gating, while explicitly leaving triton plus EAGLE speculative decode out of scope. PR #30997 records Qwen3.5-397B-A17B-FP8 heterogeneous attention-TP accuracy context for GDN conv-state and GQA replicated-KV head-map transfer fixes. PR #31333 documents CUDA device coredump output and request pickle behavior behind `--crash-dump-folder`; PR #31272 adds `Server-Timing: engine.worker` attribution for selected downstream workers on dispatch-stage router errors. These are page-level validation and diagnostic surfaces, not local benchmark baselines, production SLOs, alert thresholds, product rankings, or incident postmortems. [#30355](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md) [#30997](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md) [#31333](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md) [#31272](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md)
+
 # Platform Profiling And Health
 
 DCGM and Nsight Systems cover the platform side that LLM trace stores cannot see by themselves. DCGM provides GPU health, telemetry, diagnostics, field values, and profiling signals for data-center GPU systems. Nsight Systems provides timeline-oriented CPU/GPU profiling for CUDA workloads, host execution, synchronization, memory operations, kernels, and process/thread behavior. [raw](../../raw/links/nvidia-dcgm-gpu-telemetry-official-20260707.md) [raw](../../raw/links/nvidia-nsight-systems-profiling-official-20260707.md)
@@ -128,12 +134,12 @@ Use this page as source-backed coverage for:
 - `eval-observability-reliability`: AWS PCS dashboard evidence for Managed Grafana, Managed Prometheus, CloudWatch Logs, Slurm/EFA/Node/DCGM exporters, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views.
 - `eval-observability-reliability`: bounded NVIDIA confidential-inference benchmark context where the source records environment, software stack, workload parameters, and throughput/TPOT deltas, without treating those numbers as local benchmark acceptance criteria.
 - `eval-observability-reliability`: bounded SGLang HiCacheFile and DSV4 sparse prefill benchmark/profiling contexts where the sources record workload, filesystem or runtime setup, tests, and caveats, without treating those numbers as local benchmark acceptance criteria.
-- `eval-observability-reliability`: SGLang KV-transfer metric fan-out semantics from PR #30351 and page-scoped validation contexts from #30457 and #31001, without treating them as alert thresholds, production SLOs, or local benchmark acceptance criteria.
+- `eval-observability-reliability`: SGLang KV-transfer metric fan-out semantics from PR #30351; page-scoped validation contexts from #30457, #31001, #30355, and #30997; CUDA crash-dump documentation from #31333; and Server-Timing worker attribution from #31272, without treating them as alert thresholds, production SLOs, local benchmark acceptance criteria, or postmortems.
 - `data-rag-vector`: only where Ragas, Phoenix, or LangSmith traces explain RAG evaluation and retrieval-quality signals; keep data ingestion and embedding refresh in [Data RAG Pipeline Infrastructure](data-rag-pipeline-infrastructure.md).
 - `inference-runtime`: only where evaluation traces or platform profiles inspect runtime behavior; keep runtime scheduler, batching, KV-cache, and model-loading mechanics in [Inference Runtime Infrastructure](inference-runtime-infrastructure.md).
 - `hardware-accelerator`: only for DCGM and Nsight platform telemetry/profiling signals; accelerator SKU and parameter evidence stays in the compute accelerator pages.
 
-Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window, KV-transfer fan-out, MI350X profiling, HiCacheFile metadata-cache, DSV4 sparse-prefill, DP-attention scheduler, GLM/DeepSeek FlashInfer, and NVIDIA confidential-inference pages add useful page-level semantics or benchmark context but do not close the production SLO or local benchmark-baseline gaps.
+Remaining gaps include production SLO definitions, validated alert thresholds and routing ownership, incident/postmortem sources, benchmark environment manifests with captured local results, TPU/XPU production observability, and evaluation dataset retention/access audit run evidence. The r9 KServe and inference incident/postmortem notes preserve blocked-source evidence for the serving trace/SLO gap, while the SGLang metric-window, KV-transfer fan-out, MI350X/MI355 profiling, heterogeneous attention-TP, CUDA crash-dump, Server-Timing, HiCacheFile metadata-cache, DSV4 sparse-prefill, DP-attention scheduler, GLM/DeepSeek FlashInfer, and NVIDIA confidential-inference pages add useful page-level semantics or benchmark context but do not close the production SLO or local benchmark-baseline gaps.
 
 # Citations
 
@@ -158,3 +164,7 @@ Remaining gaps include production SLO definitions, validated alert thresholds an
 - [SGLang PR #30351 KV-transfer fan-out metrics](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md)
 - [SGLang PR #30457 DP-attention scheduler receive interval](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md)
 - [SGLang PR #31001 GLM/DeepSeek NVFP4 FlashInfer fix](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md)
+- [SGLang July 15 #30355](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md)
+- [SGLang July 15 #30997](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md)
+- [SGLang July 15 #31333](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md)
+- [SGLang July 15 #31272](../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md)

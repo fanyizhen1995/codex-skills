@@ -1,0 +1,370 @@
+{
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "SGLang July 15 scheduled crawler page-level operations evidence",
+    "source_type": "github_issue",
+    "owner": "sgl-project",
+    "repo": "sglang",
+    "number": "20260715-batch",
+    "identity_key": "github:sgl-project/sglang#20260715-batch"
+  },
+  "identity_keys": [
+    {
+      "title": "SGLang scheduled crawler July 15 batch",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "20260715-batch",
+      "identity_key": "github:sgl-project/sglang#20260715-batch",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json"
+    },
+    {
+      "title": "[Bug] GLM-image /v1/images/generations ignores n > 1 and returns only one image",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30510",
+      "kind": "issue",
+      "identity_key": "github:sgl-project/sglang#30510",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028348348Z-github-com-sgl-project-sglang-issues-30510-6de6fa5346.md"
+    },
+    {
+      "title": "[Multimodal] Support n>1 outputs for GLM-Image generation",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31027",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31027",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028356357Z-github-com-sgl-project-sglang-pull-31027-f947154f0e.md"
+    },
+    {
+      "title": "[Bug] OpenAI image API returns only one URL when `n > 1` and `response_format=\"url\"`",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30648",
+      "kind": "issue",
+      "identity_key": "github:sgl-project/sglang#30648",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028349170Z-github-com-sgl-project-sglang-issues-30648-f55715c3f3.md"
+    },
+    {
+      "title": "Fix image URL response for multiple outputs",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30621",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30621",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028369710Z-github-com-sgl-project-sglang-pull-30621-4c4a356edb.md"
+    },
+    {
+      "title": "[Bug] [Regression] DeepSeek-V4 serving crashes with ValueError: Unrecognized configuration class _DeepseekV4ConfigAlias in v0.5.15 (Works in v0.5.14)",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31046",
+      "kind": "issue",
+      "identity_key": "github:sgl-project/sglang#31046",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028350087Z-github-com-sgl-project-sglang-issues-31046-6b8079d983.md"
+    },
+    {
+      "title": "[Bug] Gemma-4 with modelopt_fp4: tuple index out of range",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31274",
+      "kind": "issue",
+      "identity_key": "github:sgl-project/sglang#31274",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028350373Z-github-com-sgl-project-sglang-issues-31274-6df5967a1d.md"
+    },
+    {
+      "title": "[AMD] [Fix] Fix --attention-backend triton work for DeepSeek MLA on MI355 (null-K + decode dispatch + RoPE)",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30355",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30355",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md"
+    },
+    {
+      "title": "[Spec] Key DP-attention graph admission on raw sync request counts",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31245",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31245",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028354212Z-github-com-sgl-project-sglang-pull-31245-b795db74d5.md"
+    },
+    {
+      "title": "[PD] Fix disagg accuracy regression: default early-send cached-prefix off",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31239",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31239",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028354905Z-github-com-sgl-project-sglang-pull-31239-863696c394.md"
+    },
+    {
+      "title": "[Bugfix] Release Mamba cache after PP dynamic chunk profiling",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31321",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31321",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028355369Z-github-com-sgl-project-sglang-pull-31321-d4c52a31fb.md"
+    },
+    {
+      "title": "[Disagg][Qwen3.5] Fix heterogeneous attn-TP scatter transfer: GDN conv sub-block slice + GQA replicated-KV head map",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30997",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30997",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md"
+    },
+    {
+      "title": "[AMD] Enable mamba-extra-buffer for Qwen3.5 on ROCm",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30359",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30359",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028356825Z-github-com-sgl-project-sglang-pull-30359-9887c73a87.md"
+    },
+    {
+      "title": "[ROCm] Support radix-cache with mamba-extra-buffer for Qwen3.5",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "27141",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#27141",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028371746Z-github-com-sgl-project-sglang-pull-27141-a8fdf2d63d.md"
+    },
+    {
+      "title": "Fix processor config loading for object-storage model paths",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31211",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31211",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028373678Z-github-com-sgl-project-sglang-pull-31211-999d09855b.md"
+    },
+    {
+      "title": "Add QoS-aware cache policy",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30507",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30507",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028373456Z-github-com-sgl-project-sglang-pull-30507-5c531655f1.md"
+    },
+    {
+      "title": "Add cache balance weight for cache-aware routing",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "26293",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#26293",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028378657Z-github-com-sgl-project-sglang-pull-26293-879eb34158.md"
+    },
+    {
+      "title": "docs: document CUDA crash dump output",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31333",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31333",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md"
+    },
+    {
+      "title": "feat(sgl-router): stamp selected worker on dispatch-stage errors via Server-Timing: engine.worker",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31272",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31272",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md"
+    },
+    {
+      "title": "Fix SWA pool exhaustion in decode _pre_alloc by passing swa_num_tokens",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "29662",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#29662",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028380579Z-github-com-sgl-project-sglang-pull-29662-c2701ea657.md"
+    },
+    {
+      "title": "feat: Optimize radix cache insert and match tree traversal",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "22337",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#22337",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028381963Z-github-com-sgl-project-sglang-pull-22337-ebcfd6bb6b.md"
+    },
+    {
+      "title": "Fix post-capture KV sizing for SWA pools",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31092",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31092",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028383611Z-github-com-sgl-project-sglang-pull-31092-35a378d1c7.md"
+    },
+    {
+      "title": "[PP] Fix proxy tensor buffer sizing and refresh for speculative verify",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30774",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30774",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028370752Z-github-com-sgl-project-sglang-pull-30774-d009a9776f.md"
+    },
+    {
+      "title": "[Bugfix] fix quickreduce acc error in cudagraph mode",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "29508",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#29508",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028379133Z-github-com-sgl-project-sglang-pull-29508-9a1f9ae94f.md"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Read and reconciled 103 local Markdown page snapshots under personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs for 2026-07-15. Counts: 7 issues, 96 PRs, 67 page-visible merged PRs, 29 closed-unmerged PRs, 103 unique identities, no duplicate identities inside the batch, 4 API-corpus overlaps, 2 prior page-supplement overlaps, and 98 new unique identities after API/prior-page reconciliation.",
+    "wiki_search": "Searched existing curated SGLang, inference-runtime, eval-observability, network-storage, coverage-map, coverage-map.json, loop-state.json, and ingest.md evidence for parent-16 July 8, the prior July 9 supplement, parent-23 July 10-14, GLM image, DeepSeek-V4, Gemma modelopt_fp4, ROCm/MI355/Strix, DP-attention, disagg cached-prefix, Mamba, SWA, radix-cache, object-storage, QoS-aware, cache-aware, CUDA crash dump, and Server-Timing. Existing pages cover earlier batches but did not cover the July 15 batch or selected item identities beyond explicit overlaps.",
+    "domain_index_scan": "ai_infra wiki/index.md routes SGLang issue/PR corpus work to SGLang GitHub Closed Issues And PRs, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, Network Storage Cluster Infrastructure, and AI Infra Coverage Map. No new standalone page is needed because this is a scheduled crawler supplement to existing references.",
+    "prior_manifest_scan": "Parent-16 covers July 8, the prior continuation covers July 9, and parent-23 covers July 10 through July 14. The July 15 batch is a distinct date slice with 98 new identities after API/prior-page reconciliation."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "SGLang full API corpus",
+      "result": "The June API corpus already contains issue #5131, issue #7348, PR #2, and PR #20890; these are counted as overlap and not new knowledge."
+    },
+    {
+      "target": "prior SGLang page supplements",
+      "result": "PR #2 and PR #30851 overlap earlier page supplements. They remain raw evidence but are not counted as new parent-24 operational signals."
+    },
+    {
+      "target": "parent-16 July 8, July 9, and parent-23 July 10-14 curated findings",
+      "result": "Parent-24 does not re-promote July 8 FlashInfer/A2A, PD-router, Mooncake RDMA, HiCacheFile, DSV4 sparse-prefill, July 9 unified-KV/SWA/shared-memory/ROCm/merge-order/spec-decoding, or parent-23 pipeline/NIXL/GLM-5.2/HiSparse/kV-canary signals except as duplicate-boundary context."
+    },
+    {
+      "target": "closed-unmerged and issue-only handling",
+      "result": "Issue-only reports and closed-unmerged PRs such as #31239, #27141, #30507, #26293, #29662, #22337, and #30774 are retained as boundary/proposal/failure evidence only and are not described as shipped fixes."
+    },
+    {
+      "target": "benchmark/performance claims",
+      "result": "PR #30355, #30997, and related pages expose source-owned validation context only. The curated layer keeps these as page-scoped evidence, not local baselines, MLCommons results, product rankings, SLOs, or production guarantees."
+    }
+  ],
+  "gap_reason": "The July 15 local SGLang page batch is not represented in existing curated pages, coverage-map, loop-state, or prior manifests. After duplicate reconciliation, the batch contains new page-level operational evidence for image-generation API multi-output behavior, model startup crashes, AMD/ROCm runtime correctness, DP-attention and disaggregated-prefill boundaries, cache lifecycle, heterogeneous attention-TP transfer, object-storage model paths, routing/cache proposals, crash-dump documentation, and Server-Timing attribution. The evidence is page-level only and remains partial for full API/comment/review-comment refreshes, production postmortems, SLOs, alert thresholds, and local benchmark baselines.",
+  "promoted_boundaries": [
+    {
+      "item": "#30510/#31027",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028348348Z-github-com-sgl-project-sglang-issues-30510-6de6fa5346.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028356357Z-github-com-sgl-project-sglang-pull-31027-f947154f0e.md",
+      "boundary": "GLM-image OpenAI-compatible image generation ignored n > 1 by consuming only the first AR generation and preparing one latent sample; the merged page expands AR prior, embeddings, latents, conditions, and tensors per requested output."
+    },
+    {
+      "item": "#30648/#30621",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028349170Z-github-com-sgl-project-sglang-issues-30648-f55715c3f3.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028369710Z-github-com-sgl-project-sglang-pull-30621-4c4a356edb.md",
+      "boundary": "URL-format OpenAI image responses returned one URL even when multiple output images were saved; the merged page returns one data item per output and adds variant download paths."
+    },
+    {
+      "item": "#31046",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028350087Z-github-com-sgl-project-sglang-issues-31046-6b8079d983.md",
+      "boundary": "DeepSeek-V4 v0.5.15 issue reports a fallback path passing _DeepseekV4ConfigAlias to Hugging Face AutoModel.from_config, causing an unrecognized-config ValueError and server crash; issue-only evidence, no shipped fix inferred."
+    },
+    {
+      "item": "#31274",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028350373Z-github-com-sgl-project-sglang-issues-31274-6df5967a1d.md",
+      "boundary": "Gemma-4 with --quantization modelopt_fp4 issue reports tuple index out of range during scheduler/CUDA graph initialization through the Gemma image-feature path; issue-only evidence."
+    },
+    {
+      "item": "#30355",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028353201Z-github-com-sgl-project-sglang-pull-30355-31931c5d7d.md",
+      "boundary": "MI355/gfx950 DeepSeek MLA with --attention-backend triton inherited aiter fused paths, producing prefill null-K GPU fault, decode dispatch fault, and RoPE-skip accuracy failure; the page-visible merged fix gates fused paths on the selected backend and keeps speculative EAGLE out of scope."
+    },
+    {
+      "item": "#31245",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028354212Z-github-com-sgl-project-sglang-pull-31245-b795db74d5.md",
+      "boundary": "DP-attention graph admission now keys decode-family CUDA graph checks on original_global_num_tokens_cpu raw sync request counts instead of multiply/divide reconstruction guarded by algorithm enumeration."
+    },
+    {
+      "item": "#31239",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028354905Z-github-com-sgl-project-sglang-pull-31239-863696c394.md",
+      "boundary": "Closed-unmerged disaggregated-prefill cached-prefix page reports accuracy regression from default early-send cached-prefix behavior racing non-staging KV transfer; retained as boundary evidence only."
+    },
+    {
+      "item": "#31321",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028355369Z-github-com-sgl-project-sglang-pull-31321-d4c52a31fb.md",
+      "boundary": "PP dynamic chunk profiling on hybrid Mamba models allocated temporary Mamba cache slots and failed warmup under small max_mamba_cache_size; the merged page releases profiling Mamba cache before request-pool cleanup."
+    },
+    {
+      "item": "#30997",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md",
+      "boundary": "Heterogeneous attention-TP scatter transfer for Qwen3.5 GDN+GQA needed independent conv_state sub-block slicing and replicated-KV head mapping across Mooncake/NIXL senders and staging helpers."
+    },
+    {
+      "item": "#30359/#27141",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028356825Z-github-com-sgl-project-sglang-pull-30359-9887c73a87.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028371746Z-github-com-sgl-project-sglang-pull-27141-a8fdf2d63d.md",
+      "boundary": "Merged #30359 enables mamba-extra-buffer for Qwen3.5 on ROCm by accepting is_hip() in the guard; closed-unmerged #27141 provides richer radix/spec boundary context but is not treated as shipped."
+    },
+    {
+      "item": "#31211",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028373678Z-github-com-sgl-project-sglang-pull-31211-999d09855b.md",
+      "boundary": "Processor config loading for RunAI-backed S3/GCS/Azure object-storage model paths must resolve model_name through the prepared local object-storage cache before AutoConfig."
+    },
+    {
+      "item": "#30507/#26293",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028373456Z-github-com-sgl-project-sglang-pull-30507-5c531655f1.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028378657Z-github-com-sgl-project-sglang-pull-26293-879eb34158.md",
+      "boundary": "Closed-unmerged QoS-aware cache and cache-aware routing proposals expose priority-weighted radix eviction and shadow-cache balance knobs as proposal/failure-boundary evidence only."
+    },
+    {
+      "item": "#31333/#31272",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028357774Z-github-com-sgl-project-sglang-pull-31333-b47d00a41d.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260715T234028379398Z-github-com-sgl-project-sglang-pull-31272-4ddb017271.md",
+      "boundary": "Merged observability pages document CUDA device coredumps behind --crash-dump-folder and add Server-Timing engine.worker attribution for dispatch-stage router errors."
+    }
+  ],
+  "non_promoted_boundaries": [
+    "The 103 page snapshots are not merged into the June API corpus counts and do not imply joined comments or PR review comments.",
+    "Issue-only reports, closed-unmerged PRs, WIP/draft proposals, and pages without merged timestamps remain discovery or failure-boundary evidence and are not described as shipped fixes.",
+    "Benchmark, accuracy, throughput, latency, reproduction, and CI details remain source-scoped page evidence, not local benchmark baselines, MLCommons results, production SLOs, alert thresholds, product rankings, or general guarantees.",
+    "No accelerator catalog data, source registry row, crawler subscription, source profile, backend, frontend, Loop Dashboard, harness, package, or dependency file is modified."
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-24-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-4-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-24-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ],
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-4"
+}

@@ -3,7 +3,7 @@
   "domain": "ai_infra",
   "domain_goal": "Expand AI infrastructure coverage across training, inference, orchestration, data/RAG, evaluation, security/governance/cost, hardware, and network/storage/cluster infrastructure while reusing local evidence before new crawling.",
   "last_planner_decision": "planned",
-  "last_scan_at": "2026-07-15T15:56:07Z",
+  "last_scan_at": "2026-07-16T00:00:00Z",
   "scan_ttl_days": 30,
   "candidate_backlog": [],
   "known_sources": [
@@ -38,12 +38,16 @@
       "title": "SGLang runtime, issue, PR, and CUDA Green Context evidence",
       "source": "local wiki/raw",
       "status": "known",
-      "updated_at": "2026-07-06T21:23:08Z",
+      "updated_at": "2026-07-16T00:00:00Z",
       "evidence": [
         "personal-wiki/domains/ai_infra/wiki/projects/sglang.md",
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
         "personal-wiki/domains/ai_infra/wiki/concepts/nvidia-green-context.md",
-        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json"
+        "personal-wiki/domains/ai_infra/raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-with-comments.split-manifest.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-24-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-4-gap-proof.json"
       ]
     },
     {
@@ -902,6 +906,24 @@
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-23-gap-proof.json",
         "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-3-gap-proof.json",
         "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json",
+        "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+      ]
+    },
+    {
+      "id": "sglang-july-15-page-level-evidence",
+      "title": "SGLang July 15 scheduled page-level crawler evidence",
+      "source": "local wiki/raw",
+      "status": "known",
+      "updated_at": "2026-07-16T00:00:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260715.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-24-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-4-gap-proof.json",
         "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
         "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
