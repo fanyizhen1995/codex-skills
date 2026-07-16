@@ -2203,11 +2203,9 @@ class SupervisorStore:
             row = self._connection.execute(
                 """
                 SELECT 1
-                FROM review_reservations AS reservations
-                JOIN actions ON actions.action_id = reservations.action_id
+                FROM actions
                 LEFT JOIN workers AS owner ON owner.worker_id = actions.lease_owner
-                WHERE reservations.status = 'reserved'
-                  AND actions.action_type = 'run_reviewer'
+                WHERE actions.action_type = 'run_reviewer'
                   AND actions.queue_owner = 'reviewer'
                   AND (actions.not_before = '' OR actions.not_before <= ?)
                   AND (

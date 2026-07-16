@@ -171,6 +171,59 @@ def test_canonical_watch_launches_preexisting_due_reviewer_from_durable_queue(
     assert len(launched) == 1
 
 
+def test_canonical_watch_launches_unreserved_recovery_reviewer_from_durable_queue(
+    tmp_path, monkeypatch
+) -> None:
+    from scripts.loop_supervisor import cli
+
+    class RunningReviewer:
+        def poll(self) -> None:
+            return None
+
+    launched: list[list[str]] = []
+
+    def popen(command: list[str], **_kwargs: object) -> RunningReviewer:
+        launched.append(command)
+        return RunningReviewer()
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        store.upsert_run_projection(
+            {
+                "run_id": "run-recovery-review",
+                "revision": 4,
+                "loop_lineage_id": "lineage-recovery-review",
+                "parent_run_id": "",
+                "policy": "autonomous_knowledge",
+                "phase": "stopped_blocked",
+                "status": "actionable",
+                "state_fingerprint": "fingerprint-recovery-review",
+                "summary": "{}",
+                "artifact_refs": [],
+            }
+        )
+        store.enqueue_action(
+            ActionRequest(
+                action_id="action-review-recovery",
+                run_id="run-recovery-review",
+                run_revision=4,
+                policy="autonomous_knowledge",
+                phase="stopped_blocked",
+                action_type=ActionType.RUN_REVIEWER,
+                idempotency_key="recovery:review-recovery",
+                queue_owner=ActionOwner.REVIEWER,
+                task_id="review:recovery",
+                next_action="supervisor_reviewer",
+            )
+        )
+
+    monkeypatch.setattr(cli, "_reviewer_process", None)
+    monkeypatch.setattr(cli.subprocess, "Popen", popen)
+
+    assert cli._launch_due_reviewer(tmp_path, {"queued_actions": []}) is True
+    assert len(launched) == 1
+
+
 def test_canonical_watch_relaunches_reclaimable_reviewer_lease(
     tmp_path, monkeypatch
 ) -> None:
