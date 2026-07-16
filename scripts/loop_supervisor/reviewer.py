@@ -1204,10 +1204,15 @@ def run_queued_reviewer(
         reservation_id = str(action.payload.get("reservation_id") or "")
         if reservation_id and result.status != "review_complete":
             guard.checkpoint()
+            deferred_positions = (
+                _current_completion_positions(store, lineages)
+                if not result.blocks_safe_runs
+                else None
+            )
             store.release_review_reservation(
                 reservation_id,
                 reason=f"{result.status}: {result.review_id}",
-                defer_positions=not result.blocks_safe_runs,
+                defer_through_positions=deferred_positions,
             )
         elif reservation_id:
             store.complete_reviewer_action(
@@ -1324,6 +1329,16 @@ def _semantic_parent_completions(
         lineage: sorted(items.items(), key=lambda item: (item[1], item[0]))
         for lineage, items in grouped.items()
     }
+
+
+def _current_completion_positions(
+    store: SupervisorStore,
+    lineages: Sequence[str],
+) -> dict[str, int]:
+    runs = _decoded_store_rows(store, "runs")
+    payloads = _run_payloads(store.project_root, runs)
+    completions = _semantic_parent_completions(runs, payloads)
+    return {lineage: len(completions.get(lineage, ())) for lineage in lineages}
 
 
 def _review_scope(

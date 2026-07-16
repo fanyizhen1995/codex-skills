@@ -1246,7 +1246,10 @@ def test_queued_degraded_review_defers_retry_until_next_cadence(
     store = migrated_store(tmp_path, clock)
     record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
     record_parent_completion(store, "lineage-a", run_id="run-a2", parent=2)
+    record_parent_completion(store, "lineage-a", run_id="run-a3", parent=3)
+    record_parent_completion(store, "lineage-a", run_id="run-a4", parent=4)
     request = schedule_due_reviews(store, now=NOW)[0]
+    assert request.metadata["cadence_positions"] == {"lineage-a": 2}
     clock.value = NOW + timedelta(minutes=10)
 
     result = run_queued_reviewer(
@@ -1262,19 +1265,19 @@ def test_queued_degraded_review_defers_retry_until_next_cadence(
     assert reservation["status"] == "released"
     cadence = store.review_cadence_positions()["lineage-a"]
     assert cadence["reviewed_position"] == 0
-    assert cadence["deferred_position"] == 2
+    assert cadence["deferred_position"] == 4
     assert cadence["reservation_id"] == ""
     assert review_due_lineages(store, now=clock.value) == []
     assert schedule_due_reviews(store, now=clock.value) == []
 
-    record_parent_completion(store, "lineage-a", run_id="run-a3", parent=3)
+    record_parent_completion(store, "lineage-a", run_id="run-a5", parent=5)
     assert review_due_lineages(store, now=clock.value) == []
-    record_parent_completion(store, "lineage-a", run_id="run-a4", parent=4)
+    record_parent_completion(store, "lineage-a", run_id="run-a6", parent=6)
 
     assert review_due_lineages(store, now=clock.value) == ["lineage-a"]
     retry = schedule_due_reviews(store, now=clock.value)[0]
     assert retry.action_id != request.action_id
-    assert retry.metadata["cadence_positions"] == {"lineage-a": 4}
+    assert retry.metadata["cadence_positions"] == {"lineage-a": 6}
 
 
 def test_queued_review_propagates_outbox_failure_without_advancing_cadence(

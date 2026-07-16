@@ -1514,10 +1514,15 @@ class SupervisorStore:
         reservation_id: str,
         *,
         reason: str,
-        defer_positions: bool = False,
+        defer_through_positions: Mapping[str, int] | None = None,
     ) -> None:
         self._required_text(reservation_id, "reservation_id")
         self._validate_summary(reason, field_name="reservation release reason")
+        deferred = (
+            self._validate_lineage_positions(defer_through_positions)
+            if defer_through_positions is not None
+            else None
+        )
         now = self._now_text()
         with self._immediate_transaction():
             reservation = self._connection.execute(
@@ -1531,7 +1536,14 @@ class SupervisorStore:
             if reservation["status"] != "reserved":
                 raise ValueError("only reserved review cadence can be released")
             positions = json.loads(str(reservation["positions_json"]))
+            if deferred is not None and set(deferred) != set(positions):
+                raise ValueError("deferred review lineages do not match reservation")
             for lineage_id, position in positions.items():
+                deferred_position = (
+                    max(int(position), deferred[lineage_id])
+                    if deferred is not None
+                    else int(position)
+                )
                 self._connection.execute(
                     """
                     UPDATE review_cadence
@@ -1543,8 +1555,8 @@ class SupervisorStore:
                     WHERE lineage_id = ? AND reservation_id = ?
                     """,
                     (
-                        1 if defer_positions else 0,
-                        int(position),
+                        1 if deferred is not None else 0,
+                        deferred_position,
                         now,
                         lineage_id,
                         reservation_id,

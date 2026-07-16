@@ -840,7 +840,7 @@ def test_due_reviewer_reservation_blocks_planner_until_safe_degradation(tmp_path
     store.release_review_reservation(
         str(review_action.metadata["reservation_id"]),
         reason="review_degraded: timeout",
-        defer_positions=True,
+        defer_through_positions={run_id: 2},
     )
     resumed = reconcile_once(tmp_path, store, include_worktrees=False)
 
