@@ -446,6 +446,51 @@ def test_reviewer_evidence_includes_action_attempts_from_all_project_runs(
     } == {active_action, child_action, unrelated_action}
 
 
+def test_reviewer_evidence_bounds_recovery_detail_but_preserves_global_counts(
+) -> None:
+    action_ids = [f"action-bounded-{index:03d}" for index in range(55)]
+    recovery_actions = [
+        {
+            "action_id": action_id,
+            "run_id": "active-run",
+            "action_type": "recover_generator_result",
+            "status": "failed",
+            "recovery_tier": 1,
+            "created_at": f"2026-07-15T00:{index:02d}:00Z",
+            "payload": {"unneeded": "x" * 1000},
+        }
+        for index, action_id in enumerate(action_ids)
+    ]
+    attempts = [
+        {
+            "attempt_id": f"attempt-bounded-{index:03d}",
+            "action_id": action_id,
+            "result_class": "success",
+            "error_class": "",
+            "failure_key": "",
+            "summary": "bounded recovery succeeded",
+            "created_at": f"2026-07-15T00:{index:02d}:00Z",
+        }
+        for index, action_id in enumerate(action_ids)
+    ]
+
+    evidence = reviewer_module._bounded_failure_recovery_evidence(
+        [], recovery_actions, attempts
+    )
+
+    assert evidence["attempt_count"] == 55
+    assert evidence["recovery_action_count"] == 55
+    assert len(evidence["attempts"]) == reviewer_module.REVIEW_ATTEMPT_DETAIL_LIMIT
+    assert (
+        len(evidence["recovery_actions"])
+        == reviewer_module.REVIEW_RECOVERY_ACTION_DETAIL_LIMIT
+    )
+    assert evidence["attempt_counts_by_result_class"] == {"success": 55}
+    assert action_ids[-1] in {item["action_id"] for item in evidence["attempts"]}
+    assert action_ids[0] not in {item["action_id"] for item in evidence["attempts"]}
+    assert all("payload" not in item for item in evidence["recovery_actions"])
+
+
 def test_reconcile_reviewer_scope_incident_closes_only_exact_generated_decisions(
     tmp_path: Path,
 ) -> None:
