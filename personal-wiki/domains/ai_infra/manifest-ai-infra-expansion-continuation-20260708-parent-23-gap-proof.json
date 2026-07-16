@@ -1,0 +1,240 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-23",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "SGLang July 10-14 scheduled crawler page-level operations evidence",
+    "source_type": "github_issue",
+    "owner": "sgl-project",
+    "repo": "sglang",
+    "number": "20260710-20260714-batch",
+    "identity_key": "github:sgl-project/sglang#20260710-20260714-batch"
+  },
+  "identity_keys": [
+    {
+      "title": "SGLang scheduled crawler July 10-14 batch",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "20260710-20260714-batch",
+      "identity_key": "github:sgl-project/sglang#20260710-20260714-batch",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json"
+    },
+    {
+      "title": "Fix pipeline-parallel abort missing in-flight requests in non-current microbatch slots",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "29405",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#29405",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260710T233720335218Z-github-com-sgl-project-sglang-pull-29405-5dcf1cfea9.md"
+    },
+    {
+      "title": "Handle NIXL abort notifications",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30352",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30352",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md"
+    },
+    {
+      "title": "[Bug fix] Account for KV replication fan-out in transfer-byte metrics",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30351",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30351",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md"
+    },
+    {
+      "title": "Support scheduler_recv_interval (recv skipper) under DP-attention",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30457",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30457",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md"
+    },
+    {
+      "title": "[PD] Fix optimistic prefill inflight-queue hangs on parked/aborted reqs",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31075",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31075",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md"
+    },
+    {
+      "title": "fix: avoid double KV release on disaggregated prefill grammar errors",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30937",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30937",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md"
+    },
+    {
+      "title": "[Bug] GLM-5.2-NVFP4 + flashinfer_trtllm: long-context outputs collapse to '!!!!' (NaN logits) — fp32 correction_bias regression from #29783",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30989",
+      "kind": "issue",
+      "identity_key": "github:sgl-project/sglang#30989",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260713T234005151119Z-github-com-sgl-project-sglang-issues-30989-dbda629d17.md"
+    },
+    {
+      "title": "Fix GLM/DeepSeek NVFP4 + flashinfer_trtllm long-context \"!!!!\" collapse (NaN routing)",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31001",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31001",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md"
+    },
+    {
+      "title": "[bug-fix] Stabilize GLM-5.2 MTP IndexShare across PD and CUDA graph replay",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30839",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30839",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021683488Z-github-com-sgl-project-sglang-pull-30839-7f7f00ec6c.md"
+    },
+    {
+      "title": "[Cherry-pick to release/v0.5.15] Stabilize GLM-5.2 MTP IndexShare across PD and CUDA graph replay (#30839)",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "31083",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#31083",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md"
+    },
+    {
+      "title": "Fix DSV4 HiSparse SWA tail allocation forwarding",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30408",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30408",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md"
+    },
+    {
+      "title": "[kv canary] Support UnifiedRadixCache in kv-canary and bracket nested model.forward",
+      "source_type": "github_issue",
+      "owner": "sgl-project",
+      "repo": "sglang",
+      "number": "30574",
+      "kind": "pull_request",
+      "identity_key": "github:sgl-project/sglang#30574",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Read and reconciled 383 local Markdown page snapshots under personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs for 2026-07-10 through 2026-07-14. Counts: 65 issues, 318 PRs, 317 page-visible merged PRs, one closed-unmerged PR, 375 unique identities, 5 duplicate identities inside the batch, 21 API-corpus overlaps, 3 prior page-supplement overlaps, and 352 new unique identities after API/prior-page reconciliation.",
+    "wiki_search": "Searched existing curated SGLang, inference-runtime, eval-observability, network-storage, coverage-map, coverage-map.json, loop-state.json, and ingest.md evidence for the API corpus, 2026-07-01 through 2026-07-04, 2026-07-05 through 2026-07-07, July 8, July 9, HiCache, radix, SWA, DP attention, pipeline parallel, disaggregated prefill/decode, NIXL, Mooncake, RDMA, KV transfer, scheduler_recv_interval, FlashInfer, DeepSeek, GLM, and metrics. Existing pages cover those earlier batches but did not cover the July 10-14 batch or its selected item identities.",
+    "domain_index_scan": "ai_infra wiki/index.md routes SGLang issue/PR corpus work to SGLang GitHub Closed Issues And PRs, Inference Runtime Infrastructure, Evaluation Observability Reliability Infrastructure, Network Storage Cluster Infrastructure, and AI Infra Coverage Map. No new standalone page is needed because this is a scheduled crawler supplement to existing references.",
+    "prior_manifest_scan": "Prior curated manifests already cover the June API corpus, 2026-06-29 crawler supplement, 2026-07-01 through 2026-07-04 scheduled supplement, 2026-07-05 through 2026-07-07 refresh, 2026-07-08 page-level parent-16 slice, and 2026-07-09 manifest. This task adds manifest-20260710-20260714.json and does not re-promote parent-16 or July 9 selected findings as new evidence."
+  },
+  "duplicate_boundary_checks": [
+    {
+      "target": "SGLang full API corpus",
+      "result": "The June API corpus already contains 21 unique July 10-14 batch identities; these are counted as overlap and not new knowledge."
+    },
+    {
+      "target": "prior SGLang page supplements",
+      "result": "PR #2, PR #27988, and PR #30703 overlap earlier page supplements; they remain raw evidence but are not counted as new parent-23 operational signals."
+    },
+    {
+      "target": "2026-07-08 and 2026-07-09 curated SGLang findings",
+      "result": "Parent-23 does not re-promote DeepSeek-V4 FlashInfer A2A bucket synchronization, PD-router prefill-error hang, Mooncake RDMA data-race, prefill-unreachable decode abort cleanup, HiCacheFile metadata-cache behavior, DSV4 sparse-prefill recompilation, unified-KV/HiCache/SWA lifecycle, multimodal shared-memory fallback, ROCm graph-capture memory registration, merge-order compatibility, or speculative-decoding measurement except as duplicate-boundary context."
+    },
+    {
+      "target": "closed-unmerged PR handling",
+      "result": "PR #30301 is closed without a merged timestamp and is retained as boundary context only; merged PR #30352 is the promoted NIXL abort-handling source."
+    },
+    {
+      "target": "benchmark/performance claims",
+      "result": "PR #30457, PR #31001, and other pages expose source-owned benchmark or verification context only. The curated layer keeps these as page-scoped evidence, not local baselines, MLCommons results, product rankings, SLOs, or production guarantees."
+    }
+  ],
+  "gap_reason": "The July 10-14 local SGLang page batch is not represented in existing curated pages, coverage-map, loop-state, or prior manifests. After duplicate reconciliation, the batch contains new page-level operational evidence for inference-runtime scheduling and failure handling, KV-transfer metrics and NIXL/Mooncake/Mori connector boundaries, GLM/DeepSeek FlashInfer stability, and cache/SWA tooling. The evidence is page-level only and remains partial for full API/comment/review-comment refreshes, production postmortems, SLOs, alert thresholds, and local benchmark baselines.",
+  "promoted_boundaries": [
+    {
+      "item": "#29405",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260710T233720335218Z-github-com-sgl-project-sglang-pull-29405-5dcf1cfea9.md",
+      "boundary": "Pipeline-parallel abort scanning must cover every running_mbs and mbs microbatch slot, not only the current and previous scheduler batches."
+    },
+    {
+      "item": "#30352",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md",
+      "boundary": "NIXL disaggregation can receive decode-side ABORT while prefill transfer work is still finishing; the page-visible merged fix handles ABORT on the prefill bootstrap socket and keeps Failed status sticky until sender cleanup."
+    },
+    {
+      "item": "#30351",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md",
+      "boundary": "KV-transfer metrics for MLA fan-out topologies must multiply transferred bytes by decode-destination replication factor; connector registration barriers cover Mooncake, NIXL, and Mori."
+    },
+    {
+      "item": "#30457",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md",
+      "boundary": "DP-attention scheduler receive skipping needs a DP-synchronized global_forward_mode so ranks make identical broadcast/skip decisions."
+    },
+    {
+      "item": "#31075",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md",
+      "boundary": "Optimistic prefill inflight-queue handling must route parked pending-bootstrap requests through terminal retry/abort handling and fail on unexpected poll states instead of spinning."
+    },
+    {
+      "item": "#30937",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md",
+      "boundary": "Disaggregated prefill grammar rejection must defer KV release until transfer terminal cleanup and preserve the original grammar abort reason."
+    },
+    {
+      "item": "#30989/#31001",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260713T234005151119Z-github-com-sgl-project-sglang-issues-30989-dbda629d17.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md",
+      "boundary": "GLM/DeepSeek NVFP4 with flashinfer_trtllm can collapse long-context outputs to NaN logits when fp32 correction bias violates the FlashInfer routing-bias dtype contract; the page-visible merged fix restores bf16 casting for the FP4 path."
+    },
+    {
+      "item": "#30839/#31083",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021683488Z-github-com-sgl-project-sglang-pull-30839-7f7f00ec6c.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md",
+      "boundary": "GLM-5.2 MTP IndexShare needs per-request DSA seed transfer and validity tracking across PD disaggregation, context parallelism, overlap scheduling, batch splitting, and CUDA graph replay."
+    },
+    {
+      "item": "#30408/#30574",
+      "source_ref": "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md and personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md",
+      "boundary": "HiSparse/SWA tail allocation and kv-canary UnifiedRadixCache support add cache bookkeeping and inspection evidence for hybrid cache paths."
+    }
+  ],
+  "non_promoted_boundaries": [
+    "The 383 page snapshots are not merged into the June API corpus counts and do not imply joined comments or PR review comments.",
+    "Closed-unmerged PRs and issue-only reports remain discovery or failure-boundary evidence and are not described as shipped fixes.",
+    "Benchmark, accuracy, throughput, latency, and reproduction tables remain source-scoped page evidence, not local benchmark baselines, MLCommons results, production SLOs, alert thresholds, product rankings, or general guarantees.",
+    "No accelerator catalog data, source registry rows, source profiles, crawler subscriptions, backend/frontend/dashboard code, package files, or harness code is modified."
+  ],
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/sglang-github-closed-issues-prs/manifest-july-10-14.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-23-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-3-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-23-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/sglang-github-closed-issues-prs.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ]
+}

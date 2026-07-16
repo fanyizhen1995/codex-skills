@@ -56,7 +56,20 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635335677Z-github-com-sgl-project-sglang-pull-30615-04ac9ae8e3.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635321867Z-github-com-sgl-project-sglang-pull-30645-a58d0745b2.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324761Z-github-com-sgl-project-sglang-pull-30653-b1a3bf7bc0.md
-updated: 2026-07-10
+  - ../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720335218Z-github-com-sgl-project-sglang-pull-29405-5dcf1cfea9.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005151119Z-github-com-sgl-project-sglang-issues-30989-dbda629d17.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021683488Z-github-com-sgl-project-sglang-pull-30839-7f7f00ec6c.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md
+updated: 2026-07-15
 aliases:
   - sgl-project/sglang closed issues
   - sgl-project/sglang closed PRs
@@ -96,6 +109,9 @@ This reference indexes the local raw corpus for closed issues and closed pull re
 | Scheduled crawler July 8 composition | 14 issues, 83 pull requests, including 55 merged pull requests and 28 closed-unmerged pull requests |
 | Scheduled crawler July 9 capture | 102 Markdown page snapshots captured 2026-07-09 |
 | Scheduled crawler July 9 composition | 6 issues, 96 pull requests, including 69 merged pull requests and 27 closed-unmerged pull requests; 98 new identities and 4 overlaps |
+| Scheduled crawler July 10-14 capture | 383 Markdown page snapshots captured 2026-07-10 through 2026-07-14 |
+| Scheduled crawler July 10-14 composition | 65 issues and 318 pull requests, including 317 page-visible merged pull requests and one closed-unmerged pull request |
+| Scheduled crawler July 10-14 reconciliation | 375 unique identities, 5 duplicate identities inside the batch, 21 API-corpus overlaps, 3 prior-page-supplement overlaps, and 352 new unique identities after API/prior-page reconciliation |
 
 Raw files:
 
@@ -112,6 +128,7 @@ Raw files:
 - [Scheduled crawler supplement manifest, 2026-07-01 to 2026-07-04](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260701-20260704.json)
 - [Scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 - [Scheduled crawler supplement manifest, 2026-07-09](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260709.json)
+- [Scheduled crawler supplement manifest, 2026-07-10 to 2026-07-14](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json)
 
 # Capture Notes
 
@@ -128,6 +145,8 @@ The 2026-07-05 through 2026-07-07 scheduled crawler refresh records 192 addition
 The 2026-07-08 scheduled crawler supplement adds 97 page snapshots under the same page-level boundary: 14 issues and 83 pull requests, including 55 page-visible merged PRs and 28 closed-unmerged PRs. Use this batch as a bounded discovery supplement for inference-runtime, PD disaggregation, cache/storage, and observability signals after the API corpus cutoff. Do not merge these pages into API corpus counts, infer joined comments or review comments, or treat closed-unmerged PRs as shipped fixes.
 
 The 2026-07-09 scheduled crawler supplement adds 102 page snapshots: 6 issues and 96 pull requests, including 69 page-visible merged PRs and 27 closed-unmerged PRs. Identity comparison finds 98 new items and four repeated pull requests (#2, #9754, #22416, and #27988). The repeated captures remain raw evidence but are not counted as new knowledge. The batch is still page-level evidence without joined comments or review comments.
+
+The 2026-07-10 through 2026-07-14 scheduled crawler supplement adds 383 page snapshots: 65 issues and 318 pull requests, including 317 page-visible merged PRs and one closed-unmerged PR. Identity comparison finds 375 unique item identities, five duplicate identities inside the batch, 21 overlaps with the June API corpus, three overlaps with earlier page supplements, and 352 new unique identities after API/prior-page reconciliation. The batch is page-level evidence only; do not merge it into the API corpus, infer unavailable comments or review comments, treat closed-unmerged PRs as shipped fixes, or promote source-owned benchmark tables into local baselines, SLOs, rankings, or general performance guarantees. [raw](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json)
 
 # Operational Signals
 
@@ -179,6 +198,19 @@ Selected 2026-07-09 merged page-level leads now promoted into [Inference Runtime
 | #30645 | Sparse top-k index validity | Fixes top-k v2 tie overflow and FP16 infinity-bin handling that could emit `-1` indices consumed by FA3 sparse decode, with source-reported H200 sanitizer and adversarial-distribution checks. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635321867Z-github-com-sgl-project-sglang-pull-30645-a58d0745b2.md) | Source-owned validation only; no local H200 reproduction was run. |
 | #30557, #30606, #30653 | Runtime coordination and compatibility | #30557 avoids HIP IPC registration of graph-capture VMM buffers under the ROCm memory saver; #30606 replaces a racy fan-out waiter queue with a FIFO `asyncio.Lock`; #30653 repairs merge-order breakage after parallel helper retirement. [#30557](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635336384Z-github-com-sgl-project-sglang-pull-30557-ff69e46da6.md) [#30606](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635338342Z-github-com-sgl-project-sglang-pull-30606-4a8e373dfc.md) [#30653](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324761Z-github-com-sgl-project-sglang-pull-30653-b1a3bf7bc0.md) | Narrow merged fixes; they do not establish broader runtime availability. |
 | #30615 | Speculative-decoding evaluation | Adds fixed-prompt controls and per-request speculative accept-length collection to serving/evaluation tooling. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635335677Z-github-com-sgl-project-sglang-pull-30615-04ac9ae8e3.md) | Instrumentation capability only; no local benchmark or acceptance target is inferred. |
+
+Selected 2026-07-10 through 2026-07-14 merged page-level leads now promoted into [Inference Runtime Infrastructure](inference-runtime-infrastructure.md), [Evaluation Observability Reliability Infrastructure](evaluation-observability-reliability-infrastructure.md), or [Network Storage Cluster Infrastructure](network-storage-cluster-infrastructure.md):
+
+| Item | Surface | Operational signal | Caveat |
+| --- | --- | --- | --- |
+| #29405 | Pipeline-parallel abort handling | `abort_request` and `abort_all` must scan every `running_mbs` and `mbs` microbatch slot under pipeline parallelism, because `running_batch` and `cur_batch` only cover the current and previous slots when more than two microbatch slots are active. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720335218Z-github-com-sgl-project-sglang-pull-29405-5dcf1cfea9.md) | Page-visible merged PR evidence; scoped to the scripted-runtime regression test described by the source. |
+| #30352 | NIXL abort handling | NIXL disaggregation can receive a decode-side `ABORT` while prefill transfer work is still completing; the merged page handles `ABORT` on the prefill bootstrap socket, marks incomplete rooms `Failed`, keeps that status sticky until sender cleanup, and explicitly leaves `ABORT_ACK` for a future quiescence contract. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md) | Page-visible merged PR evidence; the earlier closed-unmerged #30301 remains boundary context only. |
+| #30351 | KV-transfer metrics | MLA fan-out topologies need transfer-byte metrics to multiply transferred bytes by the decode-destination replication factor; the source wires factor resolution through Mooncake, NIXL, and Mori registration barriers and scopes integration evidence to its stated H100/Mooncake cases. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md) | Metric-semantics evidence, not an alert threshold, production SLO, or general network-performance claim. |
+| #30457 | DP-attention scheduler receive skipping | `scheduler_recv_interval` under DP attention requires every rank to make the same request-broadcast skip decision from DP-synchronized `global_forward_mode`, avoiding divergent local `forward_mode` counters that could desynchronize collectives. [raw](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md) | Source accuracy and throughput tables stay page-scoped to DeepSeek-R1-MXFP4 on the stated MI355X setup. |
+| #31075 and #30937 | Disaggregated prefill terminal cleanup | #31075 routes optimistic-prefill parked requests through terminal retry/abort handling and fails unexpected poll states instead of spinning the inflight queue; #30937 defers KV release after grammar rejection until transfer terminal cleanup and preserves the original grammar abort reason. [#31075](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md) [#30937](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md) | Page-visible merged PR evidence for error paths, not a complete production postmortem. |
+| #30989 and #31001 | GLM/DeepSeek NVFP4 FlashInfer routing | Issue #30989 reports long-context GLM-5.2-NVFP4 collapse to `!` output with NaN logprobs under `flashinfer_trtllm`; merged PR #31001 restores bf16 correction-bias casting for the FP4 path to satisfy the FlashInfer routing-bias dtype contract. [issue](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005151119Z-github-com-sgl-project-sglang-issues-30989-dbda629d17.md) [pr](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md) | Reproduction and verification stay scoped to the source's GLM-5.2-NVFP4, B300, FlashInfer, and container/software details. |
+| #30839 and #31083 | GLM-5.2 MTP IndexShare | Merged PR #30839 and release/v0.5.15 backport #31083 transfer per-request DSA top-k seeds across PD disaggregation, keep validity state through context parallelism, overlap scheduling, batch splitting, and CUDA graph replay, and fall back when no valid seed exists. [#30839](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021683488Z-github-com-sgl-project-sglang-pull-30839-7f7f00ec6c.md) [#31083](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md) | Narrow GLM-5.2 MTP/DSA state-transfer evidence, not broad speculative-decoding availability. |
+| #30408 and #30574 | HiSparse, SWA, and UnifiedRadixCache tooling | #30408 forwards SWA-tail allocation through the DeepSeekV4 HiSparse allocator and preserves admission/preallocation behavior; #30574 teaches kv-canary to inspect UnifiedRadixCache and bracket nested `model.forward` calls so only the outermost call runs canary pre/post operations. [#30408](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md) [#30574](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md) | Cache bookkeeping and inspection evidence only; not a storage benchmark or SLO. |
 
 # Retrieval Notes
 
@@ -250,3 +282,16 @@ High-discussion examples in the captured corpus include:
 - [SGLang PR #30615 speculative accept-length metrics](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635335677Z-github-com-sgl-project-sglang-pull-30615-04ac9ae8e3.md)
 - [SGLang PR #30645 sparse top-k index fix](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635321867Z-github-com-sgl-project-sglang-pull-30645-a58d0745b2.md)
 - [SGLang PR #30653 retired parallel accessor migration](../../raw/crawler/sglang-github-closed-issues-prs/20260709T233635324761Z-github-com-sgl-project-sglang-pull-30653-b1a3bf7bc0.md)
+- [SGLang scheduled crawler supplement manifest, 2026-07-10 to 2026-07-14](../../raw/crawler/sglang-github-closed-issues-prs/manifest-20260710-20260714.json)
+- [SGLang PR #29405 pipeline-parallel abort scan](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720335218Z-github-com-sgl-project-sglang-pull-29405-5dcf1cfea9.md)
+- [SGLang PR #30352 NIXL abort handling](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md)
+- [SGLang PR #30351 KV-transfer fan-out metrics](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md)
+- [SGLang PR #30457 DP-attention scheduler receive interval](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021666327Z-github-com-sgl-project-sglang-pull-30457-59df9d512c.md)
+- [SGLang PR #31075 optimistic prefill inflight-queue cleanup](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md)
+- [SGLang PR #30937 disaggregated prefill grammar-error cleanup](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md)
+- [SGLang issue #30989 GLM-5.2 NVFP4 NaN routing bug](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005151119Z-github-com-sgl-project-sglang-issues-30989-dbda629d17.md)
+- [SGLang PR #31001 GLM/DeepSeek NVFP4 FlashInfer fix](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005167501Z-github-com-sgl-project-sglang-pull-31001-8e73a7e57f.md)
+- [SGLang PR #30839 GLM-5.2 MTP IndexShare stabilization](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021683488Z-github-com-sgl-project-sglang-pull-30839-7f7f00ec6c.md)
+- [SGLang PR #31083 GLM-5.2 MTP IndexShare backport](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021686040Z-github-com-sgl-project-sglang-pull-31083-1f7d286bea.md)
+- [SGLang PR #30408 HiSparse SWA tail allocation](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720326828Z-github-com-sgl-project-sglang-pull-30408-c104ab42df.md)
+- [SGLang PR #30574 UnifiedRadixCache kv-canary support](../../raw/crawler/sglang-github-closed-issues-prs/20260710T233720320731Z-github-com-sgl-project-sglang-pull-30574-adc8be6bac.md)

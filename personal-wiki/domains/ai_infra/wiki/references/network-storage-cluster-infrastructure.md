@@ -56,7 +56,11 @@ source_refs:
   - ../../raw/crawler/nccl-lambda-blog/20260705T041046327361Z-lambda-ai-blog-unbox-one-of-nvidias-first-co-packaged-optics-samples-with-lambda-4588e36fba.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md
-updated: 2026-07-10
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md
+  - ../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md
+updated: 2026-07-15
 related:
   - ai-infra-coverage-map.md
   - nccl-technical-blog-network-observability.md
@@ -114,6 +118,8 @@ Ceph evidence covers distributed storage primitives rather than AI-specific beha
 SPDK NVMe-oF documentation supplies protocol-level storage-fabric evidence. The source note records that SPDK exposes NVMe subsystems and namespaces through an NVMe over Fabrics target, which is broader than any one storage accelerator SKU. Use it to explain the storage path and target/subsystem/namespace boundary; do not use it for AI workload performance claims without a benchmark or deployment source. [source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
 
 The July 8 SGLang page supplement adds two runtime-adjacent storage signals. PR #30254 is closed without a merged timestamp and describes a PD-disaggregation Mooncake RDMA KV data-race boundary: CUDA compute-stream writes to a KV chunk are not ordered with an RDMA NIC reading GPU memory through PCIe DMA, so the NIC can transmit stale or partially written data if the transfer is issued before kernels complete. The proposed mitigation records a CUDA event on enqueue and synchronizes in the transfer worker before `batch_transfer_sync_write`, but this page should be treated as closed-unmerged evidence rather than a shipped fix. PR #29716 is a merged HiCacheFile storage signal: optional client-side metadata caching avoids repeated filesystem metadata scans when many cache files sit on a shared filesystem, with TTL, startup scan, write backfill, cache-hit bypass, and eviction invalidation boundaries. Its Lustre benchmark table is source context only, not a general storage benchmark, SLO, product ranking, or local result. [Mooncake RDMA raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633797183Z-github-com-sgl-project-sglang-pull-30254-0a75111a32.md) [HiCacheFile raw](../../raw/crawler/sglang-github-closed-issues-prs/20260708T233633803455Z-github-com-sgl-project-sglang-pull-29716-b6242f612e.md)
+
+The July 10-14 SGLang supplement adds runtime-adjacent transfer-control evidence rather than protocol benchmarks. PR #30352 records that NIXL prefill bootstrap state must handle decode-side `ABORT` while transfer work is still finishing, keep `Failed` status sticky until sender cleanup, and avoid `ABORT_ACK` until a defined quiescence/deferred-release contract exists. PR #30351 records KV-transfer byte-accounting semantics for MLA fan-out and wires replication-factor resolution at Mooncake, NIXL, and Mori registration barriers. PR #31075 and PR #30937 add disaggregated-prefill inflight-queue and grammar-error terminal-cleanup boundaries so parked, failed, or rejected requests do not spin or double-release KV allocations. These are page-level runtime/storage-boundary signals, not protocol-level storage-fabric proof, measured throughput, alert thresholds, SLOs, or production postmortems. [#30352](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md) [#30351](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md) [#31075](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md) [#30937](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md)
 
 Local DPU and storage-accelerator captures remain useful product signals. R10
 task 3 moves a bounded Resnics subset into the structured catalog:
@@ -226,7 +232,7 @@ Use this page as source-backed coverage for `network-storage-cluster`:
 - AWS PCS dashboard coverage for Slurm/EFA/Node/DCGM exporter metrics, CloudWatch Logs, and Jobs/Nodes/GPUs/Slurm/FSx/EFA/Logs views;
 - Lambda/NVIDIA CPO planning evidence for Quantum-X Photonics Q3450-LD, 800G/GB300 NVL72 fabric power, reliability, cooling, fiber routing, and installation-procedure boundaries;
 - MLCommons Storage benchmark mechanics and result-framework fields for AI storage benchmarking;
-- SGLang page-level Mooncake RDMA KV-transfer ordering evidence and HiCacheFile filesystem metadata-cache behavior, while preserving closed-unmerged and benchmark-context caveats;
+- SGLang page-level Mooncake RDMA KV-transfer ordering evidence, HiCacheFile filesystem metadata-cache behavior, NIXL abort-control handling, Mooncake/NIXL/Mori KV-transfer fan-out metric registration barriers, and disaggregated-prefill terminal cleanup boundaries, while preserving closed-unmerged, benchmark-context, and page-level caveats;
 - blocked-source evidence showing exact MLCommons measured-result artifacts were not available from local corpus or bounded shell probes in r9 task 3;
 - existing NCCL technical-blog evidence for Spectrum-X/RoCE fabric telemetry, convergence, congestion control, SHARP, NIC Fusion, and RAS;
 - local DPU/SmartNIC/NVMe-oF product captures only for product-specific storage or offload signals.
@@ -244,6 +250,10 @@ Do not use this page to claim complete production incident readiness, product-sp
 - [WEKA storage architecture source note](../../raw/links/weka-ai-storage-architecture-official-20260707.md)
 - [Ceph distributed storage source note](../../raw/links/ceph-distributed-storage-official-docs-20260707.md)
 - [SPDK NVMe-oF source note](../../raw/links/spdk-nvme-of-target-official-docs-20260707.md)
+- [SGLang PR #30352 NIXL abort handling](../../raw/crawler/sglang-github-closed-issues-prs/20260713T234005185764Z-github-com-sgl-project-sglang-pull-30352-65dfd0a148.md)
+- [SGLang PR #30351 KV-transfer fan-out metrics](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021668233Z-github-com-sgl-project-sglang-pull-30351-df076892cc.md)
+- [SGLang PR #31075 optimistic prefill inflight-queue cleanup](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021684833Z-github-com-sgl-project-sglang-pull-31075-151517fd62.md)
+- [SGLang PR #30937 disaggregated prefill grammar-error cleanup](../../raw/crawler/sglang-github-closed-issues-prs/20260714T234021672422Z-github-com-sgl-project-sglang-pull-30937-a4f4371f5c.md)
 - [Network storage topology and benchmark source note](../../raw/links/network-storage-topology-benchmark-official-sources-20260707.md)
 - [Network storage incident and postmortem source search](../../raw/links/network-storage-incident-postmortem-sources-20260707.md)
 - [Network storage exact benchmark result source probe](../../raw/links/network-storage-exact-benchmark-results-20260707.md)
