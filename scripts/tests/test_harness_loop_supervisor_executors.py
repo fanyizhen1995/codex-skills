@@ -187,6 +187,94 @@ def test_dispatcher_rejects_non_executable_action(tmp_path: Path) -> None:
         execute_action(_request(ActionType.ASK_USER), tmp_path)
 
 
+def test_demand_generator_can_repair_failed_evaluator_result(tmp_path: Path) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Repair the failed evaluator result",
+        run_id="repair-run",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    run = legacy.load_run(tmp_path, run["run_id"])
+    run["phase"] = "repair_needed"
+    run["next_action"] = "repair_from_evaluator_findings"
+    run["attempts"]["generator"] = 1
+    legacy.save_run(tmp_path, run)
+    request = ActionRequest(
+        action_id="action-repair-generator",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="repair_needed",
+        action_type=ActionType.RUN_GENERATOR,
+        idempotency_key="repair-generator",
+        task_id=run["task_id"],
+        next_action="repair_from_evaluator_findings",
+        payload={"driver": "fake"},
+    )
+
+    result = legacy._run_bounded_generator(tmp_path, request)
+
+    repaired = legacy.load_run(tmp_path, run["run_id"])
+    assert result.result_class is ActionResultClass.SUCCESS
+    assert repaired["phase"] == "evaluating"
+    assert repaired["next_action"] == "run_evaluator"
+    assert repaired["attempts"]["generator"] == 2
+
+
+def test_codex_evaluator_bootstraps_missing_loop_session_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Evaluate a Supervisor-owned loop run",
+        run_id="evaluator-session-run",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    run = legacy.load_run(tmp_path, run["run_id"])
+    session_dir = tmp_path / ".codex" / "session-state"
+    assert not session_dir.exists()
+
+    def evaluator_pass(command: list[str], **_kwargs: object) -> object:
+        if command[0] == "git":
+            raise legacy.subprocess.CalledProcessError(128, command)
+        assert "run-task-auto-gate" in command
+        sessions = list(session_dir.glob("*.json"))
+        assert len(sessions) == 1
+        session = legacy.read_json_file(sessions[0])
+        assert session["task"] == run["task_id"]
+        assert Path(session["worktree"]).resolve() == tmp_path.resolve()
+        assert session["branch"] == run["branch"]
+        return legacy.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(legacy.subprocess, "run", evaluator_pass)
+    request = ActionRequest(
+        action_id="action-evaluate-loop-run",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="evaluate-loop-run",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.SUCCESS
+    assert (
+        legacy.load_run(tmp_path, run["run_id"])["phase"]
+        == "passed_waiting_human_merge"
+    )
+
+
 def test_service_keeper_rejects_non_allowlisted_service_before_process_control(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

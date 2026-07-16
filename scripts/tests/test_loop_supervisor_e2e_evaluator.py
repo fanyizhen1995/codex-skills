@@ -18,6 +18,16 @@ SCENARIO_IDS = {
 }
 
 
+def test_loop_supervisor_e2e_runtime_output_is_git_ignored() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    ignored_paths = {
+        line.strip()
+        for line in (repo_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    }
+
+    assert ".codex/loop-supervisor-e2e/" in ignored_paths
+
+
 def test_scenario_registry_declares_isolated_runtime_evaluator() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     scenario = json.loads(

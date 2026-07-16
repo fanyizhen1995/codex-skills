@@ -12,6 +12,7 @@ personal-wiki/apps/crawler_workbench/frontend/test-results/
 .codex/backups/
 .codex/loop-runs/
 .codex/loop-dashboard-eval/
+.codex/loop-supervisor-e2e/
 .codex/evaluator-demo/
 .codex/session-state/
 .codex/tmp/

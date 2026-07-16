@@ -70,6 +70,7 @@ try:
         summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
+    from scripts.harness_evaluator_state import repo_roots_for_harness
     from scripts.harness_loop_runtime_lock import acquire_run_lock
     from scripts.loop_supervisor.failures import (
         BoundedFailure,
@@ -129,6 +130,7 @@ except ModuleNotFoundError:
         summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
+    from harness_evaluator_state import repo_roots_for_harness  # type: ignore[no-redef]
     from harness_loop_runtime_lock import acquire_run_lock  # type: ignore[no-redef]
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.loop_supervisor.failures import (  # type: ignore[no-redef]
@@ -1416,8 +1418,11 @@ def _run_planner(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
 def _run_generator(repo_root: Path | str, run_id: str, *, driver: str) -> Path:
     root = Path(repo_root)
     run = load_run(root, run_id)
-    if run["phase"] != "generating":
-        raise RuntimeError(f"run_generator requires phase generating; current phase is {run['phase']}")
+    if run["phase"] not in {"generating", "repair_needed"}:
+        raise RuntimeError(
+            "run_generator requires phase generating or repair_needed; "
+            f"current phase is {run['phase']}"
+        )
     run_dir = run_dir_for(root, run_id)
     planner_output = read_json_file(run_dir / "planner-output.json")
     validate_planner_output_payload(planner_output)
@@ -1618,6 +1623,60 @@ def _formal_verification_needs_direct_repair(evaluator_payload: Mapping[str, Any
     return isinstance(formal_summary, Mapping) and formal_summary.get("status") in {"fail", "blocked"}
 
 
+def _ensure_loop_evaluator_session(repo_root: Path, run: Mapping[str, Any]) -> Path:
+    task_id = str(run.get("task_id") or "").strip()
+    branch = str(run.get("branch") or "").strip()
+    worktree = Path(str(run.get("worktree") or repo_root)).resolve()
+    if not task_id or not branch:
+        raise RuntimeError("loop evaluator session requires task_id and branch")
+
+    matches: list[Path] = []
+    for candidate_root in repo_roots_for_harness(repo_root):
+        session_dir = candidate_root / ".codex" / "session-state"
+        if not session_dir.is_dir():
+            continue
+        for candidate in session_dir.glob("*.json"):
+            try:
+                payload = read_json_file(candidate)
+            except (OSError, ValueError):
+                continue
+            if (
+                payload.get("task") == task_id
+                and payload.get("branch") == branch
+                and Path(str(payload.get("worktree") or "")).resolve() == worktree
+            ):
+                matches.append(candidate)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise RuntimeError(f"multiple evaluator sessions match loop task {task_id}")
+
+    session_path = repo_root / ".codex" / "session-state" / f"loop-{run['run_id']}.json"
+    if session_path.exists():
+        raise RuntimeError(f"evaluator session path already exists with another identity: {session_path}")
+    timestamp = _timestamp()
+    write_json_file(
+        session_path,
+        {
+            "task": task_id,
+            "branch": branch,
+            "worktree": str(worktree),
+            "status": "implementation",
+            "started_at": timestamp,
+            "last_update": timestamp,
+            "evaluator": {
+                "phase": "implementation",
+                "task_eval_attempt": 0,
+                "last_task_eval_result": "",
+                "final_eval_attempt": 0,
+                "last_final_eval_result": "",
+                "repair_from_eval": False,
+            },
+        },
+    )
+    return session_path
+
+
 def _run_evaluator(
     repo_root: Path | str,
     run_id: str,
@@ -1691,6 +1750,7 @@ def _run_evaluator(
         if task_contract_path.exists():
             command.extend(["--task-contract", str(task_contract_path)])
     elif driver == "codex-exec":
+        _ensure_loop_evaluator_session(root, run)
         command = [
             "python3",
             "scripts/harness_evaluator_orchestrator.py",
