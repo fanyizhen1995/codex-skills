@@ -53,6 +53,8 @@ ALLOWED_SKILL_RECOMMENDATIONS = frozenset({"keep", "merge", "delete_candidate"})
 REVIEW_INTERVAL_PARENTS = 2
 REVIEW_COALESCE_WINDOW = timedelta(minutes=10)
 REVIEW_TIMEOUT_SECONDS = 300
+REVIEW_ATTEMPT_DETAIL_LIMIT = 40
+REVIEW_RECOVERY_ACTION_DETAIL_LIMIT = 30
 _HASH_REF = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
 _FINDING_STATUSES = frozenset({"open", "closed", "accepted_risk"})
 _FINDING_SEVERITIES = frozenset({"must_fix", "should_fix", "observe"})
@@ -443,11 +445,11 @@ def build_review_evidence(
         "agent_evaluator_summaries": agent_summaries,
         "commits_pushes": _commit_push_evidence(runs, run_payloads, store),
         "domain_output_metrics": _domain_output_metrics(agent_summaries),
-        "failures_recoveries": {
-            "failures": _scoped_rows(
+        "failures_recoveries": _bounded_failure_recovery_evidence(
+            _scoped_rows(
                 _decoded_store_rows(store, "failures"), scope.evidence_context_run_ids
             ),
-            "recovery_actions": [
+            [
                 row
                 for row in _scoped_rows(
                     _decoded_store_rows(store, "actions"),
@@ -457,10 +459,8 @@ def build_review_evidence(
                 or str(row.get("action_type") or "").startswith("recover_")
                 or row.get("action_type") == ActionType.RUN_ALTERNATE_RECOVERY.value
             ],
-            "attempts": _scoped_action_attempts(
-                store, scope.evidence_context_run_ids
-            ),
-        },
+            _scoped_action_attempts(store, scope.evidence_context_run_ids),
+        ),
         "services_freshness": {
             "services": _decoded_store_rows(store, "services"),
             "freshness_checks": _decoded_store_rows(store, "freshness_checks"),
@@ -498,6 +498,100 @@ def build_review_evidence(
         bundle_hash=f"sha256:{hashlib.sha256(_canonical_json(bundle_body)).hexdigest()}",
     )
     return bundle
+
+
+def _bounded_failure_recovery_evidence(
+    failures: Sequence[Mapping[str, Any]],
+    recovery_actions: Sequence[Mapping[str, Any]],
+    attempts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    ordered_actions = sorted(
+        recovery_actions,
+        key=lambda row: (
+            str(row.get("created_at") or row.get("updated_at") or ""),
+            str(row.get("action_id") or ""),
+        ),
+    )
+    ordered_attempts = sorted(
+        attempts,
+        key=lambda row: (
+            str(row.get("created_at") or row.get("finished_at") or ""),
+            str(row.get("attempt_id") or ""),
+        ),
+    )
+    return {
+        "failure_count": len(failures),
+        "failures": list(failures),
+        "recovery_action_count": len(ordered_actions),
+        "recovery_action_counts_by_status": _review_value_counts(
+            ordered_actions, "status"
+        ),
+        "recovery_action_counts_by_type": _review_value_counts(
+            ordered_actions, "action_type"
+        ),
+        "recovery_actions": [
+            _review_action_evidence(row)
+            for row in ordered_actions[-REVIEW_RECOVERY_ACTION_DETAIL_LIMIT:]
+        ],
+        "attempt_count": len(ordered_attempts),
+        "attempt_counts_by_result_class": _review_value_counts(
+            ordered_attempts, "result_class"
+        ),
+        "attempt_counts_by_error_class": _review_value_counts(
+            ordered_attempts, "error_class"
+        ),
+        "attempt_counts_by_failure_key": _review_value_counts(
+            ordered_attempts, "failure_key"
+        ),
+        "attempts": [
+            _review_attempt_evidence(row)
+            for row in ordered_attempts[-REVIEW_ATTEMPT_DETAIL_LIMIT:]
+        ],
+    }
+
+
+def _review_value_counts(
+    rows: Sequence[Mapping[str, Any]], key: str
+) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for row in rows:
+        value = str(row.get(key) or "")
+        if value:
+            counts[value] += 1
+    return dict(sorted(counts.items()))
+
+
+def _review_action_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
+    keys = (
+        "action_id",
+        "run_id",
+        "run_revision",
+        "phase",
+        "action_type",
+        "status",
+        "recovery_tier",
+        "not_before",
+        "created_at",
+        "updated_at",
+    )
+    return {key: row[key] for key in keys if key in row}
+
+
+def _review_attempt_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
+    keys = (
+        "attempt_id",
+        "action_id",
+        "result_class",
+        "error_class",
+        "failure_key",
+        "summary",
+        "checkpoint",
+        "recovery_tier",
+        "started_at",
+        "finished_at",
+        "created_at",
+    )
+    return {key: row[key] for key in keys if key in row}
 
 
 def validate_review_payload(
