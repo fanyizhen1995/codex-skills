@@ -275,6 +275,134 @@ def test_codex_evaluator_bootstraps_missing_loop_session_state(
     )
 
 
+def test_codex_evaluator_propagates_blocked_bundle_findings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Evaluate an evidence-backed Supervisor run",
+        run_id="blocked-evaluator-run",
+        task_id="blocked-evaluator-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+
+    def evaluator_blocked(command: list[str], **_kwargs: object) -> object:
+        if command[0] == "git":
+            raise legacy.subprocess.CalledProcessError(128, command)
+        assert "run-task-auto-gate" in command
+        bundle = (
+            tmp_path
+            / ".codex"
+            / "evaluations"
+            / "tasks"
+            / run["task_id"]
+            / "20260716T172922Z-attempt-1"
+        )
+        bundle.mkdir(parents=True)
+        legacy.write_json_file(
+            bundle / "result.json",
+            {
+                "status": "blocked",
+                "gate": "task",
+                "task_id": run["task_id"],
+                "final_bundle_id": "",
+                "attempt": 1,
+                "summary": "required browser evidence is missing",
+                "findings": [
+                    {
+                        "id": "F-001",
+                        "severity": "blocker",
+                        "category": "missing_evidence",
+                        "evidence": ["artifacts.json#scenario_outputs"],
+                        "recommended_action": "run the browser evaluator",
+                    }
+                ],
+                "scenario_results": [],
+                "rerun_commands": ["python3 scripts/browser_evaluator.py"],
+                "environment_checks": [],
+                "verdict_reason": "scenario evidence is absent",
+                "next_action": "request_missing_evidence",
+            },
+        )
+        return legacy.subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(legacy.subprocess, "run", evaluator_blocked)
+    request = ActionRequest(
+        action_id="action-blocked-evaluator",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="blocked-evaluator",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    evaluator_result = legacy.read_json_file(
+        legacy.run_dir_for(tmp_path, run["run_id"]) / "evaluator-result.json"
+    )
+    updated = legacy.load_run(tmp_path, run["run_id"])
+    assert result.result_class is ActionResultClass.SUCCESS
+    assert evaluator_result["status"] == "blocked"
+    assert evaluator_result["findings"][0]["id"] == "F-001"
+    assert evaluator_result["rerun_commands"] == ["python3 scripts/browser_evaluator.py"]
+    assert evaluator_result["next_action"] == "request_missing_evidence"
+    assert updated["phase"] == "repair_needed"
+    assert updated["next_action"] == "request_missing_evidence"
+
+
+def test_codex_evaluator_without_result_bundle_is_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Retry an evaluator infrastructure failure",
+        run_id="missing-evaluator-result-run",
+        task_id="missing-evaluator-result-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    monkeypatch.setattr(
+        legacy.subprocess,
+        "run",
+        lambda command, **_kwargs: legacy.subprocess.CompletedProcess(
+            command, 1, stdout="", stderr=""
+        ),
+    )
+    request = ActionRequest(
+        action_id="action-missing-evaluator-result",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="missing-evaluator-result",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.RETRYABLE_FAILURE
+    assert "without a result bundle" in result.summary
+    assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "evaluating"
+    assert not (
+        legacy.run_dir_for(tmp_path, run["run_id"]) / "evaluator-result.json"
+    ).exists()
+
+
 def test_service_keeper_rejects_non_allowlisted_service_before_process_control(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

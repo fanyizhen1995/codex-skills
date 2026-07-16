@@ -453,7 +453,8 @@ def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds:
     logs = list(artifacts_payload.get("logs", []))
 
     for scenario in input_payload.get("user_scenarios", []):
-        if scenario.get("automation_hint") != "shell":
+        automation_hint = str(scenario.get("automation_hint", "")).strip().lower()
+        if not automation_hint or automation_hint == "manual":
             continue
         scenario_id = str(scenario.get("scenario_id", "")).strip()
         entrypoint = str(scenario.get("entrypoint", "")).strip()

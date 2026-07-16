@@ -492,6 +492,56 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             self.assertEqual(output["status"], "timeout")
             self.assertTrue(output["second_communicate_timeout"])
 
+    def test_run_shell_scenarios_executes_playwright_entrypoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "bundle"
+            bundle.mkdir()
+            marker = root / "playwright-ran.txt"
+            entrypoint = (
+                "python3 -c \"from pathlib import Path; "
+                "Path('playwright-ran.txt').write_text('ran', encoding='utf-8')\""
+            )
+            (bundle / "input.json").write_text(
+                json.dumps(
+                    {
+                        "gate": "task",
+                        "task_id": "playwright-task",
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "verify_commands": [],
+                        "artifact_paths": [],
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "scenario_source": "task-contract.json",
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "PLAYWRIGHT-01",
+                                "user_goal": "Run browser acceptance.",
+                                "prerequisites": [],
+                                "entrypoint": entrypoint,
+                                "steps": ["Run the Playwright evaluator."],
+                                "expected_outcomes": ["The evaluator exits successfully."],
+                                "failure_signals": ["No evaluator evidence is recorded."],
+                                "cleanup": [],
+                                "automation_hint": "playwright",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (bundle / "artifacts.json").write_text("{}", encoding="utf-8")
+
+            from scripts.harness_evaluator_orchestrator import _run_shell_scenarios
+
+            _run_shell_scenarios(bundle, root)
+
+            self.assertEqual(marker.read_text(encoding="utf-8"), "ran")
+            artifacts = json.loads((bundle / "artifacts.json").read_text(encoding="utf-8"))
+            self.assertEqual(artifacts["scenario_outputs"][0]["scenario_id"], "PLAYWRIGHT-01")
+            self.assertEqual(artifacts["scenario_outputs"][0]["status"], "pass")
+
     def test_run_fake_task_loop_writes_result_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

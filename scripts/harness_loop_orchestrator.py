@@ -1489,6 +1489,32 @@ def _latest_fake_evaluator_result(repo_root: Path | str, task_id: str) -> Path |
     return max(result_paths, key=lambda path: (attempt_number(path), path.stat().st_mtime_ns))
 
 
+def _latest_task_evaluator_result(repo_root: Path | str, task_id: str) -> Path | None:
+    task_root = Path(repo_root) / ".codex" / "evaluations" / "tasks" / task_id
+    result_paths = list(task_root.glob("*/result.json"))
+    if not result_paths:
+        return None
+
+    def attempt_number(path: Path) -> int:
+        try:
+            payload = read_json_file(path)
+        except (OSError, ValueError):
+            return -1
+        attempt = payload.get("attempt")
+        return attempt if isinstance(attempt, int) and not isinstance(attempt, bool) else -1
+
+    return max(result_paths, key=lambda path: (attempt_number(path), path.stat().st_mtime_ns))
+
+
+def _artifact_fingerprint(path: Path | None) -> tuple[str, int] | None:
+    if path is None:
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns
+    except OSError:
+        return None
+
+
 def _generator_result_has_artifacts(run_dir: Path) -> bool:
     generator_result = read_json_file(run_dir / "generator-result.json")
     validate_generator_result_payload(generator_result)
@@ -1769,6 +1795,8 @@ def _run_evaluator(
     else:
         raise ValueError(f"unsupported evaluator driver: {driver}")
 
+    previous_task_result = _latest_task_evaluator_result(root, task_id)
+    previous_task_result_fingerprint = _artifact_fingerprint(previous_task_result)
     result = subprocess.run(
         command,
         cwd=checkout_root,
@@ -1777,6 +1805,29 @@ def _run_evaluator(
         text=True,
     )
     evaluator_status = "pass" if result.returncode == 0 else "fail"
+    task_result_path = _latest_task_evaluator_result(root, task_id)
+    task_result_fingerprint = _artifact_fingerprint(task_result_path)
+    task_result_is_fresh = task_result_path is not None and (
+        task_result_path != previous_task_result
+        or task_result_fingerprint != previous_task_result_fingerprint
+    )
+    if driver == "codex-exec" and result.returncode != 0 and not task_result_is_fresh:
+        diagnostic = result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
+        raise RuntimeError(
+            f"evaluator process failed without a result bundle: {diagnostic}"
+        )
+
+    task_result: dict[str, Any] | None = None
+    if (
+        driver == "codex-exec"
+        and task_result_path is not None
+        and (task_result_is_fresh or result.returncode == 0)
+    ):
+        task_result = read_json_file(task_result_path)
+        task_status = str(task_result.get("status") or "")
+        if task_status not in {"pass", "fail", "blocked"}:
+            raise ValueError(f"task evaluator result has invalid status: {task_status!r}")
+        evaluator_status = task_status
     if driver == "fake":
         latest_result = _latest_fake_evaluator_result(root, task_id)
         if latest_result:
@@ -1793,6 +1844,22 @@ def _run_evaluator(
         "scenario_command_results_path": scenario_command_results_path,
         "skill_invocations": [],
     }
+    if task_result is not None:
+        for key in (
+            "attempt",
+            "summary",
+            "findings",
+            "scenario_results",
+            "rerun_commands",
+            "environment_checks",
+            "verdict_reason",
+            "next_action",
+        ):
+            if key in task_result:
+                evaluator_payload[key] = task_result[key]
+        evaluator_payload["evaluation_bundle_path"] = str(
+            task_result_path.parent.relative_to(root)
+        )
     evaluator_payload = _merge_formal_verification_result(root, run, evaluator_payload)
     validate_evaluator_result_payload(evaluator_payload)
     write_json_file(output_path, evaluator_payload)
