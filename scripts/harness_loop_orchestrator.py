@@ -5306,6 +5306,12 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
         or path.startswith(".codex/loop-locks/")
         or path.startswith(".codex/service-runtime/")
         or path.startswith(".codex/supervisor/")
+        or bool(
+            re.fullmatch(
+                r"personal-wiki/domains/[^/]+/raw/crawler/.+",
+                path,
+            )
+        )
         or path
         in {
             ".codex/loop-supervisor.log",
