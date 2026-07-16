@@ -231,9 +231,13 @@ def test_migrate_creates_required_tables_and_connection_pragmas(tmp_path):
     assert store.pragma("journal_mode").lower() == "wal"
     assert store.pragma("foreign_keys") == 1
     assert store.pragma("busy_timeout") == 5000
-    assert store.pragma("user_version") == 14
+    assert store.pragma("user_version") == 15
     assert "state_fingerprint" in {
         row["name"] for row in store._connection.execute("PRAGMA table_info(runs)")
+    }
+    assert "deferred_position" in {
+        row["name"]
+        for row in store._connection.execute("PRAGMA table_info(review_cadence)")
     }
 
 
@@ -311,8 +315,47 @@ def test_migrate_adds_state_fingerprint_to_v7_run_projection(tmp_path):
     store = SupervisorStore.open(tmp_path)
     store.migrate()
 
-    assert store.pragma("user_version") == 14
+    assert store.pragma("user_version") == 15
     assert store.get_run("legacy-run")["state_fingerprint"] == ""
+
+
+def test_migrate_v14_adds_deferred_review_cadence_without_losing_positions(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / ".codex" / "supervisor" / "supervisor.db"
+    db_path.parent.mkdir(parents=True)
+    connection = sqlite3.connect(db_path)
+    connection.executescript(
+        """
+        PRAGMA user_version=14;
+        CREATE TABLE review_cadence (
+          lineage_id TEXT PRIMARY KEY,
+          reviewed_position INTEGER NOT NULL DEFAULT 0,
+          reserved_position INTEGER NOT NULL DEFAULT 0,
+          reservation_id TEXT NOT NULL DEFAULT '',
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO review_cadence(
+          lineage_id, reviewed_position, reserved_position,
+          reservation_id, updated_at
+        ) VALUES (
+          'lineage-a', 22, 24, 'reservation-24',
+          '2026-07-16T00:00:00.000000Z'
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = SupervisorStore.open(tmp_path)
+    store.migrate()
+
+    cadence = store.review_cadence_positions()["lineage-a"]
+    assert cadence["reviewed_position"] == 22
+    assert cadence["deferred_position"] == 0
+    assert cadence["reserved_position"] == 24
+    assert cadence["reservation_id"] == "reservation-24"
+    assert store.pragma("user_version") == 15
 
 
 def test_migrate_is_idempotent_and_preserves_existing_rows(tmp_path):
@@ -2724,7 +2767,7 @@ def test_migrate_v3_collapses_duplicate_finding_status_rows_by_finding_key(tmp_p
     assert findings[0]["summary"] == "latest"
     assert findings[0]["occurrence_count"] == 3
     assert findings[0]["first_seen_at"] == "2026-01-01T00:00:00.000000Z"
-    assert store.pragma("user_version") == 14
+    assert store.pragma("user_version") == 15
 
 
 @pytest.mark.parametrize("legacy_version", [3, 4, 5])
@@ -2748,7 +2791,7 @@ def test_legacy_migration_normalizes_timestamps_before_finding_collapse(
         "SELECT value FROM store_metadata WHERE key = 'legacy_naive_timestamp_policy'"
     ).fetchone()[0]
     assert policy == "assume_utc"
-    assert store.pragma("user_version") == 14
+    assert store.pragma("user_version") == 15
 
 
 def test_invalid_legacy_timestamp_rolls_back_schema_version_and_data(tmp_path):

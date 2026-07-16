@@ -1239,7 +1239,7 @@ def test_distinct_reviewer_process_consumes_pending_reviewer_action(tmp_path: Pa
     assert request.action_type not in ACTION_HANDLERS
 
 
-def test_queued_degraded_review_releases_cadence_without_advancing(
+def test_queued_degraded_review_defers_retry_until_next_cadence(
     tmp_path: Path,
 ) -> None:
     clock = MutableClock(NOW)
@@ -1262,9 +1262,19 @@ def test_queued_degraded_review_releases_cadence_without_advancing(
     assert reservation["status"] == "released"
     cadence = store.review_cadence_positions()["lineage-a"]
     assert cadence["reviewed_position"] == 0
+    assert cadence["deferred_position"] == 2
     assert cadence["reservation_id"] == ""
+    assert review_due_lineages(store, now=clock.value) == []
+    assert schedule_due_reviews(store, now=clock.value) == []
+
+    record_parent_completion(store, "lineage-a", run_id="run-a3", parent=3)
+    assert review_due_lineages(store, now=clock.value) == []
+    record_parent_completion(store, "lineage-a", run_id="run-a4", parent=4)
+
     assert review_due_lineages(store, now=clock.value) == ["lineage-a"]
-    assert schedule_due_reviews(store, now=clock.value)[0].action_id == request.action_id
+    retry = schedule_due_reviews(store, now=clock.value)[0]
+    assert retry.action_id != request.action_id
+    assert retry.metadata["cadence_positions"] == {"lineage-a": 4}
 
 
 def test_queued_review_propagates_outbox_failure_without_advancing_cadence(
@@ -1854,12 +1864,10 @@ def test_cold_reviewer_supersedes_accepted_review_without_durable_targets(
     ]
     cadence = reopened.review_cadence_positions()["lineage-a"]
     assert cadence["reviewed_position"] == 0
+    assert cadence["deferred_position"] == 2
     assert cadence["reserved_position"] == 0
-    assert review_due_lineages(reopened, now=clock.value) == ["lineage-a"]
-    retry = schedule_due_reviews(reopened, now=clock.value)
-    assert len(retry) == 1
-    assert retry[0].metadata["triggering_lineages"] == ["lineage-a"]
-    assert reopened.get_action(retry[0].action_id).status == "pending"
+    assert review_due_lineages(reopened, now=clock.value) == []
+    assert schedule_due_reviews(reopened, now=clock.value) == []
 
 
 def test_queued_reviewer_resumes_stop_run_outbox_after_terminal_lineage(

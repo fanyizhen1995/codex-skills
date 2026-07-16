@@ -1207,6 +1207,7 @@ def run_queued_reviewer(
             store.release_review_reservation(
                 reservation_id,
                 reason=f"{result.status}: {result.review_id}",
+                defer_positions=not result.blocks_safe_runs,
             )
         elif reservation_id:
             store.complete_reviewer_action(
@@ -1439,6 +1440,7 @@ def _scheduled_cadence_positions(store: SupervisorStore) -> dict[str, int]:
     return {
         lineage_id: max(
             int(row.get("reviewed_position") or 0),
+            int(row.get("deferred_position") or 0),
             int(row.get("reserved_position") or 0),
         )
         for lineage_id, row in store.review_cadence_positions().items()

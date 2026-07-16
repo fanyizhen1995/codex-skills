@@ -36,7 +36,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -336,6 +336,7 @@ _DDL = (
     CREATE TABLE IF NOT EXISTS review_cadence (
       lineage_id TEXT PRIMARY KEY,
       reviewed_position INTEGER NOT NULL DEFAULT 0,
+      deferred_position INTEGER NOT NULL DEFAULT 0,
       reserved_position INTEGER NOT NULL DEFAULT 0,
       reservation_id TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL
@@ -595,6 +596,7 @@ class SupervisorStore:
             self._ensure_action_execution_root()
             self._ensure_action_ownership()
             self._ensure_review_resume_state()
+            self._ensure_review_cadence_deferred_position()
             self._migrate_v13_review_target_post_write_fingerprints()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
@@ -961,6 +963,19 @@ class SupervisorStore:
             )
         if missing_immutable_anchor:
             self._migrate_legacy_applying_reviews()
+
+    def _ensure_review_cadence_deferred_position(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._connection.execute(
+                "PRAGMA table_info(review_cadence)"
+            ).fetchall()
+        }
+        if "deferred_position" not in columns:
+            self._connection.execute(
+                "ALTER TABLE review_cadence "
+                "ADD COLUMN deferred_position INTEGER NOT NULL DEFAULT 0"
+            )
 
     def _migrate_legacy_applying_reviews(self) -> None:
         """Block pre-v11 applying rows that lack persisted immutable acceptance."""
@@ -1499,6 +1514,7 @@ class SupervisorStore:
         reservation_id: str,
         *,
         reason: str,
+        defer_positions: bool = False,
     ) -> None:
         self._required_text(reservation_id, "reservation_id")
         self._validate_summary(reason, field_name="reservation release reason")
@@ -1515,14 +1531,24 @@ class SupervisorStore:
             if reservation["status"] != "reserved":
                 raise ValueError("only reserved review cadence can be released")
             positions = json.loads(str(reservation["positions_json"]))
-            for lineage_id in positions:
+            for lineage_id, position in positions.items():
                 self._connection.execute(
                     """
                     UPDATE review_cadence
-                    SET reserved_position = 0, reservation_id = '', updated_at = ?
+                    SET deferred_position = CASE
+                          WHEN ? THEN MAX(deferred_position, ?)
+                          ELSE deferred_position
+                        END,
+                        reserved_position = 0, reservation_id = '', updated_at = ?
                     WHERE lineage_id = ? AND reservation_id = ?
                     """,
-                    (now, lineage_id, reservation_id),
+                    (
+                        1 if defer_positions else 0,
+                        int(position),
+                        now,
+                        lineage_id,
+                        reservation_id,
+                    ),
                 )
             self._connection.execute(
                 """

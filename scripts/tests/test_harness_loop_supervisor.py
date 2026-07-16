@@ -813,7 +813,7 @@ def test_busy_parent_projection_gives_legacy_child_lineage_without_review(tmp_pa
     store.close()
 
 
-def test_due_reviewer_reservation_blocks_only_the_next_parent_planner(tmp_path):
+def test_due_reviewer_reservation_blocks_planner_until_safe_degradation(tmp_path):
     run_id = "review-boundary"
     seed_run(
         tmp_path,
@@ -835,6 +835,20 @@ def test_due_reviewer_reservation_blocks_only_the_next_parent_planner(tmp_path):
         for row in store.fetch_all("actions")
         if row["run_id"] == run_id
     )
+
+    review_action = actions[0]
+    store.release_review_reservation(
+        str(review_action.metadata["reservation_id"]),
+        reason="review_degraded: timeout",
+        defer_positions=True,
+    )
+    resumed = reconcile_once(tmp_path, store, include_worktrees=False)
+
+    resumed_actions = [
+        action for action in resumed.queued_actions if action.run_id == run_id
+    ]
+    assert [action.action_type for action in resumed_actions] == [ActionType.RUN_PLANNER]
+    assert store.review_cadence_positions()[run_id]["deferred_position"] == 2
     store.close()
 
 
