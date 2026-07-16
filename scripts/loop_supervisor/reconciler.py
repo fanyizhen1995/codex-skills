@@ -35,7 +35,7 @@ from .safety_signals import (
     GLOBAL_SAFETY_SIGNAL_SUMMARIES,
     detected_global_safety_signals,
 )
-from .store import SupervisorStore
+from .store import MAX_SUMMARY_BYTES, MAX_SUMMARY_CHARS, SupervisorStore
 
 
 _STATE_SUMMARY_KEYS = (
@@ -66,6 +66,40 @@ _STATE_SUMMARY_KEYS = (
     "irreversible_operation_required",
     "explicit_global_stop",
     "supervisor_signals",
+)
+_SUMMARY_STRING_CHARS = 640
+_SUMMARY_LIST_ITEMS = 6
+_SUMMARY_LIST_STRING_CHARS = 160
+_SUMMARY_MAPPING_ITEMS = 8
+_SUMMARY_FALLBACK_STRING_CHARS = 128
+_SUMMARY_FALLBACK_JSON_CHARS = 256
+_GROWING_SUMMARY_LIST_ITEMS = {
+    "_autonomous_completed_task_ids": 8,
+    "_autonomous_completed_remediation_task_ids": 8,
+    "child_run_ids": 8,
+    "constraints": 4,
+}
+_SUMMARY_FALLBACK_KEYS = (
+    "task_id",
+    "next_action",
+    "last_result",
+    "run_kind",
+    "parent_task_counter",
+    "semantic_parent_task_next",
+    "_autonomous_completed_task_ids",
+    "child_run_ids",
+    "aggregate_acceptance",
+    "commit",
+    "user_decision_required",
+    "unsafe_secret",
+    "unsafe_secret_detected",
+    "secret_detected",
+    "secret_exposure_confirmed",
+    "repo_corruption",
+    "permission_expansion_required",
+    "irreversible_operation_required",
+    "explicit_global_stop",
+    "loop_lineage_id",
 )
 _FINGERPRINT_OBSERVATION_KEYS = frozenset(
     {
@@ -1843,35 +1877,43 @@ def _project_run(
         run.get("loop_lineage_id") or ""
     ):
         projection = _preserve_stored_lineage_summary(projection, existing)
+    summary_format_refresh = (
+        incoming_revision == current_revision
+        and _same_projection_except_summary(existing, projection)
+    )
     if incoming_revision == current_revision and not _same_projection(
         existing, projection
     ):
-        if "state_revision" in run:
+        if "state_revision" in run and not summary_format_refresh:
             raise ValueError("same-revision run state conflict")
-        run = atomic_save_run_locked(
-            record.repo_root,
-            record.run_id,
-            run,
-            token=token,
-            expected_revision=current_revision,
-            expected_fingerprint=_state_fingerprint(record.payload),
-        )
-        incoming_revision = int(run["state_revision"])
-        projection = _projection(
-            project_root,
-            record,
-            run,
-            incoming_revision,
-            loop_lineage_id=trusted_lineage_id,
-        )
-        record = RunRecord(
-            run_id=record.run_id,
-            repo_root=record.repo_root,
-            run_json_path=record.run_json_path,
-            payload=run,
-            directory_run_id=record.directory_run_id,
-        )
-    store.upsert_run_projection(projection)
+        if not summary_format_refresh:
+            run = atomic_save_run_locked(
+                record.repo_root,
+                record.run_id,
+                run,
+                token=token,
+                expected_revision=current_revision,
+                expected_fingerprint=_state_fingerprint(record.payload),
+            )
+            incoming_revision = int(run["state_revision"])
+            projection = _projection(
+                project_root,
+                record,
+                run,
+                incoming_revision,
+                loop_lineage_id=trusted_lineage_id,
+            )
+            record = RunRecord(
+                run_id=record.run_id,
+                repo_root=record.repo_root,
+                run_json_path=record.run_json_path,
+                payload=run,
+                directory_run_id=record.directory_run_id,
+            )
+    store.upsert_run_projection(
+        projection,
+        allow_same_revision_summary_refresh=summary_format_refresh,
+    )
     return record
 
 
@@ -1953,13 +1995,7 @@ def _projection(
     resolved_lineage_id = str(
         run.get("loop_lineage_id") or loop_lineage_id or record.run_id
     )
-    summary_state = {key: run.get(key) for key in _STATE_SUMMARY_KEYS}
-    summary_state["loop_lineage_id"] = resolved_lineage_id
-    summary = json.dumps(
-        summary_state,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+    summary = _projection_summary(run, resolved_lineage_id)
     artifact_ref = record.run_json_path.resolve().relative_to(project_root).as_posix()
     return {
         "run_id": record.run_id,
@@ -1977,6 +2013,240 @@ def _projection(
         "summary": summary,
         "artifact_refs": [artifact_ref],
     }
+
+
+def _projection_summary(run: Mapping[str, Any], resolved_lineage_id: str) -> str:
+    """Build a deterministic, bounded projection without losing canonical run state."""
+    summary_state: dict[str, Any] = {}
+    compaction: dict[str, dict[str, int | str]] = {}
+    for key in _STATE_SUMMARY_KEYS:
+        value, details = _bounded_summary_value(key, run.get(key))
+        summary_state[key] = value
+        if details:
+            compaction[key] = details
+    summary_state["loop_lineage_id"] = resolved_lineage_id
+    if compaction:
+        summary_state["summary_compaction"] = compaction
+    summary = _compact_json(summary_state)
+    if _summary_fits(summary):
+        return summary
+
+    omitted = sorted(set(summary_state) - set(_SUMMARY_FALLBACK_KEYS))
+    fallback = {
+        key: _bounded_fallback_value(
+            summary_state.get(key),
+            max_items=_GROWING_SUMMARY_LIST_ITEMS.get(key, _SUMMARY_LIST_ITEMS),
+        )
+        for key in _SUMMARY_FALLBACK_KEYS
+        if key in summary_state
+    }
+    fallback_compaction = {
+        key: details for key, details in compaction.items() if key in fallback
+    }
+    fallback_compaction["fallback"] = {
+        "original_items": len(summary_state),
+        "retained_items": len(fallback),
+        "omitted_items": len(omitted),
+    }
+    fallback["summary_compaction"] = fallback_compaction
+    summary = _compact_json(fallback)
+    if _summary_fits(summary):
+        return summary
+
+    minimal = {
+        key: _bounded_fallback_value(
+            fallback.get(key),
+            max_chars=64,
+            max_json_chars=128,
+            max_items=_GROWING_SUMMARY_LIST_ITEMS.get(key, _SUMMARY_LIST_ITEMS),
+        )
+        for key in (
+            "task_id",
+            "next_action",
+            "last_result",
+            "parent_task_counter",
+            "semantic_parent_task_next",
+            "_autonomous_completed_task_ids",
+            "run_kind",
+            "child_run_ids",
+            "loop_lineage_id",
+        )
+    }
+    aggregate = fallback.get("aggregate_acceptance")
+    if isinstance(aggregate, Mapping):
+        passed = aggregate.get("passed")
+        if isinstance(passed, int) and not isinstance(passed, bool):
+            minimal["aggregate_acceptance"] = {"passed": passed}
+    minimal["summary_compaction"] = {
+        key: details
+        for key, details in fallback_compaction.items()
+        if key in {"_autonomous_completed_task_ids", "child_run_ids", "fallback"}
+    }
+    summary = _compact_json(minimal)
+    if _summary_fits(summary):
+        return summary
+
+    last_resort = {
+        key: minimal.get(key)
+        for key in (
+            "task_id",
+            "next_action",
+            "last_result",
+            "run_kind",
+            "_autonomous_completed_task_ids",
+            "child_run_ids",
+            "loop_lineage_id",
+        )
+    }
+    last_resort["summary_compaction"] = minimal["summary_compaction"]
+    aggregate = minimal.get("aggregate_acceptance")
+    child_compaction = minimal["summary_compaction"].get("child_run_ids", {})
+    if isinstance(aggregate, Mapping) and isinstance(child_compaction, Mapping):
+        passed = aggregate.get("passed")
+        child_count = child_compaction.get("original_items")
+        if (
+            isinstance(passed, int)
+            and not isinstance(passed, bool)
+            and isinstance(child_count, int)
+            and not isinstance(child_count, bool)
+            and 0 <= passed <= child_count
+        ):
+            last_resort["aggregate_acceptance"] = {"passed": passed}
+    summary = _compact_json(last_resort)
+    if _summary_fits(summary):
+        return summary
+    return _compact_json(
+        {
+            "summary_compaction": {
+                "fallback": {
+                    "original_items": len(summary_state),
+                    "retained_items": 0,
+                    "omitted_items": len(summary_state),
+                }
+            }
+        }
+    )
+
+
+def _bounded_summary_value(
+    key: str,
+    value: Any,
+) -> tuple[Any, dict[str, int | str] | None]:
+    if isinstance(value, str):
+        if len(value) <= _SUMMARY_STRING_CHARS:
+            return value, None
+        return (
+            value[: _SUMMARY_STRING_CHARS - 3] + "...",
+            {
+                "original_chars": len(value),
+                "retained_chars": _SUMMARY_STRING_CHARS,
+            },
+        )
+    if isinstance(value, list):
+        limit = _GROWING_SUMMARY_LIST_ITEMS.get(key, _SUMMARY_LIST_ITEMS)
+        selected = (
+            value[:limit]
+            if key in {"constraints", "child_run_ids"}
+            else value[-limit:]
+        )
+        bounded = [_bounded_nested_summary_value(item) for item in selected]
+        details = None
+        if len(value) > len(selected) or bounded != selected:
+            details = {
+                "original_items": len(value),
+                "retained_items": len(selected),
+            }
+        if (
+            details is not None
+            and key in {"_autonomous_completed_task_ids", "child_run_ids"}
+            and value
+            and isinstance(value[0], str)
+        ):
+            details["series_key"] = (
+                "sha256:" + hashlib.sha256(value[0].encode("utf-8")).hexdigest()
+            )
+        return bounded, details
+    if isinstance(value, Mapping):
+        keys = sorted(str(item) for item in value)
+        if key == "aggregate_acceptance" and "passed" in value:
+            keys = ["passed"] + [item for item in keys if item != "passed"]
+        keys = keys[:_SUMMARY_MAPPING_ITEMS]
+        bounded = {
+            item: _bounded_nested_summary_value(value[item])
+            for item in keys
+            if item in value
+        }
+        details = None
+        if len(value) > len(bounded) or any(
+            bounded[item] != value[item] for item in bounded
+        ):
+            details = {
+                "original_items": len(value),
+                "retained_items": len(bounded),
+            }
+        return bounded, details
+    return value, None
+
+
+def _bounded_nested_summary_value(value: Any) -> Any:
+    if isinstance(value, str) and len(value) > _SUMMARY_LIST_STRING_CHARS:
+        return value[: _SUMMARY_LIST_STRING_CHARS - 3] + "..."
+    if isinstance(value, list):
+        return [
+            _bounded_nested_summary_value(item)
+            for item in value[:_SUMMARY_LIST_ITEMS]
+        ]
+    if isinstance(value, Mapping):
+        keys = sorted(str(item) for item in value)[:_SUMMARY_MAPPING_ITEMS]
+        return {
+            item: _bounded_nested_summary_value(value[item])
+            for item in keys
+            if item in value
+        }
+    return value
+
+
+def _bounded_fallback_value(
+    value: Any,
+    *,
+    max_chars: int = _SUMMARY_FALLBACK_STRING_CHARS,
+    max_json_chars: int = _SUMMARY_FALLBACK_JSON_CHARS,
+    max_items: int = _SUMMARY_LIST_ITEMS,
+) -> Any:
+    if isinstance(value, list):
+        return [
+            _bounded_fallback_value(
+                item,
+                max_chars=max_chars,
+                max_json_chars=max_json_chars,
+                max_items=max_items,
+            )
+            for item in value[:max_items]
+        ]
+    if not isinstance(value, str):
+        return value
+    retained: list[str] = []
+    encoded_chars = 0
+    for character in value[:max_chars]:
+        encoded = json.dumps(character, ensure_ascii=True)[1:-1]
+        if encoded_chars + len(encoded) > max_json_chars - 3:
+            break
+        retained.append(character)
+        encoded_chars += len(encoded)
+    if len(retained) == len(value):
+        return value
+    return "".join(retained) + "..."
+
+
+def _compact_json(value: Mapping[str, Any]) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _summary_fits(value: str) -> bool:
+    return (
+        len(value) <= MAX_SUMMARY_CHARS
+        and len(value.encode("utf-8")) <= MAX_SUMMARY_BYTES
+    )
 
 
 def _same_projection(existing: Mapping[str, Any], incoming: Mapping[str, Any]) -> bool:
@@ -1999,6 +2269,29 @@ def _same_projection(existing: Mapping[str, Any], incoming: Mapping[str, Any]) -
             == str(incoming.get("state_fingerprint") or "")
         )
         and stored_summary.get("summary") == incoming.get("summary")
+        and stored_summary.get("artifact_refs") == incoming.get("artifact_refs")
+    )
+
+
+def _same_projection_except_summary(
+    existing: Mapping[str, Any], incoming: Mapping[str, Any]
+) -> bool:
+    stored_summary = existing.get("summary")
+    if not isinstance(stored_summary, Mapping):
+        return False
+    stored_fingerprint = str(existing.get("state_fingerprint") or "")
+    return (
+        bool(stored_fingerprint)
+        and stored_fingerprint == str(incoming.get("state_fingerprint") or "")
+        and str(existing.get("loop_lineage_id") or "")
+        == str(incoming.get("loop_lineage_id") or "")
+        and str(existing.get("parent_run_id") or "")
+        == str(incoming.get("parent_run_id") or "")
+        and str(existing.get("policy") or "") == str(incoming.get("policy") or "")
+        and str(existing.get("phase") or "") == str(incoming.get("phase") or "")
+        and str(existing.get("status") or "") == str(incoming.get("status") or "")
+        and str(existing.get("repo_relative_root") or ".")
+        == str(incoming.get("repo_relative_root") or ".")
         and stored_summary.get("artifact_refs") == incoming.get("artifact_refs")
     )
 

@@ -18,6 +18,8 @@ from scripts.harness_loop_orchestrator import create_preflight_run
 from scripts.loop_supervisor.executor import execute_action
 from scripts.loop_supervisor.models import ActionOwner, ActionType
 from scripts.loop_supervisor.reconciler import (
+    _STATE_SUMMARY_KEYS,
+    _projection_summary,
     _state_fingerprint,
     atomic_save_run,
     atomic_save_run_locked,
@@ -26,7 +28,11 @@ from scripts.loop_supervisor.reconciler import (
     reconcile_once,
 )
 from scripts.harness_loop_runtime_lock import acquire_run_lock
-from scripts.loop_supervisor.store import SupervisorStore
+from scripts.loop_supervisor.store import (
+    MAX_SUMMARY_BYTES,
+    MAX_SUMMARY_CHARS,
+    SupervisorStore,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -151,6 +157,183 @@ def test_once_cli_opens_sqlite_reconciler_and_writes_bounded_state(tmp_path):
     assert (supervisor / "supervisor.db").exists()
     assert not (supervisor / "run-decisions.jsonl").exists()
     assert not (supervisor / "continuation-plans.jsonl").exists()
+
+
+def test_reconcile_compacts_growing_run_projection_summary(tmp_path):
+    run_id = "long-lived-autonomous-run"
+    seed_run(
+        tmp_path,
+        run_id,
+        state_revision=117,
+        loop_lineage_id="long-lived-lineage",
+        requirement="Comprehensive AI infrastructure expansion. " * 100,
+        constraints=[f"constraint-{index}-" + "x" * 500 for index in range(12)],
+        _autonomous_completed_task_ids=[
+            f"{run_id}-task-{index}" for index in range(80)
+        ],
+    )
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store, shadow=True)
+
+    assert result.decision_for(run_id) is None
+    projection = store.get_run(run_id)
+    assert projection["revision"] == 117
+    summary_text = projection["summary"]["summary"]
+    assert len(summary_text) <= MAX_SUMMARY_CHARS
+    assert len(summary_text.encode("utf-8")) <= MAX_SUMMARY_BYTES
+    summary = json.loads(summary_text)
+    assert summary["task_id"] == f"{run_id}-parent-1"
+    assert summary["loop_lineage_id"] == "long-lived-lineage"
+    completion_compaction = summary["summary_compaction"][
+        "_autonomous_completed_task_ids"
+    ]
+    assert completion_compaction["original_items"] == 80
+    assert completion_compaction["retained_items"] == 8
+    assert completion_compaction["series_key"].startswith("sha256:")
+    fallback_id = "long-lived-fallback-run"
+    seed_run(
+        tmp_path,
+        fallback_id,
+        state_revision=1,
+        loop_lineage_id="多字节-lineage-" + "界" * 2000,
+        task_id="多字节-task-" + "界" * 2000,
+        next_action="run_autonomous_planner",
+        last_result="none",
+        run_kind="single-" + "界" * 2000,
+        semantic_parent_task_next="parent-" + "界" * 2000,
+        commit="sha-" + "界" * 2000,
+        requirement="界" * 100_000,
+        constraints=["界" * 10_000 for _ in range(100)],
+    )
+
+    result = reconcile_once(tmp_path, store, shadow=True)
+
+    assert result.decision_for(fallback_id) is None
+    fallback_text = store.get_run(fallback_id)["summary"]["summary"]
+    assert len(fallback_text) <= MAX_SUMMARY_CHARS
+    assert len(fallback_text.encode("utf-8")) <= MAX_SUMMARY_BYTES
+
+
+def test_reconcile_fallback_preserves_compacted_completion_cadence(tmp_path):
+    run_id = "long-lived-fallback-cadence-run"
+    completed = [f"{run_id}-task-{index}" for index in range(1, 81)]
+    seed_run(
+        tmp_path,
+        run_id,
+        state_revision=1,
+        loop_lineage_id="long-lived-fallback-cadence-lineage",
+        requirement="r" * 10_000,
+        constraints=["c" * 1_000 for _ in range(50)],
+        stop_conditions=["s" * 1_000 for _ in range(50)],
+        parent_task_counter=80,
+        semantic_parent_task_next=81,
+        _autonomous_completed_task_ids=completed,
+        _autonomous_completed_remediation_task_ids=[
+            f"remediation-{index}" for index in range(1, 81)
+        ],
+        child_run_ids=[f"child-{index}-" + "x" * 300 for index in range(80)],
+        aggregate_acceptance={
+            "passed": 20,
+            **{f"key-{index}": "界" * 1_000 for index in range(40)},
+        },
+        skill_roots={f"key-{index}": "x" * 1_000 for index in range(40)},
+        legacy_audit_migration={
+            f"key-{index}": "x" * 1_000 for index in range(40)
+        },
+        supervisor_signals={f"key-{index}": "x" * 1_000 for index in range(40)},
+        previous_run_id="p" * 10_000,
+        commit="a" * 10_000,
+    )
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store, shadow=True)
+
+    assert result.decision_for(run_id) is None
+    summary_text = store.get_run(run_id)["summary"]["summary"]
+    assert len(summary_text) <= MAX_SUMMARY_CHARS
+    assert len(summary_text.encode("utf-8")) <= MAX_SUMMARY_BYTES
+    summary = json.loads(summary_text)
+    assert summary["_autonomous_completed_task_ids"] == completed[-8:]
+    completion_compaction = summary["summary_compaction"][
+        "_autonomous_completed_task_ids"
+    ]
+    assert completion_compaction["original_items"] == 80
+    assert completion_compaction["retained_items"] == 8
+    assert completion_compaction["series_key"].startswith("sha256:")
+    assert len(summary["child_run_ids"]) == 8
+    assert summary["child_run_ids"][0].startswith("child-0-")
+    assert summary["child_run_ids"][-1].startswith("child-7-")
+    child_compaction = summary["summary_compaction"]["child_run_ids"]
+    assert child_compaction["original_items"] == 80
+    assert child_compaction["retained_items"] == 8
+    assert child_compaction["series_key"].startswith("sha256:")
+    assert summary["aggregate_acceptance"] == {"passed": 20}
+
+
+def test_reconcile_refreshes_legacy_summary_format_at_same_revision(tmp_path):
+    run_id = "same-revision-summary-upgrade"
+    run_path = seed_run(
+        tmp_path,
+        run_id,
+        state_revision=2,
+        loop_lineage_id="summary-upgrade-lineage",
+        requirement="r" * 700,
+    )
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    old_summary = json.dumps(
+        {
+            **{key: payload.get(key) for key in _STATE_SUMMARY_KEYS},
+            "loop_lineage_id": "summary-upgrade-lineage",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    store = migrated_store(tmp_path)
+    store.upsert_run_projection(
+        {
+            "run_id": run_id,
+            "revision": 2,
+            "repo_relative_root": ".",
+            "state_fingerprint": _state_fingerprint(payload),
+            "loop_lineage_id": "summary-upgrade-lineage",
+            "parent_run_id": "",
+            "policy": "autonomous_knowledge",
+            "phase": "planning",
+            "status": "actionable",
+            "summary": old_summary,
+            "artifact_refs": [run_path.relative_to(tmp_path).as_posix()],
+        }
+    )
+
+    result = reconcile_once(tmp_path, store, shadow=True)
+
+    assert result.decision_for(run_id) is None
+    projection = store.get_run(run_id)
+    assert projection["revision"] == 2
+    assert projection["summary"]["summary"] != old_summary
+    assert store.count("transitions") == 0
+
+
+def test_projection_summary_last_resort_bounds_large_numeric_values() -> None:
+    huge = int("9" * 4_000)
+
+    summary = _projection_summary(
+        {
+            "task_id": "large-numeric-task",
+            "next_action": "run_autonomous_planner",
+            "last_result": "none",
+            "requirement": "r" * 100_000,
+            "constraints": ["c" * 10_000 for _ in range(100)],
+            "parent_task_counter": huge,
+            "semantic_parent_task_next": huge,
+            "aggregate_acceptance": {"passed": huge},
+        },
+        "large-numeric-lineage",
+    )
+
+    assert len(summary) <= MAX_SUMMARY_CHARS
+    assert len(summary.encode("utf-8")) <= MAX_SUMMARY_BYTES
 
 
 def test_watch_cli_can_stop_after_one_reconcile_tick(tmp_path):

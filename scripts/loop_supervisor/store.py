@@ -3278,9 +3278,16 @@ class SupervisorStore:
             raise KeyError(action_id)
         return self._action_record(row)
 
-    def upsert_run_projection(self, projection: Mapping[str, Any]) -> dict[str, Any]:
+    def upsert_run_projection(
+        self,
+        projection: Mapping[str, Any],
+        *,
+        allow_same_revision_summary_refresh: bool = False,
+    ) -> dict[str, Any]:
         if not isinstance(projection, Mapping):
             raise TypeError("projection must be a mapping")
+        if not isinstance(allow_same_revision_summary_refresh, bool):
+            raise TypeError("allow_same_revision_summary_refresh must be a bool")
         run_id = self._required_text(projection.get("run_id"), "run_id")
         revision = projection.get("revision", projection.get("run_revision"))
         if not isinstance(revision, int) or isinstance(revision, bool):
@@ -3377,10 +3384,15 @@ class SupervisorStore:
                         and incoming_projection[:5] == stored_projection[:5]
                         and incoming_projection[6:] == stored_projection[6:]
                     )
+                    summary_refresh = (
+                        allow_same_revision_summary_refresh
+                        and incoming_projection[:-1] == stored_projection[:-1]
+                    )
                     if (
                         incoming_projection != stored_projection
                         and not fingerprint_backfill
                         and not root_backfill
+                        and not summary_refresh
                     ):
                         raise ValueError(
                             "same-revision run projection conflict: "
@@ -3388,10 +3400,17 @@ class SupervisorStore:
                         )
                     self._connection.execute(
                         """
-                        UPDATE runs SET state_fingerprint = ?, repo_relative_root = ?, last_seen_at = ?
+                        UPDATE runs SET state_fingerprint = ?, repo_relative_root = ?,
+                          summary_json = ?, last_seen_at = ?
                         WHERE run_id = ?
                         """,
-                        (state_fingerprint, repo_relative_root, now, run_id),
+                        (
+                            state_fingerprint,
+                            repo_relative_root,
+                            summary_json,
+                            now,
+                            run_id,
+                        ),
                     )
                 else:
                     self._insert_transition(

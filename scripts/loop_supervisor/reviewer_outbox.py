@@ -408,7 +408,7 @@ def _project_saved_run(
     previous: Mapping[str, Any],
     payload: Mapping[str, Any],
 ) -> None:
-    from .reconciler import _STATE_SUMMARY_KEYS
+    from .reconciler import _projection_summary
 
     summary = previous.get("summary")
     if not isinstance(summary, Mapping):
@@ -425,8 +425,6 @@ def _project_saved_run(
         or previous.get("loop_lineage_id")
         or previous["run_id"]
     )
-    summary_state = {key: payload.get(key) for key in _STATE_SUMMARY_KEYS}
-    summary_state["loop_lineage_id"] = resolved_lineage_id
     store.upsert_run_projection(
         {
             "run_id": str(previous["run_id"]),
@@ -438,11 +436,7 @@ def _project_saved_run(
             "phase": phase,
             "status": "terminal" if transition.terminal else "actionable",
             "state_fingerprint": _fingerprint(payload),
-            "summary": json.dumps(
-                summary_state,
-                sort_keys=True,
-                separators=(",", ":"),
-            ),
+            "summary": _projection_summary(payload, resolved_lineage_id),
             "artifact_refs": summary.get("artifact_refs", []),
         }
     )

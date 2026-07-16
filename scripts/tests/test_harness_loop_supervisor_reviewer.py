@@ -94,6 +94,287 @@ def test_review_projection_uses_one_fallback_lineage_for_outer_row_and_summary(
     assert projected_summary["loop_lineage_id"] == projected["loop_lineage_id"]
 
 
+def test_review_projection_compacts_long_lived_run_summary(tmp_path: Path) -> None:
+    store = migrated_store(tmp_path)
+    previous = {
+        "run_id": "long-review-run",
+        "loop_lineage_id": "long-review-lineage",
+        "parent_run_id": "",
+        "policy": "autonomous_knowledge",
+        "repo_relative_root": ".",
+        "summary": {
+            "artifact_refs": [".codex/loop-runs/long-review-run/run.json"],
+        },
+    }
+    payload = {
+        "run_id": "long-review-run",
+        "state_revision": 2,
+        "policy": "autonomous_knowledge",
+        "phase": "planning",
+        "next_action": "run_autonomous_planner",
+        "last_result": "none",
+        "task_id": "long-review-run-task-80",
+        "requirement": "Long running review projection. " * 200,
+        "constraints": ["x" * 600 for _ in range(20)],
+        "_autonomous_completed_task_ids": [
+            f"long-review-run-task-{index}" for index in range(80)
+        ],
+    }
+
+    reviewer_outbox_module._project_saved_run(store, previous, payload)
+
+    projected_summary = json.loads(store.get_run("long-review-run")["summary"]["summary"])
+    completion_compaction = projected_summary["summary_compaction"][
+        "_autonomous_completed_task_ids"
+    ]
+    assert completion_compaction["original_items"] == 80
+    assert completion_compaction["retained_items"] == 8
+    assert completion_compaction["series_key"].startswith("sha256:")
+
+
+def test_projection_only_reviewer_cadence_uses_compacted_completion_count() -> None:
+    run_id = "projection-only-run"
+    summary = {
+        "task_id": "projection-only-run-task-80",
+        "last_result": "pass",
+        "_autonomous_completed_task_ids": [
+            f"projection-only-run-task-{index}" for index in range(72, 80)
+        ],
+        "summary_compaction": {
+            "_autonomous_completed_task_ids": {
+                "original_items": 80,
+                "retained_items": 8,
+            }
+        },
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(summary), "artifact_refs": []},
+        }
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(
+        rows,
+        {run_id: summary},
+    )
+
+    assert len(completions["projection-only-lineage"]) == 80
+
+
+def test_projection_only_reviewer_deduplicates_cumulative_compacted_snapshots() -> None:
+    summary = {
+        "task_id": "projection-only-run-task-80",
+        "last_result": "pass",
+        "_autonomous_completed_task_ids": [
+            f"projection-only-run-task-{index}" for index in range(72, 80)
+        ],
+        "summary_compaction": {
+            "_autonomous_completed_task_ids": {
+                "original_items": 80,
+                "retained_items": 8,
+            }
+        },
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(summary), "artifact_refs": []},
+        }
+        for run_id in ("projection-snapshot-a", "projection-snapshot-b")
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(
+        rows,
+        {row["run_id"]: summary for row in rows},
+    )
+
+    assert len(completions["projection-only-lineage"]) == 80
+
+
+def test_projection_only_reviewer_deduplicates_growing_compacted_snapshots() -> None:
+    def summary(count: int) -> dict[str, object]:
+        return {
+            "task_id": f"projection-only-run-task-{count}",
+            "last_result": "pass",
+            "_autonomous_completed_task_ids": [
+                f"projection-only-run-task-{index}"
+                for index in range(count - 8, count)
+            ],
+            "summary_compaction": {
+                "_autonomous_completed_task_ids": {
+                    "original_items": count,
+                    "retained_items": 8,
+                }
+            },
+        }
+
+    summaries = {
+        "projection-snapshot-80": summary(80),
+        "projection-snapshot-81": summary(81),
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(payload), "artifact_refs": []},
+        }
+        for run_id, payload in summaries.items()
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(rows, summaries)
+
+    assert len(completions["projection-only-lineage"]) == 81
+
+
+def test_projection_only_reviewer_deduplicates_growing_nonnumeric_task_series() -> None:
+    all_ids = [f"autonomous-step-{index:03x}-x" for index in range(81)]
+    series_key = "sha256:" + hashlib.sha256(all_ids[0].encode("utf-8")).hexdigest()
+
+    def summary(count: int) -> dict[str, object]:
+        return {
+            "task_id": all_ids[count - 1],
+            "last_result": "pass",
+            "_autonomous_completed_task_ids": all_ids[count - 8 : count],
+            "summary_compaction": {
+                "_autonomous_completed_task_ids": {
+                    "original_items": count,
+                    "retained_items": 8,
+                    "series_key": series_key,
+                }
+            },
+        }
+
+    summaries = {
+        "projection-snapshot-80": summary(80),
+        "projection-snapshot-81": summary(81),
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(payload), "artifact_refs": []},
+        }
+        for run_id, payload in summaries.items()
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(rows, summaries)
+
+    assert len(completions["projection-only-lineage"]) == 81
+
+
+def test_projection_only_reviewer_keeps_distinct_compacted_task_series() -> None:
+    summaries = {
+        run_id: {
+            "task_id": f"{series}-task-80",
+            "last_result": "pass",
+            "_autonomous_completed_task_ids": [
+                f"{series}-task-{index}" for index in range(72, 80)
+            ],
+            "summary_compaction": {
+                "_autonomous_completed_task_ids": {
+                    "original_items": 80,
+                    "retained_items": 8,
+                }
+            },
+        }
+        for run_id, series in (
+            ("projection-segment-a", "continuation-a"),
+            ("projection-segment-b", "continuation-b"),
+        )
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(payload), "artifact_refs": []},
+        }
+        for run_id, payload in summaries.items()
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(rows, summaries)
+
+    assert len(completions["projection-only-lineage"]) == 160
+
+
+def test_projection_only_reviewer_counts_compacted_demand_parent_children() -> None:
+    run_id = "projection-only-demand-parent"
+    child_ids = [f"{run_id}-child-{index:03d}" for index in range(1, 21)]
+    summary = {
+        "run_kind": "parent",
+        "child_run_ids": child_ids[:8],
+        "aggregate_acceptance": {"passed": 20},
+        "summary_compaction": {
+            "child_run_ids": {
+                "original_items": 20,
+                "retained_items": 8,
+            }
+        },
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-demand-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(summary), "artifact_refs": []},
+        }
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(
+        rows,
+        {run_id: summary},
+    )
+
+    assert len(completions["projection-only-demand-lineage"]) == 20
+
+
+def test_projection_only_reviewer_deduplicates_repeated_demand_parent_snapshots() -> None:
+    child_ids = [f"shared-child-{index:03d}" for index in range(1, 21)]
+    series_key = "sha256:" + hashlib.sha256(child_ids[0].encode("utf-8")).hexdigest()
+    summary = {
+        "run_kind": "parent",
+        "child_run_ids": child_ids[:8],
+        "aggregate_acceptance": {"passed": 20},
+        "summary_compaction": {
+            "child_run_ids": {
+                "original_items": 20,
+                "retained_items": 8,
+                "series_key": series_key,
+            }
+        },
+    }
+    rows = [
+        {
+            "run_id": run_id,
+            "loop_lineage_id": "projection-only-demand-lineage",
+            "created_at": NOW.isoformat(),
+            "updated_at": NOW.isoformat(),
+            "summary": {"summary": json.dumps(summary), "artifact_refs": []},
+        }
+        for run_id in ("demand-parent-snapshot-a", "demand-parent-snapshot-b")
+    ]
+
+    completions = reviewer_module._semantic_parent_completions(
+        rows,
+        {row["run_id"]: summary for row in rows},
+    )
+
+    assert len(completions["projection-only-demand-lineage"]) == 20
+
+
 def record_parent_completion(
     store: SupervisorStore,
     lineage_id: str,

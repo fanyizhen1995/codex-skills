@@ -1319,7 +1319,14 @@ def _semantic_parent_completions(
         lineage_id = str(row.get("loop_lineage_id") or run_id)
         payload = payloads.get(run_id, {})
         summary = _projection_summary(row)
-        completed_ids = set(_completion_ids(payload)) | set(_completion_ids(summary))
+        if isinstance(payload.get("summary_compaction"), Mapping):
+            completed_ids = set(
+                _completion_ids(payload, projection_run_id=run_id)
+            )
+        else:
+            completed_ids = set(_completion_ids(payload)) | set(
+                _completion_ids(summary)
+            )
         updated_at = _coerce_datetime(str(row.get("updated_at") or row.get("created_at") or ""))
         for parent_id in completed_ids:
             current = grouped[lineage_id].get(parent_id)
@@ -1416,7 +1423,18 @@ def _require_review_application_scope(
         )
 
 
-def _completion_ids(payload: Mapping[str, Any]) -> list[str]:
+def _completion_ids(
+    payload: Mapping[str, Any],
+    *,
+    projection_run_id: str = "",
+) -> list[str]:
+    compacted_count = _compacted_completion_count(payload)
+    if compacted_count is not None and projection_run_id:
+        return _compacted_completion_ids(
+            payload,
+            compacted_count=compacted_count,
+            projection_run_id=projection_run_id,
+        )
     completed: list[str] = []
     for key in (
         "completed_semantic_parent_ids",
@@ -1440,8 +1458,102 @@ def _completion_ids(payload: Mapping[str, Any]) -> list[str]:
         if isinstance(aggregate, Mapping):
             passed = aggregate.get("passed")
             if isinstance(passed, int) and not isinstance(passed, bool) and passed > 0:
-                completed.extend(child_ids[:passed])
+                compacted_children = _compacted_list_count(payload, "child_run_ids")
+                accepted = min(passed, compacted_children) if compacted_children is not None else passed
+                visible = child_ids[:accepted]
+                completed.extend(visible)
+                if projection_run_id and accepted > len(visible):
+                    series_key = (
+                        _compacted_list_series_key(payload, "child_run_ids")
+                        or projection_run_id
+                    )
+                    completed.extend(
+                        f"{series_key}:projection-child-completion-{index:06d}"
+                        for index in range(len(visible) + 1, accepted + 1)
+                    )
     return list(dict.fromkeys(value for value in completed if value))
+
+
+def _compacted_completion_ids(
+    payload: Mapping[str, Any],
+    *,
+    compacted_count: int,
+    projection_run_id: str,
+) -> list[str]:
+    retained = list(
+        dict.fromkeys(_string_list(payload.get("_autonomous_completed_task_ids")))
+    )
+    if compacted_count <= 0:
+        return []
+    if retained and compacted_count >= len(retained):
+        matches = [re.fullmatch(r"(.*?)(\d+)", task_id) for task_id in retained]
+        if all(match is not None for match in matches):
+            prefixes = {match.group(1) for match in matches if match is not None}
+            numbers = [int(match.group(2)) for match in matches if match is not None]
+            if (
+                len(prefixes) == 1
+                and numbers == list(range(numbers[0], numbers[0] + len(numbers)))
+            ):
+                first = numbers[0] - (compacted_count - len(numbers))
+                if first >= 0:
+                    prefix = next(iter(prefixes))
+                    width = len(matches[0].group(2)) if matches[0] is not None else 0
+                    zero_padded = width > 1 and matches[0].group(2).startswith("0")
+                    return [
+                        prefix + (str(index).zfill(width) if zero_padded else str(index))
+                        for index in range(first, numbers[-1] + 1)
+                    ]
+
+    compacted_series_key = _compacted_list_series_key(
+        payload,
+        "_autonomous_completed_task_ids",
+    )
+    if compacted_series_key:
+        series_key = compacted_series_key
+    elif retained:
+        series_key = hashlib.sha256(
+            "\0".join(retained).encode("utf-8")
+        ).hexdigest()[:24]
+    else:
+        series_key = projection_run_id
+    return [
+        f"{series_key}:projection-completion-{index:06d}"
+        for index in range(1, compacted_count + 1)
+    ]
+
+
+def _compacted_completion_count(payload: Mapping[str, Any]) -> int | None:
+    return _compacted_list_count(payload, "_autonomous_completed_task_ids")
+
+
+def _compacted_list_count(payload: Mapping[str, Any], key: str) -> int | None:
+    compaction = payload.get("summary_compaction")
+    if not isinstance(compaction, Mapping):
+        return None
+    completed = compaction.get(key)
+    if not isinstance(completed, Mapping):
+        return None
+    original_items = completed.get("original_items")
+    if (
+        not isinstance(original_items, int)
+        or isinstance(original_items, bool)
+        or original_items < 0
+    ):
+        return None
+    return original_items
+
+
+def _compacted_list_series_key(payload: Mapping[str, Any], key: str) -> str:
+    compaction = payload.get("summary_compaction")
+    if not isinstance(compaction, Mapping):
+        return ""
+    details = compaction.get(key)
+    if not isinstance(details, Mapping):
+        return ""
+    series_key = details.get("series_key")
+    if not isinstance(series_key, str) or not _HASH_REF.fullmatch(series_key):
+        return ""
+    return series_key
 
 
 def _reviewed_cadence_positions(store: SupervisorStore) -> dict[str, int]:
