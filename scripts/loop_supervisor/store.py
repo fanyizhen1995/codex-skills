@@ -4099,7 +4099,9 @@ class SupervisorStore:
                 SELECT reviews.* FROM reviews
                 JOIN actions ON actions.action_id = reviews.source_action_id
                 WHERE reviews.source_action_id = ?
-                  AND reviews.status IN ('review_applying', 'review_complete')
+                  AND reviews.status IN (
+                    'review_applying', 'review_complete', 'review_superseded'
+                  )
                   AND reviews.accepted_review_json != '{}'
                   AND actions.status IN ('pending', 'leased', 'running')
                 ORDER BY reviews.created_at, reviews.review_id

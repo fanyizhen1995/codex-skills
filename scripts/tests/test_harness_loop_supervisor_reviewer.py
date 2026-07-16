@@ -1957,9 +1957,38 @@ def test_cold_reviewer_supersedes_accepted_review_without_durable_targets(
     reopened = SupervisorStore.open(tmp_path, clock=clock)
     reopened.migrate()
 
-    result = run_queued_reviewer(
+    original_supersede = reopened.supersede_review_application
+
+    def supersede_then_lose_process(review_id: str, *, reason: str) -> None:
+        original_supersede(review_id, reason=reason)
+        raise RuntimeError("injected process loss after review supersession")
+
+    monkeypatch.setattr(
         reopened,
-        reviewer_id="reviewer-after-restart",
+        "supersede_review_application",
+        supersede_then_lose_process,
+    )
+    with pytest.raises(RuntimeError, match="after review supersession"):
+        run_queued_reviewer(
+            reopened,
+            reviewer_id="reviewer-after-first-restart",
+            driver=lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("accepted cold recovery must not invoke a new LLM")
+            ),
+            timeout_seconds=1,
+            heartbeat_seconds=0.01,
+        )
+
+    assert reopened.fetch_all("reviews")[0]["status"] == "review_superseded"
+    assert reopened.get_action(request.action_id).status == "leased"
+    reopened.close()
+    clock.value += timedelta(seconds=121)
+    recovered = SupervisorStore.open(tmp_path, clock=clock)
+    recovered.migrate()
+
+    result = run_queued_reviewer(
+        recovered,
+        reviewer_id="reviewer-after-second-restart",
         driver=lambda **_kwargs: (_ for _ in ()).throw(
             AssertionError("superseded cold recovery must not invoke a new LLM")
         ),
@@ -1970,24 +1999,24 @@ def test_cold_reviewer_supersedes_accepted_review_without_durable_targets(
     assert result is not None and result.status == "review_degraded"
     assert result.blocks_safe_runs is False
     assert result.review_id == review_id
-    assert reopened.fetch_all("reviews")[0]["status"] == "review_superseded"
-    assert reopened.fetch_all("review_applications") == []
-    assert reopened.fetch_all("review_application_targets") == []
-    assert reopened.fetch_all("review_findings") == []
-    assert reopened.fetch_all("skill_snapshots") == []
-    assert reopened.get_action(request.action_id).status == "cancelled"
+    assert recovered.fetch_all("reviews")[0]["status"] == "review_superseded"
+    assert recovered.fetch_all("review_applications") == []
+    assert recovered.fetch_all("review_application_targets") == []
+    assert recovered.fetch_all("review_findings") == []
+    assert recovered.fetch_all("skill_snapshots") == []
+    assert recovered.get_action(request.action_id).status == "cancelled"
     assert not [
         row
-        for row in reopened.fetch_all("actions")
+        for row in recovered.fetch_all("actions")
         if row["queue_owner"] == ActionOwner.SUPERVISOR.value
         and row["status"] in {"pending", "leased", "running"}
     ]
-    cadence = reopened.review_cadence_positions()["lineage-a"]
+    cadence = recovered.review_cadence_positions()["lineage-a"]
     assert cadence["reviewed_position"] == 0
     assert cadence["deferred_position"] == 2
     assert cadence["reserved_position"] == 0
-    assert review_due_lineages(reopened, now=clock.value) == []
-    assert schedule_due_reviews(reopened, now=clock.value) == []
+    assert review_due_lineages(recovered, now=clock.value) == []
+    assert schedule_due_reviews(recovered, now=clock.value) == []
 
 
 def test_queued_reviewer_resumes_stop_run_outbox_after_terminal_lineage(
