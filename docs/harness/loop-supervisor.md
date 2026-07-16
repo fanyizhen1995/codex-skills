@@ -63,6 +63,16 @@ recorded as `review_degraded`. When deterministic safety gates pass, safe runs
 continue and review is retried at the next cadence. Reviewer infrastructure
 failure does not create a user decision by itself.
 
+An accepted Reviewer result is recovered from its durable outbox before any new
+LLM call. If the process exits after writing the run file but before completing
+the SQLite application target, migration requeues the Reviewer source action and
+the watch process launches it from the durable action queue even when it has no
+cadence reservation. Recovery accepts a later run revision only when the exact
+accepted directive remains in canonical `run.json` and the SQLite projection
+matches that file; otherwise it supersedes the stale application. A superseded
+accepted result is terminalized without asking the LLM to recreate the same
+review.
+
 An upgrade can encounter a legacy `review_applying` row whose immutable
 pre-write target cannot be reconstructed. The migration marks it
 `review_migration_blocked` and does not invoke another Reviewer or apply the
