@@ -29,7 +29,9 @@ source_refs:
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-index.json
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json
-updated: 2026-07-10
+  - ../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json
+  - ../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md
+updated: 2026-07-16
 related:
   - ai-infra-coverage-map.md
   - distributed-training-infrastructure.md
@@ -49,6 +51,14 @@ KubeRay defines Kubernetes custom resources for RayCluster, RayJob, and RayServi
 Kubeflow Trainer is a Kubernetes-native training job controller surface. Its docs organize TrainJob lifecycle, runtime, job templates, ML policy, scheduling integration, and framework-specific guides for PyTorch, DeepSpeed, Megatron, JAX, XGBoost, and other training modes. Treat it as a controller layer above framework launchers. [raw](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
 
 Slurm is the HPC scheduler boundary. Slurm GRES lets clusters model generic resources such as GPU types and counts, allocate them to jobs, and allocate job-step resources from the parent job allocation. That is scheduler evidence for GPU-bound training outside Kubernetes, and it should not be collapsed into Kubernetes queue semantics without a bridge source. [raw](../../raw/links/slurm-gpu-scheduling-official-docs-20260707.md)
+
+# HyperPod Inference Operator DPD Boundary
+
+The SageMaker HyperPod DPD capture adds a provider-specific inference-operator boundary. It states that DPD requires HyperPod Inference Operator version 3.2 or later and is activated on an `InferenceEndpointConfig` by adding `spec.pdSpec`. The presence of `pdSpec` makes the endpoint disaggregated: the operator creates separate prefill and decode `Deployment` objects and wires them together through the router and LMCache PD backend. [manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json) [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)
+
+The source scopes the DPD manifest semantics. `pdSpec.replicas` scales prefill and decode roles independently, `pdSpec.resources` applies per role, top-level `worker.resources` is ignored for DPD pods, `routingThreshold` decides when a prompt uses the disaggregated path, and per-role `args` override or append role-specific vLLM flags. `spec.worker.environmentVariables` is shared by prefiller and decoder containers, so per-role behavior belongs in `pdSpec.{prefillSpec,decodingSpec}.args`. This is an operator/API contract for this HyperPod source, not general Kubernetes scheduling behavior. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)
+
+The runtime deployment shape is also source-scoped. The blog says applying the manifest creates prefill and decode pods in the workload namespace and a router deployment in `hyperpod-inference-system`; each model pod has a vLLM worker, Nginx reverse proxy, and OpenTelemetry collector, while the router pod has router and OpenTelemetry containers. Readiness is exposed through the `InferenceEndpointConfig` condition. This is useful orchestration evidence for HyperPod DPD pod composition, but it is not a production incident, rollout guarantee, KServe coverage, or autoscaling proof. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)
 
 # Device Plugins And GPU Operators
 
@@ -110,7 +120,7 @@ This page does not replace [Distributed Training Infrastructure](distributed-tra
 
 Use this page as source-backed coverage for:
 
-- `orchestration-scheduling`: Ray/KubeRay CRDs, RayJob/RayCluster execution, Slurm GPU/GRES scheduling, Kubernetes device plugins, NVIDIA and AMD GPU operators, Kubeflow Trainer job controllers, and quota/admission interactions with Kueue and ResourceQuota.
+- `orchestration-scheduling`: Ray/KubeRay CRDs, RayJob/RayCluster execution, Slurm GPU/GRES scheduling, Kubernetes device plugins, NVIDIA and AMD GPU operators, Kubeflow Trainer job controllers, quota/admission interactions with Kueue and ResourceQuota, and SageMaker HyperPod Inference Operator DPD boundaries for `InferenceEndpointConfig.spec.pdSpec`, prefill/decode/router Deployments, role-specific replicas/resources/args, shared worker environment variables, and pod/container readiness surfaces.
 - `training-distributed`: only where KubeRay and Kubeflow explain training job controllers above framework runtimes.
 - `security-governance-cost`: only where Kueue quota, ResourceFlavor, cohorts, or ResourceQuota explain admission and accelerator governance; use the security/governance page for cost and tenant isolation.
 - `hardware-accelerator`: only where device plugins and GPU operators expose or manage accelerators; do not use this page for SKU parameters.
@@ -133,3 +143,5 @@ The local issue corpora now cover issue-level admission, preemption, DRA Resourc
 - [Volcano closed issues with comments](../../raw/github/volcano-sh-volcano-closed-issues/volcano-sh-volcano-closed-issues-with-comments.json.gz)
 - [Kueue closed issues with comments](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-with-comments.json.gz)
 - [SGLang closed issue and PR index](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
+- [SageMaker HyperPod DPD manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json)
+- [SageMaker HyperPod DPD AWS ML Blog capture](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)

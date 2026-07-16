@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008",
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-6",
+  "semantic_parent_task_id": "ai-infra-expansion-continuation-20260708-parent-26",
+  "generated_at": "2026-07-16T03:25:12Z",
+  "summary": "Ingested the local July 12 AWS ML Blog capture for SageMaker HyperPod Disaggregated Prefill and Decode as bounded inference-runtime, network/storage, and orchestration evidence. The update records HyperPod Inference Operator v3.2, InferenceEndpointConfig spec.pdSpec, routingThreshold behavior, vLLM Production Stack router, LMCacheConnectorV1, LMCache PD, NIXL, libfabric, EFA GPU-Direct RDMA KV transfer, p5/p6 same-AZ deployment constraints, checkpoint-loading options, scaling guidance, observability dashboard surfaces, and AWS-stated benchmark context while preserving source caveats.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-6-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-verification.json",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra wiki index; no tracked index diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra backlinks JSON; no tracked backlinks diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Parent-26 raw manifest parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Semantic parent-26 gap proof parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-6-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local task-6 gap proof parsed successfully."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; ... parent-26 ...\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Semantic parent-26 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; ... task-6 ...\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local task-6 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"assert target HyperPod DPD raw capture exists and contains source_id/title/LMCache/NIXL/EFA terms\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "The target July 12 AWS ML Blog raw capture exists, has the expected source_id frontmatter, and contains HyperPod DPD, LMCache, NIXL, and Elastic Fabric Adapter evidence."
+    },
+    {
+      "command": "python3 -c \"validate_coverage_map_payload(...); validate_loop_state_payload(...)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness loop contracts."
+    },
+    {
+      "command": "python3 -c \"validate_planner_output_payload(...)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Planner output payload satisfies the harness loop contract."
+    },
+    {
+      "command": "rg -n \"parent-26|HyperPod DPD|SageMaker HyperPod|Disaggregated Prefill|HyperPod Inference Operator|InferenceEndpointConfig|pdSpec|routingThreshold|LMCache|LMCacheConnectorV1|NIXL|EFA|RDMA|libfabric|PD_BUFFER_SIZE|kvaware|session|TTFT|TPOT|genai-bench|ml\\.p5|ml\\.p5en|GPU-Direct RDMA\" ...",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Required parent-26 terms are visible across the raw manifest, ingest plan, curated pages, coverage-map.json, loop-state.json, and ingest log."
+    },
+    {
+      "command": "boundary check that AWS-stated benchmark percentages and latency/throughput claims are labeled source-stated benchmark context only",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Curated text and raw manifest keep TPOT, throughput, E2E latency, and TTFT tradeoffs as AWS-stated benchmark context, not local results, MLCommons submissions, SLOs, rankings, alert thresholds, or generalized guarantees."
+    },
+    {
+      "command": "boundary check that HyperPod DPD claims stay scoped to the AWS ML Blog capture",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Curated text does not claim KServe coverage, SGLang shipped fixes, production postmortems, exact MLCommons results, end-to-end RAG propagation, accelerator SKU rows, or resolved hardware fields from this source."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in changed ai_infra paths."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No real credentials, authorization-token values, private keys, or AWS access keys were detected. A broad keyword scan only matched the source's placeholder export HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN>."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Declared changed repository paths are under personal-wiki/domains/ai_infra/** and avoid planner denylist patterns; unrelated untracked crawler backlog and runtime paths are not declared."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No backend, frontend, dashboard, harness, package, dependency, or generated build files changed; code and dependency tests are not applicable."
+    },
+    {
+      "command": "trusted live evidence checks: service-availability, crawler-workbench-freshness, loop-dashboard-freshness, search-api-visibility, frontend-visibility",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Per generator instructions, no live service probes, localhost curl checks, tmux, uvicorn, npm, Vite, or long-lived services were started. The required-evidence manifest references orchestrator-owned trusted-live-evidence/<evidence-id>.json artifacts."
+    },
+    {
+      "command": "commit-result and push-result evidence",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Generator intentionally did not commit, push, or fill the commit field. The orchestrator commits after gates pass."
+    },
+    {
+      "command": "parent-task-level auditor cadence check before parent-26",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "run.json reports parent_task_counter=25, semantic_parent_task_next=26, fixed interval=2, and carried_completed_since_last_audit=0; no pre-generation ordinary Auditor gate is due. The orchestrator should evaluate the next cadence gate after parent-26 completion."
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json"
+    }
+  ],
+  "boundaries": [
+    "No external sources were fetched.",
+    "No adjacent AWS Nemotron, AgentCore MCP, NCCL GitHub, NVIDIA GQE/Presto, or vLLM refresh capture was ingested.",
+    "No code, package, dependency, crawler profile, service, dashboard, harness, generated build, or accelerator catalog files were changed.",
+    "All AWS benchmark percentages remain source-stated context only."
+  ]
+}

@@ -1,0 +1,172 @@
+{
+  "type": "raw_manifest",
+  "title": "SageMaker HyperPod DPD AWS ML Blog capture, 2026-07-12",
+  "source_id": "nccl-aws-ml-blog",
+  "created_at": "2026-07-16T00:00:00Z",
+  "captured_range": "2026-07-12",
+  "scope_note": "One local AWS ML Blog capture about Disaggregated Prefill and Decode on Amazon SageMaker HyperPod. This manifest records source-backed blog evidence only; it is not a local benchmark reproduction, product ranking, production SLO, incident postmortem, MLCommons submission, or complete HyperPod documentation ingest.",
+  "counts": {
+    "raw_files": 1,
+    "new_local_url_identities_after_prior_captures": 1,
+    "exact_content_hash_duplicates_with_prior_captures": 0,
+    "canonical_title_duplicates_with_prior_captures": 0
+  },
+  "duplicate_boundary": {
+    "prior_curated_pages": [
+      "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+      "personal-wiki/domains/ai_infra/coverage-map.json",
+      "personal-wiki/domains/ai_infra/loop-state.json"
+    ],
+    "prior_curated_scope": "Existing inference-runtime coverage already covered vLLM, PegaFlow external KV-cache process boundaries, SGLang disaggregated-prefill issue and PR signals, NIXL and Mooncake page-level failure handling, Ray Serve, Knative, and general deployment-control evidence. Existing network-storage coverage already covered EFA, libfabric source-note boundaries, HyperPod topology/checkpoint/resiliency evidence for training clusters, FSx for Lustre, MLCommons Storage method evidence, and SGLang Mooncake/NIXL transfer-control signals. Existing orchestration coverage already covered Ray/KubeRay, Slurm, device plugins, GPU operators, Kubeflow Trainer, Kubernetes, Kueue, and Volcano issue-level scheduling evidence. None of those pages represented the July 12 AWS ML Blog capture for SageMaker HyperPod DPD, HyperPod Inference Operator 3.2, InferenceEndpointConfig pdSpec, the vLLM plus LMCache plus NIXL plus libfabric plus EFA GPU-Direct RDMA KV-transfer stack, DPD routingThreshold behavior, one-prefiller/one-decoder topology, or the source-stated genai-bench setup and caveats.",
+    "reconciliation": [
+      "This source overlaps prior vLLM, EFA, NIXL, RDMA, and disaggregated-prefill vocabulary, but the provider-specific combination on SageMaker HyperPod DPD is new in curated pages and loop state.",
+      "The source is an AWS blog capture, so the promoted benchmark percentages remain AWS-stated benchmark context rather than local results, MLCommons evidence, product rankings, SLOs, or generalized guarantees.",
+      "The source mentions RAG as a long-context workload example, but it does not prove source-to-vector deletion, RAG cache propagation, access-control enforcement, or retrieval-quality alerting; data/RAG pages remain unchanged.",
+      "The source mentions observability dashboards, but it does not provide alert thresholds, SLO definitions, production incidents, or end-to-end reliability evidence; no separate eval/observability page is promoted from this capture."
+    ]
+  },
+  "source": {
+    "title": "Disaggregated prefill and decode for LLM inference on SageMaker HyperPod",
+    "identity_key": "url:https://aws.amazon.com/blogs/machine-learning/disaggregated-prefill-and-decode-for-llm-inference-on-sagemaker-hyperpod/",
+    "canonical_url": "https://aws.amazon.com/blogs/machine-learning/disaggregated-prefill-and-decode-for-llm-inference-on-sagemaker-hyperpod/",
+    "published_at": "2026-07-10",
+    "captured_at": "2026-07-12T04:13:17.574335+00:00",
+    "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md",
+    "content_hash": "0ba0cabe0978e3dc7d94e11c44737273bc65d1b35689b227243308b075d84155",
+    "duplicate_status": "new_local_url_identity",
+    "promoted_surfaces": [
+      "inference-runtime",
+      "network-storage-cluster",
+      "orchestration-scheduling"
+    ]
+  },
+  "promoted_facts": [
+    {
+      "surface": "inference-runtime",
+      "claim": "The AWS blog frames DPD as separating prefill and decode onto separate GPU pools so long prompts go through a prefiller before a decoder while short prompts below routingThreshold bypass the prefiller and go directly to a decoder.",
+      "source_terms": [
+        "Disaggregated Prefill and Decode",
+        "routingThreshold",
+        "short prompt",
+        "long prompt",
+        "decoder"
+      ]
+    },
+    {
+      "surface": "inference-runtime",
+      "claim": "The HyperPod DPD implementation is described as using the vLLM Production Stack router plus LMCache, with LMCacheConnectorV1 on vLLM workers and LMCache PD sender/receiver behavior for KV transfer.",
+      "source_terms": [
+        "vLLM Production Stack router",
+        "LMCache",
+        "LMCacheConnectorV1",
+        "LMCache PD"
+      ]
+    },
+    {
+      "surface": "network-storage-cluster",
+      "claim": "The source describes a four-layer KV-transfer stack, LMCache PD to NIXL to libfabric to EFA, and says the libfabric provider exposes EFA as kernel-bypass GPU-Direct RDMA for KV transfers.",
+      "source_terms": [
+        "NIXL",
+        "libfabric",
+        "Elastic Fabric Adapter",
+        "EFA",
+        "GPU-Direct RDMA"
+      ]
+    },
+    {
+      "surface": "network-storage-cluster",
+      "claim": "Deployment boundaries include RDMA-capable EFA networking, P5 and P6 instance families, same-AZ placement for high-bandwidth EFA communication, and NVLink plus EFA requirements for DPD inference deployments.",
+      "source_terms": [
+        "RDMA-capable EFA networking",
+        "P5",
+        "P6",
+        "same Availability Zone",
+        "NVLink"
+      ]
+    },
+    {
+      "surface": "orchestration-scheduling",
+      "claim": "The source states that HyperPod Inference Operator version 3.2 or later is required and that activating DPD on an InferenceEndpointConfig through spec.pdSpec makes the endpoint disaggregated.",
+      "source_terms": [
+        "HyperPod Inference Operator",
+        "v3.2",
+        "InferenceEndpointConfig",
+        "spec.pdSpec"
+      ]
+    },
+    {
+      "surface": "orchestration-scheduling",
+      "claim": "The blog states that pdSpec creates separate prefill and decode Deployment objects plus a router Deployment, while pdSpec replicas and resources are applied per role and top-level worker.resources is ignored for DPD pods.",
+      "source_terms": [
+        "prefill Deployment",
+        "decode Deployment",
+        "router Deployment",
+        "replicas",
+        "resources"
+      ]
+    },
+    {
+      "surface": "inference-runtime",
+      "claim": "The source describes scaling guidance where DPD currently supports one decoder replica with multiple prefiller replicas, starts with a 1:1 prefill-to-decode ratio, can move to 2:1 or 3:1 for prefill-heavy workloads, and uses kvaware or session routing to improve prefix or conversation locality.",
+      "source_terms": [
+        "single decoder replica",
+        "prefill-to-decode ratio",
+        "kvaware",
+        "session",
+        "PD_BUFFER_SIZE"
+      ]
+    },
+    {
+      "surface": "inference-runtime",
+      "claim": "The AWS-stated benchmark context uses genai-bench with fixed 4096 input and 256 output token prompts, concurrency 8, 16, and 32, one prefiller plus one decoder across two nodes, KV-aware routing, eager prefiller mode, decoder CUDA graphs, and a single-node colocated baseline.",
+      "source_terms": [
+        "genai-bench",
+        "4096 input tokens",
+        "256 output tokens",
+        "concurrency",
+        "CUDA graphs"
+      ]
+    }
+  ],
+  "benchmark_context": {
+    "source_stated_only": true,
+    "hardware": [
+      "ml.p5.48xlarge with 8x H100 80GB and EFA enabled",
+      "ml.p5en.48xlarge with H200 GPUs"
+    ],
+    "model": "Llama-3.3-70B-Instruct",
+    "configuration": [
+      "tensor-parallel-size=8",
+      "max-model-len=16384",
+      "1 prefiller and 1 decoder across 2 nodes",
+      "KV-aware routing",
+      "enforce-eager on the prefiller",
+      "CUDA graphs on the decoder"
+    ],
+    "source_stated_outcomes": [
+      "TPOT improvement ranges from 22% to 66% on H100 and from 28% to 48% on H200 across concurrency 8 to 32.",
+      "Output throughput improves up to 35% on H100 and up to 64% on H200 at higher concurrency.",
+      "E2E P50 improves 14% to 32% on H100 and 29% to 41% on H200.",
+      "TTFT has a modest increase because of KV cache transfer over EFA RDMA."
+    ],
+    "boundaries": [
+      "Not a local benchmark reproduction.",
+      "Not an MLCommons submission.",
+      "Not a production service SLO.",
+      "Not an alert threshold.",
+      "Not a product ranking or generalized performance guarantee."
+    ]
+  },
+  "boundaries": [
+    "No new network sources were fetched.",
+    "Do not ingest adjacent July 12 AWS Nemotron or AgentCore MCP captures in this task.",
+    "Do not claim KServe autoscaling, canary rollout, production rollback, exact MLCommons measured results, or end-to-end RAG propagation proof from this source.",
+    "Do not create accelerator SKU rows or resolved hardware fields from this blog.",
+    "Keep p5/p5en/p6, EFA, NVLink, S3, FSx, HuggingFace, and NVMe details as source-scoped deployment boundary evidence."
+  ]
+}

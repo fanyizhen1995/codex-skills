@@ -951,6 +951,24 @@
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md",
         "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md"
       ]
+    },
+    {
+      "id": "sagemaker-hyperpod-dpd-parent-26",
+      "title": "SageMaker HyperPod Disaggregated Prefill and Decode evidence",
+      "source": "local AWS ML Blog raw capture",
+      "status": "known",
+      "updated_at": "2026-07-16T00:00:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-6-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+      ]
     }
   ],
   "coverage_gaps": [

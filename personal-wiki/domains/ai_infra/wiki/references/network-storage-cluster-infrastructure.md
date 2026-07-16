@@ -63,6 +63,8 @@ source_refs:
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028355612Z-github-com-sgl-project-sglang-pull-30997-8fda1aa71b.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028354905Z-github-com-sgl-project-sglang-pull-31239-863696c394.md
   - ../../raw/crawler/sglang-github-closed-issues-prs/20260715T234028373678Z-github-com-sgl-project-sglang-pull-31211-999d09855b.md
+  - ../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json
+  - ../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md
 updated: 2026-07-16
 related:
   - ai-infra-coverage-map.md
@@ -94,6 +96,10 @@ Use [Security Governance Cost Infrastructure](security-governance-cost-infrastru
 AWS Elastic Fabric Adapter is non-NVIDIA fabric evidence for EC2-based AI/HPC clusters. The official EFA docs describe an EC2 network interface for high-performance computing and machine-learning workloads, with an OS-bypass communication path and libfabric integration. Treat EFA as an application/runtime integration boundary, not just as a throughput value on an instance table. [source note](../../raw/links/aws-efa-ai-cluster-networking-official-20260707.md)
 
 The local AWS Trainium2 capture is adjacent EFA evidence because it records EFAv3 interconnect values for Trn2 and Trn2 UltraServer cloud offerings. Use that raw capture for the cloud-offering record, and the EFA source note for the fabric behavior. [raw](../../raw/crawler/compute-accelerators-aws-trn2/20260627T153315637188Z-aws-amazon-com-ec2-instance-types-trn2-9d15dc4a0c.md) [source note](../../raw/links/aws-efa-ai-cluster-networking-official-20260707.md)
+
+The SageMaker HyperPod DPD capture adds an inference data-movement boundary for EFA. It describes KV cache transfer as a four-layer stack, LMCache PD to NIXL to `libfabric` to EFA, where the `libfabric` provider exposes EFA as kernel-bypass GPU-Direct RDMA. The same source states that DPD requires at least one prefill node and one decode node with RDMA-capable EFA networking, recommends DPD-supported worker images with vLLM, LMCache, NIXL, and the EFA `libfabric` provider, and scopes high-bandwidth EFA communication to instances in the same Availability Zone. Keep this as source-scoped KV-transfer deployment evidence, not a protocol benchmark, production SLO, or generalized storage-fabric performance result. [manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json) [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)
+
+The same capture names p5 and p6 as DPD deployment families because they support NVLink and EFA, and it warns that G6, G6e, and G7e can support EFA RDMA read/write but may bottleneck multi-GPU communication over PCIe. It also lists S3, FSx, HuggingFace, and instance NVMe as checkpoint-loading sources for the HyperPod Inference Operator. Use those details as deployment-boundary context; do not convert them into accelerator catalog rows, resolved hardware fields, provider rankings, or storage-throughput claims. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)
 
 Existing local NVIDIA technical-blog evidence remains the strongest fabric operations corpus. It covers Spectrum-X telemetry, BGP Prefix Independent Convergence, RoCE congestion behavior, ECN/DC-QCN design, NIC Fusion, SHARP in-network collective offload, and NCCL RAS. That evidence is valid for NVIDIA/Spectrum-X/RoCE cluster fabric claims, but it does not close EFA, Lustre, WEKA, Ceph, or generic storage gaps. [wiki](nccl-technical-blog-network-observability.md)
 
@@ -229,6 +235,7 @@ No new production incident or postmortem source was promoted in this task. The i
 Use this page as source-backed coverage for `network-storage-cluster`:
 
 - EFA as EC2 AI/HPC fabric evidence with OS-bypass and libfabric integration boundaries;
+- SageMaker HyperPod DPD KV-transfer evidence for LMCache PD, NIXL, `libfabric`, EFA GPU-Direct RDMA, RDMA-capable EFA, p5/p6 same-AZ placement, NVLink, and checkpoint source boundaries, while preserving source-scoped deployment and benchmark caveats;
 - FSx for Lustre as managed Lustre/shared filesystem evidence for compute-intensive ML/HPC workloads and S3-linked dataset staging;
 - WEKA as distributed filesystem/storage architecture evidence, including client mount and storage-network boundaries;
 - Ceph as distributed storage evidence for RADOS, CephFS, and RBD file/block primitives;
@@ -251,6 +258,8 @@ Do not use this page to claim complete production incident readiness, product-sp
 # Citations
 
 - [AWS EFA source note](../../raw/links/aws-efa-ai-cluster-networking-official-20260707.md)
+- [SageMaker HyperPod DPD manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json)
+- [SageMaker HyperPod DPD AWS ML Blog capture](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574335Z-aws-amazon-com-blogs-machine-learning-disaggregated-prefill-and-decode-for-llm-inference-o-0ba0cabe09.md)
 - [AWS FSx for Lustre source note](../../raw/links/aws-fsx-lustre-parallel-filesystem-official-20260707.md)
 - [WEKA storage architecture source note](../../raw/links/weka-ai-storage-architecture-official-20260707.md)
 - [Ceph distributed storage source note](../../raw/links/ceph-distributed-storage-official-docs-20260707.md)

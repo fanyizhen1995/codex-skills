@@ -1,0 +1,68 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-6",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "Disaggregated prefill and decode for LLM inference on SageMaker HyperPod",
+    "source_type": "blog",
+    "identity_key": "url:https://aws.amazon.com/blogs/machine-learning/disaggregated-prefill-and-decode-for-llm-inference-on-sagemaker-hyperpod/"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local raw/crawler/nccl-aws-ml-blog, raw manifests, ingest.md, coverage-map.json, loop-state.json, and prior parent manifests for SageMaker HyperPod, HyperPod DPD, Disaggregated Prefill and Decode, HyperPod Inference Operator, InferenceEndpointConfig, pdSpec, routingThreshold, LMCache, LMCacheConnectorV1, NIXL, libfabric, EFA, GPU-Direct RDMA, PD_BUFFER_SIZE, kvaware, session, genai-bench, TTFT, TPOT, ml.p5.48xlarge, and ml.p5en.48xlarge.",
+    "wiki_search": "Inference Runtime Infrastructure already covered vLLM, PegaFlow, SGLang disaggregated-prefill issue/PR evidence, NIXL/Mooncake page-level failure handling, Ray Serve, Knative, and CTA-Pipelining arXiv abstract discovery. Network Storage Cluster Infrastructure already covered EFA/libfabric as a fabric boundary, HyperPod training-cluster topology/checkpoint/resiliency evidence, FSx, WEKA, Ceph, SPDK, MLCommons Storage method evidence, and SGLang transfer-control signals. Orchestration Scheduling Infrastructure already covered Ray/KubeRay, Slurm, Kubernetes device plugins, GPU operators, Kubeflow Trainer, Kueue, Volcano, and Kubernetes issue-level scheduling evidence. No curated page represented the AWS ML Blog's SageMaker HyperPod DPD operator/API/runtime/fabric bundle.",
+    "domain_index_scan": "The ai_infra index lists Inference Runtime Infrastructure, Network Storage Cluster Infrastructure, Orchestration Scheduling Infrastructure, Data RAG Pipeline/Vector Infrastructure, Evaluation Observability Reliability Infrastructure, AI Infra Coverage Map, SGLang, NCCL, and compute-accelerator pages. It had no SageMaker HyperPod DPD, HyperPod Inference Operator 3.2, InferenceEndpointConfig pdSpec, or LMCache/NIXL/EFA DPD entry before run-local task-6."
+  },
+  "duplicate_boundaries": [
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "Duplicate boundary for generic vLLM, PegaFlow external KV cache, SGLang disaggregated-prefill issue/PR signals, and NIXL/Mooncake failure handling; updated only for AWS HyperPod DPD routingThreshold, LMCacheConnectorV1, scaling, observability surface, and AWS-stated benchmark-context evidence."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "Duplicate boundary for EFA/libfabric, HyperPod training topology, and SGLang Mooncake/NIXL transfer-control evidence; updated only for source-scoped DPD KV transfer over LMCache PD -> NIXL -> libfabric -> EFA GPU-Direct RDMA, p5/p6 same-AZ, and NVLink deployment boundaries."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+      "result": "Duplicate boundary for Kubernetes/Ray/Slurm/device-plugin/operator scheduling coverage; updated only for HyperPod Inference Operator v3.2, InferenceEndpointConfig spec.pdSpec, prefill/decode/router Deployment creation, and per-role DPD pod semantics."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "result": "Not edited. The AWS blog mentions RAG as a long-context workload example but does not prove source-to-vector propagation, deletion, RAG cache invalidation, access-control enforcement, retrieval quality alerting, or data-pipeline cost attribution."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/evaluation-observability-reliability-infrastructure.md",
+      "result": "Not edited. The source mentions HyperPod Inference, Tasks, and Cluster Overview dashboards, but it does not include alert thresholds, SLO definitions, trace artifacts, incident/postmortem evidence, or reliability remediation context."
+    }
+  ],
+  "gap_reason": "The local corpus already covered generic vLLM serving, external KV-cache concepts, EFA/libfabric, HyperPod training topology, and SGLang page-level disaggregated-prefill/NIXL evidence, but did not represent the July 12 AWS ML Blog's provider-specific SageMaker HyperPod DPD stack: HyperPod Inference Operator 3.2, InferenceEndpointConfig spec.pdSpec, routingThreshold long/short prompt split, vLLM Production Stack router, LMCacheConnectorV1, LMCache PD over NIXL/libfabric/EFA GPU-Direct RDMA, one-prefiller/one-decoder topology, checkpoint-source options, p5/p6 same-AZ deployment constraints, scaling guidance, and AWS-stated genai-bench benchmark boundaries.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-hyperpod-dpd.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ],
+  "promoted_boundaries": [
+    {
+      "surface": "inference-runtime",
+      "coverage": "DPD runtime routing, vLLM Production Stack router, LMCacheConnectorV1, long/short prompt threshold behavior, prefiller/decoder semantics, scaling ratios, kvaware/session routing, PD_BUFFER_SIZE guidance, and AWS-stated benchmark-context caveats."
+    },
+    {
+      "surface": "network-storage-cluster",
+      "coverage": "LMCache PD -> NIXL -> libfabric -> EFA GPU-Direct RDMA KV transfer, RDMA-capable EFA, p5/p6, same-AZ high-bandwidth EFA, NVLink, and checkpoint-loading source options as deployment boundary evidence."
+    },
+    {
+      "surface": "orchestration-scheduling",
+      "coverage": "HyperPod Inference Operator v3.2, InferenceEndpointConfig spec.pdSpec, separate prefill/decode/router Deployments, per-role replicas/resources/args, shared worker environment variable boundary, readiness and pod/container surfaces."
+    }
+  ],
+  "unpromoted_boundaries": [
+    "No AWS benchmark percentage or latency/throughput claim is promoted as a local result, MLCommons submission, production SLO, alert threshold, product ranking, or generalized guarantee.",
+    "No KServe, SGLang shipped-fix, production rollback/postmortem, exact MLCommons, or end-to-end RAG propagation claim is made from this source.",
+    "No accelerator SKU, product catalog row, resolved hardware field, or generalized P5/P6 hardware comparison is created from this blog.",
+    "No adjacent AWS Nemotron, AgentCore MCP, NCCL GitHub, NVIDIA GQE/Presto, or vLLM refresh capture is ingested in this parent task."
+  ]
+}
