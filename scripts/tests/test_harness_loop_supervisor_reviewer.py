@@ -931,6 +931,65 @@ def test_terminal_pending_lineage_coalesces_and_advances_only_after_review_compl
     assert cadence["new-lineage"]["reviewed_position"] == 2
 
 
+def test_queued_reviewer_publishes_findings_before_completing_source_action(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock(NOW)
+    store = migrated_store(tmp_path, clock)
+    record_parent_completion(store, "lineage-a", run_id="run-a1", parent=1)
+    record_parent_completion(
+        store,
+        "lineage-a",
+        run_id="run-a2",
+        parent=2,
+        previous_run_id="run-a1",
+    )
+    request = schedule_due_reviews(store, now=clock.value)[0]
+    clock.value = NOW + timedelta(minutes=10)
+
+    def finding_driver(**kwargs: object) -> dict[str, object]:
+        review_dir = Path(str(kwargs["run_dir"]))
+        evidence = json.loads(
+            next(review_dir.glob("review-*-evidence.json")).read_text(
+                encoding="utf-8"
+            )
+        )
+        evidence_refs = list(evidence["evidence_hashes"].values())
+        candidate = valid_review_payload(
+            review_id=str(kwargs["run_id"]),
+            evidence_refs=evidence_refs,
+        )
+        candidate["findings"] = [
+            {
+                "finding_id": "finding-queued-001",
+                "finding_key": "queued-finding-publication",
+                "status": "open",
+                "severity": "should_fix",
+                "summary": "Publish this finding before completing the action.",
+                "evidence_refs": [evidence_refs[0]],
+                "closure_evidence_refs": [],
+                "affected_run_ids": ["run-a2"],
+            }
+        ]
+        Path(str(kwargs["output_json_path"])).write_text(
+            json.dumps(candidate) + "\n", encoding="utf-8"
+        )
+        return {"status": "pass", "exit_code": 0}
+
+    result = run_queued_reviewer(
+        store,
+        reviewer_id="reviewer-finding-publication",
+        driver=finding_driver,
+    )
+
+    assert result is not None and result.status == "review_complete"
+    assert store.get_action(request.action_id).status == "completed"
+    assert store.fetch_all("review_reservations")[0]["status"] == "completed"
+    findings = store.fetch_all("review_findings")
+    assert len(findings) == 1
+    assert findings[0]["finding_key"] == "queued-finding-publication"
+
+
 def test_due_lineage_outside_coalescing_window_gets_separate_reservation(
     tmp_path: Path,
 ) -> None:
