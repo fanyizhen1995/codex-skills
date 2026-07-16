@@ -877,6 +877,32 @@ def test_dashboard_managed_child_receives_stable_private_cursor_secret(
     assert second_environment["LOOP_DASHBOARD_CURSOR_SECRET"] == secret
 
 
+def test_supervisor_worker_managed_child_uses_process_unique_worker_id(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def popen(arguments: list[str], **options: object) -> object:
+        calls.append((arguments, options))
+        return object()
+
+    monkeypatch.setattr(services, "_Popen", popen)
+    monkeypatch.setattr(services.os, "getpid", lambda: 43210)
+
+    services._start_managed_child(
+        tmp_path.resolve(), services._MANAGED_SERVICES["supervisor-worker"]
+    )
+
+    command = calls[0][0][2]
+    environment = calls[0][1]["env"]
+    assert isinstance(environment, dict)
+    assert '--worker-id "$LOOP_SUPERVISOR_WORKER_ID"' in command
+    assert environment["LOOP_SUPERVISOR_WORKER_ID"] == "service-keeper-worker-43210"
+
+
 @pytest.mark.parametrize(
     ("heartbeat_at", "fingerprint_kind", "expected_summary"),
     [

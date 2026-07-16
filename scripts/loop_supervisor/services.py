@@ -107,7 +107,7 @@ _MANAGED_SERVICES = {
         endpoint="",
         command_template=(
             "cd {project_root} && python3 -m scripts.loop_supervisor.cli worker "
-            "--project-root {project_root} --worker-id service-keeper-worker"
+            "--project-root {project_root} --worker-id \"$LOOP_SUPERVISOR_WORKER_ID\""
         ),
     ),
 }
@@ -815,6 +815,11 @@ def _start_managed_child(project_root: Path, service: ManagedService) -> Any:
         environment = os.environ.copy()
         environment["LOOP_DASHBOARD_CURSOR_SECRET"] = _dashboard_cursor_secret(
             project_root
+        )
+    elif service.service_id == "supervisor-worker":
+        environment = os.environ.copy()
+        environment["LOOP_SUPERVISOR_WORKER_ID"] = (
+            f"service-keeper-worker-{os.getpid()}"
         )
     return _Popen(
         ["bash", "-lc", command],
