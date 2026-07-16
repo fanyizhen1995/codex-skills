@@ -67,7 +67,9 @@ class ActionLeaseGuard:
             detail = f": {self._error}" if self._error is not None else ""
             raise LeaseError(f"Reviewer action lease lost{detail}")
         try:
-            if self._safety_checkpoint is not None:
+            with self._safety_lock:
+                safety_suspended = self._safety_suspended.is_set()
+            if self._safety_checkpoint is not None and not safety_suspended:
                 self._safety_checkpoint()
             renewed = self._store.renew_lease(
                 self._action_id,

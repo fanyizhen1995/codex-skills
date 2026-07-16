@@ -660,6 +660,35 @@ def test_action_lease_guard_rejects_renewal_after_global_stop(tmp_path) -> None:
     assert store.get_action(request.action_id).status == "leased"
 
 
+def test_action_lease_guard_checkpoint_renews_while_safety_is_suspended(
+    tmp_path,
+) -> None:
+    store, request = leased_supervisor_action(tmp_path)
+    safety_blocked = False
+
+    def safety_checkpoint() -> None:
+        if safety_blocked:
+            raise LeaseError("synthetic safety gate blocked")
+
+    with ActionLeaseGuard(
+        store,
+        action_id=request.action_id,
+        owner_id="reviewer-test",
+        lease_seconds=2,
+        heartbeat_seconds=60,
+        safety_checkpoint=safety_checkpoint,
+    ) as guard:
+        safety_blocked = True
+
+        with guard.suspend_safety():
+            guard.checkpoint()
+
+        with pytest.raises(LeaseError, match="safety gate"):
+            guard.checkpoint()
+
+    assert store.get_action(request.action_id).status == "leased"
+
+
 def test_supervisor_renew_lease_transactionally_rejects_global_decision(tmp_path) -> None:
     store, request = leased_supervisor_action(tmp_path)
     store.open_user_decision(
