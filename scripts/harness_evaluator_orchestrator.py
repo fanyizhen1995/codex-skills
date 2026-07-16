@@ -442,6 +442,32 @@ def _text_sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _uses_repository_scenario_contract(
+    input_payload: dict, worktree_root: Path
+) -> bool:
+    task_id = str(input_payload.get("task_id", "")).strip()
+    source_value = str(input_payload.get("scenario_source", "")).strip()
+    if not task_id or not source_value:
+        return False
+    root = worktree_root.resolve()
+    expected = root / "docs" / "harness" / "evaluator-scenarios" / f"{task_id}.json"
+    source = Path(source_value)
+    if not source.is_absolute():
+        source = root / source
+    try:
+        if source.resolve(strict=True) != expected.resolve(strict=True):
+            return False
+        relative = expected.relative_to(root)
+    except (OSError, ValueError):
+        return False
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            return False
+    return expected.is_file()
+
+
 def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds: int = 60) -> None:
     input_payload = _load_bundle_input(bundle_dir)
     if input_payload.get("gate") != "task":
@@ -451,10 +477,17 @@ def _run_shell_scenarios(bundle_dir: Path, worktree_root: Path, timeout_seconds:
     artifact_paths = list(input_payload.get("artifact_paths", []))
     scenario_outputs = list(artifacts_payload.get("scenario_outputs", []))
     logs = list(artifacts_payload.get("logs", []))
+    repository_scenario_contract = _uses_repository_scenario_contract(
+        input_payload, worktree_root
+    )
 
     for scenario in input_payload.get("user_scenarios", []):
         automation_hint = str(scenario.get("automation_hint", "")).strip().lower()
-        if not automation_hint or automation_hint == "manual":
+        if (
+            not automation_hint
+            or automation_hint == "manual"
+            or (automation_hint != "shell" and not repository_scenario_contract)
+        ):
             continue
         scenario_id = str(scenario.get("scenario_id", "")).strip()
         entrypoint = str(scenario.get("entrypoint", "")).strip()

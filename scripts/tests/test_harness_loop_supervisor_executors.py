@@ -250,6 +250,27 @@ def test_codex_evaluator_bootstraps_missing_loop_session_state(
         assert session["task"] == run["task_id"]
         assert Path(session["worktree"]).resolve() == tmp_path.resolve()
         assert session["branch"] == run["branch"]
+        bundle = (
+            tmp_path
+            / ".codex"
+            / "evaluations"
+            / "tasks"
+            / run["task_id"]
+            / "20260716T000000Z-attempt-1"
+        )
+        bundle.mkdir(parents=True)
+        legacy.write_json_file(
+            bundle / "result.json",
+            {
+                "status": "pass",
+                "gate": "task",
+                "task_id": run["task_id"],
+                "attempt": 1,
+                "findings": [],
+                "rerun_commands": [],
+                "next_action": "proceed_to_user_acceptance",
+            },
+        )
         return legacy.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(legacy.subprocess, "run", evaluator_pass)
@@ -401,6 +422,142 @@ def test_codex_evaluator_without_result_bundle_is_retryable(
     assert not (
         legacy.run_dir_for(tmp_path, run["run_id"]) / "evaluator-result.json"
     ).exists()
+
+
+def test_codex_evaluator_does_not_reuse_stale_success_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Require fresh evaluator evidence",
+        run_id="stale-evaluator-success-run",
+        task_id="stale-evaluator-success-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    stale_bundle = (
+        tmp_path
+        / ".codex"
+        / "evaluations"
+        / "tasks"
+        / run["task_id"]
+        / "20260715T000000Z-attempt-1"
+    )
+    stale_bundle.mkdir(parents=True)
+    legacy.write_json_file(
+        stale_bundle / "result.json",
+        {
+            "status": "pass",
+            "gate": "task",
+            "task_id": run["task_id"],
+            "attempt": 1,
+            "findings": [],
+            "rerun_commands": [],
+            "next_action": "proceed_to_user_acceptance",
+        },
+    )
+
+    def evaluator_noop(command: list[str], **_kwargs: object) -> object:
+        if command[0] == "git":
+            raise legacy.subprocess.CalledProcessError(128, command)
+        return legacy.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(legacy.subprocess, "run", evaluator_noop)
+    request = ActionRequest(
+        action_id="action-stale-evaluator-success",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="stale-evaluator-success",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.RETRYABLE_FAILURE
+    assert "without a result bundle" in result.summary
+    assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "evaluating"
+
+
+def test_codex_evaluator_prefers_fresh_real_bundle_over_old_fake_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Use the current codex evaluator result",
+        run_id="mixed-evaluator-bundles-run",
+        task_id="mixed-evaluator-bundles-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    task_root = tmp_path / ".codex" / "evaluations" / "tasks" / run["task_id"]
+    fake_bundle = task_root / "fake-attempt-9"
+    fake_bundle.mkdir(parents=True)
+    legacy.write_json_file(
+        fake_bundle / "result.json",
+        {
+            "status": "pass",
+            "gate": "task",
+            "task_id": run["task_id"],
+            "attempt": 9,
+            "findings": [],
+            "rerun_commands": [],
+            "next_action": "proceed_to_user_acceptance",
+        },
+    )
+
+    def evaluator_blocked(command: list[str], **_kwargs: object) -> object:
+        if command[0] == "git":
+            raise legacy.subprocess.CalledProcessError(128, command)
+        real_bundle = task_root / "20260716T172922Z-attempt-1"
+        real_bundle.mkdir(parents=True)
+        legacy.write_json_file(
+            real_bundle / "result.json",
+            {
+                "status": "blocked",
+                "gate": "task",
+                "task_id": run["task_id"],
+                "attempt": 1,
+                "findings": [{"id": "REAL-001"}],
+                "rerun_commands": ["python3 scripts/real_evaluator.py"],
+                "next_action": "request_missing_evidence",
+            },
+        )
+        return legacy.subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(legacy.subprocess, "run", evaluator_blocked)
+    request = ActionRequest(
+        action_id="action-mixed-evaluator-bundles",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="mixed-evaluator-bundles",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    evaluator_result = legacy.read_json_file(
+        legacy.run_dir_for(tmp_path, run["run_id"]) / "evaluator-result.json"
+    )
+    assert result.result_class is ActionResultClass.SUCCESS
+    assert evaluator_result["status"] == "blocked"
+    assert evaluator_result["findings"] == [{"id": "REAL-001"}]
+    assert evaluator_result["attempt"] == 1
 
 
 def test_service_keeper_rejects_non_allowlisted_service_before_process_control(

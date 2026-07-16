@@ -498,6 +498,15 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             bundle = root / "bundle"
             bundle.mkdir()
             marker = root / "playwright-ran.txt"
+            scenario_source = (
+                root
+                / "docs"
+                / "harness"
+                / "evaluator-scenarios"
+                / "playwright-task.json"
+            )
+            scenario_source.parent.mkdir(parents=True)
+            scenario_source.write_text("{}\n", encoding="utf-8")
             entrypoint = (
                 "python3 -c \"from pathlib import Path; "
                 "Path('playwright-ran.txt').write_text('ran', encoding='utf-8')\""
@@ -513,7 +522,7 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
                         "artifact_paths": [],
                         "allowed_scope": "local_repo_and_harness",
                         "must_simulate": True,
-                        "scenario_source": "task-contract.json",
+                        "scenario_source": str(scenario_source),
                         "user_scenarios": [
                             {
                                 "scenario_id": "PLAYWRIGHT-01",
@@ -541,6 +550,54 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
             artifacts = json.loads((bundle / "artifacts.json").read_text(encoding="utf-8"))
             self.assertEqual(artifacts["scenario_outputs"][0]["scenario_id"], "PLAYWRIGHT-01")
             self.assertEqual(artifacts["scenario_outputs"][0]["status"], "pass")
+
+    def test_run_shell_scenarios_does_not_expand_task_contract_hint_trust(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "bundle"
+            bundle.mkdir()
+            marker = root / "untrusted-playwright-ran.txt"
+            (bundle / "input.json").write_text(
+                json.dumps(
+                    {
+                        "gate": "task",
+                        "task_id": "runtime-contract-task",
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "verify_commands": [],
+                        "artifact_paths": [],
+                        "allowed_scope": "local_repo_and_harness",
+                        "must_simulate": True,
+                        "scenario_source": str(root / ".codex" / "loop-runs" / "run-1" / "task-contract.json"),
+                        "user_scenarios": [
+                            {
+                                "scenario_id": "UNTRUSTED-01",
+                                "user_goal": "Do not expand runtime contract trust.",
+                                "prerequisites": [],
+                                "entrypoint": (
+                                    "python3 -c \"from pathlib import Path; "
+                                    "Path('untrusted-playwright-ran.txt').write_text('ran')\""
+                                ),
+                                "steps": ["Evaluate metadata."],
+                                "expected_outcomes": ["The entrypoint is not auto-executed."],
+                                "failure_signals": ["The marker is created."],
+                                "cleanup": [],
+                                "automation_hint": "playwright",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (bundle / "artifacts.json").write_text("{}", encoding="utf-8")
+
+            from scripts.harness_evaluator_orchestrator import _run_shell_scenarios
+
+            _run_shell_scenarios(bundle, root)
+
+            self.assertFalse(marker.exists())
+            artifacts = json.loads((bundle / "artifacts.json").read_text(encoding="utf-8"))
+            self.assertEqual(artifacts["scenario_outputs"], [])
 
     def test_run_fake_task_loop_writes_result_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

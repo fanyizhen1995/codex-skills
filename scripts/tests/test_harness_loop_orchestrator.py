@@ -7122,14 +7122,35 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     ],
                 },
             )
-            completed = subprocess.CompletedProcess(
-                args=["codex-evaluator"],
-                returncode=0,
-                stdout="codex evaluator stdout",
-                stderr="",
-            )
+            def completed_evaluation(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess:
+                if command[0] == "git":
+                    raise subprocess.CalledProcessError(128, command)
+                task_root = repo_root / ".codex" / "evaluations" / "tasks" / "contract-task"
+                bundle = task_root / "20260716T000000Z-attempt-1"
+                bundle.mkdir(parents=True)
+                write_json_file(
+                    bundle / "result.json",
+                    {
+                        "status": "pass",
+                        "gate": "task",
+                        "task_id": "contract-task",
+                        "attempt": 1,
+                        "findings": [],
+                        "rerun_commands": [],
+                        "next_action": "proceed_to_user_acceptance",
+                    },
+                )
+                return subprocess.CompletedProcess(
+                    args=command,
+                    returncode=0,
+                    stdout="codex evaluator stdout",
+                    stderr="",
+                )
 
-            with patch("scripts.harness_loop_orchestrator.subprocess.run", return_value=completed) as run_mock:
+            with patch(
+                "scripts.harness_loop_orchestrator.subprocess.run",
+                side_effect=completed_evaluation,
+            ) as run_mock:
                 run_evaluator(repo_root, "demo-run", driver="codex-exec", max_attempts=2)
 
             command = run_mock.call_args.args[0]
