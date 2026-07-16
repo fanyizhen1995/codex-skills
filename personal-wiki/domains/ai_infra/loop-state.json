@@ -969,6 +969,24 @@
         "personal-wiki/domains/ai_infra/wiki/references/orchestration-scheduling-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
       ]
+    },
+    {
+      "id": "agentcore-mcp-runtime-parent-27",
+      "title": "Amazon Bedrock AgentCore MCP runtime and security evidence",
+      "source": "local AWS ML Blog raw capture",
+      "status": "known",
+      "updated_at": "2026-07-16T00:00:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-7-gap-proof.json",
+        "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+      ]
     }
   ],
   "coverage_gaps": [

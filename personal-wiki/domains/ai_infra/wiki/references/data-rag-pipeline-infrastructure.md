@@ -31,7 +31,9 @@ source_refs:
   - ../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md
   - ../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md
   - data-rag-vector-infrastructure.md
-updated: 2026-07-07
+  - ../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json
+  - ../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md
+updated: 2026-07-16
 related:
   - ai-infra-coverage-map.md
   - data-rag-vector-infrastructure.md
@@ -79,6 +81,12 @@ Embedding generation deserves its own serving boundary. TEI supports model id an
 
 For refresh workflows, the embedding worker should be considered a versioned dependency of the data pipeline. DataHub/OpenLineage can record job, dataset, run, schema, ownership, and lineage metadata; Langfuse can record retrieval and generation traces plus evaluation scores. Together these sources support an infrastructure pattern where an embedding refresh is tied to source dataset identity, pipeline run identity, embedding model or serving revision, downstream vector index state, and observed retrieval behavior. This sentence is synthesis across the cited sources, not a claim that any single source implements the entire workflow. [raw](../../raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md) [raw](../../raw/links/langfuse-rag-observability-official-docs-20260707.md) [raw](../../raw/links/huggingface-text-embeddings-inference-official-docs-20260707.md)
 
+# MCP Tool Data Boundary
+
+Parent 27 adds a narrow data-boundary example for MCP tools from the local AgentCore walkthrough. The data layer is five DynamoDB tables, Products, Customers, Orders, Reviews, and Returns, provisioned with on-demand capacity and Global Secondary Indexes for query patterns. The MCP server's `utils/dynamodb_client.py` is described as the interface for product search, order creation, review queries, and related table operations. This is application data infrastructure behind an MCP server, not generic ecommerce product guidance. [manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json) [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)
+
+The useful data-pipeline claim is customer scoping. AgentCore Runtime validates the JWT at the infrastructure layer, the application retrieves the Cognito `custom:customer_id`, and authenticated tools use that customer identity to query only that user's orders, reviews, and returns. Before mutations, the source recommends verifying data ownership, such as matching `order.customer_id` to the token's customer id. This is a tool-data boundary for an agent/MCP workload; it does not prove source-to-vector propagation, RAG cache invalidation, evaluation dataset cleanup, or production policy enforcement. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)
+
 # Metadata Governance
 
 Metadata governance is the piece that keeps RAG data pipelines auditable. DataHub ingestion recipes define sources, transformers, and sinks, while OpenLineage standardizes events around jobs, runs, datasets, and facets. Those boundaries can identify which source collection, pipeline job, and produced dataset fed a vector index or evaluation dataset. [raw](../../raw/links/datahub-openlineage-metadata-lineage-official-docs-20260707.md)
@@ -105,7 +113,7 @@ This page should also keep RAG observability separate from the existing NCCL and
 
 Use this page as source-backed coverage for:
 
-- `data-rag-vector`: ingestion and transform jobs, Kafka connector and stream-processor boundaries, checkpointed refresh workflows, workflow schedulers, embedding workers, metadata lineage, object-store table lifecycle controls, source deletion-detection hooks, RAG document access metadata, chunk permission projection, PII masking, evaluation dataset versioning, and production RAG tracing/evaluation.
+- `data-rag-vector`: ingestion and transform jobs, Kafka connector and stream-processor boundaries, checkpointed refresh workflows, workflow schedulers, embedding workers, metadata lineage, object-store table lifecycle controls, source deletion-detection hooks, RAG document access metadata, chunk permission projection, PII masking, evaluation dataset versioning, production RAG tracing/evaluation, and source-scoped DynamoDB customer-data boundaries behind MCP tools where those boundaries explain agent data access rather than RAG propagation.
 - `eval-observability-reliability`: only where Langfuse trace/evaluation evidence explains retrieval quality or RAG feedback loops; this page does not replace broader observability, SLO, incident, or benchmark infrastructure coverage.
 - `orchestration-scheduling`: only where Ray Data, Flink, Airflow, Dagster, or Prefect explain data-pipeline execution boundaries; this page does not replace Ray cluster, Kubernetes-native job queues, GPU scheduling, or cluster admission coverage.
 
@@ -129,3 +137,6 @@ Remaining gaps include full source-to-vector propagation run evidence across eve
 - [RAG access policy, PII, and evaluation governance source note](../../raw/links/rag-access-policy-pii-governance-official-sources-20260707.md)
 - [RAG propagation, drift, alerting, and cost evidence probe](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 - [Data RAG Vector Infrastructure](data-rag-vector-infrastructure.md)
+
+- [AgentCore MCP raw manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json)
+- [AgentCore MCP AWS ML Blog capture](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)

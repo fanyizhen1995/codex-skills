@@ -29,7 +29,9 @@ source_refs:
   - ../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md
   - ../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json
   - ../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json
-updated: 2026-07-09
+  - ../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json
+  - ../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md
+updated: 2026-07-16
 related:
   - ai-infra-coverage-map.md
   - nccl-technical-blog-network-observability.md
@@ -102,6 +104,16 @@ This is still not end-to-end RAG enforcement evidence. The existing RAG governan
 
 R10 records the same conclusion as blocked-source evidence after duplicate local search and DNS-blocked probes for adjacent evaluation, observability, and cost source families. Do not use the component controls on this page to infer complete RAG policy-enforcement or chargeback correctness. [source note](../../raw/links/rag-propagation-drift-alert-cost-evidence-20260707.md)
 
+# AgentCore MCP Authentication And Connector Controls
+
+Parent 27 adds source-scoped AgentCore MCP security coverage from the local AWS ML Blog capture. The request flow uses OAuth 2.1 through Amazon Cognito, Mistral Vibe stores a Bearer JWT for the session, and AgentCore Runtime validates the JWT before the request reaches application code by checking signature, expiration, issuer, and client authorization. The application then resolves the authenticated user to `custom:customer_id` through Cognito and scopes DynamoDB operations to that customer's data. This is two-layer authentication and application-level customer scoping evidence, not legal-compliance proof, an independent security audit, or a production incident record. [manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json) [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)
+
+The configuration boundary is explicit: `customJWTAuthorizer` points AgentCore to Cognito's OIDC discovery URL, `allowedClients` restricts OAuth clients, and the request-header allowlist forwards `Authorization` to the application. Without that allowlist, the source says requests would appear anonymous. The application still performs tool-level identity checks and resource ownership checks before mutations, so AgentCore Runtime authentication is not treated as sufficient by itself. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)
+
+The source also names several control-plane practices: least privilege IAM for the AgentCore Runtime execution role, scoped to `GetItem`, `PutItem`, and `Query` on named DynamoDB table ARNs with no wildcard permissions; AgentCore Policy to enforce tool-call boundaries and parameter ranges before tools execute; AgentCore Gateway for API-layer rate limiting, request routing, and access controls; and token descoping before passing claims to tools. These are promoted as source-visible MCP security controls, not as proof that a production environment has implemented or audited them. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)
+
+Connector guidance is bounded to trust and exposure. For Mistral Vibe, the source recommends only connecting trusted MCP servers, requiring strong authentication such as OAuth or expiring tokens, enforcing authorization rules, using secure connections and session handling, limiting connector/function sprawl, and avoiding full JWT forwarding because token forwarding can expand compromise impact. Enterprise Vibe administrators controlling custom connectors is recorded as connector-governance context only, not Mistral product positioning or a compliance claim. [raw](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)
+
 # Coverage Boundaries
 
 Use this page as source-backed coverage for `security-governance-cost`:
@@ -121,7 +133,8 @@ Use this page as source-backed coverage for `security-governance-cost`:
 - AWS, Azure, and Google Cloud cost allocation dimensions that can be normalized through tags, labels, namespaces, workloads, and ownership metadata;
 - cloud accelerator capacity reservation and account quota planning through AWS EC2 Capacity Blocks and Service Quotas;
 - Kubernetes admission policy, audit logging, Gatekeeper audit, Kyverno validation, and policy reports as policy-as-code enforcement and audit-reporting mechanics;
-- NCCL runtime cost-estimation and resource-efficiency evidence only where the claim is about communication or communicator initialization.
+- NCCL runtime cost-estimation and resource-efficiency evidence only where the claim is about communication or communicator initialization;
+- AgentCore MCP JWT/OAuth 2.1/Cognito validation, application-level customer scoping, least privilege IAM, AgentCore Policy tool-call boundaries, AgentCore Gateway API controls, trusted Mistral Vibe connector guidance, and token descoping as source-scoped walkthrough controls.
 
 Do not use this page to claim complete compliance posture, legal governance, end-to-end data/RAG policy enforcement, cross-cloud chargeback parity, or production incident readiness. Those remain future gaps.
 
@@ -141,3 +154,6 @@ Do not use this page to claim complete compliance posture, legal governance, end
 - [NVIDIA BlueField platform raw capture](../../raw/crawler/compute-accelerators-nvidia-bluefield-3/20260627T153315013778Z-www-nvidia-com-en-us-networking-products-data-processing-unit-d517920f8d.md)
 - [Continuation parent-18 NVIDIA BlueField-4 gap proof](../../manifest-ai-infra-expansion-continuation-20260708-parent-18-gap-proof.json)
 - [Kueue closed issues summary](../../raw/github/kubernetes-sigs-kueue-closed-issues/kubernetes-sigs-kueue-closed-issues-summary.json)
+
+- [AgentCore MCP raw manifest](../../raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json)
+- [AgentCore MCP AWS ML Blog capture](../../raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md)

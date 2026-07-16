@@ -1,0 +1,198 @@
+{
+  "type": "raw_manifest",
+  "title": "Amazon Bedrock AgentCore MCP AWS ML Blog capture, 2026-07-12",
+  "source_id": "nccl-aws-ml-blog",
+  "created_at": "2026-07-16T00:00:00Z",
+  "captured_range": "2026-07-12",
+  "scope_note": "One local AWS ML Blog capture about building an ecommerce Model Context Protocol (MCP) server on Amazon Bedrock AgentCore with Mistral AI Studio. This manifest records source-backed infrastructure evidence only; it is not a production deployment audit, legal-compliance proof, production incident, service SLO, local benchmark, or generic ecommerce product guide.",
+  "counts": {
+    "raw_files": 1,
+    "new_local_url_identities_after_prior_captures": 1,
+    "exact_content_hash_duplicates_with_prior_captures": 0,
+    "canonical_title_duplicates_with_prior_captures": 0
+  },
+  "duplicate_boundary": {
+    "prior_curated_pages": [
+      "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
+      "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+      "personal-wiki/domains/ai_infra/coverage-map.json",
+      "personal-wiki/domains/ai_infra/loop-state.json",
+      "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-gap-proof.json",
+      "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-verification.json"
+    ],
+    "prior_curated_scope": "Before parent-27, MCP coverage was limited to the Hitchhiker paper-level conceptual reference: MCP as a standardized client-server interface for connecting agent harnesses to tools, resources, and prompts, with A2A as a complementary inter-agent interface. Existing inference-runtime coverage covered vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, Ray Serve, Knative, SGLang operations, HyperPod DPD, and Blackwell confidential-inference runtime boundaries. Existing security coverage covered tenant isolation, quota, RAG policy, policy-as-code, chargeback, and confidential-computing controls. Parent-26 explicitly recorded that no adjacent AWS Nemotron, AgentCore MCP, NCCL GitHub, NVIDIA GQE/Presto, or vLLM refresh capture was ingested.",
+    "reconciliation": [
+      "This source overlaps the prior Hitchhiker paper only at the conceptual MCP vocabulary. Parent-27 adds operational AWS AgentCore Runtime, authentication, deployment, data-boundary, and connector-trust evidence from a local AWS ML Blog capture.",
+      "This source is adjacent to parent-26 in the same AWS ML Blog crawler batch, but parent-26 was scoped only to SageMaker HyperPod DPD and explicitly left AgentCore MCP unpromoted.",
+      "DynamoDB tables and ecommerce operations are used only to explain MCP tool data boundaries and customer scoping, not generic ecommerce product guidance.",
+      "CloudWatch, WAF, EventBridge, AgentCore Policy, and AgentCore Gateway are promoted only as source-visible operational or security hooks, not as implemented production monitoring, legal compliance, or incident-response proof."
+    ]
+  },
+  "source": {
+    "title": "Building and connecting a production-ready ecommerce MCP server using Amazon Bedrock AgentCore and Mistral AI Studio",
+    "identity_key": "url:https://aws.amazon.com/blogs/machine-learning/building-and-connecting-a-production-ready-ecommerce-mcp-server-using-amazon-bedrock-agentcore-and-mistral-ai-studio/",
+    "canonical_url": "https://aws.amazon.com/blogs/machine-learning/building-and-connecting-a-production-ready-ecommerce-mcp-server-using-amazon-bedrock-agentcore-and-mistral-ai-studio/",
+    "published_at": "2026-07-08",
+    "captured_at": "2026-07-12T04:13:17.574776+00:00",
+    "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md",
+    "content_hash": "e010a606a1157daf5335f699ec19f12c717677305e1a6e468fe8a3d020128dbc",
+    "duplicate_status": "new_local_url_identity",
+    "promoted_surfaces": [
+      "inference-runtime",
+      "security-governance-cost",
+      "data-rag-vector"
+    ]
+  },
+  "promoted_facts": [
+    {
+      "surface": "inference-runtime",
+      "claim": "AgentCore Runtime is described as a fully managed serverless component for hosting agent and MCP workloads with session isolation, long-running request support, built-in JWT validation, and observability, so the developer does not manage containers, load balancers, or auth middleware.",
+      "source_terms": [
+        "AgentCore Runtime",
+        "MCP workloads",
+        "session isolation",
+        "long-running request",
+        "JWT validation",
+        "observability"
+      ]
+    },
+    {
+      "surface": "inference-runtime",
+      "claim": "The walkthrough builds the MCP server in Python with FastMCP, exposes six tools through an /mcp endpoint and a /health endpoint, configures stateless_http=True for AgentCore load balancing, and relies on tool schemas derived from function parameters, type hints, and docstrings.",
+      "source_terms": [
+        "FastMCP",
+        "/mcp",
+        "/health",
+        "stateless_http=True",
+        "MCP tools"
+      ]
+    },
+    {
+      "surface": "inference-runtime",
+      "claim": "The deployment flow uses CDK stacks, AgentCore CLI configuration, customJWTAuthorizer settings, request_header_configuration for Authorization forwarding, a cloud CodeBuild build, ECR image push, and Bedrock AgentCore API runtime creation, with source-stated cold-start behavior for first invocation and millisecond subsequent requests within the session.",
+      "source_terms": [
+        "CDK",
+        "customJWTAuthorizer",
+        "Authorization",
+        "CodeBuild",
+        "ECR",
+        "cold start",
+        "session"
+      ]
+    },
+    {
+      "surface": "security-governance-cost",
+      "claim": "Two-layer authentication is split between AgentCore Runtime JWT validation at the infrastructure layer and application-level Cognito customer identity resolution plus per-tool checks and data-ownership verification.",
+      "source_terms": [
+        "JWT",
+        "OAuth 2.1",
+        "Cognito",
+        "custom:customer_id",
+        "data ownership"
+      ]
+    },
+    {
+      "surface": "security-governance-cost",
+      "claim": "The source recommends least privilege IAM for the AgentCore Runtime execution role, scoped to GetItem, PutItem, and Query on named DynamoDB table ARNs with no wildcard permissions.",
+      "source_terms": [
+        "least privilege",
+        "IAM",
+        "GetItem",
+        "PutItem",
+        "Query",
+        "DynamoDB"
+      ]
+    },
+    {
+      "surface": "security-governance-cost",
+      "claim": "The source names AgentCore Policy for tool-call boundaries, AgentCore Gateway for API-layer rate limiting, request routing, and access controls, and token descoping before tool forwarding.",
+      "source_terms": [
+        "AgentCore Policy",
+        "tool-call boundaries",
+        "AgentCore Gateway",
+        "rate limiting",
+        "token forwarding"
+      ]
+    },
+    {
+      "surface": "security-governance-cost",
+      "claim": "Connector trust guidance for Mistral Vibe says to add only trusted MCP servers, require strong authentication such as OAuth or expiring tokens, enforce authorization rules, use secure connections and session handling, and avoid full-token exposure to tools.",
+      "source_terms": [
+        "Mistral",
+        "Vibe",
+        "trusted MCP servers",
+        "OAuth",
+        "session handling",
+        "JWT"
+      ]
+    },
+    {
+      "surface": "data-rag-vector",
+      "claim": "The data layer is described as five DynamoDB tables for Products, Customers, Orders, Reviews, and Returns, with on-demand capacity and Global Secondary Indexes, and the MCP tools scope customer data access through a Cognito-resolved customer ID.",
+      "source_terms": [
+        "DynamoDB",
+        "Products",
+        "Customers",
+        "Orders",
+        "Reviews",
+        "Returns",
+        "customer_id"
+      ]
+    },
+    {
+      "surface": "eval-observability-reliability",
+      "claim": "The source mentions CloudWatch permissions and suggests CloudWatch dashboards, WAF request filtering, and EventBridge notifications as production preparation hooks, but parent-27 keeps those as operational hooks rather than alert thresholds, SLOs, or incident evidence.",
+      "source_terms": [
+        "CloudWatch",
+        "WAF",
+        "EventBridge",
+        "request latency",
+        "error rates"
+      ]
+    }
+  ],
+  "deployment_surfaces": {
+    "infrastructure_as_code": [
+      "AWS CDK",
+      "DynamoDBStack",
+      "CognitoStack",
+      "DataLoaderStack",
+      "AgentCoreRuntimeStack"
+    ],
+    "runtime_build": [
+      "AgentCore CLI",
+      "AWS CodeBuild",
+      "Amazon S3 source upload",
+      "ARM64 Docker image",
+      "Amazon ECR",
+      "Bedrock AgentCore API"
+    ],
+    "configuration": [
+      ".bedrock_agentcore.yaml",
+      "customJWTAuthorizer",
+      "Cognito discoveryUrl",
+      "allowedClients",
+      "Authorization request header allowlist",
+      "SSM Parameter Store"
+    ],
+    "operational_hooks": [
+      "CloudWatch dashboards for request latency and error rates",
+      "AWS WAF request filtering",
+      "Amazon EventBridge order notifications"
+    ]
+  },
+  "security_boundaries": [
+    "Source-visible JWT validation and OAuth 2.1/Cognito identity flow are infrastructure controls, not legal-compliance proof or independent security audit evidence.",
+    "Application-level custom:customer_id lookup, tool-level checks, and DynamoDB ownership checks are customer-scoping boundaries in the walkthrough, not proof of production incident readiness.",
+    "AgentCore Policy, AgentCore Gateway, least privilege IAM, connector trust guidance, and token descoping are promoted as source guidance, not as verified deployed enforcement in this repository."
+  ],
+  "boundaries": [
+    "No new network sources were fetched.",
+    "Do not ingest adjacent AWS Nemotron, NVIDIA GQE/Presto, NCCL GitHub issue, NCCL release, vLLM refresh, or other July 12 captures in this task.",
+    "Do not claim production SLOs, local benchmarks, legal compliance, independent audit, production incident/postmortem, or complete RAG propagation from this source.",
+    "Do not create accelerator catalog rows, training benchmark data, storage/fabric benchmark data, or SGLang/NCCL closure evidence from this source."
+  ]
+}

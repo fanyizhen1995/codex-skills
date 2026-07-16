@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008",
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-7",
+  "semantic_parent_task_id": "ai-infra-expansion-continuation-20260708-parent-27",
+  "generated_at": "2026-07-16T18:23:39Z",
+  "summary": "Ingested the local July 12 AWS ML Blog capture for building an ecommerce MCP server on Amazon Bedrock AgentCore with Mistral AI Studio as bounded inference-runtime, security-governance-cost, and data-boundary evidence. The update records AgentCore Runtime hosting for agent and MCP workloads, session isolation, long-running request support, built-in JWT validation, observability, FastMCP tool definitions, stateless HTTP, /mcp and /health endpoints, CDK and AgentCore CLI deployment controls, customJWTAuthorizer, CodeBuild cloud image build, ECR image push, SSM Parameter Store values, OAuth 2.1/Cognito identity, customer-scoped DynamoDB access, least privilege IAM, AgentCore Policy, AgentCore Gateway, Mistral Vibe connector trust guidance, token descoping, CloudWatch/WAF/EventBridge operational hooks, and source-stated cold-start/session behavior while preserving source caveats.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/20260712T041317574776Z-aws-amazon-com-blogs-machine-learning-building-and-connecting-a-production-ready-ecommerce-e010a606a1.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-7-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-verification.json",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra wiki index; no tracked index diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra backlinks JSON; no tracked backlinks diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "loop-state.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Parent-27 raw manifest parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Semantic parent-27 gap proof parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-7-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local task-7 gap proof parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Parent-27 verification artifact parsed successfully."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; ... parent-27 ...\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Semantic parent-27 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; ... task-7 ...\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local task-7 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"assert target AgentCore MCP raw capture exists and contains AgentCore, MCP, JWT, Cognito, DynamoDB, and AgentCore Runtime terms\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "The target July 12 AWS ML Blog raw capture exists, has the expected source_id frontmatter, and contains AgentCore Runtime, Model Context Protocol, MCP, JWT, Amazon Cognito, and DynamoDB evidence."
+    },
+    {
+      "command": "python3 -c \"validate_coverage_map_payload(...); validate_loop_state_payload(...)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness loop contracts."
+    },
+    {
+      "command": "python3 -c \"validate_planner_output_payload(...)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Planner output payload satisfies the harness loop contract."
+    },
+    {
+      "command": "rg -n \"parent-27|AgentCore MCP|Amazon Bedrock AgentCore|AgentCore Runtime|Model Context Protocol|MCP server|FastMCP|JWT|OAuth 2\\.1|Cognito|DynamoDB|Mistral|Vibe|customJWTAuthorizer|AgentCore Policy|AgentCore Gateway|CloudWatch|WAF|EventBridge|CodeBuild|ECR|SSM Parameter Store|CDK|session isolation|long-running request|least privilege|tool-call boundaries\" ...",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Required parent-27 terms are visible across the raw manifest, ingest plan, curated pages, coverage-map.json, loop-state.json, and ingest log."
+    },
+    {
+      "command": "boundary check that parent-27 text distinguishes conceptual Hitchhiker MCP/A2A coverage from the AWS AgentCore operational walkthrough and parent-26 HyperPod DPD",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Gap proofs and curated text keep the Hitchhiker paper as conceptual MCP/A2A duplicate boundary and parent-26 as HyperPod DPD-only; AgentCore MCP operational evidence is represented as a new bounded parent-27 slice."
+    },
+    {
+      "command": "boundary check that JWT, OAuth, Cognito, IAM, AgentCore Policy, Gateway, and connector-trust statements remain source-scoped controls",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Security text explicitly avoids legal-compliance proof, independent security-audit proof, production incident readiness, and deployed policy-run claims."
+    },
+    {
+      "command": "boundary check that DynamoDB tables, ecommerce operations, Vibe connector behavior, and user-auth examples remain infrastructure-boundary evidence",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Data/RAG text keeps DynamoDB Products, Customers, Orders, Reviews, and Returns as MCP tool data-boundary evidence only, not generic ecommerce guidance or full RAG propagation proof."
+    },
+    {
+      "command": "boundary check that no accelerator catalog data, training benchmark rows, storage/fabric benchmark claims, SGLang closure evidence, NCCL release evidence, or RAG propagation run evidence changed",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Changed paths are limited to the AgentCore MCP raw manifest, ingest plan, gap proofs, verification, curated reference pages, coverage-map.json, loop-state.json, and ingest log."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in changed ai_infra paths."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No real credentials, bearer-token values, private keys, or AWS access keys were detected. Source-visible JWT, OAuth, token, and Authorization wording is descriptive infrastructure evidence."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Declared changed repository paths are under personal-wiki/domains/ai_infra/** and avoid planner denylist patterns; unrelated untracked crawler backlog and runtime paths are not declared."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No backend, frontend, dashboard, harness, package, dependency, generated build, or service configuration files changed; code and dependency tests are not applicable."
+    },
+    {
+      "command": "trusted live evidence checks: service-availability, crawler-workbench-freshness, loop-dashboard-freshness, search-api-visibility, frontend-visibility, loop-auto-resume freshness, loop-supervisor freshness",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Per generator instructions, no live service probes, localhost curl checks, tmux, uvicorn, npm, Vite, or long-lived services were started. The required-evidence manifest references orchestrator-owned trusted-live-evidence/<evidence-id>.json artifacts for semantic live gates."
+    },
+    {
+      "command": "commit-result and push-result evidence",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Generator intentionally did not commit, push, or fill the commit field. The orchestrator commits after gates pass."
+    },
+    {
+      "command": "post-parent-27 ordinary Auditor cadence check",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Planner notes parent-27 should make two completed parent tasks since the last ordinary audit; the orchestrator/supervisor should record the post-parent-27 cadence gate before planning parent-28."
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json"
+    }
+  ],
+  "boundaries": [
+    "No external sources were fetched.",
+    "No adjacent AWS Nemotron, NVIDIA GQE/Presto, NCCL GitHub issue, NCCL release, vLLM refresh, or other July 12 capture was ingested.",
+    "No code, package, dependency, crawler profile, service, dashboard, harness, generated build, tasks.json, progress.md, or accelerator catalog files were changed.",
+    "The source-stated 10 to 20 second cold start and within-session millisecond requests remain AWS walkthrough behavior only, not a local benchmark, service SLO, alert threshold, or production guarantee.",
+    "CloudWatch, WAF, and EventBridge remain operational hooks only, not dashboard proof, alert proof, or incident/postmortem evidence."
+  ]
+}

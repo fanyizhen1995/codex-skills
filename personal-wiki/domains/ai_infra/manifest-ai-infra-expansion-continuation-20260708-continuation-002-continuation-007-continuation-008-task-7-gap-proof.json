@@ -1,0 +1,70 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-7",
+  "layer": "inference-runtime",
+  "candidate": {
+    "title": "Building and connecting a production-ready ecommerce MCP server using Amazon Bedrock AgentCore and Mistral AI Studio",
+    "source_type": "blog",
+    "identity_key": "url:https://aws.amazon.com/blogs/machine-learning/building-and-connecting-a-production-ready-ecommerce-mcp-server-using-amazon-bedrock-agentcore-and-mistral-ai-studio/"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Searched local raw/crawler/nccl-aws-ml-blog, raw manifests, ingest.md, coverage-map.json, loop-state.json, and prior parent manifests for AgentCore MCP, Amazon Bedrock AgentCore, AgentCore Runtime, Model Context Protocol, MCP server, FastMCP, JWT, OAuth 2.1, Cognito, DynamoDB, Mistral, Vibe, customJWTAuthorizer, AgentCore Policy, AgentCore Gateway, CodeBuild, ECR, SSM Parameter Store, CDK, CloudWatch, WAF, EventBridge, session isolation, long-running request, least privilege, tool-call boundaries, and customer scoping.",
+    "wiki_search": "Before parent-27, curated MCP coverage was only the Hitchhiker paper-level conceptual reference: MCP as a standardized client-server interface for connecting agent harnesses to tools, resources, and prompts, with A2A as the complementary inter-agent interface. Inference Runtime Infrastructure had no AgentCore Runtime, FastMCP, customJWTAuthorizer, CodeBuild/ECR/SSM/CDK deployment, or cold-start/session behavior section. Security Governance Cost Infrastructure had no AgentCore MCP JWT/OAuth/Cognito, AgentCore Policy/Gateway, connector trust, or token-descoping boundary. Data RAG Pipeline Infrastructure had no DynamoDB customer-scoped MCP tool data boundary.",
+    "domain_index_scan": "The ai_infra index listed the Hitchhiker paper, Inference Runtime Infrastructure, Security Governance Cost Infrastructure, Data RAG Pipeline Infrastructure, Data RAG Vector Infrastructure, AI Infra Coverage Map, and other runtime/scheduling pages, but had no Amazon Bedrock AgentCore, AgentCore Runtime, FastMCP, Cognito OAuth 2.1 MCP server, Mistral Vibe connector, or DynamoDB MCP data-boundary entry before run-local task-7. Parent-26 verification explicitly stated that no adjacent AgentCore MCP capture was ingested."
+  },
+  "duplicate_boundaries": [
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/papers/hitchhikers-guide-agentic-ai.md",
+      "result": "Duplicate boundary for conceptual MCP/A2A framing only; updated operational pages for source-visible AgentCore Runtime, FastMCP, JWT/OAuth/Cognito, deployment, data-boundary, and connector-security details."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-26-gap-proof.json",
+      "result": "Parent-26 explicitly did not ingest adjacent AgentCore MCP material; it was scoped to SageMaker HyperPod DPD and left this AWS blog capture for a later parent."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "Duplicate boundary for generic serving runtimes, HyperPod DPD, Ray Serve, Knative, vLLM, SGLang, TensorRT-LLM, Triton, llama.cpp, and ONNX Runtime GenAI; updated only for AgentCore Runtime hosting of agent/MCP workloads, managed build/deploy, FastMCP/stateless HTTP, and cold-start/session behavior."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+      "result": "Duplicate boundary for tenant isolation, quota, RAG access policy, confidential computing, chargeback, and policy-as-code mechanics; updated only for AgentCore MCP JWT/OAuth/Cognito, customer scoping, least privilege IAM, AgentCore Policy/Gateway, connector trust, and token-descoping controls."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "result": "Duplicate boundary for RAG ingestion/vector/delete/access propagation remains unchanged; updated only for the source-visible DynamoDB customer-scoped data boundary behind MCP tools, not generic ecommerce behavior or RAG propagation."
+    }
+  ],
+  "gap_reason": "The local corpus already had a high-level MCP concept from the Hitchhiker paper and extensive inference/security/data infrastructure coverage, but did not represent the AWS ML Blog walkthrough for hosting an MCP server on Amazon Bedrock AgentCore. The selected capture fills a bounded infrastructure gap for AgentCore Runtime MCP hosting, session isolation, long-running requests, FastMCP tool schemas, stateless HTTP, JWT validation, OAuth 2.1/Cognito identity, customer-scoped DynamoDB access, CDK/CodeBuild/ECR/SSM deployment surfaces, customJWTAuthorizer configuration, AgentCore Policy/Gateway controls, trusted connector guidance for Mistral Vibe, CloudWatch/WAF/EventBridge operational hooks, and source-stated cold-start/session behavior.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-aws-ml-blog/manifest-20260712-agentcore-mcp.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-7-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-27-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/security-governance-cost-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ],
+  "promoted_boundaries": [
+    {
+      "surface": "inference-runtime",
+      "coverage": "AgentCore Runtime managed serverless hosting for agent/MCP workloads, session isolation, long-running request support, built-in JWT validation and observability, FastMCP tool definitions, stateless HTTP, AgentCore CLI/CDK/CodeBuild/ECR/SSM deployment surfaces, and source-stated cold-start/session behavior."
+    },
+    {
+      "surface": "security-governance-cost",
+      "coverage": "OAuth 2.1/Cognito identity, customJWTAuthorizer, allowed client IDs, Authorization header forwarding, app-level customer ID resolution, tool-level checks, DynamoDB ownership checks, least privilege IAM, AgentCore Policy, AgentCore Gateway, token descoping, and trusted Vibe connector guidance."
+    },
+    {
+      "surface": "data-rag-vector",
+      "coverage": "DynamoDB Products/Customers/Orders/Reviews/Returns tables, on-demand capacity, GSIs, and customer-scoped tool data access as an MCP server data-boundary example only."
+    }
+  ],
+  "unpromoted_boundaries": [
+    "No production deployment, legal-compliance proof, independent audit, production incident/postmortem, service SLO, local benchmark, or full RAG propagation run is claimed from this walkthrough.",
+    "No generic ecommerce product guidance, Mistral model-quality positioning, or user-experience advice is promoted unless it directly defines MCP connector or tool infrastructure boundaries.",
+    "No accelerator catalog data, training benchmark data, storage/fabric benchmark data, SGLang closure evidence, NCCL release evidence, AWS Nemotron evidence, NVIDIA GQE/Presto evidence, or vLLM refresh evidence is changed."
+  ]
+}
