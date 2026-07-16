@@ -24,7 +24,10 @@ source_refs:
   - ../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json
   - ../../raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md
   - ../../raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md
-updated: 2026-07-07
+  - ../../raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json
+  - ../../raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md
+  - ../../raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md
+updated: 2026-07-16
 related:
   - ai-infra-coverage-map.md
   - nccl-github-closed-issues.md
@@ -82,6 +85,12 @@ The Outpost VFX AWS blog capture is case-study evidence for moving a VFX face-re
 
 The SageMaker AI Blackwell capture is best-practice tuning evidence for distributed training jobs on `ml.p6-b200.48xlarge`, not measured fleet operations. It documents a PyTorch FSDP container path and activation-checkpointing tradeoff: recomputing activations can add compute overhead, but it can free enough GPU memory to raise batch size; the source example shows a 1B-parameter LLM at 8K sequence length where activation checkpointing enables a larger batch and much higher tokens/sec within memory limits. Use it as P6-B200/FSDP/activation-checkpointing planning evidence, not as a production SLO, exact benchmark submission, or catalog-level Blackwell spec row. [raw](../../raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md)
 
+# NCCL Arxiv Abstract Discovery Leads
+
+The July 12 NCCL arXiv refresh adds bounded abstract-level discovery evidence for collective communication research. Adaptive Space-efficient Collectives describes sparse all-gather, reduce-scatter, and all-reduce algorithms for GPU platforms, backed by a bitvector-based Pici format and adaptive sparse representation changes during the collective. The abstract states speedups over NCCL at 99% input sparsity; keep those as source-stated abstract claims, not reproduced benchmark results, production guidance, or a replacement for NCCL release notes and issue evidence. [raw](../../raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md)
+
+DynamiQ `2602.08923v3` refreshes an existing DynamiQ discovery lead rather than adding a new standalone paper identity. Its v3 abstract keeps the compressed multi-hop all-reduce framing for gradient synchronization, extends PyTorch DDP over NCCL P2P, and states improvement and near-baseline accuracy boundaries. Treat those numbers as abstract discovery evidence only until a later task reads the full paper or obtains benchmark-reproduction evidence. [raw](../../raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md)
+
 # Training Job Controllers
 
 Kubeflow Trainer supplies Kubernetes-native training job abstraction evidence. Its docs organize framework guides for PyTorch, DeepSpeed, Megatron, JAX, XGBoost, and other workloads, plus TrainJob lifecycle and scheduling integration topics. Use it as evidence that distributed training jobs often need a Kubernetes controller layer above framework launchers. [raw](../../raw/links/kubeflow-training-operator-official-docs-20260707.md)
@@ -100,6 +109,7 @@ Use this page as source-backed coverage for:
 
 - `training-distributed`: PyTorch process groups, FSDP sharding, Distributed Checkpoint, `torchrun` restart/elastic semantics, DeepSpeed ZeRO and checkpoint conversion, Megatron-LM project boundaries, Ray Train checkpoint/fault tolerance, and Kubeflow/KubeRay training job controllers.
 - `training-distributed`: bounded AWS blog evidence for Outpost VFX DDP-on-P5 case-study results and SageMaker AI P6-B200 FSDP activation-checkpointing tuning tradeoffs.
+- `training-distributed`: bounded arXiv abstract discovery evidence for sparse GPU collectives through Adaptive Space-efficient Collectives and a DynamiQ v3 compressed multi-hop all-reduce refresh. These are research leads, not full-paper synthesis or reproduced benchmark coverage.
 - `orchestration-scheduling`: only where Kubeflow Trainer and KubeRay explain Kubernetes-native training job execution; use [Orchestration Scheduling Infrastructure](orchestration-scheduling-infrastructure.md) for scheduler, device plugin, GPU operator, Slurm, and quota boundaries.
 - `network-storage-cluster`: only where distributed checkpoints depend on durable shared storage; this page does not replace storage/fabric architecture evidence.
 
@@ -118,3 +128,6 @@ The local issue corpora and AWS case-study captures now provide narrow failure e
 - [SGLang closed issue and PR index](../../raw/github/sgl-project-sglang-closed-issues-prs/sgl-project-sglang-closed-issues-prs-index.json)
 - [Outpost VFX AWS distributed training case-study capture](../../raw/crawler/nccl-aws-ml-blog/20260705T041043512489Z-aws-amazon-com-blogs-machine-learning-how-outpost-vfx-uses-aws-to-accelerate-ai-model-trai-f1c01f6e54.md)
 - [SageMaker AI Blackwell training tuning capture](../../raw/crawler/nccl-aws-ml-blog/20260626T015712819063Z-aws-amazon-com-blogs-machine-learning-optimize-model-training-on-amazon-sagemaker-ai-with-14a08c4c5d.md)
+- [NCCL arXiv papers July 12 refresh manifest](../../raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json)
+- [Adaptive Space-efficient Collectives arXiv abstract capture](../../raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md)
+- [DynamiQ v3 arXiv abstract capture](../../raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md)

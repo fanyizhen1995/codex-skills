@@ -1,0 +1,69 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-25",
+  "layer": "training-distributed",
+  "candidate": {
+    "title": "NCCL July 12 arXiv abstract refresh",
+    "source_type": "paper",
+    "arxiv_id": "2607.07862+2607.04676+2602.08923",
+    "identity_key": "arxiv-refresh:nccl-arxiv-papers:20260712"
+  },
+  "identity_keys": [
+    {
+      "title": "CTA-Pipelining: A Latency-Oriented Spatial Scaling Method for Multi-GPU Systems",
+      "source_type": "paper",
+      "arxiv_id": "2607.07862v1",
+      "identity_key": "arxiv:2607.07862",
+      "canonical_url": "http://arxiv.org/abs/2607.07862v1",
+      "content_hash": "10bc5dfb1fe4e4c8eb539a89507063ff3cd6e34a61c2864bf6febfd4d09280b2",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410174Z-arxiv-org-abs-2607-07862v1-10bc5dfb1f.md",
+      "duplicate_status": "new_local_arxiv_identity"
+    },
+    {
+      "title": "Adaptive Space-efficient Collectives for Dynamic and Unstructured Sparsity on GPU Platforms",
+      "source_type": "paper",
+      "arxiv_id": "2607.04676v1",
+      "identity_key": "arxiv:2607.04676",
+      "canonical_url": "http://arxiv.org/abs/2607.04676v1",
+      "content_hash": "dadf1c089497efb40c97556851e874c0a09ad456d7d2b46d5c9eb1f789c376a4",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md",
+      "duplicate_status": "new_local_arxiv_identity"
+    },
+    {
+      "title": "DynamiQ: Accelerating Gradient Synchronization using Compressed Multi-hop All-reduce",
+      "source_type": "paper",
+      "arxiv_id": "2602.08923v3",
+      "identity_key": "arxiv:2602.08923",
+      "canonical_url": "http://arxiv.org/abs/2602.08923v3",
+      "content_hash": "4ed352c0df50d5d26ccc31cf3f069d5b0912331882decfa02b8f1fa75b346a27",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md",
+      "duplicate_status": "version_refresh_of_existing_arxiv_identity",
+      "prior_raw_paths": [
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260626T020914461055Z-arxiv-org-abs-2602-08923v1-f7c0a77012.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260705T041041103731Z-arxiv-org-abs-2602-08923v1-f7c0a77012.md"
+      ]
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Read the three 20260712 NCCL arXiv raw captures and compared title, canonical_url, unversioned arXiv identity, and content_hash against the local June 26 and July 5 nccl-arxiv-papers captures.",
+    "wiki_search": "Searched curated NCCL Arxiv Papers, NCCL, Distributed Training Infrastructure, Inference Runtime Infrastructure, AI Infra Coverage Map, coverage-map.json, loop-state.json, and ingest.md for parent-25 terms. Before this task, 2607.07862, 2607.04676, CTA-Pipelining, Adaptive Space-efficient Collectives, and Pici were absent; DynamiQ existed only as a v1 row in NCCL Arxiv Papers.",
+    "domain_index_scan": "Read ai_infra wiki/index.md and nearby NCCL, training, inference, and coverage pages. The only existing arXiv discovery page was NCCL Arxiv Papers, so this task updates that page rather than creating dedicated paper pages."
+  },
+  "gap_reason": "The July 12 NCCL arXiv refresh adds two non-duplicate abstract discovery leads and one DynamiQ version refresh. The prior curated page only indexed the July 5 scheduled batch and represented DynamiQ by v1, so parent-25 can add bounded abstract-level discovery without duplicating earlier July 5 rows.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-arxiv-papers.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ],
+  "boundaries": [
+    "Abstract-only arXiv captures are discovery evidence, not peer-reviewed proof or reproduced benchmark evidence.",
+    "DynamiQ v3 is a version refresh of the existing arxiv:2602.08923 identity, not a separate new paper.",
+    "No external fetch, PDF read, NCCL release-note update, GitHub issue update, accelerator catalog update, or code change is part of this task."
+  ]
+}

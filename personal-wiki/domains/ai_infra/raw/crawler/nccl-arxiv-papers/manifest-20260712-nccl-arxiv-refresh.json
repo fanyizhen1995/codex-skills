@@ -1,0 +1,102 @@
+{
+  "type": "raw_manifest",
+  "title": "NCCL arXiv papers scheduled crawler refresh, 2026-07-12",
+  "source_id": "nccl-arxiv-papers",
+  "created_at": "2026-07-16T00:00:00Z",
+  "captured_range": "2026-07-12",
+  "scope_note": "Three local arXiv abstract snapshots captured by the scheduled NCCL arXiv crawler. This manifest records abstract-level discovery evidence only; it is not a full-paper review, benchmark reproduction, production evidence, or replacement for NCCL release notes, issue records, or NVIDIA technical-blog evidence.",
+  "counts": {
+    "raw_files": 3,
+    "new_arxiv_identities_after_prior_captures": 2,
+    "version_refreshes_after_prior_captures": 1,
+    "exact_content_hash_duplicates_with_prior_captures": 0,
+    "canonical_title_duplicates_with_prior_captures": 1
+  },
+  "duplicate_boundary": {
+    "prior_curated_page": "personal-wiki/domains/ai_infra/wiki/references/nccl-arxiv-papers.md",
+    "prior_curated_scope": "The existing NCCL Arxiv Papers page indexed the 2026-07-05 scheduled batch and represented DynamiQ through the older 2602.08923v1 capture.",
+    "prior_raw_boundary": [
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260626T020914461055Z-arxiv-org-abs-2602-08923v1-f7c0a77012.md",
+      "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260705T041041103731Z-arxiv-org-abs-2602-08923v1-f7c0a77012.md"
+    ],
+    "reconciliation": [
+      "CTA-Pipelining 2607.07862v1 has no prior title, canonical URL, arXiv identity, or content-hash match in the local NCCL arXiv captures.",
+      "Adaptive Space-efficient Collectives 2607.04676v1 has no prior title, canonical URL, arXiv identity, or content-hash match in the local NCCL arXiv captures.",
+      "DynamiQ 2602.08923v3 shares the unversioned arXiv identity and title with the older 2602.08923v1 captures, but has canonical_url http://arxiv.org/abs/2602.08923v3, updated_at 2026-07-07T20:21:24Z, and content_hash 4ed352c0df50d5d26ccc31cf3f069d5b0912331882decfa02b8f1fa75b346a27, so it is recorded as a version refresh rather than a new standalone paper."
+    ]
+  },
+  "papers": [
+    {
+      "title": "CTA-Pipelining: A Latency-Oriented Spatial Scaling Method for Multi-GPU Systems",
+      "arxiv_id": "2607.07862",
+      "version": "v1",
+      "identity_key": "arxiv:2607.07862",
+      "canonical_url": "http://arxiv.org/abs/2607.07862v1",
+      "published_at": "2026-07-08T18:54:08Z",
+      "updated_at": "2026-07-08T18:54:08Z",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410174Z-arxiv-org-abs-2607-07862v1-10bc5dfb1f.md",
+      "content_hash": "10bc5dfb1fe4e4c8eb539a89507063ff3cd6e34a61c2864bf6febfd4d09280b2",
+      "duplicate_status": "new_local_arxiv_identity",
+      "promoted_surfaces": [
+        "inference-runtime",
+        "nccl-arxiv-discovery"
+      ],
+      "abstract_claims": [
+        "latency-oriented spatial scaling for shared-memory multi-GPU systems serving LLMs",
+        "uses CUTLASS, cuBLAS, and NCCL on 8-GPU H200 and B200 systems",
+        "abstract reports up to 31.8% latency reduction versus micro-batching and 29.6% versus tensor parallelism on a 2-layer GEMM MLP-shaped operation"
+      ]
+    },
+    {
+      "title": "Adaptive Space-efficient Collectives for Dynamic and Unstructured Sparsity on GPU Platforms",
+      "arxiv_id": "2607.04676",
+      "version": "v1",
+      "identity_key": "arxiv:2607.04676",
+      "canonical_url": "http://arxiv.org/abs/2607.04676v1",
+      "published_at": "2026-07-06T05:06:37Z",
+      "updated_at": "2026-07-06T05:06:37Z",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md",
+      "content_hash": "dadf1c089497efb40c97556851e874c0a09ad456d7d2b46d5c9eb1f789c376a4",
+      "duplicate_status": "new_local_arxiv_identity",
+      "promoted_surfaces": [
+        "training-distributed",
+        "nccl-arxiv-discovery"
+      ],
+      "abstract_claims": [
+        "sparsity-exploiting all-gather, reduce-scatter, and all-reduce collectives for GPU platforms",
+        "bitvector-based Pici format for low-overhead compression and decompression at moderate sparsities",
+        "abstract reports up to 5.25x, 2.5x, and 2.66x speedups over NCCL at 99% input sparsity for all-gather, reduce-scatter, and all-reduce respectively"
+      ]
+    },
+    {
+      "title": "DynamiQ: Accelerating Gradient Synchronization using Compressed Multi-hop All-reduce",
+      "arxiv_id": "2602.08923",
+      "version": "v3",
+      "identity_key": "arxiv:2602.08923",
+      "canonical_url": "http://arxiv.org/abs/2602.08923v3",
+      "published_at": "2026-02-09T17:25:37Z",
+      "updated_at": "2026-07-07T20:21:24Z",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md",
+      "content_hash": "4ed352c0df50d5d26ccc31cf3f069d5b0912331882decfa02b8f1fa75b346a27",
+      "duplicate_status": "version_refresh_of_existing_arxiv_identity",
+      "prior_raw_paths": [
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260626T020914461055Z-arxiv-org-abs-2602-08923v1-f7c0a77012.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260705T041041103731Z-arxiv-org-abs-2602-08923v1-f7c0a77012.md"
+      ],
+      "promoted_surfaces": [
+        "training-distributed",
+        "nccl-arxiv-discovery"
+      ],
+      "abstract_claims": [
+        "compressed multi-hop all-reduce for gradient synchronization",
+        "PyTorch DDP extension over NCCL P2P",
+        "abstract reports up to 34.2% improvement over compared methods and near-baseline accuracy such as 99.9% of the BF16 baseline"
+      ]
+    }
+  ],
+  "boundaries": [
+    "Promote only abstract discovery facts.",
+    "Do not treat the abstract-stated latency reductions, speedups, improvement, or accuracy statements as reproduced benchmark results.",
+    "Do not promote implementation guidance, production operation claims, product rankings, or NCCL release behavior from these abstracts."
+  ]
+}

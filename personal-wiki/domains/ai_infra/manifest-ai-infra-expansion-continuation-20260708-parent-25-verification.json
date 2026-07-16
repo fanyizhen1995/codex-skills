@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008",
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-5",
+  "semantic_parent_task_id": "ai-infra-expansion-continuation-20260708-parent-25",
+  "generated_at": "2026-07-16T00:00:00Z",
+  "summary": "Reconciled the July 12 NCCL arXiv abstract refresh as bounded abstract discovery evidence. CTA-Pipelining and Adaptive Space-efficient Collectives are new local arXiv identities; DynamiQ v3 is a version refresh of the existing DynamiQ row.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410174Z-arxiv-org-abs-2607-07862v1-10bc5dfb1f.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314410768Z-arxiv-org-abs-2607-04676v1-dadf1c0894.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/20260712T041314411159Z-arxiv-org-abs-2602-08923v3-4ed352c0df.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-25-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-5-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-25-verification.json",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/distributed-training-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-arxiv-papers.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra wiki index; no tracked index diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Regenerated ai_infra backlinks JSON; no tracked backlinks diff remained."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/{coverage-map.json,loop-state.json,raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json,manifest-ai-infra-expansion-continuation-20260708-parent-25-gap-proof.json,manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-008-task-5-gap-proof.json}",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Edited JSON files parsed successfully."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; ... parent-25 ...\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Semantic parent-25 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; ... task-5 ...\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local task-5 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"validate_coverage_map_payload(...); validate_loop_state_payload(...)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness loop contracts."
+    },
+    {
+      "command": "python3 -c \"validate_planner_output_payload(...)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Planner output payload satisfies the harness loop contract."
+    },
+    {
+      "command": "python3 -c \"assert all(target July 12 raw captures exist and start with source_id: nccl-arxiv-papers)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "All three target July 12 NCCL arXiv raw captures exist and have the expected source_id frontmatter."
+    },
+    {
+      "command": "rg -n \"parent-25|20260712|2607\\.07862|2607\\.04676|2602\\.08923v3|CTA-Pipelining|Adaptive Space-efficient Collectives|DynamiQ|Pici|NCCL P2P|abstract discovery\" ...",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Required parent-25 terms are visible across the raw manifest, ingest plan, curated pages, coverage-map.json, loop-state.json, and ingest log."
+    },
+    {
+      "command": "boundary check: July 5 rows not counted as new parent-25 evidence; DynamiQ v3 is a version refresh",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "NCCL Arxiv Papers records CTA-Pipelining and Adaptive Space-efficient Collectives as new identities and DynamiQ v3 as a refresh of existing arxiv:2602.08923 rather than a separate new paper."
+    },
+    {
+      "command": "boundary check: abstract-stated latency reductions, speedups, improvement, and accuracy remain abstract claims only",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Curated text labels the quantitative claims as arXiv abstract discovery evidence, not reproduced benchmarks, production evidence, SLOs, product rankings, or implementation guidance."
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in changed ai_infra paths."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No assignment-style secrets, bearer credentials, private keys, or AWS access keys detected in declared changed files."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Declared changed repository paths are under personal-wiki/domains/ai_infra/** and do not match planner denylist patterns."
+    },
+    {
+      "command": "dependency/code-change applicability check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No backend, frontend, dashboard, harness, package, dependency, or generated build files changed; code and dependency tests are not applicable."
+    },
+    {
+      "command": "trusted live evidence checks: service-availability, crawler-workbench-freshness, loop-dashboard-freshness, search-api-visibility, frontend-visibility",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Per generator instructions, no live services, localhost probes, tmux, uvicorn, npm, Vite, or long-lived processes were started. The required-evidence manifest references orchestrator-owned trusted-live-evidence/<evidence-id>.json artifacts."
+    },
+    {
+      "command": "commit-result and push-result evidence",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Generator intentionally did not commit, push, or fill the commit field. The orchestrator commits after gates pass."
+    },
+    {
+      "command": "parent-task-level auditor cadence check",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "run.json reports last_result=pass, parent_task_counter=24, semantic_parent_task_next=25, and carried_completed_since_last_audit=0; no due audit gate blocks this generator."
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json"
+    }
+  ],
+  "boundaries": [
+    "No external sources or PDFs were fetched.",
+    "No dedicated paper pages were created.",
+    "No code, package, dependency, crawler profile, service, dashboard, harness, or accelerator catalog files were changed.",
+    "Abstract-stated numbers remain source-stated discovery claims only."
+  ]
+}
