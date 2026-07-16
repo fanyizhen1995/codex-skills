@@ -4611,6 +4611,57 @@ def test_review_outbox_lease_loss_before_database_finalization_is_resumable(
     assert store.fetch_all("reviews")[0]["status"] == "review_complete"
 
 
+def test_review_outbox_finalizes_after_applied_run_advances_again(
+    tmp_path: Path,
+) -> None:
+    store = migrated_store(tmp_path)
+    record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)
+    run_path = tmp_path / ".codex" / "loop-runs" / "run-1" / "run.json"
+    payload = json.loads(run_path.read_text(encoding="utf-8"))
+    review = validate_review_payload(
+        valid_review_payload(decision="refocus", affected_run_ids=["run-1"]),
+        allowed_run_ids=["run-1"],
+        reviewed_runs={
+            "run-1": {
+                "revision": payload["state_revision"],
+                "state_fingerprint": _state_fingerprint(payload),
+            }
+        },
+    )
+    file_written = False
+
+    def mark_file_written(stage: str, _run_id: str) -> None:
+        nonlocal file_written
+        if stage == "after_file_write":
+            file_written = True
+
+    def lose_before_finalize() -> None:
+        if file_written:
+            raise LeaseError("injected outer lease loss")
+
+    with pytest.raises(LeaseError, match="outer lease loss"):
+        apply_review_decision(
+            store,
+            review,
+            lease_checkpoint=lose_before_finalize,
+            application_cutpoint=mark_file_written,
+        )
+
+    advanced = json.loads(run_path.read_text(encoding="utf-8"))
+    advanced["state_revision"] += 1
+    advanced["phase"] = "generating"
+    advanced["next_action"] = "run_autonomous_generator"
+    advanced["last_result"] = "none"
+    run_path.write_text(json.dumps(advanced) + "\n", encoding="utf-8")
+    refresh_run_projection(store, "run-1", advanced)
+
+    apply_review_decision(store, review)
+
+    assert json.loads(run_path.read_text(encoding="utf-8"))["state_revision"] == 3
+    assert store.fetch_all("review_application_targets")[0]["status"] == "applied"
+    assert store.fetch_all("reviews")[0]["status"] == "review_complete"
+
+
 def test_review_auto_remediate_is_bounded_and_continue_is_a_noop(tmp_path: Path) -> None:
     store = migrated_store(tmp_path)
     record_parent_completion(store, "lineage-a", run_id="run-1", parent=1)

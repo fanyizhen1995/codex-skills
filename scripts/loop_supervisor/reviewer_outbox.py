@@ -379,7 +379,10 @@ def _apply_target(
             elif application_state == "postwrite":
                 applied_revision = current_revision
                 canonical_payload = payload
-            if current_revision != expected_revision:
+            if (
+                current_revision != expected_revision
+                and not _projection_matches_payload(run, canonical_payload)
+            ):
                 _project_saved_run(store, run, canonical_payload)
             artifacts = (run_path.relative_to(execution_root).as_posix(),)
         cutpoint("after_file_write", request.run_id)
@@ -472,6 +475,17 @@ def _already_applied(
     review: SupervisorReview,
     target: Mapping[str, Any],
 ) -> bool:
+    return (
+        _review_directive_applied(payload, review)
+        and payload.get("phase") == target["target_phase"]
+        and payload.get("next_action") == target["target_next_action"]
+    )
+
+
+def _review_directive_applied(
+    payload: Mapping[str, Any],
+    review: SupervisorReview,
+) -> bool:
     directives = payload.get("reviewer_directives")
     directive = {
         "review_id": review.review_id,
@@ -479,12 +493,7 @@ def _already_applied(
         "summary": review.summary,
         "evidence_refs": list(review.evidence_refs),
     }
-    return (
-        isinstance(directives, list)
-        and directive in directives
-        and payload.get("phase") == target["target_phase"]
-        and payload.get("next_action") == target["target_next_action"]
-    )
+    return isinstance(directives, list) and directive in directives
 
 
 def _validate_target_payload(payload: Mapping[str, Any], run_id: str) -> None:
@@ -535,6 +544,14 @@ def _review_application_state(
                 and projected_fingerprint == actual_fingerprint
             )
         )
+    ):
+        return "postwrite"
+    if (
+        expected_post_write_fingerprint
+        and actual_revision > expected_revision + 1
+        and projected_revision == actual_revision
+        and projected_fingerprint == actual_fingerprint
+        and _review_directive_applied(payload, review)
     ):
         return "postwrite"
     if (
