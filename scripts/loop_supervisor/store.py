@@ -599,6 +599,7 @@ class SupervisorStore:
             self._ensure_review_cadence_deferred_position()
             self._migrate_bounded_run_projection_summaries()
             self._migrate_v13_review_target_post_write_fingerprints()
+            self._recover_cancelled_accepted_review_sources()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
             self._ensure_action_idempotency_aliases()
@@ -977,6 +978,32 @@ class SupervisorStore:
                 "ALTER TABLE review_cadence "
                 "ADD COLUMN deferred_position INTEGER NOT NULL DEFAULT 0"
             )
+
+    def _recover_cancelled_accepted_review_sources(self) -> None:
+        self._connection.execute(
+            """
+            UPDATE actions
+            SET status = 'pending', lease_owner = '', lease_expires_at = '',
+                lease_heartbeat_at = '', updated_at = ?
+            WHERE status = 'cancelled'
+              AND action_type = 'run_reviewer'
+              AND queue_owner = 'reviewer'
+              AND EXISTS (
+                SELECT 1
+                FROM reviews
+                JOIN review_applications
+                  ON review_applications.review_id = reviews.review_id
+                JOIN review_application_targets
+                  ON review_application_targets.review_id = reviews.review_id
+                WHERE reviews.source_action_id = actions.action_id
+                  AND reviews.status = 'review_applying'
+                  AND reviews.accepted_review_json != '{}'
+                  AND review_applications.status = 'applying'
+                  AND review_application_targets.status = 'pending'
+              )
+            """,
+            (self._now_text(),),
+        )
 
     def _migrate_bounded_run_projection_summaries(self) -> None:
         rows = self._connection.execute(

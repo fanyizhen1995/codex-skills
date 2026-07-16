@@ -988,6 +988,74 @@ def test_reviewer_lease_prioritizes_persisted_application_recovery(tmp_path):
     assert leased.action_id == with_outbox.action_id
 
 
+def test_migrate_requeues_cancelled_source_for_pending_accepted_application(
+    tmp_path,
+):
+    store = migrated_store(tmp_path)
+    project_run(store, "run-with-outbox", revision=1)
+    source = store.enqueue_action(
+        ActionRequest(
+            action_id="reviewer-with-outbox",
+            run_id="run-with-outbox",
+            run_revision=1,
+            policy="autonomous_knowledge",
+            phase="planning",
+            action_type=ActionType.RUN_REVIEWER,
+            idempotency_key="recovery:reviewer-with-outbox",
+            queue_owner=ActionOwner.REVIEWER,
+            task_id="review:run-with-outbox",
+        )
+    )
+    store.record_review(
+        review_id="review-with-outbox",
+        trigger="project_global",
+        status="review_applying",
+        decision="auto_remediate",
+        accepted_review={"review_id": "review-with-outbox"},
+        source_action_id=source.action_id,
+    )
+    store.prepare_review_application(
+        review_id="review-with-outbox",
+        decision="auto_remediate",
+        targets=[
+            (
+                ActionRequest(
+                    action_id="review-application-target",
+                    run_id="run-with-outbox",
+                    run_revision=1,
+                    policy="autonomous_knowledge",
+                    phase="planning",
+                    action_type=ActionType.RUN_ALTERNATE_RECOVERY,
+                    idempotency_key="review-application-target",
+                    queue_owner=ActionOwner.SUPERVISOR,
+                    task_id="review:review-with-outbox:run-with-outbox",
+                    next_action="auto_remediate",
+                ),
+                {
+                    "expected_revision": 1,
+                    "expected_fingerprint": "fingerprint-before",
+                    "expected_post_write_fingerprint": "fingerprint-after",
+                    "source_phase": "planning",
+                    "target_phase": "planning",
+                    "target_next_action": "run_autonomous_planner",
+                    "target_last_result": "none",
+                },
+            )
+        ],
+    )
+    store._connection.execute(
+        "UPDATE actions SET status = 'cancelled' WHERE action_id = ?",
+        (source.action_id,),
+    )
+    store._connection.commit()
+    store.close()
+
+    reopened = SupervisorStore.open(tmp_path)
+    reopened.migrate()
+
+    assert reopened.get_action(source.action_id).status == "pending"
+
+
 def test_lease_next_action_uses_compatible_default_heartbeat_threshold(tmp_path):
     store = migrated_store(tmp_path)
     project_run(store, "run-1", revision=1)
