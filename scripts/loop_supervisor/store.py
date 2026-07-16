@@ -3425,14 +3425,11 @@ class SupervisorStore:
                                 WHERE reviews.source_action_id = actions.action_id
                                   AND review_applications.status = 'applying'
                                   AND review_application_targets.status = 'pending'
-                                  AND review_application_targets.expected_revision + 1 = ?
-                                  AND review_application_targets.target_phase = ?
-                                  AND review_application_targets.expected_post_write_fingerprint = ?
                               )
                             )
                           )
                         """,
-                        (now, run_id, revision, revision, phase, state_fingerprint),
+                        (now, run_id, revision),
                     )
             row = self._connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)

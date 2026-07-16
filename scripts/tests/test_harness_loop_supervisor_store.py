@@ -964,6 +964,18 @@ def test_reviewer_lease_prioritizes_persisted_application_recovery(tmp_path):
             "state_fingerprint": "fingerprint-after",
         }
     )
+    store.upsert_run_projection(
+        {
+            "run_id": "run-with-outbox",
+            "revision": 3,
+            "policy": "autonomous_knowledge",
+            "phase": "generating",
+            "status": "actionable",
+            "state_fingerprint": "fingerprint-after-planner",
+        }
+    )
+
+    assert store.get_action(with_outbox.action_id).status == "pending"
 
     leased = store.lease_next_action(
         "reviewer-recovery",
