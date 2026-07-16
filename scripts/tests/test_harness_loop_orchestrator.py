@@ -1528,6 +1528,79 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(loop_state_relative, dirty_result["unexpected_paths"])
             self.assertNotIn(loop_state_relative, dirty_result["declared_paths"])
 
+    def test_check_autonomous_dirty_paths_claims_declared_untracked_crawler_raw_from_baseline(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            raw_relative = (
+                "personal-wiki/domains/ai_infra/raw/crawler/"
+                "nccl-arxiv-papers/capture.md"
+            )
+            raw_path = repo_root / raw_relative
+            raw_path.parent.mkdir(parents=True)
+            raw_path.write_text("scheduled capture\n", encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [f"?? {raw_relative}"],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [raw_relative],
+            )
+
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertEqual(dirty_result["claimed_baseline_paths"], [raw_relative])
+            self.assertEqual(dirty_result["baseline_changed_paths"], [])
+
+    def test_check_autonomous_dirty_paths_does_not_claim_tracked_crawler_changes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            raw_relative = (
+                "personal-wiki/domains/ai_infra/raw/crawler/"
+                "nccl-arxiv-papers/capture.md"
+            )
+            raw_path = repo_root / raw_relative
+            raw_path.parent.mkdir(parents=True)
+            raw_path.write_text("existing capture\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", raw_relative],
+                cwd=repo_root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: seed crawler raw"],
+                cwd=repo_root,
+                check=True,
+                capture_output=True,
+            )
+            raw_path.write_text("user-modified capture\n", encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [f" M {raw_relative}"],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [raw_relative],
+            )
+
+            self.assertFalse(dirty_result["allowed"])
+            self.assertEqual(dirty_result["claimed_baseline_paths"], [])
+            self.assertEqual(dirty_result["baseline_changed_paths"], [raw_relative])
+
     def test_check_autonomous_dirty_paths_ignores_current_run_runtime_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

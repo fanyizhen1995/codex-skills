@@ -1371,6 +1371,51 @@ def test_recovered_generator_protects_new_unrelated_dirt_then_commits_declared_p
     ).stdout
 
 
+def test_recovery_resumes_commit_for_declared_preflight_crawler_capture(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.worker import worker_once
+
+    run_id = "preflight-crawler-capture"
+    generator_result = _prepare_autonomous_commit_gate(tmp_path, run_id)
+    raw_relative = (
+        "personal-wiki/domains/fixture/raw/crawler/"
+        "nccl-arxiv-papers/capture.md"
+    )
+    raw_path = tmp_path / raw_relative
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_text("normalized scheduled capture\n", encoding="utf-8")
+    generator_result["changed_paths"].append(raw_relative)
+    generator_result["artifacts"].append(raw_relative)
+
+    run_dir = legacy.run_dir_for(tmp_path, run_id)
+    legacy.write_json_file(run_dir / "generator-result.json", generator_result)
+    run = legacy.load_run(tmp_path, run_id)
+    run["baseline_dirty_paths"].append(f"?? {raw_relative}")
+    run["phase"] = "stopped_blocked"
+    run["next_action"] = "inspect_autonomous_dirty_paths"
+    run["last_result"] = "blocked"
+    legacy.save_run(tmp_path, run)
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        recovery = reconcile_once(tmp_path, store, include_worktrees=False).action_for(
+            run_id
+        )
+    assert recovery is not None
+    assert recovery.action_type is ActionType.RECOVER_GENERATOR_RESULT
+
+    result = worker_once(tmp_path, "preflight-crawler-recovery")
+
+    assert result.status == "completed"
+    resumed = legacy.load_run(tmp_path, run_id)
+    assert resumed["phase"] == "cleanup"
+    assert resumed["next_action"] == "commit_autonomous_changes"
+    dirty = legacy.read_json_file(run_dir / "dirty-paths-result.json")
+    assert dirty["allowed"] is True
+    assert dirty["claimed_baseline_paths"] == [raw_relative]
+
+
 def test_bounded_worker_commit_checks_scope_before_supply_chain(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

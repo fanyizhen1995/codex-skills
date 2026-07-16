@@ -158,6 +158,45 @@ def test_runtime_probes_real_targets_and_deduplicates_unchanged_observations(
         assert len(calls) == 12
 
 
+def test_watch_supervisor_uses_process_bound_self_observation(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    supervisor_code = tmp_path / "scripts/loop_supervisor/cli.py"
+    supervisor_code.parent.mkdir(parents=True)
+    supervisor_code.write_text("VALUE = 'running'\n", encoding="utf-8")
+    running_version = services._service_code_fingerprint(
+        tmp_path, "loop-supervisor"
+    )
+    clock = FakeClock()
+
+    with _store(tmp_path, clock) as store:
+        services.observe_runtime_health(
+            tmp_path,
+            store,
+            http_probe=_healthy_contract_probe,
+            process_probe=_healthy_process_probe,
+            process_id=43210,
+            runtime_mode="watch",
+            supervisor_runtime_version=running_version,
+            supervisor_heartbeat_at=datetime.now(timezone.utc),
+        )
+        supervisor = next(
+            row
+            for row in store.fetch_all("services")
+            if row["service_id"] == "loop-supervisor"
+        )
+
+    details = json.loads(supervisor["details_json"])
+    assert supervisor["status"] == "healthy"
+    assert supervisor["process_id"] == 43210
+    assert supervisor["version"] == running_version
+    assert supervisor["heartbeat_at"]
+    assert details["heartbeat_verified"] is True
+    assert details["version_verified"] is True
+
+
 def test_runtime_marks_endpoint_probe_failure_unhealthy_without_secret_details(
     tmp_path: Path,
 ) -> None:
@@ -539,6 +578,14 @@ def test_empty_search_response_is_stale(tmp_path: Path) -> None:
     assert search["summary"] == "search response contract mismatch"
 
 
+def test_search_freshness_uses_a_known_local_knowledge_seed() -> None:
+    from scripts.loop_supervisor import services
+
+    targets = dict(services._FRESHNESS_TARGETS)
+
+    assert targets["search"].endswith("/api/search?q=SGLang")
+
+
 def test_running_service_reports_its_old_fingerprint_not_new_repo_revision(
     tmp_path: Path,
 ) -> None:
@@ -875,6 +922,32 @@ def test_dashboard_managed_child_receives_stable_private_cursor_secret(
     assert secret_path.stat().st_mode & 0o777 == 0o600
     assert first_environment["LOOP_DASHBOARD_CURSOR_SECRET"] == secret
     assert second_environment["LOOP_DASHBOARD_CURSOR_SECRET"] == secret
+
+
+def test_supervisor_worker_managed_child_uses_process_unique_worker_id(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def popen(arguments: list[str], **options: object) -> object:
+        calls.append((arguments, options))
+        return object()
+
+    monkeypatch.setattr(services, "_Popen", popen)
+    monkeypatch.setattr(services.os, "getpid", lambda: 43210)
+
+    services._start_managed_child(
+        tmp_path.resolve(), services._MANAGED_SERVICES["supervisor-worker"]
+    )
+
+    command = calls[0][0][2]
+    environment = calls[0][1]["env"]
+    assert isinstance(environment, dict)
+    assert '--worker-id "$LOOP_SUPERVISOR_WORKER_ID"' in command
+    assert environment["LOOP_SUPERVISOR_WORKER_ID"] == "service-keeper-worker-43210"
 
 
 @pytest.mark.parametrize(

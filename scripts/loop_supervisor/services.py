@@ -43,7 +43,7 @@ _SERVICE_TARGETS = (
 )
 _FRESHNESS_TARGETS = (
     ("wiki", "http://127.0.0.1:8765/api/wiki/metrics"),
-    ("search", "http://127.0.0.1:8765/api/search?q=supervisor"),
+    ("search", "http://127.0.0.1:8765/api/search?q=SGLang"),
     ("dashboard", "http://127.0.0.1:8766/api/supervisor"),
 )
 _SERVICE_SESSIONS = {
@@ -107,7 +107,7 @@ _MANAGED_SERVICES = {
         endpoint="",
         command_template=(
             "cd {project_root} && python3 -m scripts.loop_supervisor.cli worker "
-            "--project-root {project_root} --worker-id service-keeper-worker"
+            "--project-root {project_root} --worker-id \"$LOOP_SUPERVISOR_WORKER_ID\""
         ),
     ),
 }
@@ -213,6 +213,8 @@ def observe_runtime_health(
     process_probe: ProcessProbe | None = None,
     process_id: int | None = None,
     version: str | None = None,
+    supervisor_runtime_version: str | None = None,
+    supervisor_heartbeat_at: datetime | str | None = None,
     runtime_mode: str = "watch",
     timeout_seconds: float = HTTP_TIMEOUT_SECONDS,
     service_cadence_seconds: int = SERVICE_CADENCE_SECONDS,
@@ -240,6 +242,15 @@ def observe_runtime_health(
         raise ValueError("process_id must be a positive int")
     if version is not None and (not isinstance(version, str) or not version):
         raise ValueError("version must be a non-empty string")
+    if (supervisor_runtime_version is None) != (supervisor_heartbeat_at is None):
+        raise ValueError(
+            "supervisor runtime version and heartbeat must be provided together"
+        )
+    if supervisor_runtime_version is not None and (
+        not isinstance(supervisor_runtime_version, str)
+        or not supervisor_runtime_version
+    ):
+        raise ValueError("supervisor_runtime_version must be a non-empty string")
 
     probe_results = _probe_targets(probe, timeout_seconds)
     process_results = _probe_process_targets(local_probe, timeout_seconds)
@@ -287,8 +298,16 @@ def observe_runtime_health(
 
     supervisor_process = process_results[_SERVICE_SESSIONS["loop-supervisor"]]
     supervisor_watch_status = _process_service_status(supervisor_process)
-    supervisor_version = _running_version_state(
-        root, "loop-supervisor", supervisor_process, version
+    supervisor_version = (
+        _self_observed_supervisor_version_state(
+            root,
+            supervisor_runtime_version,
+            supervisor_heartbeat_at,
+        )
+        if supervisor_runtime_version is not None
+        else _running_version_state(
+            root, "loop-supervisor", supervisor_process, version
+        )
     )
     if (
         supervisor_watch_status == "healthy"
@@ -816,6 +835,11 @@ def _start_managed_child(project_root: Path, service: ManagedService) -> Any:
         environment["LOOP_DASHBOARD_CURSOR_SECRET"] = _dashboard_cursor_secret(
             project_root
         )
+    elif service.service_id == "supervisor-worker":
+        environment = os.environ.copy()
+        environment["LOOP_SUPERVISOR_WORKER_ID"] = (
+            f"service-keeper-worker-{os.getpid()}"
+        )
     return _Popen(
         ["bash", "-lc", command],
         cwd=project_root,
@@ -1123,6 +1147,69 @@ def _process_details(process: Mapping[str, Any]) -> dict[str, Any]:
         else None,
         "process_command": redact_bounded_text(
             process.get("command") or "", limit=128
+        ),
+    }
+
+
+def _self_observed_supervisor_version_state(
+    project_root: Path,
+    running_version: str,
+    heartbeat_at: datetime | str,
+) -> dict[str, Any]:
+    if isinstance(heartbeat_at, datetime):
+        if heartbeat_at.tzinfo is None or heartbeat_at.utcoffset() is None:
+            heartbeat = None
+            heartbeat_text = ""
+        else:
+            heartbeat = heartbeat_at.astimezone(timezone.utc)
+            heartbeat_text = heartbeat.isoformat(timespec="microseconds").replace(
+                "+00:00", "Z"
+            )
+    elif isinstance(heartbeat_at, str):
+        heartbeat_text = heartbeat_at
+        heartbeat = _parse_time(heartbeat_at)
+    else:
+        heartbeat_text = ""
+        heartbeat = None
+
+    heartbeat_errors: list[str] = []
+    if heartbeat is None:
+        heartbeat_errors.append("self-observed heartbeat is invalid")
+    else:
+        age_seconds = (datetime.now(timezone.utc) - heartbeat).total_seconds()
+        if age_seconds < -5 or age_seconds > WORKER_HEARTBEAT_STALE_SECONDS:
+            heartbeat_errors.append("self-observed heartbeat is stale")
+
+    version_errors: list[str] = []
+    try:
+        expected_version = _service_code_fingerprint(
+            project_root, "loop-supervisor"
+        )
+    except (OSError, RuntimeError):
+        expected_version = ""
+        version_errors.append("expected code fingerprint unavailable")
+    if not running_version:
+        version_errors.append("startup code fingerprint missing")
+    elif expected_version and running_version != expected_version:
+        version_errors.append("startup code fingerprint differs from current code")
+
+    heartbeat_verified = not heartbeat_errors
+    version_verified = not version_errors and bool(expected_version)
+    return {
+        "running_version": running_version,
+        "expected_version": expected_version,
+        "heartbeat_at": heartbeat_text,
+        "heartbeat_verified": heartbeat_verified,
+        "heartbeat_evidence": (
+            "current Supervisor tick observed from this process"
+            if heartbeat_verified
+            else "; ".join(heartbeat_errors)
+        ),
+        "version_verified": version_verified,
+        "version_evidence": (
+            "startup fingerprint matches current Supervisor code"
+            if version_verified
+            else "; ".join(version_errors)
         ),
     }
 
