@@ -1603,6 +1603,52 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(relative_path, dirty_result["ignored_paths"])
             self.assertNotIn(relative_path, dirty_result["unexpected_paths"])
 
+    def test_check_autonomous_dirty_paths_ignores_only_concurrent_crawler_raw(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            crawler_raw = (
+                repo_root
+                / "personal-wiki"
+                / "domains"
+                / "ai_infra"
+                / "raw"
+                / "crawler"
+                / "daily-source"
+                / "capture.md"
+            )
+            crawler_raw.parent.mkdir(parents=True)
+            crawler_raw.write_text("scheduler capture\n", encoding="utf-8")
+            undeclared_wiki = (
+                repo_root
+                / "personal-wiki"
+                / "domains"
+                / "ai_infra"
+                / "wiki"
+                / "undeclared.md"
+            )
+            undeclared_wiki.parent.mkdir(parents=True)
+            undeclared_wiki.write_text("undeclared wiki\n", encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root, run, []
+            )
+
+            crawler_relative = crawler_raw.relative_to(repo_root).as_posix()
+            wiki_relative = undeclared_wiki.relative_to(repo_root).as_posix()
+            self.assertFalse(dirty_result["allowed"])
+            self.assertIn(crawler_relative, dirty_result["ignored_paths"])
+            self.assertNotIn(crawler_relative, dirty_result["unexpected_paths"])
+            self.assertIn(wiki_relative, dirty_result["unexpected_paths"])
+
     def test_check_autonomous_dirty_paths_ignores_supervisor_reviewer_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
