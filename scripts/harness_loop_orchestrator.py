@@ -5235,7 +5235,16 @@ def _check_autonomous_dirty_paths(
     actual_paths = _git_dirty_paths(repo_root)
     baseline_paths = _baseline_dirty_relative_paths(run)
     declared = set(declared_changed_paths)
-    baseline_changed_paths = sorted(path for path in declared if path in baseline_paths)
+    claimed_baseline_paths = _claimable_autonomous_baseline_paths(
+        repo_root,
+        run,
+        declared,
+    )
+    baseline_changed_paths = sorted(
+        path
+        for path in declared
+        if path in baseline_paths and path not in claimed_baseline_paths
+    )
     ignored_paths = [
         path
         for path in actual_paths
@@ -5254,6 +5263,7 @@ def _check_autonomous_dirty_paths(
         "declared_paths": sorted(declared),
         "baseline_paths": sorted(baseline_paths),
         "baseline_changed_paths": baseline_changed_paths,
+        "claimed_baseline_paths": sorted(claimed_baseline_paths),
         "ignored_paths": sorted(ignored_paths),
         "unexpected_paths": unexpected_paths,
     }
@@ -5288,6 +5298,43 @@ def _baseline_dirty_relative_paths(run: dict[str, Any]) -> set[str]:
             continue
         paths.update(_parse_porcelain_paths(line))
     return paths
+
+
+def _claimable_autonomous_baseline_paths(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    declared_paths: set[str],
+) -> set[str]:
+    domain = str(run.get("domain") or "").strip()
+    if not domain or "/" in domain or "\\" in domain:
+        return set()
+    raw_root = repo_root / "personal-wiki" / "domains" / domain / "raw" / "crawler"
+    try:
+        resolved_root = raw_root.resolve(strict=True)
+        resolved_root.relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        return set()
+
+    claimed: set[str] = set()
+    prefix = f"personal-wiki/domains/{domain}/raw/crawler/"
+    for line in run.get("baseline_dirty_paths", []):
+        if not isinstance(line, str) or not line.startswith("?? "):
+            continue
+        paths = _parse_porcelain_paths(line)
+        if len(paths) != 1:
+            continue
+        relative = paths[0]
+        if relative not in declared_paths or not relative.startswith(prefix):
+            continue
+        candidate = repo_root / relative
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(resolved_root)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file() and not candidate.is_symlink():
+            claimed.add(relative)
+    return claimed
 
 
 def _parse_porcelain_paths(line: str) -> list[str]:
