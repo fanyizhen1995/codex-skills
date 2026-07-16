@@ -785,7 +785,8 @@ def _publish_completed_review_findings(
     if not review.findings:
         return
     rows = {
-        str(row["review_id"]): row for row in store.fetch_all("reviews")
+        str(row["review_id"]): row
+        for row in _decoded_store_rows(store, "reviews")
     }
     persisted = rows.get(review.review_id)
     if persisted is None or persisted.get("status") != "review_complete":
