@@ -36,7 +36,11 @@ from .migration import (
     shadow_compare,
 )
 from .reconciler import _project_reconcile_lock
-from .services import observe_runtime_health, run_service_keeper_once
+from .services import (
+    _service_code_fingerprint,
+    observe_runtime_health,
+    run_service_keeper_once,
+)
 from .store import SupervisorStore
 from .worker import clear_stop_request, worker_watch
 
@@ -187,6 +191,14 @@ def _migrate(root: Path, *, dry_run: bool, cleanup_legacy: bool) -> int:
 def _run_supervisor(root: Path, args: argparse.Namespace) -> int:
     watching = args.command == "watch"
     interval = args.interval_seconds if watching else 30
+    supervisor_runtime_version = None
+    if watching:
+        try:
+            supervisor_runtime_version = _service_code_fingerprint(
+                root, "loop-supervisor"
+            )
+        except (OSError, RuntimeError):
+            pass
     config = SupervisorConfig(
         project_root=root,
         mode="watch" if watching else "once",
@@ -205,7 +217,15 @@ def _run_supervisor(root: Path, args: argparse.Namespace) -> int:
                 with SupervisorStore.open(root) as store:
                     store.migrate()
                     service_health = observe_runtime_health(
-                        root, store, runtime_mode=config.mode
+                        root,
+                        store,
+                        runtime_mode=config.mode,
+                        supervisor_runtime_version=supervisor_runtime_version,
+                        supervisor_heartbeat_at=(
+                            datetime.now(timezone.utc)
+                            if supervisor_runtime_version is not None
+                            else None
+                        ),
                     )
                     service_keeper = (
                         None

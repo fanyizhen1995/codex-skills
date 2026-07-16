@@ -158,6 +158,45 @@ def test_runtime_probes_real_targets_and_deduplicates_unchanged_observations(
         assert len(calls) == 12
 
 
+def test_watch_supervisor_uses_process_bound_self_observation(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor import services
+
+    supervisor_code = tmp_path / "scripts/loop_supervisor/cli.py"
+    supervisor_code.parent.mkdir(parents=True)
+    supervisor_code.write_text("VALUE = 'running'\n", encoding="utf-8")
+    running_version = services._service_code_fingerprint(
+        tmp_path, "loop-supervisor"
+    )
+    clock = FakeClock()
+
+    with _store(tmp_path, clock) as store:
+        services.observe_runtime_health(
+            tmp_path,
+            store,
+            http_probe=_healthy_contract_probe,
+            process_probe=_healthy_process_probe,
+            process_id=43210,
+            runtime_mode="watch",
+            supervisor_runtime_version=running_version,
+            supervisor_heartbeat_at=datetime.now(timezone.utc),
+        )
+        supervisor = next(
+            row
+            for row in store.fetch_all("services")
+            if row["service_id"] == "loop-supervisor"
+        )
+
+    details = json.loads(supervisor["details_json"])
+    assert supervisor["status"] == "healthy"
+    assert supervisor["process_id"] == 43210
+    assert supervisor["version"] == running_version
+    assert supervisor["heartbeat_at"]
+    assert details["heartbeat_verified"] is True
+    assert details["version_verified"] is True
+
+
 def test_runtime_marks_endpoint_probe_failure_unhealthy_without_secret_details(
     tmp_path: Path,
 ) -> None:
