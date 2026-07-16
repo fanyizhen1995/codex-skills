@@ -3048,6 +3048,91 @@ def test_v13_non_prewrite_target_migration_blocks_llm_reinvocation(
     assert reopened.fetch_all("reviews")[0]["status"] == "review_migration_blocked"
 
 
+def test_operator_can_supersede_blocked_review_migration_without_applying_it(
+    tmp_path: Path,
+) -> None:
+    reopened, source = _seed_v13_pending_review_target(tmp_path, mode="tampered")
+    reopened.migrate()
+
+    result = reopened.resolve_blocked_review_migration(
+        "review-v13-target",
+        reason="The repository changed during the runtime upgrade.",
+    )
+
+    assert result == {
+        "review_id": "review-v13-target",
+        "source_action_id": source.action_id,
+        "retried_action_id": "",
+        "status": "review_superseded",
+    }
+    assert reopened.has_blocked_review_migration() is False
+    assert reopened.fetch_all("reviews")[0]["status"] == "review_superseded"
+    assert reopened.get_action(source.action_id).status == "cancelled"
+    assert {
+        target["status"]
+        for target in reopened.review_application_targets("review-v13-target")
+    } == {"superseded"}
+
+
+def test_operator_resolution_can_retry_failed_source_recovery_action(
+    tmp_path: Path,
+) -> None:
+    reopened, reviewer_source = _seed_v13_pending_review_target(
+        tmp_path, mode="tampered"
+    )
+    reopened.migrate()
+    failed_source = ActionRequest(
+        action_id="v13-failed-recovery-source",
+        run_id="v13-run",
+        run_revision=1,
+        policy="autonomous_knowledge",
+        phase="stopped_budget",
+        action_type=ActionType.RECOVER_GENERATOR_RESULT,
+        idempotency_key="v13-failed-recovery-source",
+        queue_owner=ActionOwner.WORKER,
+        task_id="v13-task",
+        next_action="inspect_autonomous_dirty_paths",
+    )
+    reopened.enqueue_action(failed_source)
+    leased = reopened.lease_next_action(
+        "worker-v13-failure",
+        lease_seconds=60,
+        allowed_action_types={ActionType.RECOVER_GENERATOR_RESULT.value},
+    )
+    assert leased is not None and leased.action_id == failed_source.action_id
+    reopened.complete_action(
+        failed_source.action_id,
+        "worker-v13-failure",
+        ActionResult(
+            result_class=ActionResultClass.RETRYABLE_FAILURE,
+            summary="Old runtime rejected the recoverable baseline.",
+            failure_key="v13:baseline",
+            error_class="RuntimeError",
+        ),
+    )
+    reviewer_payload = reviewer_source.payload_for_storage()
+    reviewer_payload.update(
+        {
+            "recovery_stage": "reviewer",
+            "source_action_id": failed_source.action_id,
+        }
+    )
+    reopened._connection.execute(
+        "UPDATE actions SET payload_json = ? WHERE action_id = ?",
+        (json.dumps(reviewer_payload), reviewer_source.action_id),
+    )
+
+    result = reopened.resolve_blocked_review_migration(
+        "review-v13-target",
+        reason="The deterministic gate was fixed and verified.",
+        retry_source_action=True,
+    )
+
+    assert result["retried_action_id"] == failed_source.action_id
+    assert reopened.get_action(reviewer_source.action_id).status == "cancelled"
+    assert reopened.get_action(failed_source.action_id).status == "pending"
+
+
 def test_reconciled_worktree_root_is_required_for_reviewer_outbox(
     tmp_path: Path,
 ) -> None:

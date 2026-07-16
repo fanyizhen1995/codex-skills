@@ -63,6 +63,25 @@ recorded as `review_degraded`. When deterministic safety gates pass, safe runs
 continue and review is retried at the next cadence. Reviewer infrastructure
 failure does not create a user decision by itself.
 
+An upgrade can encounter a legacy `review_applying` row whose immutable
+pre-write target cannot be reconstructed. The migration marks it
+`review_migration_blocked` and does not invoke another Reviewer or apply the
+accepted result. Inspect the review artifact, target rows, and current run
+files before resolving it. To supersede the unapplied result:
+
+```bash
+python3 -m scripts.loop_supervisor.cli resolve-review-migration \
+  --project-root /home/fyz/codex-skills \
+  --review-id <review-id> \
+  --reason "Verified that the review was never applied."
+```
+
+For a recovery escalation, add `--retry-source-action` only after the original
+deterministic failure has been fixed and its focused regression tests pass.
+The command atomically supersedes the review application and targets, cancels
+the stale Reviewer lease, and requeues only the recorded failed recovery
+action. It never edits `run.json` phases directly.
+
 ## Migration and shadow gate
 
 Dry-run first. Before any normal `migrate` invocation reads a run record, the

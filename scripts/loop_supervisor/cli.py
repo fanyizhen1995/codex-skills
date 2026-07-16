@@ -92,6 +92,15 @@ def build_parser() -> argparse.ArgumentParser:
     retention = subparsers.add_parser("retention", help="Compact expired operational detail.")
     retention.add_argument("--project-root", default=".")
     retention.add_argument("--retention-days", type=int, default=90)
+
+    resolve_review = subparsers.add_parser(
+        "resolve-review-migration",
+        help="Supersede one blocked Reviewer migration after operator inspection.",
+    )
+    resolve_review.add_argument("--project-root", default=".")
+    resolve_review.add_argument("--review-id", required=True)
+    resolve_review.add_argument("--reason", required=True)
+    resolve_review.add_argument("--retry-source-action", action="store_true")
     return parser
 
 
@@ -145,6 +154,16 @@ def main(argv: list[str] | None = None) -> int:
             store.migrate()
             deleted = store.compact_retention(retention_days=args.retention_days)
         _print_json({"status": "completed", "deleted": deleted})
+        return 0
+    if args.command == "resolve-review-migration":
+        with SupervisorStore.open(root) as store:
+            store.migrate()
+            payload = store.resolve_blocked_review_migration(
+                args.review_id,
+                reason=args.reason,
+                retry_source_action=args.retry_source_action,
+            )
+        _print_json(payload)
         return 0
     raise AssertionError(f"unhandled command: {args.command}")
 
@@ -290,6 +309,8 @@ def _launch_due_reviewer(root: Path, payload: Mapping[str, Any]) -> bool:
         return False
     _reviewer_process = None
     now = datetime.now(timezone.utc)
+    if _durable_reviewer_migration_is_blocked(root):
+        return False
     if _durable_reviewer_lease_is_active(root, now):
         return False
     payload_has_due_review = any(
@@ -346,6 +367,14 @@ def _durable_reviewer_action_is_due(root: Path, now: datetime) -> bool:
         return False
     with SupervisorStore.open(root) as store:
         return store.reviewer_launcher_needed(now=now)
+
+
+def _durable_reviewer_migration_is_blocked(root: Path) -> bool:
+    database = root / ".codex" / "supervisor" / "supervisor.db"
+    if not database.is_file() or database.is_symlink():
+        return False
+    with SupervisorStore.open(root) as store:
+        return store.has_blocked_review_migration()
 
 
 def _durable_reviewer_lease_is_active(root: Path, now: datetime) -> bool:

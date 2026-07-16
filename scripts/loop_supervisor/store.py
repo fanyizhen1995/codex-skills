@@ -4015,6 +4015,133 @@ class SupervisorStore:
             ).fetchone()
         return row is not None
 
+    def resolve_blocked_review_migration(
+        self,
+        review_id: str,
+        *,
+        reason: str,
+        retry_source_action: bool = False,
+    ) -> dict[str, str]:
+        """Supersede an unapplied migrated review and optionally retry its source."""
+        self._required_text(review_id, "review_id")
+        self._validate_summary(reason, field_name="review migration resolution")
+        now = self._now_text()
+        retried_action_id = ""
+        with self._immediate_transaction():
+            review = self._connection.execute(
+                "SELECT * FROM reviews WHERE review_id = ?", (review_id,)
+            ).fetchone()
+            if review is None:
+                raise KeyError(review_id)
+            if str(review["status"]) != "review_migration_blocked":
+                raise ValueError("only a blocked review migration can be resolved")
+            source_action_id = str(review["source_action_id"] or "")
+            source_action = (
+                self._connection.execute(
+                    "SELECT * FROM actions WHERE action_id = ?", (source_action_id,)
+                ).fetchone()
+                if source_action_id
+                else None
+            )
+
+            self._connection.execute(
+                """
+                UPDATE actions
+                SET status = 'cancelled', lease_owner = '', lease_expires_at = '',
+                    lease_heartbeat_at = '', updated_at = ?
+                WHERE action_id IN (
+                  SELECT action_id FROM review_application_targets
+                  WHERE review_id = ? AND status = 'pending'
+                ) AND status IN ('pending', 'leased', 'running')
+                """,
+                (now, review_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE review_application_targets
+                SET status = 'superseded', error = ?, updated_at = ?
+                WHERE review_id = ? AND status = 'pending'
+                """,
+                (reason, now, review_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE review_applications
+                SET status = 'superseded', updated_at = ?
+                WHERE review_id = ? AND status = 'applying'
+                """,
+                (now, review_id),
+            )
+            self._connection.execute(
+                "DELETE FROM review_findings WHERE review_id = ?", (review_id,)
+            )
+            self._connection.execute(
+                """
+                UPDATE reviews
+                SET status = 'review_superseded', summary = ?, updated_at = ?
+                WHERE review_id = ? AND status = 'review_migration_blocked'
+                """,
+                (f"Operator superseded blocked migration: {reason}", now, review_id),
+            )
+            if source_action is not None:
+                self._connection.execute(
+                    """
+                    UPDATE actions
+                    SET status = 'cancelled', lease_owner = '', lease_expires_at = '',
+                        lease_heartbeat_at = '', updated_at = ?
+                    WHERE action_id = ? AND status IN ('pending', 'leased', 'running')
+                    """,
+                    (now, source_action_id),
+                )
+                self._connection.execute(
+                    """
+                    UPDATE review_reservations
+                    SET status = 'released', updated_at = ?
+                    WHERE action_id = ? AND status = 'reserved'
+                    """,
+                    (now, source_action_id),
+                )
+
+            if retry_source_action:
+                if source_action is None:
+                    raise ValueError("blocked review has no source action to retry")
+                try:
+                    source_payload = json.loads(str(source_action["payload_json"] or "{}"))
+                except json.JSONDecodeError as exc:
+                    raise ValueError("blocked review source payload is invalid") from exc
+                if (
+                    not isinstance(source_payload, dict)
+                    or source_payload.get("recovery_stage") != "reviewer"
+                ):
+                    raise ValueError("blocked review is not a recovery escalation")
+                retried_action_id = str(source_payload.get("source_action_id") or "")
+                retry_action = self._connection.execute(
+                    "SELECT * FROM actions WHERE action_id = ?",
+                    (retried_action_id,),
+                ).fetchone()
+                if (
+                    retry_action is None
+                    or str(retry_action["status"]) != "failed"
+                    or str(retry_action["run_id"]) != str(source_action["run_id"])
+                ):
+                    raise ValueError("recovery source action is not retryable")
+                self._connection.execute(
+                    """
+                    UPDATE actions
+                    SET status = 'pending', lease_owner = '', lease_expires_at = '',
+                        lease_heartbeat_at = '', not_before = '', updated_at = ?
+                    WHERE action_id = ? AND status = 'failed'
+                    """,
+                    (now, retried_action_id),
+                )
+
+        return {
+            "review_id": review_id,
+            "source_action_id": source_action_id,
+            "retried_action_id": retried_action_id,
+            "status": "review_superseded",
+        }
+
     def set_review_status(self, review_id: str, status: str) -> None:
         self._required_text(review_id, "review_id")
         self._required_text(status, "status")

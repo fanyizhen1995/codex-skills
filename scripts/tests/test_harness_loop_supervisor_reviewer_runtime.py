@@ -331,6 +331,78 @@ def test_canonical_watch_does_not_launch_second_reviewer_after_cold_restart(
     assert cli._launch_due_reviewer(tmp_path, payload) is False
 
 
+def test_canonical_watch_does_not_launch_reviewer_while_migration_is_blocked(
+    tmp_path, monkeypatch
+) -> None:
+    from scripts.loop_supervisor import cli
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        store.record_review(
+            review_id="review-blocked-migration",
+            trigger="migration",
+            status="review_migration_blocked",
+            decision="refocus",
+            summary="Operator resolution is required.",
+        )
+
+    monkeypatch.setattr(cli, "_reviewer_process", None)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("blocked migration launched Reviewer"),
+    )
+    payload = {
+        "queued_actions": [
+            {
+                "action_type": "run_reviewer",
+                "queue_owner": "reviewer",
+                "not_before": "",
+            }
+        ]
+    }
+
+    assert cli._launch_due_reviewer(tmp_path, payload) is False
+
+
+def test_cli_resolves_blocked_review_migration(tmp_path, monkeypatch) -> None:
+    from scripts.loop_supervisor import cli
+
+    with SupervisorStore.open(tmp_path) as store:
+        store.migrate()
+        store.record_review(
+            review_id="review-cli-blocked",
+            trigger="migration",
+            status="review_migration_blocked",
+            decision="refocus",
+            summary="Operator resolution is required.",
+        )
+    output: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: output.append(dict(payload)))
+
+    status = cli.main(
+        [
+            "resolve-review-migration",
+            "--project-root",
+            str(tmp_path),
+            "--review-id",
+            "review-cli-blocked",
+            "--reason",
+            "Verified that the review was never applied.",
+        ]
+    )
+
+    assert status == 0
+    assert output == [
+        {
+            "review_id": "review-cli-blocked",
+            "source_action_id": "",
+            "retried_action_id": "",
+            "status": "review_superseded",
+        }
+    ]
+
+
 def test_canonical_watch_checks_durable_reviewer_queue_before_reconcile(
     tmp_path, monkeypatch
 ) -> None:
