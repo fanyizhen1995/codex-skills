@@ -36,7 +36,7 @@ from scripts.loop_supervisor.models import (
 )
 
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 ALLOWED_PAGE_SIZES = frozenset({20, 50, 100})
 MAX_PAYLOAD_BYTES = 65_536
 MAX_SUMMARY_CHARS = 4_096
@@ -597,6 +597,7 @@ class SupervisorStore:
             self._ensure_action_ownership()
             self._ensure_review_resume_state()
             self._ensure_review_cadence_deferred_position()
+            self._migrate_bounded_run_projection_summaries()
             self._migrate_v13_review_target_post_write_fingerprints()
             self._normalize_legacy_timestamps()
             self._ensure_action_canonical_identity()
@@ -975,6 +976,38 @@ class SupervisorStore:
             self._connection.execute(
                 "ALTER TABLE review_cadence "
                 "ADD COLUMN deferred_position INTEGER NOT NULL DEFAULT 0"
+            )
+
+    def _migrate_bounded_run_projection_summaries(self) -> None:
+        rows = self._connection.execute(
+            "SELECT run_id, summary_json FROM runs"
+        ).fetchall()
+        for row in rows:
+            outer = json.loads(str(row["summary_json"]))
+            if not isinstance(outer, dict):
+                raise ValueError("run projection summary must be an object")
+            if "summary" not in outer:
+                continue
+            raw_summary = outer.get("summary")
+            if not isinstance(raw_summary, str):
+                raise ValueError("run projection inner summary must be a string")
+            if not raw_summary:
+                continue
+            summary = json.loads(raw_summary)
+            if not isinstance(summary, dict):
+                raise ValueError("run projection inner summary must be an object")
+            if "reviewer_directives" not in summary:
+                continue
+            summary.pop("reviewer_directives")
+            bounded_summary = self._json(summary)
+            self._validate_summary(
+                bounded_summary,
+                field_name="run projection summary",
+            )
+            outer["summary"] = bounded_summary
+            self._connection.execute(
+                "UPDATE runs SET summary_json = ? WHERE run_id = ?",
+                (self._json(outer), row["run_id"]),
             )
 
     def _migrate_legacy_applying_reviews(self) -> None:
@@ -2290,6 +2323,12 @@ class SupervisorStore:
                 AND (
                   a.idempotency_key NOT LIKE 'recovery:%'
                   OR (r.revision = a.run_revision AND r.phase = a.phase)
+                  OR (a.queue_owner = 'reviewer' AND EXISTS (
+                    SELECT 1 FROM reviews AS accepted_recovery_reviews
+                    WHERE accepted_recovery_reviews.source_action_id = a.action_id
+                      AND accepted_recovery_reviews.status IN ('review_applying', 'review_complete')
+                      AND accepted_recovery_reviews.accepted_review_json != '{{}}'
+                  ))
                 )
                 AND NOT EXISTS (
                   SELECT 1 FROM user_decisions AS decisions
@@ -2386,6 +2425,12 @@ class SupervisorStore:
                       AND runs.revision = actions.run_revision
                       AND runs.phase = actions.phase
                   )
+                  OR (actions.queue_owner = 'reviewer' AND EXISTS (
+                    SELECT 1 FROM reviews AS accepted_recovery_reviews
+                    WHERE accepted_recovery_reviews.source_action_id = actions.action_id
+                      AND accepted_recovery_reviews.status IN ('review_applying', 'review_complete')
+                      AND accepted_recovery_reviews.accepted_review_json != '{{}}'
+                  ))
                 ) AND NOT EXISTS (
                   SELECT 1 FROM user_decisions AS decisions
                   WHERE decisions.status = 'open'
