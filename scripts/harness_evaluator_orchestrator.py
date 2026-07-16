@@ -25,13 +25,21 @@ from pathlib import Path
 
 try:
     from scripts import harness_evaluator_hooks
-    from scripts.harness_evaluator_cli import record_result_payload, update_session_state_evaluator
+    from scripts.harness_evaluator_cli import (
+        create_task_bundle,
+        record_result_payload,
+        update_session_state_evaluator,
+    )
     from scripts.harness_evaluator_scenarios import load_task_scenarios
     from scripts.harness_evaluator_state import repo_roots_for_harness
     from scripts.harness_loop_contracts import read_json_file, validate_task_contract_payload
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     import harness_evaluator_hooks
-    from harness_evaluator_cli import record_result_payload, update_session_state_evaluator
+    from harness_evaluator_cli import (
+        create_task_bundle,
+        record_result_payload,
+        update_session_state_evaluator,
+    )
     from harness_evaluator_scenarios import load_task_scenarios
     from harness_evaluator_state import repo_roots_for_harness
     from harness_loop_contracts import read_json_file, validate_task_contract_payload
@@ -896,6 +904,164 @@ def run_codex_exec_auto_task_gate(
     return 0 if final_decision is None else 1
 
 
+def run_codex_exec_task_gate_once(
+    task_id: str,
+    repo_root: Path,
+    task_contract_path: Path | None = None,
+    *,
+    loop_run_id: str,
+    generator_attempt: int,
+    max_attempts: int = 3,
+) -> int:
+    if max_attempts <= 0:
+        raise ValueError("max_attempts must be a positive integer")
+    session = _load_session(repo_root, task_id)
+    branch = session["branch"]
+    worktree_root = Path(session["worktree"])
+    state_root = next(
+        (
+            candidate_root
+            for candidate_root in repo_roots_for_harness(worktree_root)
+            if (candidate_root / ".codex" / "session-state").exists()
+        ),
+        worktree_root,
+    )
+
+    resolved_contract_path, contract_issue = harness_evaluator_hooks._resolve_task_contract_path(
+        worktree_root,
+        task_id,
+        task_contract_path,
+    )
+    if contract_issue is not None:
+        raise ValueError(contract_issue)
+    contract_sha256 = (
+        hashlib.sha256(resolved_contract_path.read_bytes()).hexdigest()
+        if resolved_contract_path is not None
+        else ""
+    )
+
+    task_root = worktree_root / ".codex" / "evaluations" / "tasks" / task_id
+    allocated_attempts: list[int] = []
+    current_run_attempts: set[int] = set()
+    completed_bundles: list[tuple[int, Path, dict]] = []
+    incomplete_bundles: list[tuple[int, Path]] = []
+    if task_root.is_dir():
+        for candidate in sorted(task_root.iterdir()):
+            if not candidate.is_dir() or candidate.name.startswith("fake-attempt-"):
+                continue
+            try:
+                input_payload = json.loads(
+                    (candidate / "input.json").read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError):
+                continue
+            if input_payload.get("gate") != "task" or input_payload.get("task_id") != task_id:
+                continue
+            attempt = int(input_payload.get("attempt", 0))
+            allocated_attempts.append(attempt)
+            result_path = candidate / "result.json"
+            contract_matches = (
+                resolved_contract_path is None
+                or (
+                    input_payload.get("scenario_source") == str(resolved_contract_path)
+                    and input_payload.get("task_contract_sha256") == contract_sha256
+                )
+            )
+            run_matches = input_payload.get("loop_run_id") == loop_run_id
+            if contract_matches and run_matches:
+                current_run_attempts.add(attempt)
+            binding_matches = (
+                run_matches
+                and input_payload.get("loop_generator_attempt") == generator_attempt
+            )
+            if not contract_matches or not binding_matches:
+                continue
+            if result_path.exists():
+                issue = harness_evaluator_hooks._bundle_contract_issue(candidate)
+                if issue is not None:
+                    raise ValueError(issue)
+                completed_bundles.append(
+                    (
+                        attempt,
+                        candidate,
+                        json.loads(result_path.read_text(encoding="utf-8")),
+                    )
+                )
+            else:
+                incomplete_bundles.append((attempt, candidate))
+
+    if completed_bundles:
+        _, reusable_bundle, reusable_result = max(
+            completed_bundles,
+            key=lambda item: (item[0], item[1].name),
+        )
+        status = str(reusable_result.get("status") or "")
+        update_session_state_evaluator(
+            state_root,
+            worktree_root,
+            branch,
+            task_id=task_id,
+            phase="task_evaluator_passed"
+            if status == "pass"
+            else (
+                "repair_after_task_eval_blocked"
+                if status == "blocked"
+                else "repair_after_task_eval_fail"
+            ),
+            task_eval_attempt=int(reusable_result["attempt"]),
+            last_task_eval_result=status,
+            repair_from_eval=status != "pass",
+        )
+        return 0 if status == "pass" else 1
+
+    if incomplete_bundles:
+        next_attempt, bundle_dir = max(
+            incomplete_bundles,
+            key=lambda item: (item[0], item[1].name),
+        )
+    else:
+        if len(current_run_attempts) >= max_attempts:
+            raise RuntimeError(
+                "task evaluator attempt limit reached for "
+                f"{task_id}: {len(current_run_attempts)}/{max_attempts}"
+            )
+        next_attempt = max(allocated_attempts, default=0) + 1
+        bundle_dir = create_task_bundle(
+            worktree_root,
+            task_id,
+            next_attempt,
+            task_contract_path=resolved_contract_path,
+        )
+        input_path = bundle_dir / "input.json"
+        input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+        input_payload["loop_run_id"] = loop_run_id
+        input_payload["loop_generator_attempt"] = generator_attempt
+        input_path.write_text(json.dumps(input_payload, indent=2) + "\n", encoding="utf-8")
+    update_session_state_evaluator(
+        state_root,
+        worktree_root,
+        branch,
+        task_id=task_id,
+        phase="task_eval",
+        task_eval_attempt=next_attempt,
+        last_task_eval_result="pending",
+        repair_from_eval=False,
+    )
+    passed = consume_decision_with_codex_exec(
+        worktree_root,
+        state_root,
+        branch,
+        task_id,
+        {
+            "decision": "block",
+            "reason": "Run or resume one loop task evaluator attempt.",
+            "action": "run_task_evaluator",
+            "bundle_dir": str(bundle_dir),
+        },
+    )
+    return 0 if passed else 1
+
+
 def run_fake_task_loop(
     task_id: str,
     max_attempts: int,
@@ -1027,6 +1193,15 @@ def build_parser() -> argparse.ArgumentParser:
     auto_task.add_argument("--max-attempts", type=int, default=3)
     auto_task.add_argument("--repo-root", default=".")
     auto_task.add_argument("--task-contract", default="")
+
+    task_once = subparsers.add_parser("run-task-gate-once")
+    task_once.add_argument("--driver", choices=("codex-exec",), required=True)
+    task_once.add_argument("--task-id", required=True)
+    task_once.add_argument("--repo-root", default=".")
+    task_once.add_argument("--task-contract", default="")
+    task_once.add_argument("--loop-run-id", required=True)
+    task_once.add_argument("--generator-attempt", required=True, type=int)
+    task_once.add_argument("--max-attempts", required=True, type=int)
     return parser
 
 
@@ -1055,6 +1230,15 @@ def main() -> int:
             Path(args.repo_root),
             args.max_attempts,
             Path(args.task_contract) if args.task_contract else None,
+        )
+    if args.command == "run-task-gate-once" and args.driver == "codex-exec":
+        return run_codex_exec_task_gate_once(
+            args.task_id,
+            Path(args.repo_root),
+            Path(args.task_contract) if args.task_contract else None,
+            loop_run_id=args.loop_run_id,
+            generator_attempt=args.generator_attempt,
+            max_attempts=args.max_attempts,
         )
     return 2
 

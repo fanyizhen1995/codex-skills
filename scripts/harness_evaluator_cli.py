@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -186,6 +187,11 @@ def create_task_bundle(
         "eval_policy": eval_policy,
         "must_simulate": scenario_contract["must_simulate"],
         "scenario_source": scenario_contract["source"],
+        "task_contract_sha256": (
+            hashlib.sha256(task_contract_path.read_bytes()).hexdigest()
+            if task_contract_path is not None
+            else ""
+        ),
         "user_scenarios": scenario_contract["user_scenarios"],
     }
     (bundle_dir / "input.json").write_text(

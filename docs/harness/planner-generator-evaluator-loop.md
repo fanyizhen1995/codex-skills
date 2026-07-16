@@ -25,9 +25,13 @@ keeps planning until no-action, budget, or blocked stop conditions apply.
   and advances to `generating`.
 - The Worker runs bounded Generator work, which writes `generator-result.json`
   and advances to `evaluating`.
-- Bounded Evaluator work calls `scripts/harness_evaluator_orchestrator.py`, copies the
-  evaluator result into `evaluator-result.json`, and advances to
+- Demand-development Codex Evaluator work calls `scripts/harness_evaluator_orchestrator.py
+  run-task-gate-once`, binds the task bundle to the current run and Generator
+  attempt, copies the evaluator result into `evaluator-result.json`, and advances to
   `artifact_hygiene`, `passed_waiting_human_merge`, or `repair_needed`.
+  This loop-only entrypoint runs or resumes one task gate bound to that Generator
+  result and never consumes the final gate. The general `run-task-auto-gate`
+  command retains its existing task-to-final behavior for non-loop workflows.
   Scenario command stdout/stderr evidence also forces `artifact_hygiene`,
   including failing scenario command paths, before the run is repairable.
 - Bounded artifact hygiene scans declared generator artifacts and scenario command

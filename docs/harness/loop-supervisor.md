@@ -63,6 +63,16 @@ recorded as `review_degraded`. When deterministic safety gates pass, safe runs
 continue and review is retried at the next cadence. Reviewer infrastructure
 failure does not create a user decision by itself.
 
+Each demand-development `run_evaluator` action that reaches the Codex task
+evaluator owns exactly one task-level evaluator boundary. It creates a fresh
+attempt for a new Generator result or idempotently resumes the same bound attempt
+after Worker recovery. It does not consume the final-level gate in the same Worker
+action.
+This keeps Generator repair findings scoped to the implementation being tested;
+the final gate runs separately after completion reports and final-scope artifacts
+exist. A previous passing task bundle is never reused after another Generator
+attempt, and a pending or failed final bundle cannot shadow the fresh task result.
+
 An accepted Reviewer result is recovered from its durable outbox before any new
 LLM call. If the process exits after writing the run file but before completing
 the SQLite application target, migration requeues the Reviewer source action and

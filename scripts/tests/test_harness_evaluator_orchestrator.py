@@ -25,9 +25,11 @@ from scripts.harness_evaluator_orchestrator import (
     next_loop_action,
     run_one_stop_auto_gate,
     run_codex_exec_auto_task_gate,
+    run_codex_exec_task_gate_once,
     run_fake_auto_task_gate,
     run_fake_task_loop,
 )
+from scripts.harness_evaluator_cli import create_final_bundle, create_task_bundle
 
 
 def _write_auto_gate_repo(root: Path, task_id: str) -> None:
@@ -128,6 +130,485 @@ class HarnessEvaluatorOrchestratorTests(unittest.TestCase):
     def test_next_loop_action_final_fail_is_soft_fail(self) -> None:
         decision = next_loop_action("fail", attempt=1, max_attempts=2, gate="final")
         self.assertEqual(decision, "soft_fail")
+
+    def test_task_gate_once_starts_fresh_task_attempt_without_consuming_final_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "loop-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id)
+
+            task_bundle = create_task_bundle(
+                root,
+                task_id,
+                1,
+                task_contract_path=contract_path,
+            )
+            (task_bundle / "result.json").write_text(
+                json.dumps(
+                    {
+                        "status": "pass",
+                        "gate": "task",
+                        "task_id": task_id,
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "summary": "pass",
+                        "findings": [],
+                        "scenario_results": [
+                            {
+                                "scenario_id": "CONTRACT-01",
+                                "status": "pass",
+                                "evidence": ["scenario-command-results.json"],
+                                "notes": "pass",
+                            }
+                        ],
+                        "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "pass",
+                        "next_action": "proceed_to_user_acceptance",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            final_bundle = create_final_bundle(root, task_id, 1)
+            (final_bundle / "result.json").write_text(
+                json.dumps(
+                    {
+                        "status": "fail",
+                        "gate": "final",
+                        "task_id": "",
+                        "final_bundle_id": task_id,
+                        "attempt": 1,
+                        "summary": "final evidence pending",
+                        "findings": [],
+                        "scenario_results": [],
+                        "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "final evidence pending",
+                        "next_action": "proceed_with_risk",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec",
+                return_value=True,
+            ) as mocked_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="loop-run",
+                    generator_attempt=2,
+                )
+
+            self.assertEqual(exit_code, 0)
+            mocked_consume.assert_called_once()
+            decision = mocked_consume.call_args.args[-1]
+            self.assertEqual(decision["action"], "run_task_evaluator")
+            fresh_input = json.loads(
+                (Path(decision["bundle_dir"]) / "input.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(fresh_input["gate"], "task")
+            self.assertEqual(fresh_input["attempt"], 2)
+            self.assertEqual(fresh_input["task_id"], task_id)
+            self.assertEqual(fresh_input["loop_run_id"], "loop-run")
+            self.assertEqual(fresh_input["loop_generator_attempt"], 2)
+
+    def test_task_gate_once_reuses_incomplete_bundle_after_infrastructure_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "retry-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id)
+            incomplete_bundle = create_task_bundle(
+                root,
+                task_id,
+                1,
+                task_contract_path=contract_path,
+            )
+            input_path = incomplete_bundle / "input.json"
+            input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+            input_payload["loop_run_id"] = "retry-run"
+            input_payload["loop_generator_attempt"] = 1
+            input_path.write_text(json.dumps(input_payload, indent=2) + "\n", encoding="utf-8")
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec",
+                return_value=True,
+            ) as mocked_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="retry-run",
+                    generator_attempt=1,
+                )
+
+            self.assertEqual(exit_code, 0)
+            decision = mocked_consume.call_args.args[-1]
+            self.assertEqual(Path(decision["bundle_dir"]), incomplete_bundle)
+            self.assertEqual(
+                len(list((root / ".codex" / "evaluations" / "tasks" / task_id).iterdir())),
+                1,
+            )
+
+    def test_task_gate_once_reports_allocated_attempt_when_limit_is_reached(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "attempt-limit-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id)
+            for attempt in range(1, 4):
+                bundle = create_task_bundle(
+                    root,
+                    task_id,
+                    attempt,
+                    bundle_name=f"20260716T00000{attempt}Z-attempt-{attempt}",
+                    task_contract_path=contract_path,
+                )
+                input_path = bundle / "input.json"
+                input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+                input_payload["loop_run_id"] = "attempt-limit-run"
+                input_payload["loop_generator_attempt"] = attempt
+                input_path.write_text(
+                    json.dumps(input_payload, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "task evaluator attempt limit reached for attempt-limit-task: 3/3",
+            ):
+                run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="attempt-limit-run",
+                    generator_attempt=4,
+                )
+
+    def test_task_gate_once_ignores_attempts_from_another_loop_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "unrelated-attempts-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id)
+            for attempt in range(1, 4):
+                bundle = create_task_bundle(
+                    root,
+                    task_id,
+                    attempt,
+                    bundle_name=f"20260716T00000{attempt}Z-attempt-{attempt}",
+                    task_contract_path=contract_path,
+                )
+                input_path = bundle / "input.json"
+                input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+                input_payload["loop_run_id"] = "old-loop-run"
+                input_payload["loop_generator_attempt"] = attempt
+                input_path.write_text(
+                    json.dumps(input_payload, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec",
+                return_value=True,
+            ) as mocked_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="current-loop-run",
+                    generator_attempt=1,
+                )
+
+            self.assertEqual(exit_code, 0)
+            decision = mocked_consume.call_args.args[-1]
+            fresh_input = json.loads(
+                (Path(decision["bundle_dir"]) / "input.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(fresh_input["attempt"], 4)
+            self.assertEqual(fresh_input["loop_run_id"], "current-loop-run")
+
+    def test_task_gate_once_does_not_reuse_completed_bundle_after_contract_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "contract-digest-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id, scenario_id="OLD-01")
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec",
+                return_value=False,
+            ) as first_consume:
+                self.assertEqual(
+                    run_codex_exec_task_gate_once(
+                        task_id,
+                        root,
+                        task_contract_path=contract_path,
+                        loop_run_id="contract-digest-run",
+                        generator_attempt=1,
+                    ),
+                    1,
+                )
+            old_bundle = Path(first_consume.call_args.args[-1]["bundle_dir"])
+            old_input = json.loads((old_bundle / "input.json").read_text(encoding="utf-8"))
+            (old_bundle / "result.json").write_text(
+                json.dumps(
+                    {
+                        "status": "pass",
+                        "gate": "task",
+                        "task_id": task_id,
+                        "final_bundle_id": "",
+                        "attempt": old_input["attempt"],
+                        "summary": "old contract pass",
+                        "findings": [],
+                        "scenario_results": [
+                            {
+                                "scenario_id": "OLD-01",
+                                "status": "pass",
+                                "evidence": ["old-evidence.json"],
+                                "notes": "old contract",
+                            }
+                        ],
+                        "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "old contract pass",
+                        "next_action": "proceed_to_user_acceptance",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _write_task_contract(contract_path, task_id, scenario_id="CURRENT-01")
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec",
+                return_value=True,
+            ) as second_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="contract-digest-run",
+                    generator_attempt=1,
+                )
+
+            self.assertEqual(exit_code, 0)
+            second_consume.assert_called_once()
+            new_bundle = Path(second_consume.call_args.args[-1]["bundle_dir"])
+            self.assertNotEqual(new_bundle, old_bundle)
+            new_input = json.loads((new_bundle / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(new_input["user_scenarios"][0]["scenario_id"], "CURRENT-01")
+
+    def test_task_gate_once_rejects_explicit_contract_for_another_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "expected-task"
+            _write_auto_gate_repo(root, task_id)
+            wrong_contract = root / "wrong-task-contract.json"
+            _write_task_contract(wrong_contract, "other-task")
+
+            with self.assertRaisesRegex(ValueError, "does not match requested task_id"):
+                run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=wrong_contract,
+                    loop_run_id="expected-run",
+                    generator_attempt=1,
+                )
+
+    def test_task_gate_once_does_not_reuse_incomplete_bundle_from_another_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "contract-switch-task"
+            _write_auto_gate_repo(root, task_id)
+            stale_contract = root / "stale-task-contract.json"
+            current_contract = root / "current-task-contract.json"
+            _write_task_contract(stale_contract, task_id, scenario_id="STALE-01")
+            _write_task_contract(current_contract, task_id, scenario_id="CURRENT-01")
+            stale_bundle = create_task_bundle(
+                root,
+                task_id,
+                1,
+                task_contract_path=stale_contract,
+            )
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec",
+                return_value=True,
+            ) as mocked_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=current_contract,
+                    loop_run_id="contract-switch-run",
+                    generator_attempt=1,
+                )
+
+            self.assertEqual(exit_code, 0)
+            decision = mocked_consume.call_args.args[-1]
+            fresh_bundle = Path(decision["bundle_dir"])
+            self.assertNotEqual(fresh_bundle, stale_bundle)
+            fresh_input = json.loads((fresh_bundle / "input.json").read_text(encoding="utf-8"))
+            self.assertEqual(fresh_input["scenario_source"], str(current_contract))
+            self.assertEqual(fresh_input["user_scenarios"][0]["scenario_id"], "CURRENT-01")
+
+    def test_task_gate_once_reuses_completed_result_for_same_generator(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "completed-retry-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id)
+            completed_bundle = create_task_bundle(
+                root,
+                task_id,
+                1,
+                task_contract_path=contract_path,
+            )
+            input_path = completed_bundle / "input.json"
+            input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+            input_payload["loop_run_id"] = "completed-retry-run"
+            input_payload["loop_generator_attempt"] = 4
+            input_path.write_text(json.dumps(input_payload, indent=2) + "\n", encoding="utf-8")
+            (completed_bundle / "result.json").write_text(
+                json.dumps(
+                    {
+                        "status": "pass",
+                        "gate": "task",
+                        "task_id": task_id,
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "summary": "pass",
+                        "findings": [],
+                        "scenario_results": [
+                            {
+                                "scenario_id": "CONTRACT-01",
+                                "status": "pass",
+                                "evidence": ["scenario-command-results.json"],
+                                "notes": "pass",
+                            }
+                        ],
+                        "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "pass",
+                        "next_action": "proceed_to_user_acceptance",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec"
+            ) as mocked_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="completed-retry-run",
+                    generator_attempt=4,
+                )
+
+            self.assertEqual(exit_code, 0)
+            mocked_consume.assert_not_called()
+            self.assertEqual(
+                len(list((root / ".codex" / "evaluations" / "tasks" / task_id).iterdir())),
+                1,
+            )
+
+    def test_task_gate_once_prefers_completed_result_over_newer_incomplete_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_id = "completed-before-incomplete-task"
+            _write_auto_gate_repo(root, task_id)
+            contract_path = root / "task-contract.json"
+            _write_task_contract(contract_path, task_id)
+            completed_bundle = create_task_bundle(
+                root,
+                task_id,
+                1,
+                bundle_name="20260716T000001Z-attempt-1",
+                task_contract_path=contract_path,
+            )
+            for bundle, attempt in (
+                (completed_bundle, 1),
+                (
+                    create_task_bundle(
+                        root,
+                        task_id,
+                        2,
+                        bundle_name="20260716T000002Z-attempt-2",
+                        task_contract_path=contract_path,
+                    ),
+                    2,
+                ),
+            ):
+                input_path = bundle / "input.json"
+                input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+                input_payload["loop_run_id"] = "completed-before-incomplete-run"
+                input_payload["loop_generator_attempt"] = 3
+                input_path.write_text(
+                    json.dumps(input_payload, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            completed_input = json.loads(
+                (completed_bundle / "input.json").read_text(encoding="utf-8")
+            )
+            (completed_bundle / "result.json").write_text(
+                json.dumps(
+                    {
+                        "status": "pass",
+                        "gate": "task",
+                        "task_id": task_id,
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "summary": "pass",
+                        "findings": [],
+                        "scenario_results": [
+                            {
+                                "scenario_id": scenario["scenario_id"],
+                                "status": "pass",
+                                "evidence": ["scenario-command-results.json"],
+                                "notes": "pass",
+                            }
+                            for scenario in completed_input["user_scenarios"]
+                        ],
+                        "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "pass",
+                        "next_action": "proceed_to_user_acceptance",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch(
+                "scripts.harness_evaluator_orchestrator.consume_decision_with_codex_exec"
+            ) as mocked_consume:
+                exit_code = run_codex_exec_task_gate_once(
+                    task_id,
+                    root,
+                    task_contract_path=contract_path,
+                    loop_run_id="completed-before-incomplete-run",
+                    generator_attempt=3,
+                )
+
+            self.assertEqual(exit_code, 0)
+            mocked_consume.assert_not_called()
 
     def test_run_fake_task_loop_blocks_when_scenarios_are_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

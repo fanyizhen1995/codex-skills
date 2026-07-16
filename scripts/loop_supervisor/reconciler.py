@@ -672,6 +672,19 @@ def desired_action_for_run(
         "next_action": next_action,
         "mutates_git": rule.mutates_git,
     }
+    if rule.action_type is ActionType.RUN_EVALUATOR:
+        limits = run.get("limits")
+        configured_max_attempts = (
+            limits.get("max_eval_attempts_per_task")
+            if isinstance(limits, Mapping)
+            else None
+        )
+        if (
+            isinstance(configured_max_attempts, int)
+            and not isinstance(configured_max_attempts, bool)
+            and configured_max_attempts > 0
+        ):
+            payload["max_attempts"] = configured_max_attempts
     if rule.action_type is ActionType.CREATE_CONTINUATION:
         lineage_id = str(
             trusted_loop_lineage_id or run.get("loop_lineage_id") or run_id
@@ -698,6 +711,8 @@ def desired_action_for_run(
         "task_id": task_id,
         "repo_relative_root": str(run.get("_supervisor_repo_relative_root") or "."),
     }
+    if "max_attempts" in payload:
+        identity["max_attempts"] = payload["max_attempts"]
     digest = hashlib.sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
 import shutil
 import threading
 from pathlib import Path
@@ -39,6 +40,99 @@ def _request(action_type: ActionType) -> ActionRequest:
         ),
         payload=payload,
     )
+
+
+def _write_bound_task_result(
+    repo_root: Path,
+    run: dict,
+    *,
+    bundle_name: str,
+    status: str,
+    summary: str = "",
+    findings: list[dict] | None = None,
+    rerun_commands: list[str] | None = None,
+    next_action: str | None = None,
+    loop_run_id: str | None = None,
+) -> Path:
+    from scripts.harness_evaluator_cli import create_task_bundle
+
+    template_root = repo_root / ".codex" / "evaluations" / "templates"
+    template_root.mkdir(parents=True, exist_ok=True)
+    (template_root / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+    (template_root / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+    task_id = str(run["task_id"])
+    run_id = str(run["run_id"])
+    contract_path = legacy.run_dir_for(repo_root, run_id) / "task-contract.json"
+    if not contract_path.exists():
+        scenario_path = (
+            repo_root / "docs" / "harness" / "evaluator-scenarios" / f"{task_id}.json"
+        )
+        scenario_path.parent.mkdir(parents=True, exist_ok=True)
+        scenario_path.write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "must_simulate": True,
+                    "user_scenarios": [
+                        {
+                            "scenario_id": "TEST-01",
+                            "user_goal": "Exercise the loop evaluator fixture.",
+                            "prerequisites": [],
+                            "entrypoint": "python3 -c \"print('ok')\"",
+                            "steps": ["Run the fixture."],
+                            "expected_outcomes": ["The fixture passes."],
+                            "failure_signals": ["The fixture fails."],
+                            "cleanup": [],
+                            "automation_hint": "shell",
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    bundle = create_task_bundle(
+        repo_root,
+        task_id,
+        1,
+        bundle_name=bundle_name,
+        task_contract_path=contract_path if contract_path.exists() else None,
+    )
+    input_path = bundle / "input.json"
+    input_payload = legacy.read_json_file(input_path)
+    input_payload["loop_run_id"] = loop_run_id or run_id
+    input_payload["loop_generator_attempt"] = int(run["attempts"]["generator"])
+    legacy.write_json_file(input_path, input_payload)
+    scenario_results = []
+    if status == "pass" and input_payload.get("must_simulate"):
+        scenario_results = [
+            {
+                "scenario_id": scenario["scenario_id"],
+                "status": "pass",
+                "evidence": ["scenario-command-results.json"],
+                "notes": "scenario passed",
+            }
+            for scenario in input_payload["user_scenarios"]
+        ]
+    legacy.write_json_file(
+        bundle / "result.json",
+        {
+            "status": status,
+            "gate": "task",
+            "task_id": task_id,
+            "final_bundle_id": "",
+            "attempt": int(input_payload["attempt"]),
+            "summary": summary or status,
+            "findings": findings or [],
+            "scenario_results": scenario_results,
+            "rerun_commands": rerun_commands or [],
+            "environment_checks": [],
+            "verdict_reason": summary or status,
+            "next_action": next_action
+            or ("proceed_to_user_acceptance" if status == "pass" else "repair_task"),
+        },
+    )
+    return bundle
 
 
 def _continuation_request(
@@ -243,33 +337,18 @@ def test_codex_evaluator_bootstraps_missing_loop_session_state(
     def evaluator_pass(command: list[str], **_kwargs: object) -> object:
         if command[0] == "git":
             raise legacy.subprocess.CalledProcessError(128, command)
-        assert "run-task-auto-gate" in command
+        assert "run-task-gate-once" in command
         sessions = list(session_dir.glob("*.json"))
         assert len(sessions) == 1
         session = legacy.read_json_file(sessions[0])
         assert session["task"] == run["task_id"]
         assert Path(session["worktree"]).resolve() == tmp_path.resolve()
         assert session["branch"] == run["branch"]
-        bundle = (
-            tmp_path
-            / ".codex"
-            / "evaluations"
-            / "tasks"
-            / run["task_id"]
-            / "20260716T000000Z-attempt-1"
-        )
-        bundle.mkdir(parents=True)
-        legacy.write_json_file(
-            bundle / "result.json",
-            {
-                "status": "pass",
-                "gate": "task",
-                "task_id": run["task_id"],
-                "attempt": 1,
-                "findings": [],
-                "rerun_commands": [],
-                "next_action": "proceed_to_user_acceptance",
-            },
+        _write_bound_task_result(
+            tmp_path,
+            run,
+            bundle_name="20260716T000000Z-attempt-1",
+            status="pass",
         )
         return legacy.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
@@ -314,40 +393,24 @@ def test_codex_evaluator_propagates_blocked_bundle_findings(
     def evaluator_blocked(command: list[str], **_kwargs: object) -> object:
         if command[0] == "git":
             raise legacy.subprocess.CalledProcessError(128, command)
-        assert "run-task-auto-gate" in command
-        bundle = (
-            tmp_path
-            / ".codex"
-            / "evaluations"
-            / "tasks"
-            / run["task_id"]
-            / "20260716T172922Z-attempt-1"
-        )
-        bundle.mkdir(parents=True)
-        legacy.write_json_file(
-            bundle / "result.json",
-            {
-                "status": "blocked",
-                "gate": "task",
-                "task_id": run["task_id"],
-                "final_bundle_id": "",
-                "attempt": 1,
-                "summary": "required browser evidence is missing",
-                "findings": [
-                    {
-                        "id": "F-001",
-                        "severity": "blocker",
-                        "category": "missing_evidence",
-                        "evidence": ["artifacts.json#scenario_outputs"],
-                        "recommended_action": "run the browser evaluator",
-                    }
-                ],
-                "scenario_results": [],
-                "rerun_commands": ["python3 scripts/browser_evaluator.py"],
-                "environment_checks": [],
-                "verdict_reason": "scenario evidence is absent",
-                "next_action": "request_missing_evidence",
-            },
+        assert "run-task-gate-once" in command
+        _write_bound_task_result(
+            tmp_path,
+            legacy.load_run(tmp_path, run["run_id"]),
+            bundle_name="20260716T172922Z-attempt-1",
+            status="blocked",
+            summary="required browser evidence is missing",
+            findings=[
+                {
+                    "id": "F-001",
+                    "severity": "blocker",
+                    "category": "missing_evidence",
+                    "evidence": ["artifacts.json#scenario_outputs"],
+                    "recommended_action": "run the browser evaluator",
+                }
+            ],
+            rerun_commands=["python3 scripts/browser_evaluator.py"],
+            next_action="request_missing_evidence",
         )
         return legacy.subprocess.CompletedProcess(command, 1, stdout="", stderr="")
 
@@ -486,6 +549,273 @@ def test_codex_evaluator_does_not_reuse_stale_success_bundle(
     assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "evaluating"
 
 
+def test_codex_evaluator_rejects_fresh_result_bound_to_another_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.harness_evaluator_cli import create_task_bundle
+
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Reject evaluator evidence from another loop run",
+        run_id="bound-evaluator-run",
+        task_id="bound-evaluator-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    run = legacy.load_run(tmp_path, run["run_id"])
+    template_root = tmp_path / ".codex" / "evaluations" / "templates"
+    template_root.mkdir(parents=True)
+    (template_root / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+    (template_root / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+
+    def evaluator_writes_wrong_binding(
+        command: list[str], **_kwargs: object
+    ) -> object:
+        if command[0] == "git":
+            raise legacy.subprocess.CalledProcessError(128, command)
+        bundle = create_task_bundle(
+            tmp_path,
+            run["task_id"],
+            1,
+            bundle_name="20260716T000000Z-attempt-1",
+        )
+        input_path = bundle / "input.json"
+        input_payload = legacy.read_json_file(input_path)
+        input_payload["loop_run_id"] = "another-loop-run"
+        input_payload["loop_generator_attempt"] = run["attempts"]["generator"]
+        legacy.write_json_file(input_path, input_payload)
+        legacy.write_json_file(
+            bundle / "result.json",
+            {
+                "status": "pass",
+                "gate": "task",
+                "task_id": run["task_id"],
+                "final_bundle_id": "",
+                "attempt": 1,
+                "summary": "pass from another run",
+                "findings": [],
+                "scenario_results": [
+                    {
+                        "scenario_id": scenario["scenario_id"],
+                        "status": "pass",
+                        "evidence": ["scenario-command-results.json"],
+                        "notes": "wrong binding",
+                    }
+                    for scenario in input_payload["user_scenarios"]
+                ],
+                "rerun_commands": [],
+                "environment_checks": [],
+                "verdict_reason": "pass",
+                "next_action": "proceed_to_user_acceptance",
+            },
+        )
+        return legacy.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(legacy.subprocess, "run", evaluator_writes_wrong_binding)
+    request = ActionRequest(
+        action_id="action-wrong-evaluator-binding",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="wrong-evaluator-binding",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.RETRYABLE_FAILURE
+    assert "without a result bundle" in result.summary
+    assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "evaluating"
+
+
+def test_codex_evaluator_rejects_bound_result_that_violates_bundle_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.harness_evaluator_cli import create_task_bundle
+
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Validate bound evaluator evidence before applying it",
+        run_id="invalid-bound-result-run",
+        task_id="invalid-bound-result-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    run = legacy.load_run(tmp_path, run["run_id"])
+    template_root = tmp_path / ".codex" / "evaluations" / "templates"
+    template_root.mkdir(parents=True)
+    (template_root / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+    (template_root / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+
+    def evaluator_writes_invalid_result(
+        command: list[str], **_kwargs: object
+    ) -> object:
+        if command[0] == "git":
+            raise legacy.subprocess.CalledProcessError(128, command)
+        bundle = create_task_bundle(
+            tmp_path,
+            run["task_id"],
+            1,
+            bundle_name="20260716T000000Z-attempt-1",
+        )
+        input_path = bundle / "input.json"
+        input_payload = legacy.read_json_file(input_path)
+        input_payload["loop_run_id"] = run["run_id"]
+        input_payload["loop_generator_attempt"] = run["attempts"]["generator"]
+        legacy.write_json_file(input_path, input_payload)
+        legacy.write_json_file(
+            bundle / "result.json",
+            {
+                "status": "pass",
+                "gate": "task",
+                "task_id": run["task_id"],
+                "final_bundle_id": "",
+                "attempt": 99,
+                "summary": "invalid attempt identity",
+                "findings": [],
+                "scenario_results": [],
+                "rerun_commands": [],
+                "environment_checks": [],
+                "verdict_reason": "pass",
+                "next_action": "proceed_to_user_acceptance",
+            },
+        )
+        return legacy.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(legacy.subprocess, "run", evaluator_writes_invalid_result)
+    request = ActionRequest(
+        action_id="action-invalid-bound-result",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="invalid-bound-result",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.TERMINAL_FAILURE
+    assert "result attempt does not match bundle input attempt" in result.summary
+    assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "evaluating"
+
+
+def test_codex_evaluator_applies_completed_result_bound_to_same_generator(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.harness_evaluator_cli import create_task_bundle
+
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Apply a completed evaluator result after Worker recovery",
+        run_id="completed-evaluator-recovery-run",
+        task_id="completed-evaluator-recovery-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    run = legacy.load_run(tmp_path, run["run_id"])
+    bundle = _write_bound_task_result(
+        tmp_path,
+        run,
+        bundle_name="20260716T000000Z-attempt-1",
+        status="pass",
+    )
+    monkeypatch.setattr(
+        legacy.subprocess,
+        "run",
+        lambda command, **_kwargs: legacy.subprocess.CompletedProcess(
+            command, 0, stdout="", stderr=""
+        ),
+    )
+    request = ActionRequest(
+        action_id="action-completed-evaluator-recovery",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="completed-evaluator-recovery",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.SUCCESS
+    assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "passed_waiting_human_merge"
+    assert legacy.read_json_file(
+        legacy.run_dir_for(tmp_path, run["run_id"]) / "evaluator-result.json"
+    )["evaluation_bundle_path"] == str(bundle.relative_to(tmp_path))
+
+
+def test_codex_evaluator_does_not_accept_bound_pass_when_process_exits_nonzero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = legacy.create_preflight_run(
+        repo_root=tmp_path,
+        mode="demand-development",
+        requirement="Reject a stale pass after an evaluator process failure",
+        run_id="evaluator-exit-mismatch-run",
+        task_id="evaluator-exit-mismatch-task",
+        confirm=True,
+    )
+    legacy._run_planner(tmp_path, run["run_id"], driver="fake")
+    legacy._run_generator(tmp_path, run["run_id"], driver="fake")
+    run = legacy.load_run(tmp_path, run["run_id"])
+    _write_bound_task_result(
+        tmp_path,
+        run,
+        bundle_name="20260716T000000Z-attempt-1",
+        status="pass",
+    )
+    monkeypatch.setattr(
+        legacy.subprocess,
+        "run",
+        lambda command, **_kwargs: legacy.subprocess.CompletedProcess(
+            command,
+            2,
+            stdout="",
+            stderr="evaluator infrastructure failed",
+        ),
+    )
+    request = ActionRequest(
+        action_id="action-evaluator-exit-mismatch",
+        run_id=run["run_id"],
+        run_revision=0,
+        policy="demand_development",
+        phase="evaluating",
+        action_type=ActionType.RUN_EVALUATOR,
+        idempotency_key="evaluator-exit-mismatch",
+        task_id=run["task_id"],
+        next_action="run_evaluator",
+        payload={"driver": "codex-exec", "max_attempts": 1},
+    )
+
+    result = legacy._run_bounded_evaluator(tmp_path, request)
+
+    assert result.result_class is ActionResultClass.RETRYABLE_FAILURE
+    assert "exit code does not match" in result.summary
+    assert legacy.load_run(tmp_path, run["run_id"])["phase"] == "evaluating"
+
+
 def test_codex_evaluator_prefers_fresh_real_bundle_over_old_fake_attempt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -519,19 +849,23 @@ def test_codex_evaluator_prefers_fresh_real_bundle_over_old_fake_attempt(
     def evaluator_blocked(command: list[str], **_kwargs: object) -> object:
         if command[0] == "git":
             raise legacy.subprocess.CalledProcessError(128, command)
-        real_bundle = task_root / "20260716T172922Z-attempt-1"
-        real_bundle.mkdir(parents=True)
-        legacy.write_json_file(
-            real_bundle / "result.json",
-            {
-                "status": "blocked",
-                "gate": "task",
-                "task_id": run["task_id"],
-                "attempt": 1,
-                "findings": [{"id": "REAL-001"}],
-                "rerun_commands": ["python3 scripts/real_evaluator.py"],
-                "next_action": "request_missing_evidence",
-            },
+        _write_bound_task_result(
+            tmp_path,
+            legacy.load_run(tmp_path, run["run_id"]),
+            bundle_name="20260716T172922Z-attempt-1",
+            status="blocked",
+            summary="real evaluator blocked",
+            findings=[
+                {
+                    "id": "REAL-001",
+                    "severity": "blocker",
+                    "category": "missing_evidence",
+                    "evidence": ["artifacts.json#scenario_outputs"],
+                    "recommended_action": "run the real evaluator",
+                }
+            ],
+            rerun_commands=["python3 scripts/real_evaluator.py"],
+            next_action="request_missing_evidence",
         )
         return legacy.subprocess.CompletedProcess(command, 1, stdout="", stderr="")
 
@@ -556,7 +890,7 @@ def test_codex_evaluator_prefers_fresh_real_bundle_over_old_fake_attempt(
     )
     assert result.result_class is ActionResultClass.SUCCESS
     assert evaluator_result["status"] == "blocked"
-    assert evaluator_result["findings"] == [{"id": "REAL-001"}]
+    assert [finding["id"] for finding in evaluator_result["findings"]] == ["REAL-001"]
     assert evaluator_result["attempt"] == 1
 
 

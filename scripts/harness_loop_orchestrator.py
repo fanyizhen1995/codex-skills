@@ -70,7 +70,10 @@ try:
         summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
-    from scripts.harness_evaluator_state import repo_roots_for_harness
+    from scripts.harness_evaluator_state import (
+        repo_roots_for_harness,
+        validate_task_eval_result_against_input,
+    )
     from scripts.harness_loop_runtime_lock import acquire_run_lock
     from scripts.loop_supervisor.failures import (
         BoundedFailure,
@@ -130,7 +133,10 @@ except ModuleNotFoundError:
         summarize_formal_verification,
         validate_governance_preflight_evidence,
     )
-    from harness_evaluator_state import repo_roots_for_harness  # type: ignore[no-redef]
+    from harness_evaluator_state import (  # type: ignore[no-redef]
+        repo_roots_for_harness,
+        validate_task_eval_result_against_input,
+    )
     from harness_loop_runtime_lock import acquire_run_lock  # type: ignore[no-redef]
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.loop_supervisor.failures import (  # type: ignore[no-redef]
@@ -1489,27 +1495,59 @@ def _latest_fake_evaluator_result(repo_root: Path | str, task_id: str) -> Path |
     return max(result_paths, key=lambda path: (attempt_number(path), path.stat().st_mtime_ns))
 
 
-def _artifact_fingerprint(path: Path | None) -> tuple[str, int] | None:
-    if path is None:
-        return None
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns
-    except OSError:
-        return None
-
-
-def _task_evaluator_result_fingerprints(
-    repo_root: Path | str, task_id: str
-) -> dict[Path, tuple[str, int]]:
+def _task_evaluator_result_for_loop_generator(
+    repo_root: Path | str,
+    task_id: str,
+    run_id: str,
+    generator_attempt: int,
+    task_contract_path: Path | None = None,
+) -> Path | None:
     task_root = Path(repo_root) / ".codex" / "evaluations" / "tasks" / task_id
-    fingerprints: dict[Path, tuple[str, int]] = {}
-    for path in task_root.glob("*/result.json"):
-        if path.parent.name.startswith("fake-attempt-"):
+    task_contract_sha256 = (
+        hashlib.sha256(task_contract_path.read_bytes()).hexdigest()
+        if task_contract_path is not None
+        else ""
+    )
+    matches: list[tuple[int, Path]] = []
+    for result_path in task_root.glob("*/result.json"):
+        if result_path.parent.name.startswith("fake-attempt-"):
             continue
-        fingerprint = _artifact_fingerprint(path)
-        if fingerprint is not None:
-            fingerprints[path] = fingerprint
-    return fingerprints
+        try:
+            input_payload = read_json_file(result_path.parent / "input.json")
+        except (OSError, ValueError):
+            continue
+        if (
+            input_payload.get("gate") == "task"
+            and input_payload.get("task_id") == task_id
+            and input_payload.get("loop_run_id") == run_id
+            and input_payload.get("loop_generator_attempt") == generator_attempt
+        ):
+            if (
+                task_contract_path is not None
+                and (
+                    input_payload.get("scenario_source") != str(task_contract_path)
+                    or input_payload.get("task_contract_sha256")
+                    != task_contract_sha256
+                )
+            ):
+                continue
+            result_payload = read_json_file(result_path)
+            try:
+                validate_task_eval_result_against_input(
+                    input_payload,
+                    result_payload,
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    f"bound task evaluator bundle is invalid: {exc}"
+                ) from exc
+            matches.append((int(input_payload["attempt"]), result_path))
+    if not matches:
+        return None
+    return max(
+        matches,
+        key=lambda item: (item[0], item[1].parent.name),
+    )[1]
 
 
 def _generator_result_has_artifacts(run_dir: Path) -> bool:
@@ -1777,26 +1815,25 @@ def _run_evaluator(
         command = [
             "python3",
             "scripts/harness_evaluator_orchestrator.py",
-            "run-task-auto-gate",
+            "run-task-gate-once",
             "--driver",
             "codex-exec",
             "--task-id",
             task_id,
-            "--max-attempts",
-            str(max_attempts),
             "--repo-root",
             str(root),
+            "--loop-run-id",
+            run_id,
+            "--generator-attempt",
+            str(run["attempts"]["generator"]),
+            "--max-attempts",
+            str(max_attempts),
         ]
         if task_contract_path.exists():
             command.extend(["--task-contract", str(task_contract_path)])
     else:
         raise ValueError(f"unsupported evaluator driver: {driver}")
 
-    previous_task_results = (
-        _task_evaluator_result_fingerprints(root, task_id)
-        if driver == "codex-exec"
-        else {}
-    )
     result = subprocess.run(
         command,
         cwd=checkout_root,
@@ -1805,36 +1842,39 @@ def _run_evaluator(
         text=True,
     )
     evaluator_status = "pass" if result.returncode == 0 else "fail"
-    current_task_results = (
-        _task_evaluator_result_fingerprints(root, task_id)
+    bound_task_result = (
+        _task_evaluator_result_for_loop_generator(
+            root,
+            task_id,
+            run_id,
+            int(run["attempts"]["generator"]),
+            task_contract_path if task_contract_path.exists() else None,
+        )
         if driver == "codex-exec"
-        else {}
+        else None
     )
-    fresh_task_results = [
-        path
-        for path, fingerprint in current_task_results.items()
-        if previous_task_results.get(path) != fingerprint
-    ]
-    if driver == "codex-exec" and not fresh_task_results:
+    if driver == "codex-exec" and bound_task_result is None:
         diagnostic = result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
         raise RuntimeError(
-            "evaluator process completed without a result bundle produced by this "
-            f"invocation: {diagnostic}"
+            "evaluator process completed without a result bundle validly bound to the "
+            f"current loop run and Generator attempt: {diagnostic}"
         )
 
     task_result: dict[str, Any] | None = None
     task_result_path: Path | None = None
-    if driver == "codex-exec" and fresh_task_results:
-        task_result_path = max(
-            fresh_task_results,
-            key=lambda path: (path.stat().st_mtime_ns, path.parent.name),
-        )
+    if driver == "codex-exec" and bound_task_result is not None:
+        task_result_path = bound_task_result
         task_result = read_json_file(task_result_path)
         if task_result.get("gate") != "task" or task_result.get("task_id") != task_id:
             raise ValueError("task evaluator result identity does not match the loop task")
         task_status = str(task_result.get("status") or "")
         if task_status not in {"pass", "fail", "blocked"}:
             raise ValueError(f"task evaluator result has invalid status: {task_status!r}")
+        if (result.returncode == 0) != (task_status == "pass"):
+            raise RuntimeError(
+                "task evaluator process exit code does not match its bound result: "
+                f"exit={result.returncode}, status={task_status}"
+            )
         evaluator_status = task_status
     if driver == "fake":
         latest_result = _latest_fake_evaluator_result(root, task_id)

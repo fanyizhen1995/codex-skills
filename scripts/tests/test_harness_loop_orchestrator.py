@@ -7122,21 +7122,51 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     ],
                 },
             )
+            template_root = repo_root / ".codex" / "evaluations" / "templates"
+            template_root.mkdir(parents=True)
+            (template_root / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+            (template_root / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+
             def completed_evaluation(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess:
                 if command[0] == "git":
                     raise subprocess.CalledProcessError(128, command)
-                task_root = repo_root / ".codex" / "evaluations" / "tasks" / "contract-task"
-                bundle = task_root / "20260716T000000Z-attempt-1"
-                bundle.mkdir(parents=True)
+                from scripts.harness_evaluator_cli import create_task_bundle
+
+                bundle = create_task_bundle(
+                    repo_root,
+                    "contract-task",
+                    1,
+                    bundle_name="20260716T000000Z-attempt-1",
+                    task_contract_path=run_dir / "task-contract.json",
+                )
+                input_path = bundle / "input.json"
+                input_payload = read_json_file(input_path)
+                input_payload["loop_run_id"] = command[command.index("--loop-run-id") + 1]
+                input_payload["loop_generator_attempt"] = int(
+                    command[command.index("--generator-attempt") + 1]
+                )
+                write_json_file(input_path, input_payload)
                 write_json_file(
                     bundle / "result.json",
                     {
                         "status": "pass",
                         "gate": "task",
                         "task_id": "contract-task",
+                        "final_bundle_id": "",
                         "attempt": 1,
+                        "summary": "pass",
                         "findings": [],
+                        "scenario_results": [
+                            {
+                                "scenario_id": "CONTRACT-01",
+                                "status": "pass",
+                                "evidence": ["scenario-command-results.json"],
+                                "notes": "pass",
+                            }
+                        ],
                         "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "pass",
                         "next_action": "proceed_to_user_acceptance",
                     },
                 )
@@ -8611,10 +8641,57 @@ class HarnessLoopDemandMultiTaskTests(unittest.TestCase):
                 if command[:2] == ["git", "status"]:
                     return subprocess.CompletedProcess(command, 128, "", "")
                 evaluator_commands.append(command)
-                self.assertIn("run-task-auto-gate", command)
+                self.assertIn("run-task-gate-once", command)
                 self.assertIn("--driver", command)
                 self.assertIn("codex-exec", command)
                 self.assertIn("--task-contract", command)
+                from scripts.harness_evaluator_cli import create_task_bundle
+
+                template_root = repo_root / ".codex" / "evaluations" / "templates"
+                template_root.mkdir(parents=True, exist_ok=True)
+                (template_root / "artifacts.template.json").write_text("{}\n", encoding="utf-8")
+                (template_root / "summary.template.md").write_text("# Summary\n", encoding="utf-8")
+                task_id = command[command.index("--task-id") + 1]
+                task_contract = Path(command[command.index("--task-contract") + 1])
+                bundle = create_task_bundle(
+                    repo_root,
+                    task_id,
+                    1,
+                    bundle_name="20260716T000000Z-attempt-1",
+                    task_contract_path=task_contract,
+                )
+                input_path = bundle / "input.json"
+                input_payload = read_json_file(input_path)
+                input_payload["loop_run_id"] = command[command.index("--loop-run-id") + 1]
+                input_payload["loop_generator_attempt"] = int(
+                    command[command.index("--generator-attempt") + 1]
+                )
+                write_json_file(input_path, input_payload)
+                write_json_file(
+                    bundle / "result.json",
+                    {
+                        "status": "pass",
+                        "gate": "task",
+                        "task_id": task_id,
+                        "final_bundle_id": "",
+                        "attempt": 1,
+                        "summary": "pass",
+                        "findings": [],
+                        "scenario_results": [
+                            {
+                                "scenario_id": scenario["scenario_id"],
+                                "status": "pass",
+                                "evidence": ["scenario-command-results.json"],
+                                "notes": "pass",
+                            }
+                            for scenario in input_payload["user_scenarios"]
+                        ],
+                        "rerun_commands": [],
+                        "environment_checks": [],
+                        "verdict_reason": "pass",
+                        "next_action": "proceed_to_user_acceptance",
+                    },
+                )
                 return subprocess.CompletedProcess(command, 0, "codex evaluator pass\n", "")
 
             with (

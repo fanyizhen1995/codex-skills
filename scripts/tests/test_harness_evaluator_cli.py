@@ -182,6 +182,7 @@ class HarnessEvaluatorCliTests(unittest.TestCase):
                         / "evaluator-scenarios"
                         / "harness-evaluator-gates-01.json"
                     ),
+                    "task_contract_sha256": "",
                     "user_scenarios": [],
                 },
             )

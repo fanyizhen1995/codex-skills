@@ -1273,3 +1273,39 @@ def test_desired_action_always_uses_transition_registry(tmp_path, monkeypatch):
 
     assert action.action_type is ActionType.RUN_PLANNER
     assert calls == [("autonomous_knowledge", "planning", "run_autonomous_planner")]
+
+
+def test_desired_evaluator_action_propagates_run_attempt_limit():
+    run = {
+        "run_id": "evaluator-limit-run",
+        "task_id": "evaluator-limit-task",
+        "policy": "demand_development",
+        "phase": "evaluating",
+        "next_action": "run_evaluator",
+        "limits": {"max_eval_attempts_per_task": 7},
+    }
+
+    action = desired_action_for_run(run)
+
+    assert action is not None
+    assert action.action_type is ActionType.RUN_EVALUATOR
+    assert action.payload["max_attempts"] == 7
+
+
+def test_evaluator_action_identity_changes_when_attempt_limit_changes():
+    run = {
+        "run_id": "evaluator-limit-identity-run",
+        "task_id": "evaluator-limit-identity-task",
+        "policy": "demand_development",
+        "phase": "evaluating",
+        "next_action": "run_evaluator",
+        "limits": {"max_eval_attempts_per_task": 2},
+    }
+
+    first = desired_action_for_run(run)
+    run["limits"]["max_eval_attempts_per_task"] = 4
+    second = desired_action_for_run(run)
+
+    assert first is not None
+    assert second is not None
+    assert first.idempotency_key != second.idempotency_key
