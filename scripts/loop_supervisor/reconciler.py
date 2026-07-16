@@ -27,7 +27,7 @@ from scripts.harness_loop_runtime_lock import (
     validate_run_lock_token,
 )
 
-from .models import ActionRequest, ActionType
+from .models import ActionOwner, ActionRequest, ActionType
 from .recovery import recovery_action_for_run
 from .registry import transition_for
 from .reviewer import schedule_due_reviews
@@ -1426,6 +1426,13 @@ def _reconcile_once_locked(
     payload_by_run = {record.run_id: record.payload for record in valid_records}
     queued: list[ActionRequest] = []
     if not global_stop:
+        review_actions = schedule_due_reviews(
+            store,
+            now=store.current_time(),
+            busy_run_ids=locked_run_ids,
+        )
+        queued.extend(review_actions)
+        reviewer_blocked_lineages = _active_reviewer_lineages(store)
         for record in valid_records:
             if record.run_id in blocked_run_ids:
                 continue
@@ -1447,6 +1454,13 @@ def _reconcile_once_locked(
                     continue
             action = desired_by_run.get(record.run_id)
             if action is None:
+                continue
+            projection = store.get_run(record.run_id)
+            if (
+                action.action_type is ActionType.RUN_PLANNER
+                and str(projection.get("loop_lineage_id") or record.run_id)
+                in reviewer_blocked_lineages
+            ):
                 continue
             if record.payload.get("run_kind") == "parent" and record.payload.get(
                 "phase"
@@ -1472,20 +1486,33 @@ def _reconcile_once_locked(
             )
             queued.append(action)
 
-        queued.extend(
-            schedule_due_reviews(
-                store,
-                now=store.current_time(),
-                busy_run_ids=locked_run_ids,
-            )
-        )
-
     return ReconcileResult(
         queued_actions=queued,
         open_user_decisions=decisions,
         run_records=result_records,
         shadow=shadow,
     )
+
+
+def _active_reviewer_lineages(store: SupervisorStore) -> set[str]:
+    lineages: set[str] = set()
+    for row in store.fetch_all("actions"):
+        if (
+            row.get("action_type") != ActionType.RUN_REVIEWER.value
+            or row.get("queue_owner") != ActionOwner.REVIEWER.value
+            or row.get("status") not in {"pending", "leased", "running"}
+        ):
+            continue
+        try:
+            payload = json.loads(str(row.get("payload_json") or "{}"))
+        except json.JSONDecodeError:
+            continue
+        values = payload.get("triggering_lineages") if isinstance(payload, Mapping) else None
+        if isinstance(values, list):
+            lineages.update(
+                value for value in values if isinstance(value, str) and value
+            )
+    return lineages
 
 
 def _archived_legacy_states(

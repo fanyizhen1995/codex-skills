@@ -813,6 +813,31 @@ def test_busy_parent_projection_gives_legacy_child_lineage_without_review(tmp_pa
     store.close()
 
 
+def test_due_reviewer_reservation_blocks_only_the_next_parent_planner(tmp_path):
+    run_id = "review-boundary"
+    seed_run(
+        tmp_path,
+        run_id,
+        task_id=f"{run_id}-parent-3",
+        parent_task_counter=2,
+        semantic_parent_task_next=3,
+        loop_lineage_id=run_id,
+        _autonomous_completed_task_ids=["parent-1", "parent-2"],
+    )
+    store = migrated_store(tmp_path)
+
+    result = reconcile_once(tmp_path, store, include_worktrees=False)
+
+    actions = [action for action in result.queued_actions if action.run_id == run_id]
+    assert [action.action_type for action in actions] == [ActionType.RUN_REVIEWER]
+    assert not any(
+        row["action_type"] == ActionType.RUN_PLANNER.value
+        for row in store.fetch_all("actions")
+        if row["run_id"] == run_id
+    )
+    store.close()
+
+
 def test_busy_run_record_payload_is_sanitized_in_reconcile_result(tmp_path):
     run_path = seed_run(tmp_path, "busy")
     payload = json.loads(run_path.read_text(encoding="utf-8"))
