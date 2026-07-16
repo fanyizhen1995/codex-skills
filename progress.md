@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-16 Unified Loop Supervisor Completion
+
+- Completed `loop-supervisor-unification-01`: one SQLite-backed Supervisor now owns reconciliation, bounded Planner/Generator/Evaluator scheduling, recovery, project-global Reviewer cadence, user decisions, service keepalive, and Dashboard projections; the Worker remains the independent action executor.
+- Preserved the live migration chain: parent-22 recovery (`77b0429`) and four post-cutover semantic parents (`5e7d775`, `e772bb9`, `ebb1d17`, `c7e9d5b`) are all contained by `origin/main`.
+- Fixed final live defects in `208ae35` and `366a4e4`: Reviewer leases renew during atomic writes; long-lived run projections stay within 4096 characters/8192 bytes; same-revision summary format upgrades remain fingerprint-bound; compacted autonomous and demand-parent progress retains stable Reviewer cadence.
+- Exact task verification passed: 675 Supervisor/harness tests, 189 Dashboard backend tests, 47 frontend/evaluator tests, Dashboard browser evaluator, 8-scenario isolated Supervisor E2E, AI Infra wiki validation, service health, JSON validation, and `git diff --check`.
+- Task evaluator attempt 3 passed both required browser/runtime scenarios. The populated final evaluator bundle also passed with no findings and `proceed_to_user_acceptance`.
+- Evidence:
+  - `docs/harness/reports/2026-07-16-loop-supervisor-unification-final.md`
+  - `.codex/loop-dashboard-eval/loop-supervisor-unification-01/result.json`
+  - `.codex/loop-supervisor-e2e/loop-supervisor-unification-01/result.json`
+  - `.codex/evaluations/finals/loop-supervisor-unification-01/20260716T204417Z-attempt-1/result.json`
+- Runtime after restart: crawler backend `8765`, crawler frontend `5173`, Loop Dashboard `8766`, `loop-supervisor`, and `loop-supervisor-worker` are online; Supervisor SQLite integrity and foreign keys are healthy.
+
 ## 2026-07-10 Autonomous Loop Continuation Hardening
 
 - Completed `loop-runtime-continuation-hardening-01`: Supervisor now owns idempotent `stopped_budget` continuation creation, while `loop-auto-resume` exclusively executes actionable runs under per-run locks and automatically retries transient autonomous commit inspection failures.

@@ -1,7 +1,7 @@
 {
   "project": "codex-skills",
-  "last_updated": "2026-07-10",
-  "current_focus": "Harden autonomous loop continuation ownership, inherited parent/audit state, service and data freshness, Dashboard decisions, automatic push, then ingest the July 9 SGLang raw batch and monitor four AI infra parent rounds.",
+  "last_updated": "2026-07-16",
+  "current_focus": "Keep the unified Loop Supervisor, Worker, Dashboard, and Crawler Workbench online, then resume AI infra expansion and ingest the pending crawler raw evidence.",
   "eval_defaults": {
     "task_level_required": true,
     "final_level_required": false,
@@ -339,7 +339,7 @@
       "id": "loop-supervisor-unification-01",
       "title": "Unify loop control under Supervisor",
       "description": "Replace the overlapping Supervisor, auto-resume, orchestrator, and Auditor control roles with one SQLite-backed Loop Supervisor subsystem and an independent Executor Worker; move bounded Planner/Generator/Evaluator execution into internal Supervisor executors; add one shared transition registry, three-tier automatic recovery with partial-artifact salvage, a real project-global LLM Supervisor Reviewer every two semantic parent tasks, run-scoped user decisions, state-change-only retention, Skill Governance, real Dashboard tabs, and server-side cursor pagination; migrate the live runtime without losing parent-22 or pending crawler raw work and prove four autonomous parent tasks complete without manual phase advancement.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "blocked_by": "loop-runtime-continuation-hardening-01",
       "verify": "python3 -m pytest -q scripts/tests/test_harness_loop_supervisor_models.py scripts/tests/test_harness_loop_supervisor_store.py scripts/tests/test_harness_loop_supervisor_registry.py scripts/tests/test_harness_loop_supervisor_executors.py scripts/tests/test_harness_loop_supervisor_worker.py scripts/tests/test_harness_loop_supervisor_recovery.py scripts/tests/test_harness_loop_supervisor_reviewer.py scripts/tests/test_harness_loop_supervisor_migration.py scripts/tests/test_harness_loop_supervisor.py scripts/tests/test_harness_loop_runtime_lock.py scripts/tests/test_harness_loop_contracts.py scripts/tests/test_loop_supervisor_e2e_evaluator.py && PYTHONPATH=apps/loop_dashboard/backend python3 -m pytest -q apps/loop_dashboard/backend/tests && node --check apps/loop_dashboard/frontend/pagination.js && node --check apps/loop_dashboard/frontend/supervisor.js && node --check apps/loop_dashboard/frontend/app.js && python3 -m pytest -q apps/loop_dashboard/frontend/test_supervisor_contract.py scripts/tests/test_loop_dashboard_evaluator.py && python3 scripts/loop_dashboard_evaluator.py --repo-root . --output-dir .codex/loop-dashboard-eval/loop-supervisor-unification-01 --scenario loop-supervisor-unification-01 && python3 scripts/loop_supervisor_e2e_evaluator.py --repo-root . --output-dir .codex/loop-supervisor-e2e/loop-supervisor-unification-01 && python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra && curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health && curl --noproxy '*' -fsSI http://127.0.0.1:5173/ && curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health && tmux has-session -t loop-supervisor && tmux has-session -t loop-supervisor-worker && python3 -m json.tool tasks.json >/dev/null && python3 -m json.tool docs/harness/evaluator-scenarios/loop-supervisor-unification-01.json >/dev/null && git diff --check",
