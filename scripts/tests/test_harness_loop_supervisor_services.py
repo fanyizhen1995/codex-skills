@@ -539,6 +539,14 @@ def test_empty_search_response_is_stale(tmp_path: Path) -> None:
     assert search["summary"] == "search response contract mismatch"
 
 
+def test_search_freshness_uses_a_known_local_knowledge_seed() -> None:
+    from scripts.loop_supervisor import services
+
+    targets = dict(services._FRESHNESS_TARGETS)
+
+    assert targets["search"].endswith("/api/search?q=SGLang")
+
+
 def test_running_service_reports_its_old_fingerprint_not_new_repo_revision(
     tmp_path: Path,
 ) -> None:

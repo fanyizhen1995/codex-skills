@@ -43,7 +43,7 @@ _SERVICE_TARGETS = (
 )
 _FRESHNESS_TARGETS = (
     ("wiki", "http://127.0.0.1:8765/api/wiki/metrics"),
-    ("search", "http://127.0.0.1:8765/api/search?q=supervisor"),
+    ("search", "http://127.0.0.1:8765/api/search?q=SGLang"),
     ("dashboard", "http://127.0.0.1:8766/api/supervisor"),
 )
 _SERVICE_SESSIONS = {
