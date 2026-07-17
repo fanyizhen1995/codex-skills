@@ -16,7 +16,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterator, Mapping, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -5641,7 +5641,8 @@ def _check_autonomous_dirty_paths(
     ignored_paths = [
         path
         for path in actual_paths
-        if _is_autonomous_internal_dirty_path(path, str(run["run_id"]), str(run["task_id"]))
+        if path not in declared
+        and _is_autonomous_ignored_dirty_path(repo_root, run, path)
     ]
     unexpected_paths = sorted(
         path
@@ -5740,6 +5741,97 @@ def _parse_porcelain_paths(line: str) -> list[str]:
     return [path_value]
 
 
+def _is_autonomous_ignored_dirty_path(
+    repo_root: Path, run: Mapping[str, Any], path: str
+) -> bool:
+    return _is_autonomous_internal_dirty_path(
+        path,
+        str(run.get("run_id") or ""),
+        str(run.get("task_id") or ""),
+    ) or _is_autonomous_untracked_byproduct_path(repo_root, run, path)
+
+
+def _is_autonomous_untracked_byproduct_path(
+    repo_root: Path, run: Mapping[str, Any], path: str
+) -> bool:
+    if not _is_untracked_regular_repo_file(repo_root, path):
+        return False
+    if _is_autonomous_denied_dirty_path(run, path):
+        return False
+    if (
+        path.startswith("generated/")
+        or path.endswith(".redacted")
+        or _is_current_domain_crawler_raw_path(run, path)
+    ):
+        return True
+    return _is_stale_autonomous_gap_proof_path(repo_root, run, path)
+
+
+def _is_current_domain_crawler_raw_path(run: Mapping[str, Any], path: str) -> bool:
+    domain = str(run.get("domain") or "").strip()
+    if not domain or "/" in domain or "\\" in domain:
+        return False
+    prefix = f"personal-wiki/domains/{domain}/raw/crawler/"
+    return path.startswith(prefix) and len(path) > len(prefix)
+
+
+def _is_autonomous_denied_dirty_path(run: Mapping[str, Any], path: str) -> bool:
+    denylist = [str(item) for item in run.get("denylist_paths", []) if isinstance(item, str)]
+    if not denylist:
+        return False
+    scope = check_autonomous_scope([path], ["**"], denylist, [])
+    return path in scope.denied_paths
+
+
+def _is_untracked_regular_repo_file(repo_root: Path, path: str) -> bool:
+    if not path or Path(path).is_absolute() or "\\" in path:
+        return False
+    raw = PurePosixPath(path)
+    if ".." in raw.parts:
+        return False
+    candidate = repo_root / path
+    try:
+        repo = repo_root.resolve()
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(repo)
+    except (OSError, ValueError):
+        return False
+    if candidate.is_symlink() or not resolved.is_file():
+        return False
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", path],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode != 0
+
+
+def _is_stale_autonomous_gap_proof_path(
+    repo_root: Path, run: Mapping[str, Any], path: str
+) -> bool:
+    domain = str(run.get("domain") or "").strip()
+    if not domain or "/" in domain or "\\" in domain:
+        return False
+    prefix = f"personal-wiki/domains/{domain}/manifest-"
+    if not path.startswith(prefix) or not path.endswith("-gap-proof.json"):
+        return False
+    try:
+        payload = read_json_file(repo_root / path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    artifact_task = str(payload.get("task_id") or "").strip()
+    artifact_run = str(payload.get("run_id") or "").strip()
+    current_task = str(run.get("task_id") or "").strip()
+    current_run = str(run.get("run_id") or "").strip()
+    if artifact_task:
+        return artifact_task != current_task
+    if artifact_run:
+        return artifact_run != current_run
+    return False
+
+
 def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> bool:
     return (
         path.startswith(f".codex/loop-runs/{run_id}/")
@@ -5748,12 +5840,6 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
         or path.startswith(".codex/evaluations/finals/")
         or path.startswith(".codex/service-runtime/")
         or path.startswith(".codex/supervisor/")
-        or bool(
-            re.fullmatch(
-                r"personal-wiki/domains/[^/]+/raw/crawler/.+",
-                path,
-            )
-        )
         or path
         in {
             ".codex/loop-supervisor.log",

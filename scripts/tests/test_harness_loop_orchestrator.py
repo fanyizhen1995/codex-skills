@@ -1648,6 +1648,49 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(dirty_result["claimed_baseline_paths"], [])
             self.assertEqual(dirty_result["baseline_changed_paths"], [raw_relative])
 
+    def test_check_autonomous_dirty_paths_blocks_undeclared_tracked_crawler_raw_change(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            raw_relative = (
+                "personal-wiki/domains/ai_infra/raw/crawler/"
+                "nccl-arxiv-papers/capture.md"
+            )
+            raw_path = repo_root / raw_relative
+            raw_path.parent.mkdir(parents=True)
+            raw_path.write_text("existing capture\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", raw_relative],
+                cwd=repo_root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: seed crawler raw"],
+                cwd=repo_root,
+                check=True,
+                capture_output=True,
+            )
+            raw_path.write_text("user-modified capture\n", encoding="utf-8")
+            run = {
+                "run_id": "demo-run",
+                "task_id": "demo-run-task-1",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [],
+            )
+
+            self.assertFalse(dirty_result["allowed"])
+            self.assertIn(raw_relative, dirty_result["unexpected_paths"])
+            self.assertNotIn(raw_relative, dirty_result["ignored_paths"])
+
     def test_check_autonomous_dirty_paths_ignores_current_run_runtime_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1768,6 +1811,181 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(crawler_relative, dirty_result["ignored_paths"])
             self.assertNotIn(crawler_relative, dirty_result["unexpected_paths"])
             self.assertIn(wiki_relative, dirty_result["unexpected_paths"])
+
+    def test_check_autonomous_dirty_paths_ignores_parent008_redacted_byproduct(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = (
+                "ai-infra-expansion-continuation-20260708-continuation-002-"
+                "continuation-007-continuation-008"
+            )
+            task_id = f"{run_id}-task-8"
+            declared_path = (
+                "personal-wiki/domains/ai_infra/wiki/references/"
+                "ai-infra-coverage-map.md"
+            )
+            declared = repo_root / declared_path
+            declared.parent.mkdir(parents=True, exist_ok=True)
+            declared.write_text("# Current Task Artifact\n", encoding="utf-8")
+            redacted_path = "scripts/tests/test_harness_loop_orchestrator.py.redacted"
+            redacted = repo_root / redacted_path
+            redacted.parent.mkdir(parents=True, exist_ok=True)
+            redacted.write_text("[REDACTED]\n", encoding="utf-8")
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [declared_path],
+            )
+
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertIn(redacted_path, dirty_result["ignored_paths"])
+            self.assertNotIn(redacted_path, dirty_result["unexpected_paths"])
+
+    def test_check_autonomous_dirty_paths_ignores_parent26_sibling_gap_proof_and_byproducts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = (
+                "ai-infra-expansion-continuation-20260708-continuation-002-"
+                "continuation-007-continuation-26b4d5f774"
+            )
+            task_id = f"{run_id}-task-2"
+            sibling_gap_proof = (
+                "personal-wiki/domains/ai_infra/"
+                "manifest-ai-infra-expansion-continuation-20260708-continuation-002-"
+                "continuation-007-continuation-008-task-8-gap-proof.json"
+            )
+            sibling = repo_root / sibling_gap_proof
+            sibling.parent.mkdir(parents=True, exist_ok=True)
+            sibling.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "run_id": (
+                            "ai-infra-expansion-continuation-20260708-"
+                            "continuation-002-continuation-007-continuation-008"
+                        ),
+                        "task_id": (
+                            "ai-infra-expansion-continuation-20260708-"
+                            "continuation-002-continuation-007-continuation-008-task-8"
+                        ),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            byproducts = [
+                "scripts/tests/test_harness_loop_orchestrator.py.redacted",
+                "generated/child-001.txt",
+            ]
+            for relative in byproducts:
+                path = repo_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("non-task byproduct\n", encoding="utf-8")
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [],
+            )
+
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertEqual(dirty_result["unexpected_paths"], [])
+            for relative in [sibling_gap_proof, *byproducts]:
+                self.assertIn(relative, dirty_result["ignored_paths"])
+
+    def test_check_autonomous_dirty_paths_blocks_undeclared_current_gap_proof(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = (
+                "ai-infra-expansion-continuation-20260708-continuation-002-"
+                "continuation-007-continuation-26b4d5f774"
+            )
+            task_id = f"{run_id}-task-2"
+            current_gap_proof = (
+                "personal-wiki/domains/ai_infra/"
+                f"manifest-{task_id}-gap-proof.json"
+            )
+            current = repo_root / current_gap_proof
+            current.parent.mkdir(parents=True, exist_ok=True)
+            current.write_text(
+                json.dumps({"schema_version": 1, "run_id": run_id, "task_id": task_id})
+                + "\n",
+                encoding="utf-8",
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [],
+            )
+
+            self.assertFalse(dirty_result["allowed"])
+            self.assertIn(current_gap_proof, dirty_result["unexpected_paths"])
+
+    def test_check_autonomous_dirty_paths_blocks_sensitive_byproduct_paths(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            sensitive_paths = [
+                "generated/secret-token.txt",
+                "generated/credential.redacted",
+            ]
+            for relative in sensitive_paths:
+                path = repo_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("sensitive byproduct\n", encoding="utf-8")
+            run = {
+                "run_id": "ai-infra-expansion-continuation-20260708",
+                "task_id": "ai-infra-expansion-continuation-20260708-parent-2",
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+                "denylist_paths": [
+                    "**/*secret*",
+                    "**/*token*",
+                    "**/*credential*",
+                ],
+            }
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [],
+            )
+
+            self.assertFalse(dirty_result["allowed"])
+            for relative in sensitive_paths:
+                self.assertIn(relative, dirty_result["unexpected_paths"])
+                self.assertNotIn(relative, dirty_result["ignored_paths"])
 
     def test_check_autonomous_dirty_paths_ignores_supervisor_reviewer_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
