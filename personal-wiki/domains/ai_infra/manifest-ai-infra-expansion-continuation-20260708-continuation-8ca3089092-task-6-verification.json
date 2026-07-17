@@ -1,0 +1,130 @@
+{
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-8ca3089092",
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6",
+  "status": "pass",
+  "verified_at": "2026-07-17T21:42:00+08:00",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-verification.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056438015Z-developer-nvidia-com-blog-designing-gpu-accelerated-query-engines-with-nvidia-gqe-ae88d57da8.parent-3.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+  ],
+  "verify_results": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-8ca3089092/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "summary": "planner-output.json satisfies validate_planner_output_payload"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "summary": "rebuilt personal-wiki/domains/ai_infra/wiki/index.md; no index diff resulted"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "summary": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "summary": "coverage-map.json parses as JSON"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "summary": "loop-state.json parses as JSON"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-gap-proof.json",
+      "status": "pass",
+      "summary": "gap-proof manifest parses as JSON"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "summary": "gap-proof manifest satisfies validate_gap_proof_file for task-6"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "summary": "coverage-map.json and loop-state.json satisfy harness loop contracts"
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra/ingest.md personal-wiki/domains/ai_infra/loop-state.json personal-wiki/domains/ai_infra/coverage-map.json personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+      "status": "pass",
+      "summary": "no whitespace errors"
+    },
+    {
+      "command": "targeted sensitive-pattern scan over changed ai_infra paths",
+      "status": "pass",
+      "summary": "no sensitive-pattern matches on changed ai_infra files"
+    },
+    {
+      "command": "delegated live check: service-availability",
+      "status": "delegated",
+      "summary": "Orchestrator-owned trusted live evidence must cover crawler backend, crawler frontend, and loop dashboard availability; generator did not run socket checks or start services."
+    },
+    {
+      "command": "delegated live check: crawler-workbench-freshness",
+      "status": "delegated",
+      "summary": "Orchestrator-owned trusted live evidence must cover crawler workbench source/channel/queue/wiki/search freshness."
+    },
+    {
+      "command": "delegated live check: loop-dashboard-freshness",
+      "status": "delegated",
+      "summary": "Orchestrator-owned trusted live evidence must cover current run, child tasks, agent actions, evaluator scenarios, and completed history visibility."
+    },
+    {
+      "command": "delegated live check: search-api-visibility",
+      "status": "delegated",
+      "summary": "Orchestrator-owned trusted live evidence must confirm search/API visibility for the newly promoted GQE terms."
+    },
+    {
+      "command": "delegated live check: frontend-visibility",
+      "status": "delegated",
+      "summary": "Orchestrator-owned trusted live evidence must confirm frontend visibility for the newly promoted GQE wiki content."
+    }
+  ],
+  "delegated_live_checks": [
+    {
+      "evidence_id": "service-availability",
+      "status": "delegated",
+      "artifact": "trusted-live-evidence/service-availability.json",
+      "summary": "Orchestrator-owned trusted live evidence must cover crawler backend, crawler frontend, and loop dashboard availability; generator did not run socket checks or start services."
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "status": "delegated",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json",
+      "summary": "Orchestrator-owned trusted live evidence must cover crawler workbench source/channel/queue/wiki/search freshness."
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "status": "delegated",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json",
+      "summary": "Orchestrator-owned trusted live evidence must cover current run, child tasks, agent actions, evaluator scenarios, and completed history visibility."
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "status": "delegated",
+      "artifact": "trusted-live-evidence/search-api-visibility.json",
+      "summary": "Orchestrator-owned trusted live evidence must confirm search/API visibility for the newly promoted GQE terms."
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "status": "delegated",
+      "artifact": "trusted-live-evidence/frontend-visibility.json",
+      "summary": "Orchestrator-owned trusted live evidence must confirm frontend visibility for the newly promoted GQE wiki content."
+    }
+  ],
+  "duplicate_refresh": {
+    "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260712T041352630104Z-developer-nvidia-com-blog-designing-gpu-accelerated-query-engines-with-nvidia-gqe-4214e3c020.md",
+    "status": "left_unstaged",
+    "summary": "After ignoring capture metadata, the July 12 article body differs from the July 5 capture only by an added tail `featured` tag."
+  }
+}

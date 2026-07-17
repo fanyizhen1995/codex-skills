@@ -174,6 +174,21 @@
       ]
     },
     {
+      "id": "nvidia-gqe-query-engine-data-path-task-6",
+      "title": "NVIDIA GQE GPU query-engine data-path evidence",
+      "source": "local NVIDIA Developer Blog raw capture",
+      "status": "known",
+      "updated_at": "2026-07-17T00:00:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-gap-proof.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056438015Z-developer-nvidia-com-blog-designing-gpu-accelerated-query-engines-with-nvidia-gqe-ae88d57da8.parent-3.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056438015Z-developer-nvidia-com-blog-designing-gpu-accelerated-query-engines-with-nvidia-gqe-ae88d57da8.md",
+        "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+        "personal-wiki/domains/ai_infra/coverage-map.json"
+      ]
+    },
+    {
       "id": "inference-runtime-official-primary-sources",
       "title": "vLLM, TensorRT-LLM, Triton, llama.cpp, ONNX Runtime GenAI, and TensorRT runtime sources",
       "source": "local wiki/raw",

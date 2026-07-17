@@ -1,0 +1,59 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6",
+  "layer": "data-rag-vector",
+  "candidate": {
+    "title": "Designing GPU-Accelerated Query Engines with NVIDIA GQE",
+    "source_type": "blog",
+    "identity_key": "url:https://developer.nvidia.com/blog/designing-gpu-accelerated-query-engines-with-nvidia-gqe/"
+  },
+  "local_checks": {
+    "raw_manifest_scan": "Checked the tracked July 5 scheduled-refresh raw manifest and the local nccl-nvidia-blog-wide captures for NVIDIA GQE. The July 5 capture is tracked source evidence; the untracked July 12 refresh has the same article body except an added tail tag after capture metadata, so it is treated as a duplicate refresh and left unstaged.",
+    "wiki_search": "Searched ai_infra curated pages, coverage-map.json, loop-state.json, and ingest.md for GQE, GPU Query Engine, GPU-accelerated query engine, Substrait, DataFusion, cuDF, nvCOMP, nvSHMEM, cudaMemcpyBatchAsync, zone maps, partition pruning, compressed transfer, and TPC-H SF1000. Existing data/RAG coverage covered pipeline, vector, table, access, and MCP data-boundary controls but not GPU query-engine CPU-to-GPU data movement, compressed transfer, partition pruning, query-plan ingestion, or GQE benchmark context.",
+    "domain_index_scan": "The ai_infra index listed Data RAG Pipeline Infrastructure, Data RAG Vector Infrastructure, Inference Runtime Infrastructure, Network Storage Cluster Infrastructure, and AI Infra Coverage Map, but no NVIDIA GQE, GPU Query Engine, Substrait/DataFusion query-engine bridge, cuDF/nvCOMP/nvSHMEM execution dependency, or TPC-H SF1000 GQE source context entry before this task."
+  },
+  "duplicate_boundaries": [
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+      "result": "Existing coverage represented data/RAG ingestion, workflow orchestration, embedding workers, metadata lineage, table lifecycle, RAG observability, deletion/access propagation, and AgentCore MCP DynamoDB data boundaries. It did not represent GPU query-engine host-to-device transfer orchestration, compressed transfers, or partition pruning."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/data-rag-vector-infrastructure.md",
+      "result": "Existing vector coverage represented vector databases, indexes, deletion, TTL, and filtered retrieval. It is adjacent but not a duplicate of a SQL query-engine data path using Substrait/DataFusion, cuDF tables, nvCOMP compression, and GPU partition pruning."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/inference-runtime-infrastructure.md",
+      "result": "Existing runtime coverage represented model-serving, KV-cache, router, and SGLang/vLLM/TensorRT behavior. GQE is promoted only as data/query-engine infrastructure, not inference serving."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/network-storage-cluster-infrastructure.md",
+      "result": "Existing network/storage coverage represented EFA, FSx, WEKA, Ceph, SPDK, DPU, SGLang transfer, and HyperPod KV-transfer boundaries. GQE's host-to-device and compressed query data transfer is a local query-engine data-path slice, not storage-fabric proof."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260712T041352630104Z-developer-nvidia-com-blog-designing-gpu-accelerated-query-engines-with-nvidia-gqe-4214e3c020.md",
+      "result": "Duplicate refresh boundary only: after ignoring capture metadata, the July 12 body differs from the July 5 body only by an added `featured` tag at the article tail. It is not promoted or staged."
+    }
+  ],
+  "gap_reason": "The local corpus had strong component-level data/RAG, vector, serving-runtime, and network/storage coverage, but it did not yet preserve NVIDIA GQE as a data infrastructure source for GPU query-engine CPU-to-GPU data movement, compressed transfers, partition pruning, Substrait/DataFusion plan ingestion, cuDF/nvCOMP/nvSHMEM execution dependencies, and source-stated TPC-H SF1000 benchmark context with non-comparability caveats.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-nvidia-blog-wide/20260705T041056438015Z-developer-nvidia-com-blog-designing-gpu-accelerated-query-engines-with-nvidia-gqe-ae88d57da8.parent-3.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-8ca3089092-task-6-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ],
+  "promoted_boundaries": [
+    {
+      "surface": "data-rag-vector",
+      "coverage": "GPU query-engine data path: Substrait/DataFusion query-plan ingestion, CPU-memory row groups and partitions, on-demand host-to-device transfer into cuDF tables, nvCOMP compression/decompression, Blackwell Decompression Engine context, zone-map partition pruning, batched cudaMemcpyBatchAsync partition movement, and cuDF/CCCL/nvCOMP/nvSHMEM execution dependencies."
+    }
+  ],
+  "unpromoted_boundaries": [
+    "No independent benchmark, local benchmark reproduction, MLCommons result, product ranking, or production SLO is claimed from the NVIDIA blog.",
+    "No TPC-H-compliant published-result comparison is claimed; the source itself states that the blog results are not comparable to published TPC-H results.",
+    "No hardware SKU/catalog row, accelerator resolved field, storage/fabric benchmark, production incident, RAG propagation proof, or inference-serving runtime claim is added.",
+    "No adjacent July 12 GQE duplicate refresh, AWS Nemotron, NCCL release, NCCL issue, vLLM, SGLang, or other raw backlog is promoted."
+  ]
+}
