@@ -46,15 +46,15 @@ from scripts.loop_supervisor.models import ActionRequest, ActionResultClass, Act
 
 
 def run_auditor(*_args: object, **_kwargs: object) -> None:
-    pytest.skip("legacy Auditor runtime was removed by Supervisor cutover")
+    raise unittest.SkipTest("legacy Auditor runtime was removed by Supervisor cutover")
 
 
 def run_autonomous(*_args: object, **_kwargs: object) -> None:
-    pytest.skip("legacy autonomous multi-round runtime was removed by Supervisor cutover")
+    raise unittest.SkipTest("legacy autonomous multi-round runtime was removed by Supervisor cutover")
 
 
 def run_demand_multi(*_args: object, **_kwargs: object) -> None:
-    pytest.skip("legacy demand multi-round runtime was removed by Supervisor cutover")
+    raise unittest.SkipTest("legacy demand multi-round runtime was removed by Supervisor cutover")
 
 
 def test_public_orchestrator_parser_rejects_removed_runtime_commands() -> None:
@@ -4858,6 +4858,208 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 {"unit": "parent_task", "mode": "fixed_interval", "interval": 2},
             )
 
+    def test_continuation_preflight_preserves_expanded_ai_infra_policy_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            source = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="expanded-run",
+                domain="ai_infra",
+                confirm=True,
+                policy_file=policy_file,
+            )
+            source.update(
+                {
+                    "phase": "stopped_budget",
+                    "next_action": "create_continuation",
+                    "last_result": "blocked",
+                    "_autonomous_completed_task_ids": [
+                        "expanded-run-task-1",
+                        "expanded-run-task-2",
+                    ],
+                }
+            )
+            save_run(repo_root, source)
+            identity = {
+                "loop_lineage_id": "expanded-lineage",
+                "source_run_id": "expanded-run",
+                "semantic_parent": "expanded-run-task-2",
+                "source_commit": "a" * 40,
+            }
+            continuation_run_id = "expanded-run-continuation-001"
+            request = ActionRequest(
+                action_id="create-expanded-continuation",
+                run_id="expanded-run",
+                run_revision=0,
+                policy="autonomous_knowledge",
+                phase="stopped_budget",
+                action_type=ActionType.CREATE_CONTINUATION,
+                idempotency_key="create-expanded-continuation",
+                task_id="",
+                next_action="create_continuation",
+                payload={
+                    "continuation_identity": identity,
+                    "loop_lineage_id": "expanded-lineage",
+                    "continuation_run_id": continuation_run_id,
+                },
+            )
+
+            result = harness_loop_orchestrator._run_bounded_continuation(repo_root, request)
+
+            self.assertEqual(result.result_class, ActionResultClass.SUCCESS, result.summary)
+            continuation = load_run(repo_root, continuation_run_id)
+            policy = read_json_file(repo_root / policy_file)
+            self.assertEqual(continuation["policy_file"], policy_file)
+            self.assertEqual(continuation["required_evidence"], policy["required_evidence"])
+            self.assertEqual(continuation["audit_cadence"], policy["audit_cadence"])
+            self.assertEqual(
+                continuation["limits"]["max_wall_time_minutes"],
+                policy["limits"]["max_wall_time_minutes"],
+            )
+            self.assertEqual(
+                continuation["limits"]["max_tasks_per_run"],
+                policy["limits"]["max_tasks_per_run"],
+            )
+            self.assertEqual(continuation["allowed_paths"], policy["allowed_paths"])
+            self.assertEqual(continuation["denylist_paths"], policy["denylist_paths"])
+            self.assertEqual(continuation["manual_confirm_paths"], policy["manual_confirm_paths"])
+            self.assertEqual(
+                continuation["_audit_cadence_state"]["carried_completed_since_last_audit"],
+                2,
+            )
+            validate_run_payload(continuation)
+
+    def test_required_evidence_recovery_restores_legacy_ai_infra_policy_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            run_id = "ai-infra-expansion-continuation-20260708-continuation-001"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-4"
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": task_id,
+                    "next_action": "inspect_required_evidence",
+                    "last_result": "blocked",
+                    "loop_lineage_id": "ai-infra-expansion-continuation-20260708",
+                    "previous_run_id": "ai-infra-expansion-continuation-20260708",
+                    "parent_run_id": "ai-infra-expansion-continuation-20260708",
+                }
+            )
+            run.pop("policy_file", None)
+            run.pop("required_evidence", None)
+            run.pop("audit_cadence", None)
+            save_run(repo_root, run)
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "Legacy continuation must restore expanded evidence requirements.",
+                    "skill_invocations": [],
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_required_evidence_block(repo_root, run)
+
+            self.assertFalse(resumed)
+            saved = load_run(repo_root, run_id)
+            policy = read_json_file(repo_root / policy_file)
+            self.assertEqual(saved["phase"], "stopped_blocked")
+            self.assertEqual(saved["next_action"], "inspect_required_evidence")
+            self.assertEqual(saved["policy_file"], policy_file)
+            self.assertEqual(saved["required_evidence"], policy["required_evidence"])
+            self.assertEqual(saved["audit_cadence"], policy["audit_cadence"])
+            required_result = read_json_file(run_dir_for(repo_root, run_id) / "required-evidence-result.json")
+            self.assertEqual(required_result["status"], "blocked")
+            self.assertTrue(
+                any("missing required-evidence-manifest.json" in finding for finding in required_result["findings"]),
+                required_result,
+            )
+
+    def test_bounded_generator_restores_legacy_ai_infra_policy_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            policy_file = self._seed_policy_fixture(
+                repo_root,
+                "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+            )
+            run_id = "ai-infra-expansion-continuation-20260708-continuation-001"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-4"
+            run.update(
+                {
+                    "phase": "generating",
+                    "task_id": task_id,
+                    "next_action": "run_autonomous_generator",
+                    "last_result": "none",
+                    "loop_lineage_id": "ai-infra-expansion-continuation-20260708",
+                    "previous_run_id": "ai-infra-expansion-continuation-20260708",
+                    "parent_run_id": "ai-infra-expansion-continuation-20260708",
+                }
+            )
+            run.pop("policy_file", None)
+            run.pop("required_evidence", None)
+            run.pop("audit_cadence", None)
+            save_run(repo_root, run)
+            request = ActionRequest(
+                action_id="generate-expanded-continuation",
+                run_id=run_id,
+                run_revision=0,
+                policy="autonomous_knowledge",
+                phase="generating",
+                action_type=ActionType.RUN_GENERATOR,
+                idempotency_key="generate-expanded-continuation",
+                task_id=task_id,
+                next_action="run_autonomous_generator",
+                payload={"generator_driver": "fake"},
+            )
+
+            result = harness_loop_orchestrator._run_bounded_generator(repo_root, request)
+
+            self.assertEqual(result.result_class, ActionResultClass.SUCCESS, result.summary)
+            saved = load_run(repo_root, run_id)
+            policy = read_json_file(repo_root / policy_file)
+            self.assertEqual(saved["policy_file"], policy_file)
+            self.assertEqual(saved["required_evidence"], policy["required_evidence"])
+            self.assertEqual(saved["audit_cadence"], policy["audit_cadence"])
+            self.assertEqual(saved["limits"]["max_wall_time_minutes"], policy["limits"]["max_wall_time_minutes"])
+            generator_result = read_json_file(run_dir_for(repo_root, run_id) / "generator-result.json")
+            self.assertEqual(generator_result["task_id"], task_id)
+
     def test_run_autonomous_materializes_embedded_required_evidence_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -4901,20 +5103,63 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 "scripts.harness_loop_orchestrator._capture_trusted_live_evidence_for_manifest",
                 side_effect=self._trusted_live_state_from_manifest,
             ):
-                status = run_autonomous(
+                planner_result = harness_loop_orchestrator._run_bounded_planner(
                     repo_root,
-                    "expanded-run",
-                    planner_driver="fake",
-                    generator_driver="fake",
-                    evaluator_driver="fake",
-                    max_eval_attempts=2,
-                    max_tasks=1,
+                    ActionRequest(
+                        action_id="plan-expanded-run",
+                        run_id="expanded-run",
+                        run_revision=0,
+                        policy="autonomous_knowledge",
+                        phase="planning",
+                        action_type=ActionType.RUN_PLANNER,
+                        idempotency_key="plan-expanded-run",
+                        task_id="",
+                        next_action="run_autonomous_planner",
+                        payload={"planner_driver": "fake"},
+                    ),
+                )
+                self.assertEqual(planner_result.result_class, ActionResultClass.SUCCESS, planner_result.summary)
+                run = load_run(repo_root, "expanded-run")
+                generator_result = harness_loop_orchestrator._run_bounded_generator(
+                    repo_root,
+                    ActionRequest(
+                        action_id="generate-expanded-run",
+                        run_id="expanded-run",
+                        run_revision=0,
+                        policy="autonomous_knowledge",
+                        phase="generating",
+                        action_type=ActionType.RUN_GENERATOR,
+                        idempotency_key="generate-expanded-run",
+                        task_id=str(run["task_id"]),
+                        next_action="run_autonomous_generator",
+                        payload={"generator_driver": "fake"},
+                    ),
+                )
+                self.assertEqual(generator_result.result_class, ActionResultClass.SUCCESS, generator_result.summary)
+                run = load_run(repo_root, "expanded-run")
+                run["phase"] = "cleanup"
+                run["next_action"] = "commit_autonomous_changes"
+                save_run(repo_root, run)
+                commit_result = harness_loop_orchestrator._run_bounded_commit(
+                    repo_root,
+                    ActionRequest(
+                        action_id="commit-expanded-run",
+                        run_id="expanded-run",
+                        run_revision=0,
+                        policy="autonomous_knowledge",
+                        phase="cleanup",
+                        action_type=ActionType.COMMIT,
+                        idempotency_key="commit-expanded-run",
+                        task_id=str(run["task_id"]),
+                        next_action="commit_autonomous_changes",
+                        payload={},
+                    ),
                 )
 
             required_evidence_result = read_json_file(
                 run_dir_for(repo_root, "expanded-run") / "required-evidence-result.json"
             )
-            self.assertNotEqual(status["next_action"], "inspect_required_evidence")
+            self.assertNotEqual(commit_result.result_class, ActionResultClass.RETRYABLE_FAILURE, commit_result.summary)
             self.assertEqual(required_evidence_result["status"], "pass")
             self.assertTrue((run_dir_for(repo_root, "expanded-run") / "required-evidence-manifest.json").exists())
 

@@ -6195,6 +6195,8 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
         return False
     if _artifact_task_binding_error(generator_result, run, "generator-result.json"):
         return False
+    if _apply_expanded_ai_infra_policy_contract(repo_root, run):
+        save_run(repo_root, run)
     _refresh_recovered_required_evidence_manifest(repo_root, run, generator_result)
     required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
     if required_evidence:
@@ -6557,6 +6559,7 @@ def _run_bounded_planner(repo_root: Path, request: ActionRequest) -> ActionResul
         run = load_run(repo_root, request.run_id)
         driver = _bounded_driver(request, "planner")
         if request.policy == "autonomous_knowledge":
+            run = _ensure_expanded_ai_infra_policy_contract(repo_root, run)
             if run["phase"] != "planning":
                 raise RuntimeError(f"autonomous planner requires planning; current phase is {run['phase']}")
             if driver == "fake":
@@ -6608,6 +6611,7 @@ def _run_bounded_generator(repo_root: Path, request: ActionRequest) -> ActionRes
         run = load_run(repo_root, request.run_id)
         driver = _bounded_driver(request, "generator")
         if request.policy == "autonomous_knowledge":
+            run = _ensure_expanded_ai_infra_policy_contract(repo_root, run)
             if run["phase"] != "generating":
                 raise RuntimeError(f"autonomous generator requires generating; current phase is {run['phase']}")
             if driver == "codex-exec":
@@ -6652,6 +6656,7 @@ def _run_bounded_evaluator(repo_root: Path, request: ActionRequest) -> ActionRes
         if not isinstance(max_attempts, int) or isinstance(max_attempts, bool) or max_attempts <= 0:
             raise ValueError("max_attempts must be a positive integer")
         if request.policy == "autonomous_knowledge":
+            run = _ensure_expanded_ai_infra_policy_contract(repo_root, run)
             if run["phase"] != "evaluating":
                 raise RuntimeError(f"autonomous evaluator requires evaluating; current phase is {run['phase']}")
             result = (
@@ -6869,6 +6874,67 @@ _CONTINUATION_STAGE_OWNER_FIELDS = frozenset(
 )
 
 
+def _expanded_ai_infra_policy_contract_required(run: Mapping[str, Any]) -> bool:
+    if normalize_policy_id(str(run.get("policy") or "")) != "autonomous_knowledge":
+        return False
+    if str(run.get("domain") or "").strip() != "ai_infra":
+        return False
+    policy_file = str(run.get("policy_file") or "").strip()
+    if policy_file:
+        return policy_file == _EXPANDED_POLICY_FILE
+    run_id = str(run.get("run_id") or "")
+    continuation_markers = (
+        "loop_lineage_id",
+        "previous_run_id",
+        "parent_run_id",
+        "previous_commit",
+    )
+    return "-continuation-" in run_id or any(
+        str(run.get(field) or "").strip() for field in continuation_markers
+    )
+
+
+def _apply_expanded_ai_infra_policy_contract(
+    repo_root: Path,
+    run: dict[str, Any],
+) -> bool:
+    if not _expanded_ai_infra_policy_contract_required(run):
+        return False
+    policy_path = repo_root / _EXPANDED_POLICY_FILE
+    if not policy_path.is_file() and str(run.get("policy_file") or "").strip() != _EXPANDED_POLICY_FILE:
+        return False
+    policy_payload = load_loop_policy(repo_root, _EXPANDED_POLICY_FILE)
+    if policy_payload["policy"] != "autonomous_knowledge":
+        raise ValueError("expanded ai_infra policy fixture must be autonomous_knowledge")
+    desired: dict[str, Any] = {
+        "allowed_paths": list(policy_payload["allowed_paths"]),
+        "denylist_paths": list(policy_payload["denylist_paths"]),
+        "manual_confirm_paths": list(policy_payload["manual_confirm_paths"]),
+        "required_evidence": list(policy_payload["required_evidence"]),
+        "limits": {**default_limits(), **policy_payload["limits"]},
+        "policy_file": _EXPANDED_POLICY_FILE,
+    }
+    if isinstance(policy_payload.get("audit_cadence"), Mapping):
+        desired["audit_cadence"] = dict(policy_payload["audit_cadence"])
+
+    changed = False
+    for key, value in desired.items():
+        if run.get(key) != value:
+            run[key] = value
+            changed = True
+    return changed
+
+
+def _ensure_expanded_ai_infra_policy_contract(
+    repo_root: Path,
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    if _apply_expanded_ai_infra_policy_contract(repo_root, run):
+        save_run(repo_root, run)
+        return load_run(repo_root, str(run["run_id"]))
+    return run
+
+
 def _expected_continuation_preflight(
     repo_root: Path,
     source: Mapping[str, Any],
@@ -6925,6 +6991,17 @@ def _expected_continuation_preflight(
             expected["denylist_paths"],
             expected["manual_confirm_paths"],
         ) = policy_patterns_for_run({}, domain=expected["domain"])
+    _apply_expanded_ai_infra_policy_contract(repo_root, expected)
+    if isinstance(source.get("_audit_cadence_state"), Mapping) or isinstance(
+        source.get("_autonomous_completed_task_ids"), list
+    ):
+        cadence = _normalized_audit_cadence(expected)
+        expected["_audit_cadence_state"] = {
+            "unit": str(cadence["unit"]),
+            "interval": int(cadence["interval"]),
+            "last_audited_progress_count": 0,
+            "carried_completed_since_last_audit": _audit_steps_since_last_audit(source),
+        }
     return expected
 
 
