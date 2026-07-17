@@ -231,6 +231,18 @@ artifact bytes to match the sha256 recorded in run state. A manifest-level
 themselves, and generator-written pass artifacts without matching run state are
 blocked before commit.
 
+Code-only harness remediation tasks use the current task-bound
+`generator-result.json.changed_paths` to reduce the required evidence set before
+validation. When every declared path is under `scripts/harness_*`,
+`scripts/tests/test_harness_*`, or `docs/harness/`, knowledge-ingestion evidence
+that proves wiki/raw/source/channel visibility is not applicable and is recorded
+in `required-evidence-result.json.skipped_evidence`. This skip applies to
+`raw-evidence`, `curated-wiki-source-refs`, `search-api-visibility`,
+`frontend-visibility`, `crawler-workbench-freshness`, `domain-channels`,
+`link-probe`, and `no-action-evidence`; wiki/raw/source/channel tasks still
+require those gates and still require orchestrator-owned trusted live evidence
+for semantic visibility items.
+
 Expanded AI infra policies should use stable manifest `evidence_id` values
 instead of copying the full prose requirement into `summary`. Current stable
 IDs are:
@@ -335,6 +347,15 @@ preflight, the loop stops at `stopped_blocked` instead of committing pre-existin
 user work. Generator agent failures are retried up to
 `max_generator_attempts_per_task`; exhausting the limit stops the run for
 inspection.
+
+Recovery tasks may reach the commit gate after the exact declared remediation
+patch has already been committed by an earlier bounded step. If the current
+HEAD commit contains exactly the task's declared `changed_paths` and those
+declared paths are clean in the worktree, the autonomous commit gate adopts that
+HEAD instead of attempting an empty commit. It writes task-bound
+`commit-result.json` and `run.json.autonomous_commit_state` with
+`adopted_existing_head: true`, and stale task artifacts cannot satisfy the
+current task binding.
 
 The former Phase 3 and expanded AI infra multi-round smoke executables were
 retired at Supervisor cutover. Their safety contracts remain covered by

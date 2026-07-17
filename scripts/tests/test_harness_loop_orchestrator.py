@@ -3716,6 +3716,107 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertIn(changed_path, scope_result["allowed_paths"])
             self.assertNotIn(changed_path, scope_result["manual_confirm_paths"])
 
+    def test_autonomous_commit_adopts_existing_head_when_declared_paths_are_already_committed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "remediation-run"
+            task_id = f"{run_id}-task-5"
+            changed_paths = [
+                "scripts/harness_loop_orchestrator.py",
+                "scripts/tests/test_harness_loop_orchestrator.py",
+            ]
+            for relative in changed_paths:
+                path = repo_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"# committed remediation for {relative}\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", *changed_paths],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: existing remediation head", "--", *changed_paths],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            head_commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout.strip()
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Repair harness",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            run.update({"phase": "cleanup", "task_id": task_id})
+            save_run(repo_root, run)
+            run_dir = run_dir_for(repo_root, run_id)
+            write_json_file(
+                run_dir / "planner-output.json",
+                {
+                    "task_id": task_id,
+                    "policy": "autonomous_knowledge",
+                    "task_kind": "autonomous_implementation_task",
+                    "title": "Repair harness",
+                    "goal": "Adopt exact committed remediation paths.",
+                    "non_goals": [],
+                    "allowed_paths": changed_paths,
+                    "denylist_paths": [],
+                    "verify_commands": [],
+                    "evaluator_scenarios_path": "",
+                    "stop_conditions": [],
+                    "next_planning_hint": "",
+                    "skill_invocations": [],
+                },
+            )
+            generator_result = {
+                "task_id": task_id,
+                "status": "implemented",
+                "changed_paths": changed_paths,
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": changed_paths,
+                "cleanup_required": False,
+                "notes": "Exact remediation patch is already present at HEAD.",
+                "skill_invocations": [],
+            }
+
+            with patch.object(harness_loop_orchestrator, "_run_wiki_validate", return_value=True):
+                committed = harness_loop_orchestrator._commit_autonomous_changes(
+                    repo_root,
+                    run,
+                    generator_result,
+                    bounded=True,
+                )
+
+            self.assertTrue(committed)
+            self.assertEqual(generator_result["commit"], head_commit)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "committed")
+            self.assertEqual(saved["next_action"], "push_autonomous_commit")
+            self.assertEqual(saved["autonomous_commit_state"]["commit"], head_commit)
+            self.assertEqual(saved["autonomous_commit_state"]["task_id"], task_id)
+            commit_result = read_json_file(run_dir / "commit-result.json")
+            self.assertEqual(commit_result["status"], "pass")
+            self.assertEqual(commit_result["commit"], head_commit)
+            self.assertEqual(commit_result["task_id"], task_id)
+            self.assertEqual(commit_result["changed_paths"], changed_paths)
+            self.assertEqual(commit_result["committed_paths"], changed_paths)
+            self.assertTrue(commit_result["adopted_existing_head"])
+
     def test_resume_autonomous_push_block_rejects_stale_generator_task_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -5154,6 +5255,150 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                 persisted_run = read_json_file(run_dir / "run.json")
                 self.assertEqual(persisted_run["trusted_live_evidence_state"], {})
                 self.assertEqual(run["trusted_live_evidence_state"], {})
+
+    def test_required_evidence_gate_skips_knowledge_visibility_for_code_only_remediation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            task_id = "expanded-run-task-5"
+            run_dir = run_dir_for(repo_root, run_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            code_path = "scripts/harness_loop_orchestrator.py"
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": task_id,
+                    "status": "implemented",
+                    "changed_paths": [code_path],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [code_path],
+                    "cleanup_required": False,
+                    "notes": "code-only remediation",
+                    "skill_invocations": [],
+                },
+            )
+            required = [
+                "raw evidence or existing raw reuse evidence",
+                "curated wiki source_refs",
+                "search/api visibility evidence for new knowledge",
+                "frontend visibility evidence when services are running",
+                "crawler workbench api freshness evidence for sources, channels, queue, wiki, and search",
+                "domain channels evidence for new or changed crawler source subscriptions",
+                "link probe or blocked/auth evidence for new external sources",
+                "fresh no-action evidence before stopped_no_action",
+            ]
+            write_json_file(
+                run_dir / "required-evidence-manifest.json",
+                {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "items": [],
+                },
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "domain": "ai_infra",
+            }
+
+            with patch.object(
+                harness_loop_orchestrator,
+                "_capture_trusted_live_evidence_for_manifest",
+                return_value={},
+            ) as live_capture:
+                result = harness_loop_orchestrator._validate_required_evidence(repo_root, run, required)
+
+            self.assertEqual(result["status"], "pass", result)
+            self.assertEqual(
+                {item["evidence_id"] for item in result["skipped_evidence"]},
+                {
+                    "raw-evidence",
+                    "curated-wiki-source-refs",
+                    "search-api-visibility",
+                    "frontend-visibility",
+                    "crawler-workbench-freshness",
+                    "domain-channels",
+                    "link-probe",
+                    "no-action-evidence",
+                },
+            )
+            self.assertTrue(
+                all("code-only remediation" in item["reason"] for item in result["skipped_evidence"]),
+                result,
+            )
+            live_capture.assert_called_once()
+            captured_manifest = live_capture.call_args.args[2]
+            self.assertEqual(captured_manifest["items"], [])
+
+    def test_required_evidence_gate_keeps_visibility_for_wiki_or_raw_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_id = "expanded-run"
+            task_id = "expanded-run-task-5"
+            run_dir = run_dir_for(repo_root, run_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            wiki_path = self._seed_visibility_target(repo_root, run_id=run_id)
+            generator_result = read_json_file(run_dir / "generator-result.json")
+            generator_result["task_id"] = task_id
+            write_json_file(run_dir / "generator-result.json", generator_result)
+            artifact_relative = trusted_live_evidence_artifact_path("search-api-visibility")
+            artifact_path = run_dir / artifact_relative
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            write_json_file(
+                artifact_path,
+                {
+                    "status": "pass",
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "domain": "ai_infra",
+                    "query": "Expanded Runtime Smoke",
+                    "visible_results": 1,
+                    "expected_targets": [],
+                    "matched_targets": [],
+                    "missing_targets": [],
+                },
+            )
+            write_json_file(
+                run_dir / "required-evidence-manifest.json",
+                {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "items": [
+                        {
+                            "evidence_id": "search-api-visibility",
+                            "status": "pass",
+                            "summary": "search visibility remains required for wiki changes",
+                            "artifacts": [artifact_relative],
+                        }
+                    ],
+                },
+            )
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "domain": "ai_infra",
+            }
+
+            with patch.object(
+                harness_loop_orchestrator,
+                "_capture_trusted_live_evidence_for_manifest",
+                return_value={},
+            ):
+                result = harness_loop_orchestrator._validate_required_evidence(
+                    repo_root,
+                    run,
+                    ["search/api visibility evidence for new knowledge"],
+                )
+
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["skipped_evidence"], [])
+            self.assertTrue(
+                any("trusted live evidence state" in finding for finding in result["findings"]),
+                result,
+            )
+            self.assertIn(wiki_path, read_json_file(run_dir / "generator-result.json")["changed_paths"])
 
     def test_capture_live_search_visibility_matches_current_changed_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

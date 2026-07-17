@@ -3833,6 +3833,56 @@ def _diagnose_generator_supplied_commit_paths(
     )
 
 
+def _adopt_existing_head_commit_if_available(
+    repo_root: Path,
+    run: dict[str, Any],
+    run_dir: Path,
+    generator_result: dict[str, Any],
+    changed_paths: Sequence[str],
+) -> str:
+    declared = [str(path).strip() for path in changed_paths if str(path).strip()]
+    if not declared:
+        return ""
+    dirty_declared_paths = sorted(set(declared) & set(_git_dirty_paths(repo_root)))
+    if dirty_declared_paths:
+        return ""
+    head_commit = _current_head(repo_root)
+    if not head_commit:
+        return ""
+    committed_paths = _commit_changed_paths(repo_root, head_commit)
+    path_error = _commit_path_coverage_error(
+        committed_paths=committed_paths,
+        declared_changed_paths=declared,
+        label="current HEAD",
+    )
+    if path_error:
+        return ""
+    commit_result = {
+        "status": "pass",
+        "commit": head_commit,
+        "error": "",
+        "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+        "changed_paths": declared,
+        "committed_paths": committed_paths,
+        "adopted_existing_head": True,
+        "run_id": str(run["run_id"]),
+        "task_id": str(run.get("task_id", "")),
+    }
+    write_json_file(run_dir / "commit-result.json", commit_result)
+    run[_AUTONOMOUS_COMMIT_STATE_KEY] = {
+        "status": "committed",
+        "commit": head_commit,
+        "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+        "changed_paths": declared,
+        "run_id": str(run["run_id"]),
+        "task_id": str(run.get("task_id", "")),
+    }
+    save_run(repo_root, run)
+    generator_result["commit"] = head_commit
+    write_json_file(run_dir / "generator-result.json", generator_result)
+    return head_commit
+
+
 def _command_failure_detail(exc: Exception) -> str:
     if not isinstance(exc, subprocess.CalledProcessError):
         return str(exc)
@@ -3980,69 +4030,77 @@ def _commit_autonomous_changes(
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
             return False
     elif changed_paths:
-        try:
-            commit_sha = run_git_commit(
-                repo_root,
-                changed_paths,
-                f"chore(wiki): autonomous knowledge update {run['run_id']}",
-            )
-        except Exception as exc:
-            write_json_file(
-                run_dir / "commit-result.json",
-                {
-                    "status": "blocked",
-                    "commit": "",
-                    "error": _command_failure_detail(exc),
-                    "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
-                    "run_id": str(run["run_id"]),
-                    "task_id": str(run.get("task_id", "")),
-                },
-            )
-            _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
-            return False
-        committed_paths = _commit_changed_paths(repo_root, commit_sha)
-        commit_path_error = _commit_path_coverage_error(
-            committed_paths=committed_paths,
-            declared_changed_paths=changed_paths,
-            label="commit",
+        commit_sha = _adopt_existing_head_commit_if_available(
+            repo_root,
+            run,
+            run_dir,
+            generator_result,
+            changed_paths,
         )
-        if commit_path_error:
-            write_json_file(
-                run_dir / "commit-result.json",
-                {
-                    "status": "blocked",
-                    "commit": commit_sha,
-                    "error": commit_path_error,
-                    "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
-                    "changed_paths": changed_paths,
-                    "committed_paths": committed_paths,
-                    "run_id": str(run["run_id"]),
-                    "task_id": str(run.get("task_id", "")),
-                },
+        if not commit_sha:
+            try:
+                commit_sha = run_git_commit(
+                    repo_root,
+                    changed_paths,
+                    f"chore(wiki): autonomous knowledge update {run['run_id']}",
+                )
+            except Exception as exc:
+                write_json_file(
+                    run_dir / "commit-result.json",
+                    {
+                        "status": "blocked",
+                        "commit": "",
+                        "error": _command_failure_detail(exc),
+                        "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                        "run_id": str(run["run_id"]),
+                        "task_id": str(run.get("task_id", "")),
+                    },
+                )
+                _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
+                return False
+            committed_paths = _commit_changed_paths(repo_root, commit_sha)
+            commit_path_error = _commit_path_coverage_error(
+                committed_paths=committed_paths,
+                declared_changed_paths=changed_paths,
+                label="commit",
             )
-            _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
-            return False
-        commit_result = {
-            "status": "pass",
-            "commit": commit_sha,
-            "error": "",
-            "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
-            "changed_paths": changed_paths,
-            "run_id": str(run["run_id"]),
-            "task_id": str(run.get("task_id", "")),
-        }
-        write_json_file(run_dir / "commit-result.json", commit_result)
-        run[_AUTONOMOUS_COMMIT_STATE_KEY] = {
-            "status": "committed",
-            "commit": commit_sha,
-            "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
-            "changed_paths": changed_paths,
-            "run_id": str(run["run_id"]),
-            "task_id": str(run.get("task_id", "")),
-        }
-        save_run(repo_root, run)
-        generator_result["commit"] = commit_sha
-        write_json_file(run_dir / "generator-result.json", generator_result)
+            if commit_path_error:
+                write_json_file(
+                    run_dir / "commit-result.json",
+                    {
+                        "status": "blocked",
+                        "commit": commit_sha,
+                        "error": commit_path_error,
+                        "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                        "changed_paths": changed_paths,
+                        "committed_paths": committed_paths,
+                        "run_id": str(run["run_id"]),
+                        "task_id": str(run.get("task_id", "")),
+                    },
+                )
+                _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
+                return False
+            commit_result = {
+                "status": "pass",
+                "commit": commit_sha,
+                "error": "",
+                "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                "changed_paths": changed_paths,
+                "run_id": str(run["run_id"]),
+                "task_id": str(run.get("task_id", "")),
+            }
+            write_json_file(run_dir / "commit-result.json", commit_result)
+            run[_AUTONOMOUS_COMMIT_STATE_KEY] = {
+                "status": "committed",
+                "commit": commit_sha,
+                "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                "changed_paths": changed_paths,
+                "run_id": str(run["run_id"]),
+                "task_id": str(run.get("task_id", "")),
+            }
+            save_run(repo_root, run)
+            generator_result["commit"] = commit_sha
+            write_json_file(run_dir / "generator-result.json", generator_result)
 
     commit_sha = str(generator_result.get("commit") or "").strip()
     if bounded:
@@ -4325,6 +4383,101 @@ _LIVE_SEMANTIC_EVIDENCE_IDS = {
     "frontend-visibility",
 }
 _TRUSTED_LIVE_EVIDENCE_CREATED_BY = "harness_loop_orchestrator"
+_CODE_ONLY_REMEDIATION_EVIDENCE_IDS = {
+    "raw-evidence",
+    "curated-wiki-source-refs",
+    "search-api-visibility",
+    "frontend-visibility",
+    "crawler-workbench-freshness",
+    "domain-channels",
+    "link-probe",
+    "no-action-evidence",
+}
+
+
+def _current_task_generator_changed_paths(repo_root: Path, run: Mapping[str, Any]) -> list[str]:
+    try:
+        generator_result = read_json_file(
+            run_dir_for(repo_root, str(run["run_id"])) / "generator-result.json"
+        )
+        validate_generator_result_payload(generator_result)
+    except Exception:
+        return []
+    if _artifact_task_binding_error(generator_result, run, "generator-result.json"):
+        return []
+    return _string_list(generator_result.get("changed_paths"))
+
+
+def _is_harness_remediation_path(path: str) -> bool:
+    normalized = str(path).strip().replace("\\", "/")
+    return (
+        normalized.startswith("docs/harness/")
+        or normalized.startswith("scripts/harness_")
+        or normalized.startswith("scripts/tests/test_harness_")
+    )
+
+
+def _is_code_only_harness_remediation(
+    repo_root: Path,
+    run: Mapping[str, Any],
+) -> bool:
+    changed_paths = _current_task_generator_changed_paths(repo_root, run)
+    return bool(changed_paths) and all(_is_harness_remediation_path(path) for path in changed_paths)
+
+
+def _manifest_without_evidence_ids(
+    manifest_payload: Mapping[str, Any],
+    skipped_ids: set[str],
+) -> dict[str, Any]:
+    filtered = dict(manifest_payload)
+    entries_key = "items" if isinstance(filtered.get("items"), list) else "evidence"
+    entries = filtered.get(entries_key)
+    if not isinstance(entries, list):
+        return filtered
+    filtered[entries_key] = [
+        entry
+        for entry in entries
+        if not (
+            isinstance(entry, Mapping)
+            and _required_evidence_id(str(entry.get("evidence_id", "")).strip().lower()) in skipped_ids
+        )
+    ]
+    return filtered
+
+
+def _required_evidence_for_current_task(
+    repo_root: Path,
+    run: Mapping[str, Any],
+    required_evidence: Sequence[str],
+    manifest_payload: Mapping[str, Any],
+) -> tuple[list[str], dict[str, Any], list[dict[str, str]]]:
+    if not _is_code_only_harness_remediation(repo_root, run):
+        return list(required_evidence), dict(manifest_payload), []
+
+    effective_required: list[str] = []
+    skipped: list[dict[str, str]] = []
+    for requirement in required_evidence:
+        requirement_text = str(requirement).strip()
+        evidence_id = _required_evidence_id(requirement_text)
+        if evidence_id in _CODE_ONLY_REMEDIATION_EVIDENCE_IDS:
+            skipped.append(
+                {
+                    "evidence_id": evidence_id,
+                    "requirement": requirement_text,
+                    "reason": (
+                        "not applicable to code-only remediation; no wiki/raw/source/channel "
+                        "or no-action knowledge target changed"
+                    ),
+                }
+            )
+            continue
+        effective_required.append(requirement_text)
+    skipped_ids = {item["evidence_id"] for item in skipped}
+    return (
+        effective_required,
+        _manifest_without_evidence_ids(manifest_payload, skipped_ids),
+        skipped,
+    )
 
 
 def _capture_trusted_live_evidence_for_manifest(
@@ -5389,6 +5542,8 @@ def _validate_required_evidence(
     else:
         findings.append("missing required-evidence-manifest.json")
 
+    skipped_evidence: list[dict[str, str]] = []
+    effective_required_evidence = list(required_evidence)
     if manifest_payload is not None:
         manifest_run_id = str(manifest_payload.get("run_id", "")).strip()
         current_run_id = str(run.get("run_id", "")).strip()
@@ -5412,12 +5567,22 @@ def _validate_required_evidence(
                 f"required-evidence-manifest.json task_id {manifest_task_id} "
                 f"does not match current task {current_task_id}"
             )
-        trusted_live_state = _capture_trusted_live_evidence_for_manifest(repo_root, run, manifest_payload)
+        effective_required_evidence, effective_manifest_payload, skipped_evidence = (
+            _required_evidence_for_current_task(
+                repo_root,
+                run,
+                required_evidence,
+                manifest_payload,
+            )
+        )
+        trusted_live_state = _capture_trusted_live_evidence_for_manifest(
+            repo_root, run, effective_manifest_payload
+        )
         _record_trusted_live_evidence_state(repo_root, run, trusted_live_state)
         findings.extend(
             validate_required_evidence_manifest(
-                required_evidence,
-                manifest_payload,
+                effective_required_evidence,
+                effective_manifest_payload,
                 repo_root,
                 run_dir,
                 trusted_live_evidence_state=trusted_live_state,
@@ -5425,7 +5590,7 @@ def _validate_required_evidence(
         )
 
     gap_proof_result: dict[str, Any] | None = None
-    if any("gap proof" in item.lower() for item in required_evidence):
+    if any("gap proof" in item.lower() for item in effective_required_evidence):
         gap_proof_result = _validate_gap_proof_evidence(repo_root, run)
         write_json_file(run_dir / "gap-proof-result.json", gap_proof_result)
         if gap_proof_result["status"] != "pass":
@@ -5440,6 +5605,7 @@ def _validate_required_evidence(
         ),
         "gap_proof_result_path": "gap-proof-result.json" if gap_proof_result is not None else "",
         "findings": findings,
+        "skipped_evidence": skipped_evidence,
     }
 
 
