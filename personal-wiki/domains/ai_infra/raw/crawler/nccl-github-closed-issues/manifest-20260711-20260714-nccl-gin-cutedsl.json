@@ -1,0 +1,103 @@
+{
+  "type": "raw_manifest",
+  "title": "NCCL GitHub closed issues July GIN and CuTeDSL supplement",
+  "source_id": "nccl-github-closed-issues",
+  "created_at": "2026-07-16T00:00:00Z",
+  "captured_range": "2026-07-11 to 2026-07-14",
+  "repository": "NVIDIA/nccl",
+  "scope_note": "Two scheduled crawler Markdown page snapshots after the June 2026 joined API corpus and after the July 1/3 page-level supplement. This is bounded page-level issue evidence only, not a full GitHub API refresh with comments, maintainer replies, review comments, confirmed root cause, fix status, release-note evidence, production postmortem, benchmark baseline, or platform compatibility rule.",
+  "counts": {
+    "raw_files": 2,
+    "issues": 2,
+    "new_page_level_identities_after_api_and_prior_supplement": 2,
+    "joined_api_comment_refresh": 0,
+    "by_capture_day": {
+      "20260711": 1,
+      "20260714": 1
+    }
+  },
+  "duplicate_boundary": {
+    "joined_api_corpus": {
+      "summary_path": "personal-wiki/domains/ai_infra/raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-summary.json",
+      "curated_page": "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+      "issue_created_range": "2016-01-15 to 2026-06-22",
+      "issue_closed_range": "2016-01-25 to 2026-06-23",
+      "reconciliation": "Issues #2246 and #1957 were not in the June joined API/comment corpus, whose curated scope ends before these July page captures."
+    },
+    "prior_scheduled_supplement": {
+      "manifest_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json",
+      "issues": [
+        2226,
+        2024
+      ],
+      "reconciliation": "The July 1/3 supplement covers #2226 and #2024 only. It already records GIN GPI/GDAKI QP-selection questions and an H20/H200 broadcast hang report, but it does not curate #2246 or #1957."
+    },
+    "release_note_context": {
+      "curated_page": "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+      "reconciliation": "The release-note page already records GIN terminology from NCCL 2.29.7, 2.30.3, 2.30.4, and 2.30.7. These issue pages are user-reported operational questions/reports, not release-note entries."
+    }
+  },
+  "items": [
+    {
+      "number": 2246,
+      "kind": "issue",
+      "title": "[Question]: How does the CuTeDSL device API legally dereference the host-side `ncclDevComm` on the device?",
+      "state": "closed",
+      "closed_at": "2026-07-11T02:09:03Z",
+      "labels": [
+        "question"
+      ],
+      "canonical_url": "https://github.com/NVIDIA/nccl/issues/2246",
+      "captured_at": "2026-07-11T23:37:34.924283+00:00",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md",
+      "content_hash": "59f0d966be2aa02cae518373a605c811eab65080177741f167aaada5aeeb1b83",
+      "identity_key": "github:nvidia/nccl#2246",
+      "duplicate_status": "new_page_level_supplement_after_api_and_prior_supplement",
+      "promoted_surfaces": [
+        "nccl-github-closed-issues",
+        "training-distributed"
+      ],
+      "page_visible_claims": [
+        "CuTeDSL NCCL device-API question/report involving `nccl.core.device.cute`.",
+        "The reporter passed a host-created `ncclDevComm` pointer by value into an H20 kernel as a raw 64-bit pointer.",
+        "The report says the first device-side field dereference, `dev_comm.lsa_rank`, failed with `cudaErrorIllegalAddress` before window access.",
+        "The reporter asks whether the design requires coherent/unified addressing such as Grace-Hopper coherence, HMM, ATS, pinned-mapped memory, managed memory, or device memory, and asks about performance overhead."
+      ],
+      "boundaries": [
+        "Question/report only; no maintainer reply, root cause, supported-configuration answer, fix status, release-note guarantee, benchmark result, or general H20 compatibility rule is promoted."
+      ]
+    },
+    {
+      "number": 1957,
+      "kind": "issue",
+      "title": "[Issue]: GIN gdaki mode hardcode 4K MTU in doca modify qp",
+      "state": "closed",
+      "closed_at": "2026-07-14T04:14:46Z",
+      "labels": [],
+      "canonical_url": "https://github.com/NVIDIA/nccl/issues/1957",
+      "captured_at": "2026-07-14T23:40:17.093594+00:00",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md",
+      "content_hash": "836c68b52ee591102201a7ef18cd3428f007c9863e5bcdcec549dd8c76df95d3",
+      "identity_key": "github:nvidia/nccl#1957",
+      "duplicate_status": "new_page_level_supplement_after_api_and_prior_supplement",
+      "promoted_surfaces": [
+        "nccl-github-closed-issues",
+        "network-storage-cluster"
+      ],
+      "page_visible_claims": [
+        "GIN GDAKI mode issue report involving the `gin_alltoall_pure` example.",
+        "The reporter says the example hung with a NIC configured for 1500 MTU.",
+        "The reporter says Wireshark observation suggested NCCL GIN used hard-coded 4K MTU behavior in `doca modify qp` / `doca modify QP` context.",
+        "The reporter asks whether this is only an implementation question or should be documented in the example README."
+      ],
+      "boundaries": [
+        "Issue-body report only; no maintainer answer, DOCA/QP root cause, product fix, release-note guarantee, network compatibility rule, performance number, or production incident claim is promoted."
+      ]
+    }
+  ],
+  "boundaries": [
+    "Promote only page-visible issue body facts from the two local raw captures.",
+    "Do not infer missing comments, maintainer replies, fix status, root cause, or supported platform requirements.",
+    "Do not update accelerator structured data, benchmark tables, source registry rows, crawler code, frontend code, dashboard code, harness code, or package files."
+  ]
+}

@@ -218,6 +218,26 @@ def autonomous_manual_confirm_paths() -> list[str]:
     ]
 
 
+def autonomous_remediation_allowed_paths() -> list[str]:
+    return [
+        "scripts/harness*.py",
+        "scripts/loop_supervisor/recovery.py",
+        "scripts/tests/test_harness_loop_orchestrator.py",
+        "scripts/tests/test_harness_loop_supervisor_recovery.py",
+        "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+    ]
+
+
+def _has_auto_remediate_directive(run: Mapping[str, Any]) -> bool:
+    directives = run.get("reviewer_directives")
+    if not isinstance(directives, list):
+        return False
+    return any(
+        isinstance(item, Mapping) and str(item.get("decision", "")).strip() == "auto_remediate"
+        for item in directives
+    )
+
+
 def autonomous_denylist_paths() -> list[str]:
     return [
         ".env",
@@ -262,6 +282,11 @@ def policy_patterns_for_run(run: Mapping[str, Any], *, domain: str) -> tuple[lis
         manual = manual_override
     else:
         manual = autonomous_manual_confirm_paths()
+    if _has_auto_remediate_directive(run):
+        for path in autonomous_remediation_allowed_paths():
+            if path not in allowed:
+                allowed.append(path)
+        manual = [path for path in manual if path not in {"docs/**", "scripts/**"}]
     return allowed, denied, manual
 
 

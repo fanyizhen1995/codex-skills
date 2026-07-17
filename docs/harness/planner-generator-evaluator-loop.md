@@ -208,6 +208,14 @@ run-local evidence. The gate writes
 checks or commit and blocks the run with
 `next_action=inspect_required_evidence` when findings exist.
 
+Fresh generator and recovery artifacts must be bound to the current task. The
+commit and recovery gates reject stale `generator-result.json`,
+`required-evidence-manifest.json`, autonomous commit state, `commit-result.json`,
+and `push-result.json` data when the artifact's `run_id` or `task_id` does not
+match the active run. Dirty-path and required-evidence recovery may protect
+unrelated local dirt only after the current generator result validates and its
+declared artifact hashes still match the working tree.
+
 Live semantic evidence for `service-availability`,
 `crawler-workbench-freshness`, `loop-dashboard-freshness`,
 `search-api-visibility`, and `frontend-visibility` must also carry trusted

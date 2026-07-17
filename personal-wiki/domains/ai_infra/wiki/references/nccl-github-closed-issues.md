@@ -16,7 +16,10 @@ source_refs:
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-api-pages.json.gz
   - ../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-issue-comments-api-pages.json.gz
   - ../../raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json
-updated: 2026-07-04
+  - ../../raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json
+  - ../../raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md
+  - ../../raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md
+updated: 2026-07-16
 aliases:
   - NVIDIA/nccl closed issues
   - NCCL GitHub issues
@@ -46,7 +49,7 @@ Use this page as a field-evidence companion to [NCCL Release Notes](nccl-release
 | Issue/comment count mismatches | 0 |
 | Issue created range | 2016-01-15 to 2026-06-22 |
 | Issue closed range | 2016-01-25 to 2026-06-23 |
-| Scheduled crawler supplement capture | 2 Markdown page snapshots captured 2026-07-01 and 2026-07-03 |
+| Scheduled crawler supplement capture | 4 Markdown page snapshots captured 2026-07-01, 2026-07-03, 2026-07-11, and 2026-07-14 |
 
 Raw files:
 
@@ -56,6 +59,7 @@ Raw files:
 - [Issue comment API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-issue-comments-api-pages.json.gz)
 - Per-page raw evidence under `raw/github/nvidia-nccl-closed-issues/api-pages/` and `raw/github/nvidia-nccl-closed-issues/comment-pages/`.
 - [Scheduled crawler supplement manifest, 2026-07-01 and 2026-07-03](../../raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json)
+- [Scheduled crawler supplement manifest, 2026-07-11 and 2026-07-14](../../raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json)
 
 # Operational Signals
 
@@ -67,7 +71,16 @@ Keyword-derived themes in the summary are retrieval aids and are not mutually ex
 
 Closed-by-year counts are uneven, with 2025 dominating the captured closed set at 821 issues. Treat the year distribution as a repository process and triage signal, not as a direct defect-rate metric.
 
-The 2026-07 scheduled crawler supplement adds two page-level issue snapshots after the API corpus cutoff. Issue #2226 is a question about GIN, GPI versus GDAKI, QP selection, and NIC support for GPU-initiated networking. Issue #2024 reports Ring Broadcast hangs above 16M elements with `cudaIpcMemLazyEnablePeerAccess` on H200/NVSwitch, separate processes, Ray, EFA, and NCCL 2.27.5. These are discovery leads for the next full GitHub API refresh; they are not yet joined with repository comments in the API corpus.
+The 2026-07 scheduled crawler supplements add four page-level issue snapshots after the API corpus cutoff. Issue #2226 is a question about GIN, GPI versus GDAKI, QP selection, and NIC support for GPU-initiated networking. Issue #2024 reports Ring Broadcast hangs above 16M elements with `cudaIpcMemLazyEnablePeerAccess` on H200/NVSwitch, separate processes, Ray, EFA, and NCCL 2.27.5. Issue #2246 is a CuTeDSL NCCL device-API question/report where a host-created `ncclDevComm` pointer is passed into an H20 kernel and the report says the first device-side `dev_comm.lsa_rank` dereference fails with `cudaErrorIllegalAddress`. Issue #1957 is a GIN GDAKI mode report where `gin_alltoall_pure` with a 1500 MTU NIC hung and the reporter observed hard-coded 4K MTU behavior in `doca modify qp` / `doca modify QP` context. These are discovery leads for the next full GitHub API refresh; they are not yet joined with repository comments in the API corpus.
+
+## July 2026 Page-Level Supplement Boundaries
+
+| Issue | Captured | Page-visible signal | Boundary |
+| --- | --- | --- | --- |
+| #2226 | 2026-07-01 | GIN question about GPI versus GDAKI, QP selection, and NIC support for GPU-initiated networking. | Question-only page snapshot, not a comment-joined API refresh. |
+| #2024 | 2026-07-03 | Ring Broadcast hang report above 16M elements with `cudaIpcMemLazyEnablePeerAccess` on H200/NVSwitch, separate processes, Ray, EFA, and NCCL 2.27.5. | Single issue report, not a benchmark baseline or production postmortem. |
+| #2246 | 2026-07-11 | CuTeDSL device-API question/report about device-side dereference of a host-created `ncclDevComm` pointer on H20, failing at `dev_comm.lsa_rank` with `cudaErrorIllegalAddress`. [raw](../../raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md) | No maintainer reply, root cause, supported-configuration answer, fix status, or H20 compatibility rule is promoted. |
+| #1957 | 2026-07-14 | GIN GDAKI mode report where `gin_alltoall_pure` with a 1500 MTU NIC hung and the reporter observed hard-coded 4K MTU behavior in `doca modify qp` / `doca modify QP` context. [raw](../../raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md) | No DOCA/QP root cause, product fix, release-note guarantee, network compatibility rule, performance result, or production incident claim is promoted. |
 
 # Retrieval Notes
 
@@ -145,3 +158,6 @@ Reusable takeaway: the virtualization set is about NCCL running under GPU passth
 - [NCCL closed issue API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-closed-issues-api-pages.json.gz)
 - [NCCL issue comment API pages](../../raw/github/nvidia-nccl-closed-issues/nvidia-nccl-issue-comments-api-pages.json.gz)
 - [NCCL scheduled crawler supplement manifest, 2026-07-01 and 2026-07-03](../../raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json)
+- [NCCL scheduled crawler supplement manifest, 2026-07-11 and 2026-07-14](../../raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json)
+- [NCCL issue #2246 CuTeDSL device API question/report](../../raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md)
+- [NCCL issue #1957 GIN GDAKI MTU report](../../raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md)

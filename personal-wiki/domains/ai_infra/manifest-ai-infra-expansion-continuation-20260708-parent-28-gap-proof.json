@@ -1,0 +1,90 @@
+{
+  "task_id": "ai-infra-expansion-continuation-20260708-parent-28",
+  "layer": "training-distributed",
+  "candidate": {
+    "title": "NCCL July GIN and CuTeDSL issue supplement",
+    "source_type": "github_issue",
+    "identity_key": "github-supplement:nvidia/nccl:20260711-20260714:2246+1957"
+  },
+  "identity_keys": [
+    {
+      "title": "[Question]: How does the CuTeDSL device API legally dereference the host-side `ncclDevComm` on the device?",
+      "source_type": "github_issue",
+      "owner": "NVIDIA",
+      "repo": "nccl",
+      "number": 2246,
+      "identity_key": "github:nvidia/nccl#2246",
+      "canonical_url": "https://github.com/NVIDIA/nccl/issues/2246",
+      "content_hash": "59f0d966be2aa02cae518373a605c811eab65080177741f167aaada5aeeb1b83",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md",
+      "duplicate_status": "new_page_level_supplement_after_api_and_prior_supplement"
+    },
+    {
+      "title": "[Issue]: GIN gdaki mode hardcode 4K MTU in doca modify qp",
+      "source_type": "github_issue",
+      "owner": "NVIDIA",
+      "repo": "nccl",
+      "number": 1957,
+      "identity_key": "github:nvidia/nccl#1957",
+      "canonical_url": "https://github.com/NVIDIA/nccl/issues/1957",
+      "content_hash": "836c68b52ee591102201a7ef18cd3428f007c9863e5bcdcec549dd8c76df95d3",
+      "raw_path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md",
+      "duplicate_status": "new_page_level_supplement_after_api_and_prior_supplement"
+    }
+  ],
+  "local_checks": {
+    "raw_manifest_scan": "Read the two local scheduled crawler issue captures for #2246 and #1957 and checked the June joined NCCL API/comment corpus, the July 1/3 NCCL scheduled supplement manifest, existing NCCL curated pages, coverage-map.json, loop-state.json, ingest.md, and prior parent manifests. The June joined API/comment corpus curated scope ends at issues created through 2026-06-22 and closed through 2026-06-23; a zgrep for #2246/#1957 identities in the joined corpus returned no matches. The July 1/3 supplement contains only #2226 and #2024.",
+    "wiki_search": "Before parent-28, curated NCCL GitHub Closed Issues represented the joined API/comment corpus, the July 1/3 page-level supplement for #2226 and #2024, and the closed-issue workflow caveat. NCCL Release Notes already represented GIN terminology from NCCL 2.29.7, 2.30.3, 2.30.4, and 2.30.7. NCCL Arxiv Papers and parent-25 represented abstract discovery only. Curated pages, coverage-map.json, loop-state.json, and ingest.md did not contain #2246, #1957, CuTeDSL, ncclDevComm, cudaErrorIllegalAddress, gin_alltoall_pure, 1500 MTU, 4K MTU, or doca modify qp as promoted parent evidence.",
+    "domain_index_scan": "Read ai_infra wiki/index.md and nearby NCCL pages. The existing index routes NCCL operational issue evidence to NCCL GitHub Closed Issues and NCCL project pages, so parent-28 updates those pages and the coverage map instead of creating a new standalone page."
+  },
+  "duplicate_boundaries": [
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+      "result": "Duplicate boundary for the joined API/comment corpus through June 2026 and the July 1/3 #2226/#2024 supplement; parent-28 adds only #2246 and #1957 as later page-level issue snapshots."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260701-20260703.json",
+      "result": "Prior scheduled supplement includes GIN GPI/GDAKI QP-selection question #2226 and H20/H200 broadcast hang report #2024, but not #2246 or #1957."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+      "result": "Duplicate boundary for official release-note GIN terminology only; parent-28 does not turn issue #1957 into release-note or compatibility evidence."
+    },
+    {
+      "path": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-25-gap-proof.json",
+      "result": "Parent-25 covered NCCL arXiv abstract discovery and did not update GitHub issue coverage."
+    }
+  ],
+  "gap_reason": "The local NCCL corpus already had official release-note GIN terminology, a June joined closed-issue API/comment corpus, and a July 1/3 page-level supplement for #2226/#2024, but it did not represent the later issue #2246 CuTeDSL device-API question/report or issue #1957 GIN GDAKI MTU report. Parent-28 can add a bounded page-level issue supplement without duplicating earlier NCCL release-note, arXiv, technical-blog, or issue evidence.",
+  "planned_outputs": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+    "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/ingest.md"
+  ],
+  "promoted_boundaries": [
+    {
+      "surface": "nccl-github-closed-issues",
+      "coverage": "Issue #2246 as a CuTeDSL NCCL device-API question/report where a host-created `ncclDevComm` pointer passed into an H20 kernel failed on first device-side `dev_comm.lsa_rank` dereference with `cudaErrorIllegalAddress`."
+    },
+    {
+      "surface": "nccl-github-closed-issues",
+      "coverage": "Issue #1957 as a GIN GDAKI mode report where `gin_alltoall_pure` with a 1500 MTU NIC hung and the reporter observed hard-coded 4K MTU behavior in `doca modify qp` / `doca modify QP` context."
+    }
+  ],
+  "unpromoted_boundaries": [
+    "No maintainer replies, issue comments, root causes, confirmed fixes, release-note guarantees, platform support rules, benchmark baselines, production incidents, or service SLOs are inferred from the page bodies.",
+    "No CuTeDSL, ncclDevComm, H20, HMM, ATS, Grace-Hopper coherence, pinned-mapped memory, managed memory, device memory, GIN, GPI, GDAKI, DOCA, QP, or MTU behavior is generalized beyond the page-visible issue reports and existing release-note context.",
+    "The parent-28 knowledge supplement itself does not require accelerator structured data, source registry rows, benchmark tables, crawler code, frontend code, dashboard code, package files, or unrelated docs. This run-local task also carries separate harness recovery guardrail changes for the active remediation path."
+  ]
+}

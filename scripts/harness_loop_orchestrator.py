@@ -53,6 +53,7 @@ try:
         open_must_fix_findings,
     )
     from scripts.harness_loop_autonomous import (
+        ScopeCheckResult,
         check_autonomous_scope,
         check_supply_chain,
         create_default_coverage_map,
@@ -116,6 +117,7 @@ except ModuleNotFoundError:
         open_must_fix_findings,
     )
     from harness_loop_autonomous import (  # type: ignore[no-redef]
+        ScopeCheckResult,
         check_autonomous_scope,
         check_supply_chain,
         create_default_coverage_map,
@@ -3177,7 +3179,14 @@ def _write_expanded_fake_evidence(
         manifest_items.append(item)
 
     if include_manifest:
-        write_json_file(run_dir / "required-evidence-manifest.json", {"items": manifest_items})
+        write_json_file(
+            run_dir / "required-evidence-manifest.json",
+            {
+                "run_id": str(run["run_id"]),
+                "task_id": task_id,
+                "items": manifest_items,
+            },
+        )
 
 
 def _write_fake_autonomous_generator_result(
@@ -3598,6 +3607,103 @@ _AUTONOMOUS_COMMIT_CREATED_BY = "harness_loop_orchestrator"
 _AUTONOMOUS_COMMIT_STATE_KEY = "autonomous_commit_state"
 
 
+def _artifact_task_binding_error(
+    payload: Mapping[str, Any],
+    run: Mapping[str, Any],
+    label: str,
+    *,
+    require_run_id: bool = False,
+    require_task_id: bool = True,
+) -> str:
+    expected_run_id = str(run.get("run_id", "")).strip()
+    expected_task_id = str(run.get("task_id", "")).strip()
+    if require_run_id:
+        actual_run_id = str(payload.get("run_id", "")).strip()
+        if not expected_run_id:
+            return f"{label} cannot be bound because current run_id is empty"
+        if actual_run_id != expected_run_id:
+            return (
+                f"{label} run_id {actual_run_id or '<missing>'} "
+                f"does not match current run {expected_run_id}"
+            )
+    if require_task_id:
+        actual_task_id = str(payload.get("task_id", "")).strip()
+        if not expected_task_id:
+            return f"{label} cannot be bound because current task_id is empty"
+        if actual_task_id != expected_task_id:
+            return (
+                f"{label} task_id {actual_task_id or '<missing>'} "
+                f"does not match current task {expected_task_id}"
+            )
+    return ""
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, str) and item.strip()]
+
+
+def _current_task_planner_scope_patterns(
+    repo_root: Path,
+    run: Mapping[str, Any],
+) -> tuple[list[str], list[str]]:
+    try:
+        planner_output = read_json_file(
+            run_dir_for(repo_root, str(run["run_id"])) / "planner-output.json"
+        )
+        validate_planner_output_payload(planner_output)
+    except Exception:
+        return [], []
+    if _artifact_task_binding_error(planner_output, run, "planner-output.json"):
+        return [], []
+    return (
+        _string_list(planner_output.get("allowed_paths")),
+        _string_list(planner_output.get("denylist_paths")),
+    )
+
+
+def _check_autonomous_commit_scope(
+    changed_paths: Sequence[str],
+    allowed_patterns: Sequence[str],
+    denied_patterns: Sequence[str],
+    manual_patterns: Sequence[str],
+    planner_allowed_patterns: Sequence[str],
+) -> ScopeCheckResult:
+    if not planner_allowed_patterns:
+        return check_autonomous_scope(
+            changed_paths,
+            allowed_patterns,
+            denied_patterns,
+            manual_patterns,
+        )
+    planner_scope = check_autonomous_scope(
+        changed_paths,
+        planner_allowed_patterns,
+        denied_patterns,
+        [],
+    )
+    planner_allowed = set(planner_scope.allowed_paths)
+    remaining_paths = [path for path in changed_paths if path not in planner_allowed]
+    base_scope = check_autonomous_scope(
+        remaining_paths,
+        allowed_patterns,
+        denied_patterns,
+        manual_patterns,
+    )
+    allowed_paths = list(planner_scope.allowed_paths)
+    for path in base_scope.allowed_paths:
+        if path not in planner_allowed:
+            allowed_paths.append(path)
+    return ScopeCheckResult(
+        not base_scope.denied_paths and not base_scope.manual_confirm_paths,
+        allowed_paths,
+        base_scope.denied_paths,
+        base_scope.manual_confirm_paths,
+        base_scope.findings,
+    )
+
+
 def _commit_changed_paths(repo_root: Path, commit_sha: str) -> list[str]:
     try:
         result = subprocess.run(
@@ -3647,10 +3753,12 @@ def _verify_orchestrator_commit_resume_state(
     run: Mapping[str, Any],
     run_dir: Path,
     commit_sha: str,
+    *,
+    require_cleanup_phase: bool = True,
 ) -> str:
     if not commit_sha:
         return "missing commit"
-    if run.get("phase") != "cleanup":
+    if require_cleanup_phase and run.get("phase") != "cleanup":
         return "run is not in cleanup phase"
     state = run.get(_AUTONOMOUS_COMMIT_STATE_KEY)
     if not isinstance(state, dict):
@@ -3661,6 +3769,14 @@ def _verify_orchestrator_commit_resume_state(
         return "autonomous commit state commit does not match generator result"
     if state.get("created_by") != _AUTONOMOUS_COMMIT_CREATED_BY:
         return "autonomous commit state was not created by the orchestrator"
+    binding_error = _artifact_task_binding_error(
+        state,
+        run,
+        "autonomous commit state",
+        require_run_id=True,
+    )
+    if binding_error:
+        return binding_error
     state_changed_paths = _commit_state_changed_paths(state)
     if not state_changed_paths:
         return "autonomous commit state has no changed paths"
@@ -3677,6 +3793,14 @@ def _verify_orchestrator_commit_resume_state(
         return "commit-result.json commit does not match generator result"
     if payload.get("created_by") != _AUTONOMOUS_COMMIT_CREATED_BY:
         return "commit-result.json was not created by the orchestrator"
+    binding_error = _artifact_task_binding_error(
+        payload,
+        run,
+        "commit-result.json",
+        require_run_id=True,
+    )
+    if binding_error:
+        return binding_error
     if _commit_state_changed_paths(payload) != state_changed_paths:
         return "commit-result.json changed paths do not match run state"
     if commit_sha != _current_head(repo_root):
@@ -3731,9 +3855,42 @@ def _commit_autonomous_changes(
     bounded: bool = False,
 ) -> bool:
     run_dir = run_dir_for(repo_root, run["run_id"])
+    binding_error = _artifact_task_binding_error(
+        generator_result,
+        run,
+        "generator-result.json",
+    )
+    if binding_error:
+        write_json_file(
+            run_dir / "commit-result.json",
+            {
+                "status": "blocked",
+                "commit": str(generator_result.get("commit", "")).strip(),
+                "error": binding_error,
+                "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                "run_id": str(run["run_id"]),
+                "task_id": str(run.get("task_id", "")),
+            },
+        )
+        _stop_run(
+            repo_root,
+            run,
+            phase="stopped_blocked",
+            next_action="inspect_autonomous_commit",
+            last_result="blocked",
+        )
+        return False
     changed_paths = list(generator_result["changed_paths"])
     dirty_result = _check_autonomous_dirty_paths(repo_root, run, changed_paths)
     write_json_file(run_dir / "dirty-paths-result.json", dirty_result)
+    if not dirty_result["allowed"] and _protect_recovered_unrelated_dirt(
+        repo_root,
+        run,
+        generator_result,
+        dirty_result,
+    ):
+        dirty_result = _check_autonomous_dirty_paths(repo_root, run, changed_paths)
+        write_json_file(run_dir / "dirty-paths-result.json", dirty_result)
     if not dirty_result["allowed"]:
         _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_dirty_paths", last_result="blocked")
         return False
@@ -3746,11 +3903,16 @@ def _commit_autonomous_changes(
         "package*.json",
     ]
     allowed_patterns, denied_patterns, manual_patterns = policy_patterns_for_run(run, domain=run["domain"])
-    scope = check_autonomous_scope(
+    planner_allowed_patterns, planner_denied_patterns = _current_task_planner_scope_patterns(
+        repo_root,
+        run,
+    )
+    scope = _check_autonomous_commit_scope(
         changed_paths,
         allowed_patterns + dependency_allowed_paths,
-        denied_patterns,
+        denied_patterns + planner_denied_patterns,
         manual_patterns,
+        planner_allowed_patterns,
     )
     write_json_file(
         run_dir / "autonomous-scope-result.json",
@@ -3811,6 +3973,8 @@ def _commit_autonomous_changes(
                     "commit": supplied_commit,
                     "error": f"generator supplied commit without verified orchestrator run-state evidence: {commit_verification_error}",
                     "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                    "run_id": str(run["run_id"]),
+                    "task_id": str(run.get("task_id", "")),
                 },
             )
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
@@ -3830,6 +3994,8 @@ def _commit_autonomous_changes(
                     "commit": "",
                     "error": _command_failure_detail(exc),
                     "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
+                    "run_id": str(run["run_id"]),
+                    "task_id": str(run.get("task_id", "")),
                 },
             )
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
@@ -3850,6 +4016,8 @@ def _commit_autonomous_changes(
                     "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
                     "changed_paths": changed_paths,
                     "committed_paths": committed_paths,
+                    "run_id": str(run["run_id"]),
+                    "task_id": str(run.get("task_id", "")),
                 },
             )
             _stop_run(repo_root, run, phase="stopped_blocked", next_action="inspect_autonomous_commit", last_result="blocked")
@@ -3860,6 +4028,8 @@ def _commit_autonomous_changes(
             "error": "",
             "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
             "changed_paths": changed_paths,
+            "run_id": str(run["run_id"]),
+            "task_id": str(run.get("task_id", "")),
         }
         write_json_file(run_dir / "commit-result.json", commit_result)
         run[_AUTONOMOUS_COMMIT_STATE_KEY] = {
@@ -3867,6 +4037,8 @@ def _commit_autonomous_changes(
             "commit": commit_sha,
             "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
             "changed_paths": changed_paths,
+            "run_id": str(run["run_id"]),
+            "task_id": str(run.get("task_id", "")),
         }
         save_run(repo_root, run)
         generator_result["commit"] = commit_sha
@@ -4001,6 +4173,8 @@ def _push_autonomous_commit(repo_root: Path, run: Mapping[str, Any], commit_sha:
         "error": "",
         "created_by": _AUTONOMOUS_COMMIT_CREATED_BY,
         "attempted_at": _timestamp(),
+        "run_id": str(run["run_id"]),
+        "task_id": str(run.get("task_id", "")),
     }
     if branch != "main":
         result["status"] = "skipped"
@@ -4076,11 +4250,30 @@ def _resume_autonomous_push_block(repo_root: Path, run: dict[str, Any]) -> bool:
     state = run.get(_AUTONOMOUS_COMMIT_STATE_KEY)
     if not isinstance(state, Mapping) or not str(state.get("commit") or ""):
         return False
+    if _artifact_task_binding_error(state, run, "autonomous commit state", require_run_id=True):
+        return False
     commit_sha = str(state["commit"])
+    run_dir = run_dir_for(repo_root, str(run["run_id"]))
+    try:
+        generator_result = read_json_file(run_dir / "generator-result.json")
+        validate_generator_result_payload(generator_result)
+    except Exception:
+        return False
+    if _artifact_task_binding_error(generator_result, run, "generator-result.json"):
+        return False
+    if str(generator_result.get("commit", "")).strip() != commit_sha:
+        return False
+    if _verify_orchestrator_commit_resume_state(
+        repo_root,
+        run,
+        run_dir,
+        commit_sha,
+        require_cleanup_phase=False,
+    ):
+        return False
     result = _push_autonomous_commit(repo_root, run, commit_sha)
     if result["status"] not in {"pass", "skipped"}:
         return False
-    generator_result = read_json_file(run_dir_for(repo_root, str(run["run_id"])) / "generator-result.json")
     _publish_supervisor_freshness_target(repo_root, run, generator_result, commit_sha)
     return _finish_autonomous_cleanup(repo_root, str(run["run_id"]))
 
@@ -4094,12 +4287,15 @@ def _materialize_embedded_required_evidence_manifest(
     if not isinstance(manifest, Mapping):
         return None
     materialized = dict(manifest)
+    task_id = str(run.get("task_id", "")).strip()
+    materialized["run_id"] = str(run["run_id"])
+    if task_id:
+        materialized["task_id"] = task_id
     entries = materialized.get("items")
     if entries is None:
         entries = materialized.get("evidence")
     if isinstance(entries, list):
         copied_entries: list[Any] = []
-        task_id = str(run.get("task_id", "")).strip()
         for entry in entries:
             if not isinstance(entry, Mapping):
                 copied_entries.append(entry)
@@ -5194,6 +5390,28 @@ def _validate_required_evidence(
         findings.append("missing required-evidence-manifest.json")
 
     if manifest_payload is not None:
+        manifest_run_id = str(manifest_payload.get("run_id", "")).strip()
+        current_run_id = str(run.get("run_id", "")).strip()
+        if current_run_id and not manifest_run_id:
+            findings.append(
+                f"required-evidence-manifest.json missing current run_id {current_run_id}"
+            )
+        elif manifest_run_id != current_run_id:
+            findings.append(
+                f"required-evidence-manifest.json run_id {manifest_run_id} "
+                f"does not match current run {current_run_id}"
+            )
+        manifest_task_id = str(manifest_payload.get("task_id", "")).strip()
+        current_task_id = str(run.get("task_id", "")).strip()
+        if current_task_id and not manifest_task_id:
+            findings.append(
+                f"required-evidence-manifest.json missing current task_id {current_task_id}"
+            )
+        elif manifest_task_id != current_task_id:
+            findings.append(
+                f"required-evidence-manifest.json task_id {manifest_task_id} "
+                f"does not match current task {current_task_id}"
+            )
         trusted_live_state = _capture_trusted_live_evidence_for_manifest(repo_root, run, manifest_payload)
         _record_trusted_live_evidence_state(repo_root, run, trusted_live_state)
         findings.extend(
@@ -5526,6 +5744,8 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
     return (
         path.startswith(f".codex/loop-runs/{run_id}/")
         or path.startswith(".codex/loop-locks/")
+        or path.startswith(".codex/reviews/")
+        or path.startswith(".codex/evaluations/finals/")
         or path.startswith(".codex/service-runtime/")
         or path.startswith(".codex/supervisor/")
         or bool(
@@ -5540,6 +5760,12 @@ def _is_autonomous_internal_dirty_path(path: str, run_id: str, task_id: str) -> 
             ".codex/loop-supervisor-worker.log",
             ".codex/loop-supervisor-reviewer.log",
         }
+        or bool(
+            re.fullmatch(
+                r"\.codex/(crawler-backend|crawler-frontend|loop-dashboard)-\d+\.(log|pid)",
+                path,
+            )
+        )
         or (bool(task_id) and path.startswith(f".codex/evaluations/tasks/{task_id}/"))
         or path in _autonomous_runtime_artifact_paths(run_id)
     )
@@ -5571,10 +5797,16 @@ def _resume_autonomous_dirty_path_block(repo_root: Path, run: dict[str, Any]) ->
         validate_generator_result_payload(generator_result)
     except Exception:
         return False
+    if _artifact_task_binding_error(generator_result, run, "generator-result.json"):
+        return False
     dirty_result = _check_autonomous_dirty_paths(repo_root, run, list(generator_result["changed_paths"]))
     write_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json", dirty_result)
     if not dirty_result["allowed"] and _protect_recovered_unrelated_dirt(
-        repo_root, run, generator_result, dirty_result
+        repo_root,
+        run,
+        generator_result,
+        dirty_result,
+        allow_evaluator_recovery=True,
     ):
         dirty_result = _check_autonomous_dirty_paths(
             repo_root, run, list(generator_result["changed_paths"])
@@ -5645,7 +5877,17 @@ def _protect_recovered_unrelated_dirt(
     run: dict[str, Any],
     generator_result: Mapping[str, Any],
     dirty_result: Mapping[str, Any],
+    *,
+    allow_evaluator_recovery: bool = False,
 ) -> bool:
+    recovery = generator_result.get("recovery")
+    if isinstance(recovery, Mapping):
+        next_required_action = str(recovery.get("next_required_action", "")).strip()
+        allowed_next_actions = {"commit", "cleanup"}
+        if allow_evaluator_recovery:
+            allowed_next_actions.add("run_evaluator")
+        if next_required_action and next_required_action not in allowed_next_actions:
+            return False
     if not _recovered_artifact_hashes_match(repo_root, generator_result):
         return False
     changed_paths = [str(path) for path in generator_result.get("changed_paths", [])]
@@ -5698,6 +5940,8 @@ def _resume_autonomous_required_evidence_block(repo_root: Path, run: dict[str, A
         generator_result = read_json_file(generator_result_path)
         validate_generator_result_payload(generator_result)
     except Exception:
+        return False
+    if _artifact_task_binding_error(generator_result, run, "generator-result.json"):
         return False
     _refresh_recovered_required_evidence_manifest(repo_root, run, generator_result)
     required_evidence = [str(item) for item in run.get("required_evidence", []) if isinstance(item, str)]
@@ -5804,6 +6048,10 @@ def _resume_autonomous_commit_block(repo_root: Path, run: dict[str, Any]) -> boo
         validate_generator_result_payload(generator_result)
         commit_result = read_json_file(run_dir / "commit-result.json")
     except Exception:
+        return False
+    if _artifact_task_binding_error(generator_result, run, "generator-result.json"):
+        return False
+    if _artifact_task_binding_error(commit_result, run, "commit-result.json", require_run_id=True):
         return False
     if commit_result.get("status") != "blocked" or str(commit_result.get("commit", "")).strip():
         return False
@@ -6281,6 +6529,14 @@ def _run_bounded_push(repo_root: Path, request: ActionRequest) -> ActionResult:
             raise RuntimeError(f"push requires committed; current phase is {run['phase']}")
         generator_path = run_dir_for(repo_root, request.run_id) / "generator-result.json"
         generator_result = read_json_file(generator_path)
+        validate_generator_result_payload(generator_result)
+        binding_error = _artifact_task_binding_error(
+            generator_result,
+            run,
+            "generator-result.json",
+        )
+        if binding_error:
+            raise RuntimeError(binding_error)
         commit_sha = str(generator_result.get("commit") or "")
         if not commit_sha:
             raise RuntimeError("push requires generator-result commit")

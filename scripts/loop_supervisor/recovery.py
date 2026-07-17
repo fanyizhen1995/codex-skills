@@ -601,10 +601,25 @@ def inspect_partial_artifacts(
         dirty = _read_owned_object(run_dir, dirty_path, "dirty paths manifest")
         declared = tuple(str(item) for item in dirty.get("declared_paths", []))
         actual = tuple(str(item) for item in dirty.get("actual_paths", []))
+        ignored = tuple(str(item) for item in dirty.get("ignored_paths", []))
+        unexpected = tuple(str(item) for item in dirty.get("unexpected_paths", []))
         if not declared:
             raise ValueError("declared paths are empty")
-        if set(actual) != set(declared) or dirty.get("unexpected_paths"):
-            raise PermissionError("actual paths do not equal declared paths")
+        if unexpected:
+            raise PermissionError(f"unexpected dirty paths: {sorted(set(unexpected))}")
+        declared_set = set(declared)
+        actual_set = set(actual)
+        missing_declared = declared_set - actual_set
+        if missing_declared:
+            raise PermissionError(
+                f"actual paths are missing declared paths: {sorted(missing_declared)}"
+            )
+        unaccounted_actual = actual_set - declared_set - set(ignored)
+        if unaccounted_actual:
+            raise PermissionError(
+                "actual paths include undeclared paths not covered by ignored_paths: "
+                f"{sorted(unaccounted_actual)}"
+            )
         current_dirty = _git_dirty_paths(root)
         if any(path not in current_dirty for path in declared):
             raise ValueError("declared changed path is not currently dirty")

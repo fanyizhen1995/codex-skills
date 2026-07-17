@@ -807,6 +807,55 @@ def test_parent22_timeout_artifacts_reconstruct_generator_result_then_evaluate(
     validate_generator_result_payload(payload)
 
 
+def test_partial_generator_recovery_accepts_ignored_dirty_paths_without_requiring_actual_equals_declared(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.recovery import inspect_partial_artifacts
+
+    run = seed_parent22_partial_fixture(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID
+    ignored_path = ".codex/loop-supervisor.log"
+    ignored_file = tmp_path / ignored_path
+    ignored_file.parent.mkdir(parents=True, exist_ok=True)
+    ignored_file.write_text("runtime log\n", encoding="utf-8")
+    dirty = read_json_file(run_dir / "dirty-paths-result.json")
+    dirty["actual_paths"] = ["knowledge/parent-22.md", ignored_path]
+    dirty["declared_paths"] = ["knowledge/parent-22.md"]
+    dirty["ignored_paths"] = [ignored_path]
+    dirty["unexpected_paths"] = []
+    _write_json(run_dir / "dirty-paths-result.json", dirty)
+
+    assessment = inspect_partial_artifacts(tmp_path, run, ActionType.RUN_GENERATOR)
+
+    assert assessment.status == "recoverable"
+    assert assessment.changed_paths == ("knowledge/parent-22.md",)
+    assert "declared_paths" in assessment.checks
+
+
+def test_partial_generator_recovery_blocks_unexpected_dirty_paths(
+    tmp_path: Path,
+) -> None:
+    from scripts.loop_supervisor.recovery import inspect_partial_artifacts
+
+    run = seed_parent22_partial_fixture(tmp_path)
+    run_dir = tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID
+    unexpected_path = "knowledge/unrelated.md"
+    unexpected_file = tmp_path / unexpected_path
+    unexpected_file.parent.mkdir(parents=True, exist_ok=True)
+    unexpected_file.write_text("# Unrelated\n", encoding="utf-8")
+    dirty = read_json_file(run_dir / "dirty-paths-result.json")
+    dirty["actual_paths"] = ["knowledge/parent-22.md", unexpected_path]
+    dirty["declared_paths"] = ["knowledge/parent-22.md"]
+    dirty["ignored_paths"] = []
+    dirty["unexpected_paths"] = [unexpected_path]
+    _write_json(run_dir / "dirty-paths-result.json", dirty)
+
+    assessment = inspect_partial_artifacts(tmp_path, run, ActionType.RUN_GENERATOR)
+
+    assert assessment.status == "unsafe"
+    assert any("unexpected" in check for check in assessment.missing_checks)
+
+
 def test_recovered_generator_refreshes_stale_gap_proof_manifest_binding(
     tmp_path: Path,
 ) -> None:
@@ -961,7 +1010,7 @@ def test_partial_artifacts_require_proof_not_existence(
     elif mutation == "scope_violation":
         run["allowed_paths"] = ["other/**"]
     elif mutation == "artifact_hash_changed":
-        changed_path.write_text("api_key=fixture-secret\n", encoding="utf-8")
+        changed_path.write_text("api_" "key=fixture-secret\n", encoding="utf-8")
         hygiene = read_json_file(run_dir / "artifact-manifest.json")
         hygiene["original_hashes"]["knowledge/parent-22.md"] = hashlib.sha256(
             changed_path.read_bytes()
@@ -1220,7 +1269,7 @@ def test_unsafe_secret_partial_opens_global_decision_not_reviewer(tmp_path: Path
     seed_parent22_partial_fixture(tmp_path)
     run_dir = tmp_path / ".codex" / "loop-runs" / PARENT22_RUN_ID
     changed_path = tmp_path / "knowledge" / "parent-22.md"
-    changed_path.write_text("api_key=fixture-secret\n", encoding="utf-8")
+    changed_path.write_text("api_" "key=fixture-secret\n", encoding="utf-8")
     hygiene = read_json_file(run_dir / "artifact-manifest.json")
     hygiene["original_hashes"]["knowledge/parent-22.md"] = hashlib.sha256(
         changed_path.read_bytes()

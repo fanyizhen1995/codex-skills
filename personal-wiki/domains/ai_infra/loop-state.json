@@ -987,6 +987,26 @@
         "personal-wiki/domains/ai_infra/wiki/references/data-rag-pipeline-infrastructure.md",
         "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
       ]
+    },
+    {
+      "id": "nccl-july-gin-cutedsl-issue-supplement-parent-28",
+      "title": "NCCL July GIN and CuTeDSL issue supplement",
+      "source": "local NCCL GitHub closed-issue page captures",
+      "status": "known",
+      "updated_at": "2026-07-16T00:00:00Z",
+      "evidence": [
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.ingest-plan.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md",
+        "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1-gap-proof.json",
+        "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+        "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md",
+        "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+        "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md"
+      ]
     }
   ],
   "coverage_gaps": [

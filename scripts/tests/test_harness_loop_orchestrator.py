@@ -26,7 +26,13 @@ from scripts.harness_loop_contracts import (
 )
 from scripts.harness_ai_infra_evidence import trusted_live_evidence_artifact_path
 from scripts.tests.legacy_audit_fixtures import fake_audit_report
-from scripts.harness_loop_autonomous import NoActionDecision, create_default_loop_state, write_loop_state
+from scripts.harness_loop_autonomous import (
+    NoActionDecision,
+    check_autonomous_scope,
+    create_default_loop_state,
+    policy_patterns_for_run,
+    write_loop_state,
+)
 from scripts.harness_loop_governance import classify_candidate
 from scripts.harness_loop_orchestrator import (
     confirm_preflight,
@@ -36,6 +42,7 @@ from scripts.harness_loop_orchestrator import (
     save_run,
     status_for_run,
 )
+from scripts.loop_supervisor.models import ActionRequest, ActionResultClass, ActionType
 
 
 def run_auditor(*_args: object, **_kwargs: object) -> None:
@@ -96,6 +103,33 @@ def test_skill_invocation_prompt_names_canonical_hash_field_and_format() -> None
     assert "Only report repository-owned skill files" in prompt
     assert "repo-relative POSIX path" in prompt
     assert "Do not report skills under ~/.codex" in prompt
+
+
+def test_policy_patterns_allow_exact_auto_remediation_harness_paths_from_reviewer_directive() -> None:
+    run = {
+        "domain": "ai_infra",
+        "allowed_paths": [
+            "personal-wiki/domains/**/wiki/**",
+            "personal-wiki/domains/**/raw/**",
+        ],
+        "denylist_paths": [".env", "**/.env"],
+        "manual_confirm_paths": ["tasks.json", "progress.md", "docs/**", "scripts/**"],
+        "reviewer_directives": [{"decision": "auto_remediate"}],
+    }
+    changed_paths = [
+        "scripts/harness_loop_autonomous.py",
+        "scripts/harness_loop_orchestrator.py",
+        "scripts/loop_supervisor/recovery.py",
+        "scripts/tests/test_harness_loop_orchestrator.py",
+        "scripts/tests/test_harness_loop_supervisor_recovery.py",
+        "docs/harness/loop-policies/autonomous-knowledge-ai-infra-expanded.json",
+    ]
+
+    allowed, denied, manual = policy_patterns_for_run(run, domain="ai_infra")
+    scope = check_autonomous_scope(changed_paths, allowed, denied, manual)
+
+    assert scope.allowed, scope.findings
+    assert sorted(scope.allowed_paths) == sorted(changed_paths)
 
 
 def write_fake_evaluator_scenario(repo_root: Path, task_id: str) -> Path:
@@ -438,15 +472,21 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             ).stdout.strip()
 
             result = harness_loop_orchestrator._push_autonomous_commit(
-                repo_root, {"run_id": run_id, "branch": "main"}, commit_sha
+                repo_root,
+                {"run_id": run_id, "task_id": "push-task", "branch": "main"},
+                commit_sha,
             )
 
             self.assertEqual(result["status"], "pass")
             self.assertEqual(result["remote"], "origin")
             self.assertEqual(result["branch"], "main")
             self.assertEqual(result["commit"], commit_sha)
+            self.assertEqual(result["run_id"], run_id)
+            self.assertEqual(result["task_id"], "push-task")
             persisted = read_json_file(run_dir_for(repo_root, run_id) / "push-result.json")
             self.assertEqual(persisted["status"], "pass")
+            self.assertEqual(persisted["run_id"], run_id)
+            self.assertEqual(persisted["task_id"], "push-task")
             remote_head = subprocess.run(
                 ["git", "--git-dir", str(remote), "rev-parse", "refs/heads/main"],
                 check=True,
@@ -771,7 +811,14 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "artifacts": [artifact_relative],
                 }
             )
-        write_json_file(run_dir / "required-evidence-manifest.json", {"items": items})
+        write_json_file(
+            run_dir / "required-evidence-manifest.json",
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "items": items,
+            },
+        )
 
     def _trusted_live_state_from_manifest(
         self,
@@ -1864,6 +1911,214 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             dirty_result = read_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json")
             self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
 
+    def test_check_autonomous_dirty_paths_ignores_runtime_review_and_final_evaluator_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            task_id = f"{run_id}-task-2"
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "domain": "ai_infra",
+                "baseline_dirty_paths": [],
+            }
+            ignored_paths = [
+                ".codex/crawler-backend-8765.log",
+                ".codex/crawler-frontend-5173.log",
+                ".codex/loop-dashboard-8766.log",
+                ".codex/reviews/review-20260716T233017Z-b1096a7982ec/result.json",
+                ".codex/evaluations/finals/final-20260716T233017Z/result.json",
+            ]
+            for relative in ignored_paths:
+                path = repo_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("runtime evidence\n", encoding="utf-8")
+
+            dirty_result = harness_loop_orchestrator._check_autonomous_dirty_paths(
+                repo_root,
+                run,
+                [],
+            )
+
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertEqual(dirty_result["unexpected_paths"], [])
+            self.assertEqual(dirty_result["ignored_paths"], sorted(ignored_paths))
+
+    def test_commit_autonomous_changes_protects_hashed_recovery_artifacts_from_unrelated_dirty_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Recover generator artifact",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-2"
+            run.update({"phase": "cleanup", "task_id": task_id})
+            save_run(repo_root, run)
+            changed_path = "personal-wiki/domains/ai_infra/wiki/references/recovered.md"
+            unrelated_path = "personal-wiki/domains/ai_infra/wiki/references/unrelated.md"
+            for relative, content in (
+                (changed_path, "# Recovered\n"),
+                (unrelated_path, "# Unrelated user work\n"),
+            ):
+                path = repo_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            changed_hash = hashlib.sha256((repo_root / changed_path).read_bytes()).hexdigest()
+            generator_result = {
+                "task_id": task_id,
+                "status": "implemented",
+                "changed_paths": [changed_path],
+                "commit": "",
+                "verify_commands": ["python3 -m pytest -q fixture"],
+                "verify_results": [
+                    {
+                        "command": "python3 -m pytest -q fixture",
+                        "status": "pass",
+                        "summary": "fixture passed",
+                    }
+                ],
+                "artifacts": [changed_path],
+                "cleanup_required": False,
+                "notes": "Recovered from validated partial Generator artifacts.",
+                "skill_invocations": [],
+                "recovery": {
+                    "recovered_from_attempts": [3],
+                    "artifact_hashes": {changed_path: changed_hash},
+                },
+            }
+
+            with patch.object(harness_loop_orchestrator, "_run_wiki_validate", return_value=True):
+                committed = harness_loop_orchestrator._commit_autonomous_changes(
+                    repo_root,
+                    run,
+                    generator_result,
+                    bounded=True,
+                )
+
+            self.assertTrue(committed)
+            self.assertEqual(
+                harness_loop_orchestrator._commit_changed_paths(repo_root, generator_result["commit"]),
+                [changed_path],
+            )
+            saved = load_run(repo_root, run_id)
+            self.assertIn(f"?? {unrelated_path}", saved["baseline_dirty_paths"])
+            dirty_result = read_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json")
+            self.assertTrue(dirty_result["allowed"], json.dumps(dirty_result, indent=2))
+            self.assertEqual(dirty_result["unexpected_paths"], [])
+
+    def test_commit_autonomous_changes_blocks_unhashed_unrelated_dirty_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Recover generator artifact",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            task_id = f"{run_id}-task-2"
+            run.update({"phase": "cleanup", "task_id": task_id})
+            save_run(repo_root, run)
+            changed_path = "personal-wiki/domains/ai_infra/wiki/references/recovered.md"
+            unrelated_path = "personal-wiki/domains/ai_infra/wiki/references/unrelated.md"
+            for relative, content in (
+                (changed_path, "# Recovered\n"),
+                (unrelated_path, "# Unrelated user work\n"),
+            ):
+                path = repo_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            generator_result = {
+                "task_id": task_id,
+                "status": "implemented",
+                "changed_paths": [changed_path],
+                "commit": "",
+                "verify_commands": ["python3 -m pytest -q fixture"],
+                "verify_results": [
+                    {
+                        "command": "python3 -m pytest -q fixture",
+                        "status": "pass",
+                        "summary": "fixture passed",
+                    }
+                ],
+                "artifacts": [changed_path],
+                "cleanup_required": False,
+                "notes": "Recovered artifact without hash provenance must not absorb unrelated dirt.",
+                "skill_invocations": [],
+                "recovery": {"recovered_from_attempts": [3], "artifact_hashes": {}},
+            }
+
+            with patch.object(harness_loop_orchestrator, "_run_wiki_validate", return_value=True):
+                committed = harness_loop_orchestrator._commit_autonomous_changes(
+                    repo_root,
+                    run,
+                    generator_result,
+                    bounded=True,
+                )
+
+            self.assertFalse(committed)
+            self.assertEqual(generator_result["commit"], "")
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "stopped_blocked")
+            self.assertEqual(saved["next_action"], "inspect_autonomous_dirty_paths")
+            dirty_result = read_json_file(run_dir_for(repo_root, run_id) / "dirty-paths-result.json")
+            self.assertFalse(dirty_result["allowed"])
+            self.assertIn(unrelated_path, dirty_result["unexpected_paths"])
+
+    def test_autonomous_dirty_path_block_rejects_stale_generator_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": f"{run_id}-parent-1",
+                    "next_action": "inspect_autonomous_dirty_paths",
+                    "last_result": "blocked",
+                }
+            )
+            save_run(repo_root, run)
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": "stale-task",
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "Stale result must not recover current dirty paths.",
+                    "skill_invocations": [],
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_dirty_path_block(repo_root, run)
+
+            self.assertFalse(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "stopped_blocked")
+
     def test_autonomous_required_evidence_block_reenters_cleanup_after_revalidation_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -1912,6 +2167,51 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(saved["next_action"], "commit_autonomous_changes")
             required_evidence_result = read_json_file(run_dir_for(repo_root, run_id) / "required-evidence-result.json")
             self.assertEqual(required_evidence_result["status"], "pass")
+
+    def test_autonomous_required_evidence_block_rejects_stale_generator_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "ai-infra-expansion-continuation-20260708"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": f"{run_id}-parent-4",
+                    "next_action": "inspect_required_evidence",
+                    "last_result": "blocked",
+                    "required_evidence": [],
+                }
+            )
+            save_run(repo_root, run)
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": "stale-parent-task",
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "Stale result must not recover the current task.",
+                    "skill_invocations": [],
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_required_evidence_block(repo_root, run)
+
+            self.assertFalse(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "stopped_blocked")
 
     def test_run_autonomous_supports_codex_exec_agents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2812,6 +3112,7 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             repo_root = Path(tmp)
             init_git_repo(repo_root)
             run_id = "demo-run"
+            task_id = "demo-run-task"
             run_dir = run_dir_for(repo_root, run_id)
             run_dir.mkdir(parents=True, exist_ok=True)
             committed_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/committed.md"
@@ -2844,12 +3145,15 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             declared_paths = [committed_path, declared_but_clean_path]
             run = {
                 "run_id": run_id,
+                "task_id": task_id,
                 "phase": "cleanup",
                 "autonomous_commit_state": {
                     "status": "committed",
                     "commit": commit_sha,
                     "created_by": "harness_loop_orchestrator",
                     "changed_paths": declared_paths,
+                    "run_id": run_id,
+                    "task_id": task_id,
                 },
             }
             write_json_file(
@@ -2860,6 +3164,8 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
                     "error": "",
                     "created_by": "harness_loop_orchestrator",
                     "changed_paths": declared_paths,
+                    "run_id": run_id,
+                    "task_id": task_id,
                 },
             )
 
@@ -2871,6 +3177,444 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             )
 
             self.assertIn(declared_but_clean_path, error)
+
+    def test_autonomous_commit_resume_state_rejects_commit_state_for_other_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "demo-run"
+            task_id = "demo-run-task"
+            run_dir = run_dir_for(repo_root, run_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            changed_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/committed.md"
+            path = repo_root / changed_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Committed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "--", changed_path], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["git", "commit", "-m", "test: commit path", "--", changed_path], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            commit_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "phase": "cleanup",
+                "autonomous_commit_state": {
+                    "status": "committed",
+                    "commit": commit_sha,
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": [changed_path],
+                    "run_id": run_id,
+                    "task_id": "stale-task",
+                },
+            }
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "pass",
+                    "commit": commit_sha,
+                    "error": "",
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": [changed_path],
+                    "run_id": run_id,
+                    "task_id": task_id,
+                },
+            )
+
+            error = harness_loop_orchestrator._verify_orchestrator_commit_resume_state(
+                repo_root,
+                run,
+                run_dir,
+                commit_sha,
+            )
+
+            self.assertIn("task_id", error)
+            self.assertIn("stale-task", error)
+
+    def test_autonomous_commit_resume_state_rejects_commit_result_for_other_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "demo-run"
+            task_id = "demo-run-task"
+            run_dir = run_dir_for(repo_root, run_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            changed_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/committed.md"
+            path = repo_root / changed_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Committed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "--", changed_path], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["git", "commit", "-m", "test: commit path", "--", changed_path], cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            commit_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+            run = {
+                "run_id": run_id,
+                "task_id": task_id,
+                "phase": "cleanup",
+                "autonomous_commit_state": {
+                    "status": "committed",
+                    "commit": commit_sha,
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": [changed_path],
+                    "run_id": run_id,
+                    "task_id": task_id,
+                },
+            }
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "pass",
+                    "commit": commit_sha,
+                    "error": "",
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": [changed_path],
+                    "run_id": run_id,
+                    "task_id": "stale-task",
+                },
+            )
+
+            error = harness_loop_orchestrator._verify_orchestrator_commit_resume_state(
+                repo_root,
+                run,
+                run_dir,
+                commit_sha,
+            )
+
+            self.assertIn("task_id", error)
+            self.assertIn("stale-task", error)
+
+    def test_resume_autonomous_commit_block_rejects_stale_generator_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "demo-run"
+            task_id = "demo-run-task"
+            changed_path = "personal-wiki/domains/ai_infra/raw/loop-autonomous/retry.md"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            target = repo_root / changed_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# Retry commit\n", encoding="utf-8")
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "next_action": "inspect_autonomous_commit",
+                    "last_result": "blocked",
+                    "task_id": task_id,
+                }
+            )
+            save_run(repo_root, run)
+            run_dir = run_dir_for(repo_root, run_id)
+            write_json_file(
+                run_dir / "generator-result.json",
+                {
+                    "task_id": "stale-task",
+                    "status": "implemented",
+                    "changed_paths": [changed_path],
+                    "commit": "",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [changed_path],
+                    "cleanup_required": False,
+                    "notes": "Retry a transient commit failure.",
+                    "skill_invocations": [],
+                },
+            )
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "blocked",
+                    "commit": "",
+                    "error": "transient index lock",
+                    "created_by": "harness_loop_orchestrator",
+                    "run_id": run_id,
+                    "task_id": task_id,
+                },
+            )
+
+            resumed = harness_loop_orchestrator._resume_autonomous_commit_block(repo_root, run)
+
+            self.assertFalse(resumed)
+            saved = load_run(repo_root, run_id)
+            self.assertEqual(saved["phase"], "stopped_blocked")
+
+    def test_commit_autonomous_changes_rejects_stale_generator_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id="demo-run",
+                domain="ai_infra",
+                confirm=True,
+            )
+            run["task_id"] = "current-task"
+            run["phase"] = "cleanup"
+            save_run(repo_root, run)
+            generator_result = {
+                "task_id": "stale-task",
+                "status": "implemented",
+                "changed_paths": [],
+                "commit": "",
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": [],
+                "cleanup_required": False,
+                "notes": "Stale generator output must not pass commit gates.",
+                "skill_invocations": [],
+            }
+
+            with patch.object(harness_loop_orchestrator, "_check_autonomous_dirty_paths") as dirty_check:
+                committed = harness_loop_orchestrator._commit_autonomous_changes(
+                    repo_root,
+                    run,
+                    generator_result,
+                    bounded=True,
+                )
+
+            self.assertFalse(committed)
+            dirty_check.assert_not_called()
+            saved = load_run(repo_root, "demo-run")
+            self.assertEqual(saved["phase"], "stopped_blocked")
+            self.assertEqual(saved["next_action"], "inspect_autonomous_commit")
+            commit_result = read_json_file(run_dir_for(repo_root, "demo-run") / "commit-result.json")
+            self.assertIn("stale-task", commit_result["error"])
+
+    def test_commit_autonomous_changes_accepts_current_planner_allowed_harness_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "remediation-run"
+            task_id = f"{run_id}-task-1"
+            changed_path = "scripts/harness_loop_orchestrator.py"
+            target = repo_root / changed_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# harness remediation\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", changed_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "test: harness remediation", "--", changed_path],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            commit_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout.strip()
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Repair harness",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            run.update(
+                {
+                    "phase": "cleanup",
+                    "task_id": task_id,
+                    "autonomous_commit_state": {
+                        "status": "committed",
+                        "commit": commit_sha,
+                        "created_by": "harness_loop_orchestrator",
+                        "changed_paths": [changed_path],
+                        "run_id": run_id,
+                        "task_id": task_id,
+                    },
+                }
+            )
+            save_run(repo_root, run)
+            run_dir = run_dir_for(repo_root, run_id)
+            write_json_file(
+                run_dir / "planner-output.json",
+                {
+                    "task_id": task_id,
+                    "policy": "autonomous_knowledge",
+                    "task_kind": "autonomous_implementation_task",
+                    "title": "Repair harness",
+                    "goal": "Allow active remediation harness paths.",
+                    "non_goals": [],
+                    "allowed_paths": [changed_path],
+                    "denylist_paths": [],
+                    "verify_commands": [],
+                    "evaluator_scenarios_path": "",
+                    "stop_conditions": [],
+                    "next_planning_hint": "",
+                    "skill_invocations": [],
+                },
+            )
+            write_json_file(
+                run_dir / "commit-result.json",
+                {
+                    "status": "pass",
+                    "commit": commit_sha,
+                    "error": "",
+                    "created_by": "harness_loop_orchestrator",
+                    "changed_paths": [changed_path],
+                    "run_id": run_id,
+                    "task_id": task_id,
+                },
+            )
+            generator_result = {
+                "task_id": task_id,
+                "status": "implemented",
+                "changed_paths": [changed_path],
+                "commit": commit_sha,
+                "verify_commands": [],
+                "verify_results": [],
+                "artifacts": [changed_path],
+                "cleanup_required": False,
+                "notes": "Current planner explicitly allowed a harness remediation path.",
+                "skill_invocations": [],
+            }
+
+            with patch.object(harness_loop_orchestrator, "_run_wiki_validate", return_value=True):
+                committed = harness_loop_orchestrator._commit_autonomous_changes(
+                    repo_root,
+                    run,
+                    generator_result,
+                    bounded=True,
+                )
+
+            self.assertTrue(committed)
+            scope_result = read_json_file(run_dir / "autonomous-scope-result.json")
+            self.assertTrue(scope_result["allowed"])
+            self.assertIn(changed_path, scope_result["allowed_paths"])
+            self.assertNotIn(changed_path, scope_result["manual_confirm_paths"])
+
+    def test_resume_autonomous_push_block_rejects_stale_generator_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "demo-run"
+            task_id = "demo-run-task"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            run.update(
+                {
+                    "phase": "stopped_blocked",
+                    "task_id": task_id,
+                    "next_action": "retry_autonomous_push",
+                    "last_result": "blocked",
+                    "autonomous_commit_state": {
+                        "status": "committed",
+                        "commit": "abc123",
+                        "created_by": "harness_loop_orchestrator",
+                        "changed_paths": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/push.md"],
+                        "run_id": run_id,
+                        "task_id": task_id,
+                    },
+                }
+            )
+            save_run(repo_root, run)
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": "stale-task",
+                    "status": "implemented",
+                    "changed_paths": ["personal-wiki/domains/ai_infra/raw/loop-autonomous/push.md"],
+                    "commit": "abc123",
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "Stale generator output must not drive push retry.",
+                    "skill_invocations": [],
+                },
+            )
+
+            with patch.object(harness_loop_orchestrator, "_push_autonomous_commit") as push_commit:
+                resumed = harness_loop_orchestrator._resume_autonomous_push_block(repo_root, run)
+
+            self.assertFalse(resumed)
+            push_commit.assert_not_called()
+
+    def test_bounded_push_rejects_stale_generator_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            init_git_repo(repo_root)
+            run_id = "bounded-push-run"
+            task_id = "bounded-push-run-task"
+            run = create_preflight_run(
+                repo_root=repo_root,
+                mode="autonomous-knowledge",
+                requirement="Expand wiki",
+                run_id=run_id,
+                domain="ai_infra",
+                confirm=True,
+            )
+            run.update(
+                {
+                    "phase": "committed",
+                    "next_action": "push_autonomous_commit",
+                    "task_id": task_id,
+                }
+            )
+            save_run(repo_root, run)
+            commit_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout.strip()
+            write_json_file(
+                run_dir_for(repo_root, run_id) / "generator-result.json",
+                {
+                    "task_id": "stale-task",
+                    "status": "implemented",
+                    "changed_paths": [],
+                    "commit": commit_sha,
+                    "verify_commands": [],
+                    "verify_results": [],
+                    "artifacts": [],
+                    "cleanup_required": False,
+                    "notes": "Stale generator output must not drive bounded push.",
+                    "skill_invocations": [],
+                },
+            )
+            request = ActionRequest(
+                action_id="bounded-push-stale-generator",
+                run_id=run_id,
+                run_revision=0,
+                policy="autonomous_knowledge",
+                phase="committed",
+                action_type=ActionType.PUSH,
+                idempotency_key="bounded-push-stale-generator",
+                task_id=task_id,
+                next_action="push_autonomous_commit",
+                payload={},
+            )
+
+            with patch.object(harness_loop_orchestrator, "_push_autonomous_commit") as push_commit:
+                result = harness_loop_orchestrator._run_bounded_push(repo_root, request)
+
+            self.assertIsNot(result.result_class, ActionResultClass.SUCCESS)
+            self.assertIn("stale-task", result.summary)
+            push_commit.assert_not_called()
 
     def test_run_autonomous_blocks_and_records_commit_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3522,6 +4266,86 @@ class HarnessLoopOrchestratorTests(unittest.TestCase):
             self.assertEqual(result["status"], "blocked")
             self.assertTrue(
                 any("must contain an items list" in finding for finding in result["findings"]),
+                result,
+            )
+
+    def test_validate_required_evidence_blocks_manifest_for_other_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = run_dir_for(repo_root, "expanded-run")
+            run_dir.mkdir(parents=True, exist_ok=True)
+            write_json_file(run_dir / "artifacts" / "secret-scan.json", {"status": "pass"})
+            write_json_file(
+                run_dir / "required-evidence-manifest.json",
+                {
+                    "run_id": "expanded-run",
+                    "task_id": "stale-task",
+                    "items": [
+                        {
+                            "evidence_id": "secret-scan",
+                            "status": "pass",
+                            "summary": "secret scan captured",
+                            "artifacts": ["artifacts/secret-scan.json"],
+                        }
+                    ],
+                },
+            )
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "current-task",
+                "domain": "ai_infra",
+            }
+
+            result = harness_loop_orchestrator._validate_required_evidence(
+                repo_root,
+                run,
+                ["secret scan evidence"],
+            )
+
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(
+                any("stale-task" in finding and "current-task" in finding for finding in result["findings"]),
+                result,
+            )
+
+    def test_validate_required_evidence_blocks_manifest_without_current_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run_dir = run_dir_for(repo_root, "expanded-run")
+            run_dir.mkdir(parents=True, exist_ok=True)
+            write_json_file(run_dir / "artifacts" / "secret-scan.json", {"status": "pass"})
+            write_json_file(
+                run_dir / "required-evidence-manifest.json",
+                {
+                    "items": [
+                        {
+                            "evidence_id": "secret-scan",
+                            "status": "pass",
+                            "summary": "secret scan captured",
+                            "artifacts": ["artifacts/secret-scan.json"],
+                        }
+                    ],
+                },
+            )
+            run = {
+                "run_id": "expanded-run",
+                "task_id": "current-task",
+                "domain": "ai_infra",
+            }
+
+            result = harness_loop_orchestrator._validate_required_evidence(
+                repo_root,
+                run,
+                ["secret scan evidence"],
+            )
+
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(
+                any("missing current run_id" in finding for finding in result["findings"]),
+                result,
+            )
+            self.assertTrue(
+                any("missing current task_id" in finding for finding in result["findings"]),
                 result,
             )
 

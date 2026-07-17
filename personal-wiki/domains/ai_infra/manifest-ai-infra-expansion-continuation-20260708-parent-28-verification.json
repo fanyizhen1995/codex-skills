@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "run_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774",
+  "task_id": "ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1",
+  "semantic_parent_task_id": "ai-infra-expansion-continuation-20260708-parent-28",
+  "generated_at": "2026-07-17T02:12:47Z",
+  "summary": "Repaired parent-28 NCCL evidence binding for the active run-local task-1 artifact while preserving the existing bounded NCCL issue facts. #2246 remains a CuTeDSL NCCL device-API question/report involving a host-created ncclDevComm pointer passed into an H20 kernel and failing at first device-side dev_comm.lsa_rank dereference with cudaErrorIllegalAddress. #1957 remains a GIN GDAKI mode report where gin_alltoall_pure with a 1500 MTU NIC hung and the reporter observed hard-coded 4K MTU behavior in doca modify qp / doca modify QP context. The repair updates only evidence-path bindings and verification metadata; it does not claim root cause, fix status, release-note guarantee, benchmark baseline, production postmortem, service SLO, or general compatibility rule.",
+  "changed_paths": [
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260711T233734924283Z-github-com-nvidia-nccl-issues-2246-59f0d966be.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json",
+    "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.ingest-plan.md",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1-gap-proof.json",
+    "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json",
+    "personal-wiki/domains/ai_infra/coverage-map.json",
+    "personal-wiki/domains/ai_infra/ingest.md",
+    "personal-wiki/domains/ai_infra/loop-state.json",
+    "personal-wiki/domains/ai_infra/wiki/projects/nccl.md",
+    "personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md",
+    "personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md"
+  ],
+  "verify_results": [
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_planner_output_payload; validate_planner_output_payload(json.loads(Path('.codex/loop-runs/ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774/planner-output.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Planner output payload satisfies the harness loop contract."
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki index ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/wiki/index.md"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki backlinks --domain ai_infra --write-json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/wiki/backlinks.json"
+    },
+    {
+      "command": "python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No validation issues"
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/coverage-map.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/loop-state.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1-gap-proof.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1-gap-proof.json parsed successfully."
+    },
+    {
+      "command": "python3 -m json.tool personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json parsed successfully."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-parent-28'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Semantic parent-28 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"from scripts.harness_ai_infra_evidence import validate_gap_proof_file; findings=validate_gap_proof_file('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1-gap-proof.json', expected_task_id='ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1'); raise SystemExit('\\n'.join(findings) if findings else 0)\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local task-1 gap proof passed the harness gap-proof validator."
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; from scripts.harness_loop_contracts import validate_coverage_map_payload, validate_loop_state_payload; validate_coverage_map_payload(json.loads(Path('personal-wiki/domains/ai_infra/coverage-map.json').read_text())); validate_loop_state_payload(json.loads(Path('personal-wiki/domains/ai_infra/loop-state.json').read_text()))\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "coverage-map.json and loop-state.json satisfy harness loop contracts."
+    },
+    {
+      "command": "python3 -c \"import json; from pathlib import Path; p=Path('personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json'); data=json.loads(p.read_text()); assert data.get('run_id') == 'ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774', data.get('run_id'); assert data.get('task_id') == 'ai-infra-expansion-continuation-20260708-continuation-002-continuation-007-continuation-26b4d5f774-task-1', data.get('task_id')\"",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Parent-28 verification metadata points at the active run/task."
+    },
+    {
+      "command": "stale-reference scan over parent-28 evidence targets",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No stale old run-local gap-proof references remain in parent-28 evidence targets."
+    },
+    {
+      "command": "rg -n \"26b4d5f774-task-1-gap-proof|parent-28|2246|1957|CuTeDSL|ncclDevComm|GDAKI|gin_alltoall_pure\" personal-wiki/domains/ai_infra/coverage-map.json personal-wiki/domains/ai_infra/loop-state.json personal-wiki/domains/ai_infra/wiki/references/ai-infra-coverage-map.md personal-wiki/domains/ai_infra/wiki/references/nccl-github-closed-issues.md personal-wiki/domains/ai_infra/wiki/references/nccl-release-notes.md personal-wiki/domains/ai_infra/wiki/projects/nccl.md personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-gap-proof.json personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json:5: \"semantic_parent_task_id\": \"ai-infra-expansion-continuation-20260708-parent-28\", personal-wiki/domains/ai_infra/manifest-ai-infra-expansion-continuation-20260708-parent-28-verification.json:7: \"summary\": \"Repaired parent-28 NCCL evidence binding for the active run-local task-1 artifact while preserving the existing bounded NCCL issue facts. #2246 remains a CuTeDSL NCCL device-API question/report involving a host-created ncclDevComm pointer passed into an H20 kernel and failing at first device-side dev_comm.lsa_rank dereference with cudaErrorIllegalAddress. #1957 remains a GIN GDAKI"
+    },
+    {
+      "command": "git diff --check -- personal-wiki/domains/ai_infra",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No whitespace errors in changed ai_infra paths."
+    },
+    {
+      "command": "boundary check that stale task-1 artifacts are not referenced by parent-28 evidence targets",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No full or short stale old run-local reference remains in coverage-map.json, loop-state.json, ai-infra-coverage-map.md, parent-28 gap proof, or parent-28 verification."
+    },
+    {
+      "command": "boundary check that only evidence binding and verification metadata changed; NCCL issue facts remain bounded",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Parent-28 text still labels #2246/#1957 as page-level issue supplement evidence and retains caveats against joined refresh, confirmed root cause/fix, benchmark, SLO, release-note guarantee, and general compatibility claims."
+    },
+    {
+      "command": "autonomous scope check for declared changed paths against planner-output.json and policy allow/deny lists",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Declared repository paths are under personal-wiki/domains/ai_infra/**, avoid denylist patterns, and do not include the old run-local gap proof."
+    },
+    {
+      "command": "targeted sensitive-pattern scan over declared changed files",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No credential-like values, AWS access keys, or private-key blocks were detected in declared changed files."
+    },
+    {
+      "command": "dependency/code-change applicability check; backend/frontend/dashboard/package tests are not applicable unless those files change; harness tests cover the recovery guardrail changes",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "No backend, frontend, dashboard, package, dependency, or service configuration files are declared changed. Harness recovery code/tests are handled by the task-level verify commands."
+    },
+    {
+      "command": "trusted live evidence or direct visibility checks for service availability, crawler-workbench freshness, search-api visibility, frontend visibility, loop-dashboard freshness, loop-auto-resume freshness, and loop-supervisor freshness",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Per generator instructions, no localhost probes, sockets, tmux, uvicorn, npm, Vite, or long-lived services were started. Live semantic evidence is declared for orchestrator capture in required_evidence_manifest."
+    },
+    {
+      "command": "required-evidence-manifest.json write in run directory",
+      "status": "pass",
+      "exit_code": 0,
+      "summary": "Run-local required-evidence-manifest.json is written for the active task-8 generator result. Live semantic artifacts remain delegated to orchestrator-owned trusted evidence capture."
+    },
+    {
+      "command": "commit-result and push-result evidence for the repaired independent parent-28 wiki/crawler commit",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "Generator intentionally did not commit, push, or fill the commit field. The orchestrator commits after gates pass."
+    },
+    {
+      "command": "parent-task-level auditor cadence check after parent-28 acceptance",
+      "status": "delegated",
+      "exit_code": null,
+      "summary": "After parent-28 acceptance, the orchestrator/supervisor should determine from loop-state and reviewer artifacts whether the ordinary two-parent Auditor gate is due before planning parent-29."
+    }
+  ],
+  "delegated_live_evidence": [
+    {
+      "evidence_id": "service-availability",
+      "artifact": "trusted-live-evidence/service-availability.json"
+    },
+    {
+      "evidence_id": "crawler-workbench-freshness",
+      "artifact": "trusted-live-evidence/crawler-workbench-freshness.json"
+    },
+    {
+      "evidence_id": "loop-dashboard-freshness",
+      "artifact": "trusted-live-evidence/loop-dashboard-freshness.json"
+    },
+    {
+      "evidence_id": "search-api-visibility",
+      "artifact": "trusted-live-evidence/search-api-visibility.json"
+    },
+    {
+      "evidence_id": "frontend-visibility",
+      "artifact": "trusted-live-evidence/frontend-visibility.json"
+    }
+  ],
+  "boundaries": [
+    "No external sources were fetched.",
+    "No GitHub comments, maintainer replies, API corpus refresh, DOCA source pages, or release-note pages were fetched or inferred.",
+    "#2246 and #1957 remain page-level scheduled crawler supplement evidence only.",
+    "Evidence lists now reference the active run-local task-1 gap proof instead of the old run-local gap proof.",
+    "No accelerator catalog, benchmark table, source registry, crawler profile, backend, frontend, dashboard, package, tasks.json, progress.md, or unrelated docs were changed. Harness changes are limited to current-run/current-task recovery guardrails.",
+    "Run directory writes are available for generator-result.json and required-evidence-manifest.json. Live service probes remain delegated to orchestrator-owned trusted evidence."
+  ]
+}

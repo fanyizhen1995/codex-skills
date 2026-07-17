@@ -19,6 +19,7 @@ source_refs:
   - ../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md
   - ../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json
   - ../../raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json
+  - ../../raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json
 updated: 2026-07-16
 aliases:
   - NVIDIA Collective Communications Library
@@ -47,6 +48,8 @@ The local wiki has three complementary NCCL evidence sets:
 - [NCCL Arxiv Papers](../references/nccl-arxiv-papers.md) indexes scheduled crawler discovery leads for NCCL-level communication strategy, collective-compression research, heterogeneous collective libraries, distributed training synchronization, RDMA fault tolerance, GPU-initiated networking, multi-node LLM inference communication, and the July 12 abstract refresh for CTA-Pipelining, Adaptive Space-efficient Collectives, and the DynamiQ v3 version update.
 
 The closed issue corpus captures 1,589 closed GitHub issues and 7,325 comments associated with those issues. GitHub `state_reason` splits the captured closed issues into 921 `completed` and 668 `not_planned` items, so a closed issue should not automatically be interpreted as a product fix.
+
+The July 11/14 scheduled NCCL issue supplement adds two later page-level issue reports after the joined API/comment corpus and after the July 1/3 #2226/#2024 supplement. Issue #2246 is a CuTeDSL device-API question/report about passing a host-created `ncclDevComm` pointer into an H20 kernel and failing on the first device-side `dev_comm.lsa_rank` dereference with `cudaErrorIllegalAddress`. Issue #1957 is a GIN GDAKI mode report about `gin_alltoall_pure`, a 1500 MTU NIC, and reporter-observed hard-coded 4K MTU behavior in `doca modify qp` / `doca modify QP` context. Both remain page-level issue evidence, not confirmed fixes, release-note guarantees, production postmortems, benchmarks, or general compatibility rules.
 
 # Usage
 
@@ -79,3 +82,4 @@ The closed issue corpus captures 1,589 closed GitHub issues and 7,325 comments a
 - [NCCL 2.22 cost-estimation raw capture](../../raw/crawler/nccl-technical-blog/20260626T015704298674Z-developer-nvidia-com-blog-memory-efficiency-faster-initialization-and-cost-estimation-with-32a1d0c118.md)
 - [AI infra scheduled crawler refresh manifest, 2026-07-05 to 2026-07-07](../../raw/crawler/manifest-20260705-20260707-scheduled-refresh.json)
 - [NCCL arXiv papers July 12 refresh manifest](../../raw/crawler/nccl-arxiv-papers/manifest-20260712-nccl-arxiv-refresh.json)
+- [NCCL July 11/14 GIN and CuTeDSL issue supplement manifest](../../raw/crawler/nccl-github-closed-issues/manifest-20260711-20260714-nccl-gin-cutedsl.json)

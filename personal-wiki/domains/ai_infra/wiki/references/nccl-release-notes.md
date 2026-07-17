@@ -74,7 +74,8 @@ source_refs:
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-0-5-html.md
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-0-4-html.md
   - ../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-rel-2-0-2-html.md
-updated: 2026-07-02
+  - ../../raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md
+updated: 2026-07-16
 aliases:
   - NVIDIA NCCL release notes
   - NCCL changelog
@@ -185,6 +186,8 @@ For field reports and issue discussions that are not necessarily represented in 
 
 The local NCCL release-note evidence uses GIN context terminology, not CUDA Green Context terminology. For CUDA Green Context evidence in this domain, use [NVIDIA Green Context](../concepts/nvidia-green-context.md), which currently points to the SGLang GitHub corpus.
 
+The July 2026 issue supplement adds issue-level GIN/GDAKI field evidence adjacent to this terminology: #1957 reports `gin_alltoall_pure` hanging with a 1500 MTU NIC and reporter-observed hard-coded 4K MTU behavior in `doca modify qp` / `doca modify QP` context. Treat that as a GitHub issue report in [NCCL GitHub Closed Issues](nccl-github-closed-issues.md), not as a release-note fix, compatibility statement, or documented behavior guarantee. [raw](../../raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md)
+
 # Relationships
 
 - [NCCL](../projects/nccl.md) is the curated project page for the library described by these release notes.
@@ -195,3 +198,4 @@ The local NCCL release-note evidence uses GIN context terminology, not CUDA Gree
 
 - [Official NCCL release-note index](../../raw/links/docs-nvidia-com-deeplearning-nccl-release-notes-index-html.md)
 - Per-version raw pages are linked in the release catalog above.
+- [NCCL issue #1957 GIN GDAKI MTU report](../../raw/crawler/nccl-github-closed-issues/20260714T234017093594Z-github-com-nvidia-nccl-issues-1957-836c68b52e.md)
