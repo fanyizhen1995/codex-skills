@@ -12,6 +12,24 @@
   },
   "tasks": [
     {
+      "id": "ai-infra-selection-governor-01",
+      "title": "Add diversity governance to AI Infra autonomous selection",
+      "description": "Add a deterministic pre-Planner Selection Governor that enforces rolling topic-family quotas, weakest-layer priority, semantic novelty, stale network-gap reprobes, raw backlog classification, and Evaluator/Reviewer evidence gates before autonomous AI Infra expansion resumes.",
+      "status": "todo",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "python3 -m pytest -q scripts/tests/test_harness_ai_infra_selection.py scripts/tests/test_harness_loop_contracts.py scripts/tests/test_harness_loop_supervisor_reviewer.py scripts/tests/test_harness_loop_supervisor.py && python3 scripts/ai_infra_selection_e2e_evaluator.py --repo-root . --output-dir .codex/ai-infra-selection-e2e/ai-infra-selection-governor-01 && python3 personal-wiki/tools/wiki_cli/cli.py --root personal-wiki validate --domain ai_infra && python3 -m json.tool personal-wiki/domains/ai_infra/selection-policy.json >/dev/null && python3 -m json.tool personal-wiki/domains/ai_infra/coverage-map.json >/dev/null && python3 -m json.tool personal-wiki/domains/ai_infra/loop-state.json >/dev/null && curl --noproxy '*' -fsS http://127.0.0.1:8765/api/health >/dev/null && curl --noproxy '*' -fsSI http://127.0.0.1:5173/ >/dev/null && curl --noproxy '*' -fsS http://127.0.0.1:8766/api/health >/dev/null && python3 -m json.tool tasks.json >/dev/null && git diff --check",
+      "requires_eval": true,
+      "eval_policy": {
+        "task_level_required": true,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
       "id": "crawler-tailnet-remote-access-01",
       "title": "Restore trusted Tailnet access to crawler and dashboard services",
       "description": "Expose the crawler frontend, crawler backend, and Loop Dashboard through Tailnet-only HTTPS endpoints and allow the fixed project MagicDNS hostname in the Vite development server without weakening host validation globally.",
