@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-07-17 Tailnet Remote Access Restoration
+
+- Restored trusted remote access without exposing the unauthenticated services publicly: Tailscale Serve now proxies crawler frontend `8441`, crawler backend `8442`, and Loop Dashboard `8443` while preserving the existing Codex Web route on `443`.
+- Fixed the crawler frontend's Vite host validation by allowlisting only `spark-8c85.tail04bc15.ts.net`; `allowedHosts: true` remains prohibited.
+- Added a regression test for the fixed MagicDNS hostname and documented the remote URLs plus recovery commands in `AGENTS.md`.
+- Exact task verification passed: focused Vitest `1 passed`, frontend production build succeeded, all four Tailnet HTTPS page/API probes succeeded, `tasks.json` parsed, and `git diff --check` passed.
+- Browser evidence: Playwright loaded the remote crawler and Loop Dashboard pages over Tailnet HTTPS, the crawler `/api/health` proxy returned `status=ok`, and both pages reported zero JavaScript page errors. Screenshots were written to `/tmp/crawler-tailnet-remote.png` and `/tmp/loop-dashboard-tailnet-remote.png`.
+
 ## 2026-07-16 Unified Loop Supervisor Completion
 
 - Completed `loop-supervisor-unification-01`: one SQLite-backed Supervisor now owns reconciliation, bounded Planner/Generator/Evaluator scheduling, recovery, project-global Reviewer cadence, user decisions, service keepalive, and Dashboard projections; the Worker remains the independent action executor.

@@ -12,6 +12,24 @@
   },
   "tasks": [
     {
+      "id": "crawler-tailnet-remote-access-01",
+      "title": "Restore trusted Tailnet access to crawler and dashboard services",
+      "description": "Expose the crawler frontend, crawler backend, and Loop Dashboard through Tailnet-only HTTPS endpoints and allow the fixed project MagicDNS hostname in the Vite development server without weakening host validation globally.",
+      "status": "done",
+      "priority": "high",
+      "blocked_by": "",
+      "verify": "cd personal-wiki/apps/crawler_workbench/frontend && . \"$HOME/.nvm/nvm.sh\" && npm test -- src/vite-config.test.ts && npm run build && cd /home/fyz/codex-skills && curl --noproxy '*' -fsS https://spark-8c85.tail04bc15.ts.net:8441/ >/dev/null && curl --noproxy '*' -fsS https://spark-8c85.tail04bc15.ts.net:8441/api/health >/dev/null && curl --noproxy '*' -fsS https://spark-8c85.tail04bc15.ts.net:8442/api/health >/dev/null && curl --noproxy '*' -fsS https://spark-8c85.tail04bc15.ts.net:8443/api/health >/dev/null && python3 -m json.tool tasks.json >/dev/null && git diff --check",
+      "requires_eval": false,
+      "eval_policy": {
+        "task_level_required": false,
+        "final_level_required": false,
+        "task_scope": "local_repo_and_personal_wiki",
+        "final_scope": "report_and_artifacts",
+        "max_task_eval_attempts": 3,
+        "max_final_eval_attempts": 2
+      }
+    },
+    {
       "id": "crawler-domain-channels-model-01",
       "title": "Add crawler workbench domain channel model",
       "description": "Implement the backend schema migration, SQLite-as-source-of-truth import rules, generated channels, source channel_id and fetcher_type compatibility fields, and source/channel listing APIs for Domain Channel Management.",

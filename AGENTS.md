@@ -72,6 +72,25 @@ python3 -m uvicorn loop_dashboard.main:app --host 0.0.0.0 --port 8766
 
 密钥文件属于已忽略的运行时状态；重启时复用，禁止提交或每次重新生成。Loop Dashboard 访问：`http://127.0.0.1:8766`。它无登录能力，只读展示 `.codex/loop-runs` 和 evaluator artifacts；只在可信网络中绑定 `0.0.0.0`。
 
+### Tailnet 远程访问
+
+远程浏览器不能使用上面的 `127.0.0.1` 地址；该地址会指向浏览器所在机器。当前项目通过 Tailscale Serve 提供仅 Tailnet 可见的 HTTPS 入口，禁止改成公网 Funnel：
+
+- Crawler frontend：`https://spark-8c85.tail04bc15.ts.net:8441/`
+- Crawler backend：`https://spark-8c85.tail04bc15.ts.net:8442/`
+- Loop Dashboard：`https://spark-8c85.tail04bc15.ts.net:8443/`
+
+首次配置时用 `sudo tailscale set --operator=$USER` 授权当前系统用户管理 Serve；不要在文档、日志或命令历史中记录 sudo 密码。恢复入口时保留现有 `443` Codex Web 路由，并分别执行：
+
+```bash
+tailscale serve --bg --yes --https=8441 http://127.0.0.1:5173
+tailscale serve --bg --yes --https=8442 http://127.0.0.1:8765
+tailscale serve --bg --yes --https=8443 http://127.0.0.1:8766
+tailscale serve status
+```
+
+Crawler frontend 的 `vite.config.ts` 必须只放行固定 MagicDNS 主机名，不得使用 `allowedHosts: true`。远程验收至少检查 frontend 页面、frontend `/api/health` 代理、backend `/api/health` 和 Dashboard `/api/health`。
+
 Loop 运行时统一由 Supervisor 和 Worker 两个长驻进程组成。标准命令、迁移、回滚和健康检查见 `docs/harness/loop-supervisor.md`。不要启动独立 auto-resume watcher，也不要从 legacy harness CLI 运行多轮 loop 或 Auditor。Task 10 完成切换门禁前，Task 9 代码不得停止或替换现有 live executor。
 
 ```bash
